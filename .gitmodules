@@ -1,0 +1,3 @@
+[submodule "ia-batch-utils"]
+	path = ia-batch-utils
+	url = git@gitlab.invicrodev.com:image_analysis/ia-batch-utils.git
