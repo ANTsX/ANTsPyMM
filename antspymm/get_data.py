@@ -97,7 +97,7 @@ def get_data( name=None, force_download=False, version=1, target_extension='.csv
 
 
 
-def dewarp_imageset( image_list, output_prefix=None ):
+def dewarp_imageset( image_list, iterations=None, **kwargs ):
     """
     Dewarp a set of images
 
@@ -110,11 +110,14 @@ def dewarp_imageset( image_list, output_prefix=None ):
     ---------
     image_list : list containing antsImages 2D, 3D or 4D
 
-    output_prefix : if present, will save transformations to this directory/prefix
+    iterations : number of template building iterations
+
+    kwargs : keyword args
+        arguments passed to ants registration - these must be set explicitly
 
     Returns
     -------
-    a list of the transformed images
+    a dictionary with the mean image and the list of the transformed images
 
     Example
     -------
@@ -123,17 +126,26 @@ def dewarp_imageset( image_list, output_prefix=None ):
     outlist = []
     avglist = []
     if len(image_list[0].shape) > 3:
+        imagetype = 3
         for k in range(len(image_list)):
             avglist.append( ants.slice_image( image_list[k], axis=3, idx=0 ) )
     else:
+        imagetype = 0
         avglist=image_list
 
-    btp = ants.build_template( image_list=avglist )
+    if iterations is None:
+        iterations = 2
+
+    btp = ants.build_template( image_list=avglist,
+        gradient_step=0.5, blending_weight=0.8,
+        iterations=iterations, **kwargs )
 
     # last - warp all images to this frame
     for k in range(len(image_list)):
-        mymoco = ants.motion_correction( image_list[k], fixed=btp, type_of_transform='SyN' )
-        # FIXME should also return motion parameters etc
-        outlist.append( mymoco['motion_corrected']  )
+        reg=ants.registration( btp, avglist[k], **kwargs )
+        # now apply the transformation parameters to all in the time series, if needed
+        mywarped = ants.apply_transforms( btp, image_list[k], reg['fwdtransforms'], imagetype=imagetype )
+        outlist.append( mywarped )
 
-    return outlist
+
+    return {'dewarpedmean':btp, 'dewarped':outlist }

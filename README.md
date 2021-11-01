@@ -49,11 +49,8 @@ import ants
 
 img1 = ants.image_read( antspymm.get_data( "I1499279_Anon_20210819142214_5", target_extension=".nii.gz") )
 img2 = ants.image_read( antspymm.get_data( "I1499337_Anon_20210819142214_6", target_extension=".nii.gz") )
-i1=ants.slice_image( img1, axis=3, idx=0 )
-i2=ants.slice_image( img2, axis=3, idx=0 )
-btp = ants.build_template( image_list=[i1,i2] )
 dwp = antspymm.dewarp_imageset( [img1,img2] )
-
+# now write out the mean and dewarped images for further processing, eg with dipy
 
 ```
 
