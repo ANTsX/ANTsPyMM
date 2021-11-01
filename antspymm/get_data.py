@@ -97,7 +97,7 @@ def get_data( name=None, force_download=False, version=1, target_extension='.csv
 
 
 
-def dewarp_imageset( image_list, iterations=None, **kwargs ):
+def dewarp_imageset( image_list, iterations=None, padding=0, **kwargs ):
     """
     Dewarp a set of images
 
@@ -111,6 +111,8 @@ def dewarp_imageset( image_list, iterations=None, **kwargs ):
     image_list : list containing antsImages 2D, 3D or 4D
 
     iterations : number of template building iterations
+
+    padding:  will pad the images by an integer amount to limit edge effects
 
     kwargs : keyword args
         arguments passed to ants registration - these must be set explicitly
@@ -135,6 +137,13 @@ def dewarp_imageset( image_list, iterations=None, **kwargs ):
 
     if iterations is None:
         iterations = 2
+
+    if padding > 0:
+        pw=[]
+        for k in range(len(avglist[0].shape)):
+            pw.append( padding )
+        for k in range(len(avglist)):
+            avglist[k] = ants.pad_image( avglist[k], pad_width=pw  )
 
     btp = ants.build_template( image_list=avglist,
         gradient_step=0.5, blending_weight=0.8,
