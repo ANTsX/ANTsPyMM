@@ -17,8 +17,9 @@ testingClass = unittest.TestCase( )
 
 img1 = ants.image_read( antspymm.get_data( "I1499279_Anon_20210819142214_5", target_extension=".nii.gz") )
 img2 = ants.image_read( antspymm.get_data( "I1499337_Anon_20210819142214_6", target_extension=".nii.gz") )
-dwp = antspymm.dewarp_imageset( [img1,img2], iterations=4, padding=4,
-    syn_sampling=16, syn_metric='mattes', type_of_transform='SyN',
+dwp = antspymm.dewarp_imageset( [img1,img2], iterations=4, padding=8,
+    syn_sampling=16, syn_metric='mattes', type_of_transform='Elastic',
+    total_sigma = 0.5,
     aff_metric='GC', random_seed=1,
     reg_iterations = [200,200,200,20] )
 moco0 = ants.motion_correction( image=dwp['dewarped'][0],  fixed=dwp['dewarpedmean'], type_of_transform='Rigid' )

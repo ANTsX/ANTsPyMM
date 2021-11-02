@@ -1,5 +1,5 @@
 
-__all__ = ['get_data','dewarp_dti']
+__all__ = ['get_data','dewarp_imageset','super_res_mcimage']
 
 from pathlib import Path
 import os
@@ -158,3 +158,70 @@ def dewarp_imageset( image_list, iterations=None, padding=0, **kwargs ):
 
 
     return {'dewarpedmean':btp, 'dewarped':outlist }
+
+
+def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
+    poly_order=1,
+    target_range=[-127.5,127.5],
+    verbose=False ):
+    """
+    Super resolution on a timeseries or multi-channel image
+
+    Arguments
+    ---------
+    image : an antsImage
+
+    srmodel : a tensorflow fully convolutional model
+
+    truncation :  quantiles at which we truncate intensities to limit impact of outliers e.g. [0.005,0.995]
+
+    poly_order : if not None, will fit a global regression model to map
+        intensity back to original histogram space
+
+    target_range : 2-element tuple
+        a tuple or array defining the (min, max) of the input image
+        (e.g., -127.5, 127.5).  Output images will be scaled back to original
+        intensity. This range should match the mapping used in the training
+        of the network.
+
+    verbose : boolean
+
+    Returns
+    -------
+    super resolution version of the image
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    idim = image.dimension
+    ishape = image.shape
+    nTimePoints = ishape[idim - 1]
+    mcsr = list()
+    counter = 0
+    for k in range(nTimePoints):
+        mycount = round(k / nTimePoints * 100)
+        if verbose and mycount == counter:
+            counter = counter + 10
+            print(mycount, end="%.", flush=True)
+        temp = ants.slice_image( image, axis=idim - 1, idx=k )
+        temp = ants.iMath( temp, "TruncateIntensity", truncation[0], truncation[1] )
+        mysr = antspynet.apply_super_resolution_model_to_image( temp, srmodel,
+            target_range = target_range )
+        if k == 0:
+            upshape = list()
+            for j in range(len(ishape)-1):
+                upshape.append( mysr.shape[j] )
+            upshape.append( ishape[ idim-1 ] )
+            if verbose:
+                print("SR will be of voxel size:" + str(upshape) )
+        if poly_order is not None:
+            bilin = ants.resample_image_to_target( temp, mysr )
+            mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
+        mcsr.append( mysr )
+
+    imageup = ants.resample_image( image, upshape, use_voxels = True )
+    if verbose:
+        print("Done")
+
+    return ants.list_to_ndimage( imageup, mcsr )
