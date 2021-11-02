@@ -237,7 +237,7 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
 
 
 
-def dipy_dti_recon( image, bvalsfn, bvecsfn ):
+def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 3, numpass = 1, dilate = 2 ):
     """
     Super resolution on a timeseries or multi-channel image
 
@@ -248,6 +248,12 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn ):
     bvalsfn : bvalue filename
 
     bvecsfn : bvector filename
+
+    median_radius : median_radius from dipy median_otsu function
+
+    numpass : numpass from dipy median_otsu function
+
+    dilate : dilate from dipy median_otsu function
 
     Returns
     -------
@@ -265,7 +271,13 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn ):
     for x in range(1, 5):
       data3d = data3d + data[:,:,:,0] * 1/6
 
-    maskdata, mask = median_otsu(data, vol_idx=range(0, 5), median_radius=3, numpass=1, autocrop=True, dilate=2)
+    maskdata, mask = median_otsu(
+        data,
+        vol_idx=range(0, 5),
+        median_radius = 3,
+        numpass = 1,
+        autocrop = True,
+        dilate = dilate )
 
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(maskdata)
