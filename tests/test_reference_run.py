@@ -22,8 +22,8 @@ dwp = antspymm.dewarp_imageset( [img1,img2], iterations=4, padding=8,
     total_sigma = 0.5,
     aff_metric='GC', random_seed=1,
     reg_iterations = [200,200,200,20] )
-moco0 = ants.motion_correction( image=dwp['dewarped'][0],  fixed=dwp['dewarpedmean'], type_of_transform='Rigid' )
-moco1 = ants.motion_correction( image=dwp['dewarped'][1],  fixed=dwp['dewarpedmean'], type_of_transform='Rigid' )
+moco0 = ants.motion_correction( image=dwp['dewarped'][0],  fixed=dwp['dewarpedmean'], type_of_transform='BOLDRigid' )
+moco1 = ants.motion_correction( image=dwp['dewarped'][1],  fixed=dwp['dewarpedmean'], type_of_transform='BOLDRigid' )
 # ants.image_write( dwp['dewarpedmean'], '/Users/stnava/Downloads/PPMI_DTI_EX/processed/mean.nii.gz' )
 # ants.image_write( moco0['motion_corrected'], '/Users/stnava/Downloads/PPMI_DTI_EX/processed/dwp0.nii.gz' )
 # ants.image_write( moco1['motion_corrected'], '/Users/stnava/Downloads/PPMI_DTI_EX/processed/dwp1.nii.gz' )
