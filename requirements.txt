@@ -6,3 +6,5 @@ antspynet>=0.0
 antspyt1w>=0.2.3
 tensorflow>=2.2
 pathlib
+dipy
+nibabel

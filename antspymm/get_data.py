@@ -1,7 +1,8 @@
 
-__all__ = ['get_data','dewarp_imageset','super_res_mcimage']
+__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon']
 
 from pathlib import Path
+from pathlib import PurePath
 import os
 import pandas as pd
 import math
@@ -14,6 +15,14 @@ import random
 import functools
 from operator import mul
 from scipy.sparse.linalg import svds
+
+from dipy.core.histeq import histeq
+import dipy.reconst.dti as dti
+from dipy.core.gradients import (gradient_table, gradient_table_from_gradient_strength_bvecs)
+from dipy.io.gradients import read_bvals_bvecs
+from dipy.segment.mask import median_otsu
+from dipy.reconst.dti import fractional_anisotropy, color_fa
+import nibabel as nib
 
 import ants
 import antspynet
@@ -225,3 +234,50 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
         print("Done")
 
     return ants.list_to_ndimage( imageup, mcsr )
+
+
+
+def dipy_dti_recon( image, bvalsfn, bvecsfn ):
+    """
+    Super resolution on a timeseries or multi-channel image
+
+    Arguments
+    ---------
+    image : an antsImage holding B0 and DWI
+
+    bvalsfn : bvalue filename
+
+    bvecsfn : bvector filename
+
+    Returns
+    -------
+    dictionary holding the tensorfit, MD, FA and RGB images
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
+    gtab = gradient_table(bvals, bvecs)
+    img = image.to_nibabel()
+    data = img.get_fdata()
+    data3d = data[:,:,:,0] * 1/6
+    for x in range(1, 5):
+      data3d = data3d + data[:,:,:,0] * 1/6
+
+    maskdata, mask = median_otsu(data, vol_idx=range(0, 5), median_radius=3, numpass=1, autocrop=True, dilate=2)
+
+    tenmodel = dti.TensorModel(gtab)
+    tenfit = tenmodel.fit(maskdata)
+
+    FA = fractional_anisotropy(tenfit.evals)
+    FA[np.isnan(FA)] = 0
+
+    MD1 = dti.mean_diffusivity(tenfit.evals)
+    FA = np.clip(FA, 0, 1)
+    RGB = color_fa(FA, tenfit.evecs)
+    return {
+        'tensormodel':tenfit,
+        'MD':ants.from_nibabel(nib.Nifti1Image(MD1.astype(np.float32), img.affine)),
+        'FA':ants.from_nibabel(nib.Nifti1Image(FA.astype(np.float32), img.affine)),
+        'RGB': ants.from_nibabel(nib.Nifti1Image(RGB.astype(np.float32), img.affine)) }
