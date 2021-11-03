@@ -1,5 +1,5 @@
 
-__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon']
+__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon','segment_timeseries_by_meanvalue']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -106,7 +106,7 @@ def get_data( name=None, force_download=False, version=2, target_extension='.csv
 
 
 
-def dewarp_imageset( image_list, iterations=None, padding=0, **kwargs ):
+def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **kwargs ):
     """
     Dewarp a set of images
 
@@ -122,6 +122,9 @@ def dewarp_imageset( image_list, iterations=None, padding=0, **kwargs ):
     iterations : number of template building iterations
 
     padding:  will pad the images by an integer amount to limit edge effects
+
+    target_idx : the target indices for the time series over which we should average;
+        a list of integer indices into the last axis of the input images.
 
     kwargs : keyword args
         arguments passed to ants registration - these must be set explicitly
@@ -139,7 +142,8 @@ def dewarp_imageset( image_list, iterations=None, padding=0, **kwargs ):
     if len(image_list[0].shape) > 3:
         imagetype = 3
         for k in range(len(image_list)):
-            avglist.append( ants.slice_image( image_list[k], axis=3, idx=0 ) )
+            for j in range(len(target_idx)):
+                avglist.append( ants.slice_image( image_list[k], axis=3, idx=target_idx[j] ) )
     else:
         imagetype = 0
         avglist=image_list
@@ -237,7 +241,49 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
 
 
 
-def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dilate = 4 ):
+def segment_timeseries_by_meanvalue( image, quantile = 0.95 ):
+    """
+    Identify indices of a time series where we assume there is a different mean
+    intensity over the volumes.  The indices of volumes with higher and lower
+    intensities is returned.  Can be used to automatically identify B0 volumes
+    in DWI timeseries.
+
+    Arguments
+    ---------
+    image : an antsImage holding B0 and DWI
+
+    quantile : a quantile for splitting the indices of the volume - should be greater than 0.5
+
+    Returns
+    -------
+    dictionary holding the two sets of indices
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    ishape = image.shape
+    lastdim = len(ishape)-1
+    meanvalues = list()
+    for x in range(ishape[lastdim]):
+        meanvalues.append(  ants.slice_image( image, axis=lastdim, idx=x ).mean() )
+    myhiq = np.quantile( meanvalues, quantile )
+    myloq = np.quantile( meanvalues, 1.0 - quantile )
+    lowerindices = list()
+    higherindices = list()
+    for x in range(len(meanvalues)):
+        hiabs = abs( meanvalues[x] - myhiq )
+        loabs = abs( meanvalues[x] - myloq )
+        if hiabs < loabs:
+            higherindices.append(x)
+        else:
+            lowerindices.append(x)
+
+    return {
+    'lowermeans':lowerindices,
+    'highermeans':higherindices }
+
+def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dilate = 2, vol_idx=None ):
     """
     Super resolution on a timeseries or multi-channel image
 
@@ -255,6 +301,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
 
     dilate : dilate from dipy median_otsu function
 
+    vol_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+
     Returns
     -------
     dictionary holding the tensorfit, MD, FA and RGB images
@@ -263,6 +311,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
     -------
     >>> import antspymm
     """
+    if vol_idx is None:
+        vol_idx = segment_timeseries_by_meanvalue( image )['higherindices']
     bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     gtab = gradient_table(bvals, bvecs)
     img = image.to_nibabel()
@@ -273,7 +323,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
 
     maskdata, mask = median_otsu(
         data,
-        vol_idx=range(0, 5),
+        vol_idx=vol_idx,
         median_radius = median_radius,
         numpass = numpass,
         autocrop = True,
