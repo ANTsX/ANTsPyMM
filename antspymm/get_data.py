@@ -237,7 +237,7 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
 
 
 
-def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 3, numpass = 1, dilate = 2 ):
+def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dilate = 4 ):
     """
     Super resolution on a timeseries or multi-channel image
 
@@ -274,8 +274,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 3, numpass = 1, dil
     maskdata, mask = median_otsu(
         data,
         vol_idx=range(0, 5),
-        median_radius = 3,
-        numpass = 1,
+        median_radius = median_radius,
+        numpass = numpass,
         autocrop = True,
         dilate = dilate )
 
