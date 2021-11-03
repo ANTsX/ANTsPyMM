@@ -13,6 +13,9 @@ import antspyt1w
 import antspynet
 import ants
 
+# FIXME - need to return FD and other motion parameters from dewarp function
+# then incorporate those parameters in this example
+
 testingClass = unittest.TestCase( )
 islocal = False
 id1 = "LS2001_3T_rfMRI_REST1_LR_gdc"
