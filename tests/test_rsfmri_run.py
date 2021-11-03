@@ -12,6 +12,10 @@ import antspymm
 import antspyt1w
 import antspynet
 import ants
+import numpy as np
+
+
+
 
 # FIXME - need to return FD and other motion parameters from dewarp function
 # then incorporate those parameters in this example
@@ -27,12 +31,14 @@ img2 = ants.image_read( antspymm.get_data( id2, target_extension=".nii.gz") )
 # mdlfn = antspymm.get_data( "brainSR", target_extension=".h5")
 # mdl = tf.keras.models.load_model( mdlfn )
 # srimg = antspymm.super_res_mcimage( img, mdl, verbose=False )
-dwp = antspymm.dewarp_imageset( [img1,img2], iterations=2, padding=0,
-    target_idx = [10,11,12],
-    syn_sampling = 20, syn_metric='mattes',
-    type_of_transform = 'SyN',
-    total_sigma = 0.0, random_seed=1,
-    reg_iterations = [200,50,20] )
+
+if 'dwp' not in globals():
+    dwp = antspymm.dewarp_imageset( [img1,img2], iterations=2, padding=0,
+        target_idx = [10,11,12],
+        syn_sampling = 20, syn_metric='mattes',
+        type_of_transform = 'SyN',
+        total_sigma = 0.0, random_seed=1,
+        reg_iterations = [200,50,20] )
 
 if islocal:
     print('rsfmri dewarp done')
@@ -54,20 +60,19 @@ t1reg = ants.registration( und * bmask, t1 * t1bxt, "SyN" ) # in practice use so
 # ants.plot( und, t1reg['warpedmovout'], overlay_alpha = 0.25, axis=2, nslices=24, ncol=6 )
 boldseg = ants.apply_transforms( und, t1seg['segmentation_image'],
   t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )
-ants.plot( und, boldseg, overlay_alpha = 0.25, axis=2, nslices=24, ncol=6 )
+# ants.plot( und, boldseg, overlay_alpha = 0.25, axis=2, nslices=24, ncol=6 )
 csfAndWM = ( ants.threshold_image( boldseg, 1, 1 ) +
              ants.threshold_image( boldseg, 3, 3 ) ).morphology("erode",1)
 mycompcor = ants.compcor( dwp['dewarped'][0],
-  ncompcor=4, quantile=0.95, mask = csfAndWM,
+  ncompcor=6, quantile=0.95, mask = csfAndWM,
   filter_type='polynomial', degree=2 )
-
 
 nt = dwp['dewarped'][0].shape[3]
 import matplotlib.pyplot as plt
 plt.plot(  range( nt ), mycompcor['components'][:,0] )
-plt.show()
+# plt.show()
 plt.plot(  range( nt ), mycompcor['components'][:,1] )
-plt.show()
+# plt.show()
 
 myvoxes = range(powers_areal_mni_itk.shape[0])
 anat = powers_areal_mni_itk['Anatomy']
@@ -81,25 +86,27 @@ concatx2 = treg['invtransforms'] + t1reg['invtransforms']
 pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,whichtoinvert = ( True, False, True, False ) )
 locations = pts2bold.iloc[:,:3].values
 ptImg = ants.make_points_image( locations, bmask, radius = 2 )
-ants.plot( und, ptImg, axis=2, nslices=24, ncol=8 )
+# ants.plot( und, ptImg, axis=2, nslices=24, ncol=8 )
 
-bold = dwp['dewarped'][0]
-tr = ants.get_spacing( bold )[3]
+tr = ants.get_spacing( dwp['dewarped'][0] )[3]
 gmseg = ants.threshold_image( boldseg, 2, 2 )
 spa, spt = 1.5, 0.0 # spatial, temporal - which we ignore b/c of frequency filtering
 smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-simg = ants.smooth_image(simg, smth, sigma_in_physical_coordinates = False )
+simg = ants.smooth_image(dwp['dewarped'][0], smth, sigma_in_physical_coordinates = False )
+
 nuisance = mycompcor['components']
+nuisance = np.c_[ nuisance, mycompcor['basis'] ]
+nuisance = np.c_[ nuisance, dwp['FD'][0] ]
+
 gmmat = ants.timeseries_to_matrix( simg, gmseg )
 gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr ) # some would argue against this
 gmmat = ants.regress_components( gmmat, nuisance )
 
-import numpy as np
 postCing = powers_areal_mni_itk['AAL'].unique()[9]
 networks = powers_areal_mni_itk['SystemName'].unique()
 ww = np.where( powers_areal_mni_itk['SystemName'] == networks[5] )[0]
 dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 400 )
-ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8 )
+# ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8 )
 
 dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg * gmseg, 1, dfnImg.max() ) )
 dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr )
