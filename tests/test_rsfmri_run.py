@@ -33,7 +33,7 @@ img2 = ants.image_read( antspymm.get_data( id2, target_extension=".nii.gz") )
 # srimg = antspymm.super_res_mcimage( img, mdl, verbose=False )
 
 if 'dwp' not in globals():
-    dwp = antspymm.dewarp_imageset( [img1,img2], iterations=2, padding=0,
+    dwp = antspymm.dewarp_imageset( [img1,img2], iterations=3, padding=0,
         target_idx = [10,11,12],
         syn_sampling = 20, syn_metric='mattes',
         type_of_transform = 'SyN',
@@ -63,11 +63,12 @@ boldseg = ants.apply_transforms( und, t1seg['segmentation_image'],
 # ants.plot( und, boldseg, overlay_alpha = 0.25, axis=2, nslices=24, ncol=6 )
 csfAndWM = ( ants.threshold_image( boldseg, 1, 1 ) +
              ants.threshold_image( boldseg, 3, 3 ) ).morphology("erode",1)
-mycompcor = ants.compcor( dwp['dewarped'][0],
-  ncompcor=6, quantile=0.95, mask = csfAndWM,
-  filter_type='polynomial', degree=2 )
+dwpind = 1
+mycompcor = ants.compcor( dwp['dewarped'][dwpind],
+  ncompcor=6, quantile=0.80, mask = csfAndWM,
+  filter_type='polynomial', degree=4 )
 
-nt = dwp['dewarped'][0].shape[3]
+nt = dwp['dewarped'][dwpind].shape[3]
 import matplotlib.pyplot as plt
 plt.plot(  range( nt ), mycompcor['components'][:,0] )
 # plt.show()
@@ -88,18 +89,18 @@ locations = pts2bold.iloc[:,:3].values
 ptImg = ants.make_points_image( locations, bmask, radius = 2 )
 # ants.plot( und, ptImg, axis=2, nslices=24, ncol=8 )
 
-tr = ants.get_spacing( dwp['dewarped'][0] )[3]
+tr = ants.get_spacing( dwp['dewarped'][dwpind] )[3]
 gmseg = ants.threshold_image( boldseg, 2, 2 )
 spa, spt = 1.5, 0.0 # spatial, temporal - which we ignore b/c of frequency filtering
 smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-simg = ants.smooth_image(dwp['dewarped'][0], smth, sigma_in_physical_coordinates = False )
+simg = ants.smooth_image(dwp['dewarped'][dwpind], smth, sigma_in_physical_coordinates = False )
 
 nuisance = mycompcor['components']
 nuisance = np.c_[ nuisance, mycompcor['basis'] ]
-nuisance = np.c_[ nuisance, dwp['FD'][0] ]
+nuisance = np.c_[ nuisance, dwp['FD'][dwpind] ]
 
 gmmat = ants.timeseries_to_matrix( simg, gmseg )
-gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr ) # some would argue against this
+gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=0.01, highf=0.09 ) # some would argue against this
 gmmat = ants.regress_components( gmmat, nuisance )
 
 postCing = powers_areal_mni_itk['AAL'].unique()[9]
@@ -109,7 +110,7 @@ dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).th
 # ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8 )
 
 dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg * gmseg, 1, dfnImg.max() ) )
-dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr )
+dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=0.01, highf=0.09  )
 dfnmat = ants.regress_components( dfnmat, nuisance )
 dfnsignal = dfnmat.mean( axis = 1 )
 
@@ -120,5 +121,5 @@ for k in range( gmmat.shape[1] ):
 
 corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
 
-corrImgPos = corrImg * ants.threshold_image( corrImg, 0.5, 1 )
+corrImgPos = corrImg * ants.threshold_image( corrImg, 0.25, 1 )
 ants.plot( und, corrImgPos, axis=2, overlay_alpha = 0.6, cbar=False, nslices = 24, ncol=8, cbar_length=0.3, cbar_vertical=True )
