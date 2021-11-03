@@ -1,5 +1,6 @@
 
-__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon','segment_timeseries_by_meanvalue']
+__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon',
+    'segment_timeseries_by_meanvalue']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -131,7 +132,8 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
 
     Returns
     -------
-    a dictionary with the mean image and the list of the transformed images
+    a dictionary with the mean image and the list of the transformed images as
+    well as motion correction parameters for each image in the input list
 
     Example
     -------
@@ -162,13 +164,19 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
         iterations=iterations, **kwargs )
 
     # last - warp all images to this frame
+    mocoplist = []
+    mocofdlist = []
+    reglist = []
     for k in range(len(image_list)):
         moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='BOLDRigid' )
+        mocoplist.append( moco0['motion_parameters'] )
+        mocofdlist.append( moco0['FD'] )
         locavg = ants.slice_image( moco0['motion_corrected'], axis=3, idx=0 ) * 0.0
         for j in range(len(target_idx)):
             locavg = locavg + ants.slice_image( moco0['motion_corrected'], axis=3, idx=target_idx[j] )
         locavg = locavg * 1.0 / len(target_idx)
         reg = ants.registration( btp, locavg, **kwargs )
+        reglist.append( reg )
         if imagetype == 3:
             myishape = image_list[k].shape
             mytslength = myishape[ len(myishape) - 1 ]
@@ -183,8 +191,12 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
             mywarped = ants.apply_transforms( btp, image_list[k], reg['fwdtransforms'], imagetype=imagetype )
         outlist.append( mywarped )
 
-
-    return {'dewarpedmean':btp, 'dewarped':outlist }
+    return {
+        'dewarpedmean':btp,
+        'dewarped':outlist,
+        'deformable_registrations': reglist,
+        'FD': mocofdlist,
+        'motionparameters': mocoplist }
 
 
 def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],

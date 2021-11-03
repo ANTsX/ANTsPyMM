@@ -101,7 +101,6 @@ ww = np.where( powers_areal_mni_itk['SystemName'] == networks[5] )[0]
 dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 400 )
 ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8 )
 
-
 dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg * gmseg, 1, dfnImg.max() ) )
 dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr )
 dfnmat = ants.regress_components( dfnmat, nuisance )
