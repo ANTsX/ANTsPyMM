@@ -32,7 +32,7 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def get_data( name=None, force_download=False, version=2, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=3, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
@@ -151,12 +151,11 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
     if iterations is None:
         iterations = 2
 
-    if padding > 0:
-        pw=[]
-        for k in range(len(avglist[0].shape)):
-            pw.append( padding )
-        for k in range(len(avglist)):
-            avglist[k] = ants.pad_image( avglist[k], pad_width=pw  )
+    pw=[]
+    for k in range(len(avglist[0].shape)):
+        pw.append( padding )
+    for k in range(len(avglist)):
+        avglist[k] = ants.pad_image( avglist[k], pad_width=pw  )
 
     btp = ants.build_template( image_list=avglist,
         gradient_step=0.5, blending_weight=0.8,
@@ -164,9 +163,24 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
 
     # last - warp all images to this frame
     for k in range(len(image_list)):
-        reg=ants.registration( btp, avglist[k], **kwargs )
-        # now apply the transformation parameters to all in the time series, if needed
-        mywarped = ants.apply_transforms( btp, image_list[k], reg['fwdtransforms'], imagetype=imagetype )
+        moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='BOLDRigid' )
+        locavg = ants.slice_image( moco0['motion_corrected'], axis=3, idx=0 ) * 0.0
+        for j in range(len(target_idx)):
+            locavg = locavg + ants.slice_image( moco0['motion_corrected'], axis=3, idx=target_idx[j] )
+        locavg = locavg * 1.0 / len(target_idx)
+        reg = ants.registration( btp, locavg, **kwargs )
+        if imagetype == 3:
+            myishape = image_list[k].shape
+            mytslength = myishape[ len(myishape) - 1 ]
+            mywarpedlist = []
+            for j in range(mytslength):
+                locimg = ants.slice_image( image_list[k], axis=3, idx = j )
+                mywarped = ants.apply_transforms( btp, locimg,
+                    reg['fwdtransforms'] + moco0['motion_parameters'][j], imagetype=0 )
+                mywarpedlist.append( mywarped )
+            mywarped = ants.list_to_ndimage( image_list[k], mywarpedlist )
+        else:
+            mywarped = ants.apply_transforms( btp, image_list[k], reg['fwdtransforms'], imagetype=imagetype )
         outlist.append( mywarped )
 
 

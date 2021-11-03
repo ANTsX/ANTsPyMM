@@ -14,7 +14,7 @@ import antspynet
 import ants
 
 testingClass = unittest.TestCase( )
-islocal = False
+islocal = True
 id1 = "I1499279_Anon_20210819142214_5"
 id2 = "I1499337_Anon_20210819142214_6"
 img1 = ants.image_read( antspymm.get_data( id1, target_extension=".nii.gz") )
@@ -29,17 +29,17 @@ b0indices2 = antspymm.segment_timeseries_by_meanvalue( img1 )['highermeans']
 # mdl = tf.keras.models.load_model( mdlfn )
 # srimg = antspymm.super_res_mcimage( img, mdl, verbose=False )
 
-dwp = antspymm.dewarp_imageset( [img1,img2], iterations=1, padding=2,
+dwp = antspymm.dewarp_imageset( [img1,img2], iterations=2, padding=6,
     target_idx = b0indices,
-    syn_sampling=20, syn_metric='mattes', type_of_transform='Elastic',
-    total_sigma = 0.5, random_seed=1,
-    reg_iterations = [200,0,0] )
-moco0 = ants.motion_correction( image=dwp['dewarped'][0],  fixed=dwp['dewarpedmean'], type_of_transform='BOLDRigid' )
-moco1 = ants.motion_correction( image=dwp['dewarped'][1],  fixed=dwp['dewarpedmean'], type_of_transform='BOLDRigid' )
+    syn_sampling = 20, syn_metric='mattes',
+    type_of_transform = 'SyN',
+    total_sigma = 0.0, random_seed=1,
+    reg_iterations = [200,50,20] )
+
 if islocal:
-    ants.image_write( dwp['dewarpedmean'], '~/Downloads/PPMI_DTI_EX/processed/mean.nii.gz' )
-    ants.image_write( moco0['motion_corrected'], '~/Downloads/PPMI_DTI_EX/processed/dwp0.nii.gz' )
-    ants.image_write( moco1['motion_corrected'], '~/Downloads/PPMI_DTI_EX/processed/dwp1.nii.gz' )
+    print('dewarp done')
+    ants.image_write( dwp['dewarped'][0], '~/Downloads/PPMI_DTI_EX/processed/dewarped0.nii.gz' )
+    ants.image_write( dwp['dewarped'][1], '~/Downloads/PPMI_DTI_EX/processed/dewarped1.nii.gz' )
 
 # FIXME: - add test
 # testingClass.assertAlmostEqual(
@@ -49,8 +49,12 @@ if islocal:
 # now reconstruct DTI
 bvec = antspymm.get_data( id1, target_extension=".bvec")
 bval = antspymm.get_data( id1, target_extension=".bval")
-dd = antspymm.dipy_dti_recon( moco0['motion_corrected'], bval, bvec, vol_idx=b0indices )
+dd = antspymm.dipy_dti_recon( dwp['dewarped'][0], bval, bvec, vol_idx=b0indices )
 # ants.image_write( dd['RGB'], '/tmp/tempsr_rgb.nii.gz' )
+bvec = antspymm.get_data( id2, target_extension=".bvec")
+bval = antspymm.get_data( id2, target_extension=".bval")
+ee = antspymm.dipy_dti_recon( dwp['dewarped'][1], bval, bvec, vol_idx=b0indices )
+# ants.image_write( ee['RGB'], '/tmp/temp_rgb2.nii.gz' )
 # FIXME: - add test
 
 # sys.exit(os.EX_OK) # code 0, all ok
