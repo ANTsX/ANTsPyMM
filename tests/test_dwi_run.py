@@ -14,7 +14,7 @@ import antspynet
 import ants
 
 testingClass = unittest.TestCase( )
-islocal = True
+islocal = False
 id1 = "I1499279_Anon_20210819142214_5"
 id2 = "I1499337_Anon_20210819142214_6"
 img1 = ants.image_read( antspymm.get_data( id1, target_extension=".nii.gz") )
@@ -38,8 +38,8 @@ dwp = antspymm.dewarp_imageset( [img1,img2], iterations=2, padding=6,
 
 if islocal:
     print('dewarp done')
-    ants.image_write( dwp['dewarped'][0], '~/Downloads/PPMI_DTI_EX/processed/dewarped0.nii.gz' )
-    ants.image_write( dwp['dewarped'][1], '~/Downloads/PPMI_DTI_EX/processed/dewarped1.nii.gz' )
+    ants.image_write( dwp['dewarped'][0], './dewarped0.nii.gz' )
+    ants.image_write( dwp['dewarped'][1], './dewarped1.nii.gz' )
 
 # FIXME: - add test
 # testingClass.assertAlmostEqual(

@@ -32,7 +32,7 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def get_data( name=None, force_download=False, version=3, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=4, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
