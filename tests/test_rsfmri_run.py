@@ -90,6 +90,9 @@ ptImg = ants.make_points_image( locations, bmask, radius = 2 )
 # ants.plot( und, ptImg, axis=2, nslices=24, ncol=8 )
 
 tr = ants.get_spacing( dwp['dewarped'][dwpind] )[3]
+highMotionTimes = np.where( dwp['FD'][dwpind] >= 0.5 )
+print( "highMotionTimes: " + str(highMotionTimes) )
+goodtimes = np.where( dwp['FD'][dwpind] < 0.5 )
 gmseg = ants.threshold_image( boldseg, 2, 2 )
 spa, spt = 1.5, 0.0 # spatial, temporal - which we ignore b/c of frequency filtering
 smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
@@ -100,7 +103,7 @@ nuisance = np.c_[ nuisance, mycompcor['basis'] ]
 nuisance = np.c_[ nuisance, dwp['FD'][dwpind] ]
 
 gmmat = ants.timeseries_to_matrix( simg, gmseg )
-gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=0.01, highf=0.09 ) # some would argue against this
+gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=0.03, highf=0.08 ) # some would argue against this
 gmmat = ants.regress_components( gmmat, nuisance )
 
 postCing = powers_areal_mni_itk['AAL'].unique()[9]
