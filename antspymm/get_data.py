@@ -369,3 +369,37 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
         'MD':ants.from_nibabel(nib.Nifti1Image(MD1.astype(np.float32), img.affine)),
         'FA':ants.from_nibabel(nib.Nifti1Image(FA.astype(np.float32), img.affine)),
         'RGB': ants.from_nibabel(nib.Nifti1Image(RGB.astype(np.float32), img.affine)) }
+
+def wmh( flair, t1, t1seg) :
+      
+  """
+  Outputs the WMH probability mask and a summary single measurement
+  
+  Arguments
+  ---------
+  flair : ANTsImage
+    input 3-D FLAIR brain image (not skull-stripped).
+  
+  t1 : ANTsImage
+    input 3-D T1 brain image (not skull-stripped).
+  
+  t1seg : ANTsImage
+    white matter segmentation of the t1
+
+ 
+  Returns
+  ---------
+  WMH probability map and a summary single measurement which is the sum of the WMH map
+  
+  """
+  
+  probability_mask = antspynet.sysu_media_wmh_segmentation(flair)
+  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+  t1seg_bin = ants.get_mask(t1seg, low_thresh = 0.4) # Threshold and binarize T1 WM segmentation image
+  t1seg_bin_2_flair = ants.apply_transforms(flair, t1seg_bin, transformlist = t1_2_flair_reg['fwdtransforms'])
+  probability_mask_WM = t1seg_bin_2_flair * probability_mask # Remove WMH signal outside of WM 
+  label_stats = ants.label_stats(t1seg_bin_2_flair, probability_mask_WM)
+  wmh_sum = label_stats.at[1, 'Count']
+  return{
+      'probability_mask' : probability_mask_WM,
+      'wmh_sum': wmh_sum }
