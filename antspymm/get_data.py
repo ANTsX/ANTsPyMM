@@ -398,8 +398,10 @@ def wmh( flair, t1, t1seg) :
   t1seg_bin = ants.get_mask(t1seg, low_thresh = 0.4) # Threshold and binarize T1 WM segmentation image
   t1seg_bin_2_flair = ants.apply_transforms(flair, t1seg_bin, transformlist = t1_2_flair_reg['fwdtransforms'])
   probability_mask_WM = t1seg_bin_2_flair * probability_mask # Remove WMH signal outside of WM 
-  label_stats = ants.label_stats(t1seg_bin_2_flair, probability_mask_WM)
-  wmh_sum = label_stats.at[1, 'Count']
+  label_stats = ants.label_stats(probability_mask_WM, t1seg_bin_2_flair)
+  label1 = label_stats[label_stats["LabelValue"]==1.0]
+  wmh_sum = label1['Mass'].values[0]
+
   return{
       'WMH_probability_map' : probability_mask_WM,
       'wmh_sum': wmh_sum }
