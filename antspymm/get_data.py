@@ -401,5 +401,5 @@ def wmh( flair, t1, t1seg) :
   label_stats = ants.label_stats(t1seg_bin_2_flair, probability_mask_WM)
   wmh_sum = label_stats.at[1, 'Count']
   return{
-      'probability_mask' : probability_mask_WM,
+      'WMH_probability_map' : probability_mask_WM,
       'wmh_sum': wmh_sum }
