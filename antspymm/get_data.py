@@ -397,7 +397,9 @@ def wmh( flair, t1, t1seg) :
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
-  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask, transformlist = t1_2_flair_reg['fwdtransforms'])
+  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
+    transformlist = t1_2_flair_reg['fwdtransforms'],
+    interpolator = 'nearestNeighbor' )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
