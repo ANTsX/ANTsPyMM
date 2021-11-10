@@ -338,7 +338,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
     >>> import antspymm
     """
     if vol_idx is None:
-        vol_idx = segment_timeseries_by_meanvalue( image )['higherindices']
+        vol_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     gtab = gradient_table(bvals, bvecs)
     img = image.to_nibabel()
