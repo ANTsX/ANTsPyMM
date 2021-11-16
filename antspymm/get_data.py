@@ -1,6 +1,7 @@
 
 __all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon',
-    'segment_timeseries_by_meanvalue', 'wmh']
+    'segment_timeseries_by_meanvalue', 'wmh', 'neuromelanin',
+    'resting_state_fmri_networks']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -409,37 +410,38 @@ def wmh( flair, t1, t1seg) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
-def nm_output( list_nm_images, t1, t1slab, t1lab ) :
-  
+
+
+def neuromelanin( list_nm_images, t1, t1slab, t1lab ) :
+
   """
   Outputs the averaged and registered neuromelanin image, and neuromelanin labels
-  
+
   Arguments
   ---------
   list_nm_image : list of ANTsImages
-    list of neuromenlanin repeat images 
-    
+    list of neuromenlanin repeat images
+
   t1 : ANTsImage
-    input 3-D T1 brain image 
-    
+    input 3-D T1 brain image
+
   t1slab : ANTsImage
-    t1 slab
-    
+    t1 slab - a label image that roughly locates the likely position of the NM slab acquisition
+
   t1lab : ANTsImage
-    t1 labels
-  
-  
+    t1 labels that will be propagated to the NM
+
+
   Returns
   ---------
-  Averaged and registerd neuromelanin image and neuromelanin labels
-  
+  Averaged and registered neuromelanin image and neuromelanin labels
+
   """
-  
+
   # Average images in image_list
-  avg = list_nm_images[0]*0
+  avg = list_nm_images[0]*0.0
   for k in range(len( list_nm_images )):
-    avg = avg + list_nm_images[k]
-  avg = avg / len( list_nm_images )
+    avg = avg + ants.resample_image_to_target( list_nm_images[k], avg ) / len( list_nm_images )
 
   # Register each nm image in list_nm_images to the averaged nm image (avg)
   reglist = []
@@ -452,13 +454,149 @@ def nm_output( list_nm_images, t1, t1slab, t1lab ) :
   new_ilist = []
   nm_avg = reglist[0]*0
   for k in range(len( reglist )):
-    nm_avg = nm_avg + reglist[k]
-  nm_avg = nm_avg / len( reglist )
- 
+    nm_avg = nm_avg + reglist[k] / len( reglist )
+
   t1c = ants.crop_image( t1, t1slab )
-  slagreg = ants.registration( nm_avg, t1c, 'Rigid' )
-  nmlab = ants.apply_transforms( nm_avg, t1lab, slagreg['fwdtransforms'], interpolator = 'nearestNeighbor' )
+  slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
+  nmlab = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
+    interpolator = 'genericLabel' )
 
   return{
       'NM_avg' : nm_avg,
       'NM_labels': nmlab }
+
+
+
+
+def resting_state_fmri_networks( fmri, t1, t1segmentation,
+    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 ):
+
+  """
+  Compute resting state network correlation maps based on the J Power labels.
+  This will output a map for each of the major network systems.
+
+  Arguments
+  ---------
+  fmri : BOLD fmri antsImage
+
+  t1 : ANTsImage
+    input 3-D T1 brain image (brain extracted)
+
+  t1segmentation : ANTsImage
+    t1 segmentation - a six tissue segmentation image in T1 space
+
+  f : band pass limits for frequency filtering
+
+  spa : gaussian smoothing for spatial component
+
+  spt : gaussian smoothing for temporal component
+
+  nc  : number of components for compcor filtering
+
+  Returns
+  ---------
+  a dictionary containing the derived network maps
+
+  """
+
+  dwp = antspymm.dewarp_imageset( [fmri], iterations=1, padding=8,
+          target_idx = [7,8,9],
+          syn_sampling = 20, syn_metric='mattes',
+          type_of_transform = 'SyN',
+          total_sigma = 0.0, random_seed=1,
+          reg_iterations = [50,20] )
+  und = dwp['dewarpedmean']
+  bmask = antspynet.brain_extraction( und, 'bold' ).threshold_image( 0.3, 1.0 )
+  bmask = ants.iMath( bmask, "MD", 4 ).iMath( "ME", 4 ).iMath( "FillHoles" )
+  powers_areal_mni_itk = pd.read_csv(antspymm.get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
+
+  t1reg = ants.registration( und * bmask, t1, "SyNBold" )
+  boldseg = ants.apply_transforms( und, t1segmentation,
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  gmseg = ants.threshold_image( t1segmentation, 2, 2 ).iMath("MD",1)
+  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
+  gmseg = ants.threshold_image( gmseg, 1, 4 )
+  gmseg = ants.apply_transforms( und, gmseg,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
+               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",2)
+  csfAndWM = ants.apply_transforms( und, csfAndWM,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+
+  dwpind = 0
+  mycompcor = ants.compcor( dwp['dewarped'][dwpind],
+    ncompcor=nc, quantile=0.90, mask = csfAndWM,
+    filter_type='polynomial', degree=2 )
+
+  nt = dwp['dewarped'][dwpind].shape[3]
+#  import matplotlib.pyplot as plt
+#  for k in range(nc):
+#  	plt.plot(  range( nt ), mycompcor['components'][:,k] )
+#
+#  plt.show()
+
+  myvoxes = range(powers_areal_mni_itk.shape[0])
+  anat = powers_areal_mni_itk['Anatomy']
+  syst = powers_areal_mni_itk['SystemName']
+  Brod = powers_areal_mni_itk['Brodmann']
+  xAAL  = powers_areal_mni_itk['AAL']
+  ch2 = ants.image_read( ants.get_ants_data( "ch2" ) )
+  treg = ants.registration( t1, ch2, 'SyN' )
+  concatx2 = treg['invtransforms'] + t1reg['invtransforms']
+  pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
+    whichtoinvert = ( True, False, True, False ) )
+  locations = pts2bold.iloc[:,:3].values
+  ptImg = ants.make_points_image( locations, bmask, radius = 2 )
+  # ants.plot( und, ptImg, axis=2, nslices=24, ncol=8, crop=True )
+
+  tr = ants.get_spacing( dwp['dewarped'][dwpind] )[3]
+  highMotionTimes = np.where( dwp['FD'][dwpind] >= 1.0 )
+  goodtimes = np.where( dwp['FD'][dwpind] < 0.5 )
+  smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
+  simg = ants.smooth_image(dwp['dewarped'][dwpind], smth, sigma_in_physical_coordinates = False )
+
+  nuisance = mycompcor[ 'components' ]
+  nuisance = np.c_[ nuisance, mycompcor['basis'] ]
+  nuisance = np.c_[ nuisance, dwp['FD'][dwpind] ]
+
+  gmmat = ants.timeseries_to_matrix( simg, gmseg )
+  gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+  gmsignal = gmmat.mean( axis = 1 )
+  nuisance = np.c_[ nuisance, gmsignal ]
+  gmmat = ants.regress_components( gmmat, nuisance )
+
+  networks = powers_areal_mni_itk['SystemName'].unique()
+
+  outdict = {}
+  outdict['meanBold'] = und
+  outdict['pts2bold'] = pts2bold
+  outdict['nuisance'] = nuisance
+  outdict['FD'] = dwp['FD'][dwpind]
+
+  netnames = ['Cingulo-opercular Task Control', 'Default Mode',
+                'Memory Retrieval', 'Ventral Attention', 'Visual',
+                'Fronto-parietal Task Control', 'Salience', 'Subcortical',
+                'Dorsal Attention']
+  # cerebellar is 12
+  from scipy.stats.stats import pearsonr
+  ct = 0
+  for mynet in [3,5,6,7,8,9,10,11,13]:
+    netname = re.sub( " ", "", networks[mynet] )
+    ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
+    dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8, crop=True  )
+    dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
+    dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
+    dfnmat = ants.regress_components( dfnmat, nuisance )
+    dfnsignal = dfnmat.mean( axis = 1 )
+    gmmatDFNCorr = np.zeros( gmmat.shape[1] )
+    for k in range( gmmat.shape[1] ):
+      gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+    corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
+    outdict[ netname ] = corrImg
+    ct = ct + 1
+
+    # ants.plot( und, corrImgPos, axis=2, overlay_alpha = 0.6, cbar=False, nslices = 24, ncol=8, cbar_length=0.3, cbar_vertical=True, crop=True )
+    # ants.image_write( corrImg, newprefix + netname + "Connectivity.nii.gz" )
+
+  return outdict
