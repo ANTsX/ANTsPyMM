@@ -573,18 +573,19 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['nuisance'] = nuisance
   outdict['FD'] = dwp['FD'][dwpind]
 
+  # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                 'Memory Retrieval', 'Ventral Attention', 'Visual',
                 'Fronto-parietal Task Control', 'Salience', 'Subcortical',
                 'Dorsal Attention']
   # cerebellar is 12
   from scipy.stats.stats import pearsonr
+  import re
   ct = 0
   for mynet in [3,5,6,7,8,9,10,11,13]:
     netname = re.sub( " ", "", networks[mynet] )
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    ants.plot( und, dfnImg, axis=2, nslices=24, ncol=8, crop=True  )
     dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
     dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
     dfnmat = ants.regress_components( dfnmat, nuisance )
@@ -595,8 +596,5 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
     outdict[ netname ] = corrImg
     ct = ct + 1
-
-    # ants.plot( und, corrImgPos, axis=2, overlay_alpha = 0.6, cbar=False, nslices = 24, ncol=8, cbar_length=0.3, cbar_vertical=True, crop=True )
-    # ants.image_write( corrImg, newprefix + netname + "Connectivity.nii.gz" )
 
   return outdict
