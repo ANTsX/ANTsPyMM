@@ -1,6 +1,6 @@
 
 __all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon',
-    'segment_timeseries_by_meanvalue']
+    'segment_timeseries_by_meanvalue', 'wmh']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -33,7 +33,7 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def get_data( name=None, force_download=False, version=4, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=6, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
@@ -338,7 +338,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
     >>> import antspymm
     """
     if vol_idx is None:
-        vol_idx = segment_timeseries_by_meanvalue( image )['higherindices']
+        vol_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     gtab = gradient_table(bvals, bvecs)
     img = image.to_nibabel()
@@ -371,44 +371,43 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
         'RGB': ants.from_nibabel(nib.Nifti1Image(RGB.astype(np.float32), img.affine)) }
 
 def wmh( flair, t1, t1seg) :
-      
+
   """
   Outputs the WMH probability mask and a summary single measurement
-  
+
   Arguments
   ---------
   flair : ANTsImage
     input 3-D FLAIR brain image (not skull-stripped).
-  
+
   t1 : ANTsImage
     input 3-D T1 brain image (not skull-stripped).
-  
+
   t1seg : ANTsImage
     T1 segmentation image
 
- 
+
   Returns
   ---------
   WMH probability map and a summary single measurement which is the sum of the WMH map
-  
+
   """
-  
+
   probability_mask = antspynet.sysu_media_wmh_segmentation(flair)
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
-  wmseg_mask = ants.get_mask(t1seg['segmentation_image'], low_thresh = 3, high_thresh = 3) # White matter label = 3
-  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask, transformlist = t1_2_flair_reg['fwdtransforms'])
-  probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM 
+  wmseg_mask = ants.threshold_image( t1seg,
+    low_thresh = 3, high_thresh = 3).iMath("FillHoles")
+  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
+    transformlist = t1_2_flair_reg['fwdtransforms'],
+    interpolator = 'nearestNeighbor' )
+  probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
   wmh_sum = label1['Mass'].values[0]
 
   return{
-    'probability_mask' : probability_mask_WM,
-    'wmh_sum': wmh_sum }
-
-  return{
       'WMH_probability_map' : probability_mask_WM,
-      'wmh_sum': wmh_sum }
+      'wmh_mass': wmh_sum }
 
 def nm_output( list_nm_images, t1, t1slab, t1lab ) :
   
