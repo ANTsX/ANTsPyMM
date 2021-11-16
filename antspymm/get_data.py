@@ -503,6 +503,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   import numpy as np
   import pandas as pd
   A = np.zeros((1,1))
+  powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
 
   dwp = dewarp_imageset( [fmri], iterations=1, padding=8,
           target_idx = [7,8,9],
@@ -513,7 +514,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   und = dwp['dewarpedmean']
   bmask = antspynet.brain_extraction( und, 'bold' ).threshold_image( 0.3, 1.0 )
   bmask = ants.iMath( bmask, "MD", 4 ).iMath( "ME", 4 ).iMath( "FillHoles" )
-  powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
 
   t1reg = ants.registration( und * bmask, t1, "SyNBold" )
   boldseg = ants.apply_transforms( und, t1segmentation,
@@ -534,11 +534,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     filter_type='polynomial', degree=2 )
 
   nt = dwp['dewarped'][dwpind].shape[3]
-#  import matplotlib.pyplot as plt
-#  for k in range(nc):
-#  	plt.plot(  range( nt ), mycompcor['components'][:,k] )
-#
-#  plt.show()
 
   myvoxes = range(powers_areal_mni_itk.shape[0])
   anat = powers_areal_mni_itk['Anatomy']
@@ -552,7 +547,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     whichtoinvert = ( True, False, True, False ) )
   locations = pts2bold.iloc[:,:3].values
   ptImg = ants.make_points_image( locations, bmask, radius = 2 )
-  # ants.plot( und, ptImg, axis=2, nslices=24, ncol=8, crop=True )
 
   tr = ants.get_spacing( dwp['dewarped'][dwpind] )[3]
   highMotionTimes = np.where( dwp['FD'][dwpind] >= 1.0 )
