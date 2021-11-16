@@ -584,6 +584,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   ct = 0
   for mynet in [3,5,6,7,8,9,10,11,13]:
     netname = re.sub( " ", "", networks[mynet] )
+    netname = re.sub( "-", "", netname )
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
