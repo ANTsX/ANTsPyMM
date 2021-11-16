@@ -267,7 +267,7 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
 
 
 
-def segment_timeseries_by_meanvalue( image, quantile = 0.95 ):
+def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     """
     Identify indices of a time series where we assume there is a different mean
     intensity over the volumes.  The indices of volumes with higher and lower
