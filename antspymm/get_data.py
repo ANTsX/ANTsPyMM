@@ -609,10 +609,12 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
       netnamei = re.sub( "-", "", netnamei )
       newnames.append( netnamei )
       binmask = ants.threshold_image( outdict[ netnamei ], 0.2, 1.0 )
+      ww = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
+      dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
       for j in range( len( numofnets ) ):
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )
-          A[i,j] = outdict[ netnamej ][ binmask == 1].mean()
+          A[i,j] = outdict[ netnamej ][ dfnImg == 1].mean()
 
   A = pd.DataFrame( A )
   A.columns = newnames
