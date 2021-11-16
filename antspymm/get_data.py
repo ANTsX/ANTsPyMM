@@ -17,6 +17,8 @@ import random
 import functools
 from operator import mul
 from scipy.sparse.linalg import svds
+from scipy.stats.stats import pearsonr
+import re
 
 from dipy.core.histeq import histeq
 import dipy.reconst.dti as dti
@@ -498,7 +500,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   a dictionary containing the derived network maps
 
   """
-  import pandas as pd
 
   dwp = dewarp_imageset( [fmri], iterations=1, padding=8,
           target_idx = [7,8,9],
@@ -580,8 +581,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
                 'Fronto-parietal Task Control', 'Salience', 'Subcortical',
                 'Dorsal Attention']
   # cerebellar is 12
-  from scipy.stats.stats import pearsonr
-  import re
   ct = 0
   numofnets = [3,5,6,7,8,9,10,11,13]
   for mynet in numofnets:
@@ -600,7 +599,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     outdict[ netname ] = corrImg
     ct = ct + 1
 
-  import numpy as np
   A = np.zeros( ( len( numofnets ), len( numofnets ) ) )
   newnames=[]
 
