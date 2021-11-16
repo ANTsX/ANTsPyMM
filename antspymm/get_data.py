@@ -499,7 +499,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
 
   """
 
-  dwp = antspymm.dewarp_imageset( [fmri], iterations=1, padding=8,
+  dwp = dewarp_imageset( [fmri], iterations=1, padding=8,
           target_idx = [7,8,9],
           syn_sampling = 20, syn_metric='mattes',
           type_of_transform = 'SyN',
@@ -508,7 +508,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   und = dwp['dewarpedmean']
   bmask = antspynet.brain_extraction( und, 'bold' ).threshold_image( 0.3, 1.0 )
   bmask = ants.iMath( bmask, "MD", 4 ).iMath( "ME", 4 ).iMath( "FillHoles" )
-  powers_areal_mni_itk = pd.read_csv(antspymm.get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
+  powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
 
   t1reg = ants.registration( und * bmask, t1, "SyNBold" )
   boldseg = ants.apply_transforms( und, t1segmentation,
