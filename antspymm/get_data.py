@@ -409,3 +409,57 @@ def wmh( flair, t1, t1seg) :
   return{
       'WMH_probability_map' : probability_mask_WM,
       'wmh_sum': wmh_sum }
+
+def nm_output( list_nm_images, t1, t1slab, t1lab ) :
+  
+  """
+  Outputs the averaged and registered neuromelanin image, and neuromelanin labels
+  
+  Arguments
+  ---------
+  list_nm_image : list of ANTsImages
+    list of neuromenlanin repeat images 
+    
+  t1 : ANTsImage
+    input 3-D T1 brain image 
+    
+  t1slab : ANTsImage
+    t1 slab
+    
+  t1lab : ANTsImage
+    t1 labels
+  
+  
+  Returns
+  ---------
+  Averaged and registerd neuromelanin image and neuromelanin labels
+  
+  """
+  
+  # Average images in image_list
+  avg = list_nm_images[0]*0
+  for k in range(len( list_nm_images )):
+    avg = avg + list_nm_images[k]
+  avg = avg / len( list_nm_images )
+
+  # Register each nm image in list_nm_images to the averaged nm image (avg)
+  reglist = []
+  for k in range(len( list_nm_images )):
+    current_image = ants.registration( avg, list_nm_images[k], type_of_transform = 'Rigid' )
+    current_image = current_image['warpedmovout']
+    reglist.append( current_image )
+
+  # Average the reglist
+  new_ilist = []
+  nm_avg = reglist[0]*0
+  for k in range(len( reglist )):
+    nm_avg = nm_avg + reglist[k]
+  nm_avg = nm_avg / len( reglist )
+ 
+  t1c = ants.crop_image( t1, t1slab )
+  slagreg = ants.registration( nm_avg, t1c, 'Rigid' )
+  nmlab = ants.apply_transforms( nm_avg, t1lab, slagreg['fwdtransforms'], interpolator = 'nearestNeighbor' )
+
+  return{
+      'NM_avg' : nm_avg,
+      'NM_labels': nmlab }
