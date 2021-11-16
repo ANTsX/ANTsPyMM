@@ -582,7 +582,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   from scipy.stats.stats import pearsonr
   import re
   ct = 0
-  for mynet in [3,5,6,7,8,9,10,11,13]:
+  numofnets = [3,5,6,7,8,9,10,11,13]
+  for mynet in numofnets:
     netname = re.sub( " ", "", networks[mynet] )
     netname = re.sub( "-", "", netname )
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
@@ -597,5 +598,25 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
     outdict[ netname ] = corrImg
     ct = ct + 1
+
+  import numpy as np
+  A = np.zeros( ( len( numofnets ), len( numofnets ) ) )
+  newnames=[]
+
+  for i in range( len( numofnets ) ):
+      netnamei = re.sub( " ", "", networks[numofnets[i]] )
+      netnamei = re.sub( "-", "", netnamei )
+      newnames.append( netnamei )
+      binmask = ants.threshold_image( outdict[ netnamei ], 0.2, 1.0 )
+      for j in range( len( numofnets ) ):
+          netnamej = re.sub( " ", "", networks[numofnets[j]] )
+          netnamej = re.sub( "-", "", netnamej )
+          A[i,j] = outdict[ netnamej ][ binmask == 1].mean()
+
+  import pandas as pd
+  A = pd.DataFrame( A )
+  A.columns = newnames
+  A['networks']=newnames
+  outdict['corr'] = A
 
   return outdict
