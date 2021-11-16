@@ -620,5 +620,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   A.columns = newnames
   A['networks']=newnames
   outdict['corr'] = A
+  outdict['brainmask'] = bmask
 
   return outdict
