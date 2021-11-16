@@ -498,6 +498,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   a dictionary containing the derived network maps
 
   """
+  import pandas as pd
 
   dwp = dewarp_imageset( [fmri], iterations=1, padding=8,
           target_idx = [7,8,9],
@@ -613,7 +614,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
           netnamej = re.sub( "-", "", netnamej )
           A[i,j] = outdict[ netnamej ][ binmask == 1].mean()
 
-  import pandas as pd
   A = pd.DataFrame( A )
   A.columns = newnames
   A['networks']=newnames
