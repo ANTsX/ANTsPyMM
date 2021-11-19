@@ -373,7 +373,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
         'FA':ants.from_nibabel(nib.Nifti1Image(FA.astype(np.float32), img.affine)),
         'RGB': ants.from_nibabel(nib.Nifti1Image(RGB.astype(np.float32), img.affine)) }
 
-def wmh( flair, t1, t1seg) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
   """
   Outputs the WMH probability mask and a summary single measurement
@@ -389,17 +389,35 @@ def wmh( flair, t1, t1seg) :
   t1seg : ANTsImage
     T1 segmentation image
 
+  mmfromconvexhull : float
+    restrict WMH to regions that are WM or mmfromconvexhull mm away from the
+    convex hull of the cerebrum
 
   Returns
   ---------
   WMH probability map and a summary single measurement which is the sum of the WMH map
 
   """
-
+  import numpy as np
+  import math
   probability_mask = antspynet.sysu_media_wmh_segmentation(flair)
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
+  if mmfromconvexhull > 0:
+        convexhull = ants.threshold_image( t1seg, 1, 4 )
+        spc2vox = np.prod( ants.get_spacing( t1seg ) )
+        voxdist = 0.0
+        myspc = ants.get_spacing( t1seg )
+        for k in range( t1seg.dimension ):
+            voxdist = voxdist + myspc[k] * myspc[k]
+        voxdist = math.sqrt( voxdist )
+        nmorph = round( 2.0 / voxdist )
+        convexhull = ants.morphology( convexhull, "close", nmorph )
+        dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
+        wmseg_mask = wmseg_mask + ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
+        wmseg_mask = ants.threshold_image( wmseg_mask, 1, 2 )
+
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
