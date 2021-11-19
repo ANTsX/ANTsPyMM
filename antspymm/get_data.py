@@ -427,6 +427,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
   wmh_sum = label1['Mass'].values[0]
 
   return{
+      'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
