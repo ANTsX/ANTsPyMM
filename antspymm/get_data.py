@@ -103,8 +103,6 @@ def get_data( name=None, force_download=False, version=6, target_extension='.csv
         if ( name == mystem and fname.endswith(target_extension) ) :
             datapath = os.path.join(DATA_PATH, fname)
 
-    if datapath is None:
-        raise ValueError('File doesnt exist. Options: ' , os.listdir(DATA_PATH))
     return datapath
 
 
