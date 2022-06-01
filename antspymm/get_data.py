@@ -30,6 +30,7 @@ import nibabel as nib
 
 import ants
 import antspynet
+import antspyt1w
 import tensorflow as tf
 
 from multiprocessing import Pool
@@ -325,10 +326,102 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
 
 def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     dilate = 2,
+    antspynet_masking = True,
     vol_idx = None,
     autocrop = False ):
     """
-    Super resolution on a timeseries or multi-channel image
+    DiPy DTI reconstruction - following their own basic example
+
+    Arguments
+    ---------
+    image : an antsImage holding B0 and DWI
+
+    bvalsfn : bvalue filename
+
+    bvecsfn : bvector filename
+
+    median_radius : median_radius from dipy median_otsu function
+
+    numpass : numpass from dipy median_otsu function
+
+    dilate : dilate from dipy median_otsu function
+
+    antspynet_masking : boolean will not use median_otsu
+
+    vol_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+
+    autocrop : boolean; see dipy for details
+
+    Returns
+    -------
+    dictionary holding the tensorfit, MD, FA and RGB images
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    if vol_idx is None:
+        vol_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+    bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
+    gtab = gradient_table(bvals, bvecs)
+    b0 = ants.slice_image( image, axis=3, idx=vol_idx[0] )
+
+    if antspynet_masking:
+        mask = None
+        for myidx in vol_idx:
+            b0 = ants.slice_image( image, axis=3, idx=myidx)
+            temp = antspynet.brain_extraction( b0, 't2' )
+            if mask is None:
+                mask = temp
+            else:
+                mask = mask + temp
+        mask = ants.iMath( mask, "Normalize" ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+        mlist = []
+        for k in range( image.shape[3] ):
+            mlist.append( mask )
+        maskdata = ( image * ants.list_to_ndimage( image, mlist ) ).numpy()
+    else:
+        maskdata, mask = median_otsu(
+            image.numpy(),
+            vol_idx=vol_idx,
+            median_radius = median_radius,
+            numpass = numpass,
+            autocrop = autocrop,
+            dilate = dilate )
+
+    tenmodel = dti.TensorModel(gtab)
+    tenfit = tenmodel.fit(maskdata)
+
+    FA = fractional_anisotropy(tenfit.evals)
+    FA[np.isnan(FA)] = 0
+
+    MD1 = dti.mean_diffusivity(tenfit.evals)
+    FA = np.clip(FA, 0, 1)
+    RGB = color_fa(FA, tenfit.evecs)
+    MD1 = ants.copy_image_info( b0, ants.from_numpy( MD1.astype(np.float32) ) )
+    FA = ants.copy_image_info(  b0, ants.from_numpy( FA.astype(np.float32) ) )
+    RGB = ants.from_numpy( RGB.astype(np.float32) )
+    RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
+    RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
+    RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
+    return {
+        'tensormodel':tenfit,
+        'MD':MD1,
+        'FA':FA,
+        'RGB':ants.merge_channels( [RGB0,RGB1,RGB2] )
+        }
+
+def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
+    srmodel=None, verbose = False ):
+    """
+    1. pass in subject data and 1mm JHU atlas/labels
+    2. perform initial LR, RL reconstruction
+    3. dewarp the images using JHU FA to reformat the size of the images
+    4. apply dewarping to the original data
+        ===> may want to apply SR at this step
+    5. reconstruct DTI again
+    6. label images and do registration
+    7. return relevant outputs
 
     Arguments
     ---------
@@ -350,44 +443,87 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
 
     Returns
     -------
-    dictionary holding the tensorfit, MD, FA and RGB images
+    dictionary holding the mean_fa, its summary statistics via JHU labels,
+        the JHU registration, the JHU labels, the dewarping dictionary and the
+        dti reconstruction dictionaries.
 
     Example
     -------
     >>> import antspymm
     """
-    if vol_idx is None:
-        vol_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-    bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
-    gtab = gradient_table(bvals, bvecs)
-    img = image.to_nibabel()
-    data = img.get_fdata()
-    data3d = data[:,:,:,0] * 1/6
-    for x in range(1, 5):
-      data3d = data3d + data[:,:,:,0] * 1/6
 
-    maskdata, mask = median_otsu(
-        data,
-        vol_idx=vol_idx,
-        median_radius = median_radius,
-        numpass = numpass,
-        autocrop = autocrop,
-        dilate = dilate )
+    if verbose:
+        print("Recon DTI on OR images ...")
 
-    tenmodel = dti.TensorModel(gtab)
-    tenfit = tenmodel.fit(maskdata)
+    # RL image
+    recon_RL = dipy_dti_recon( img_RL, bval, bvec, autocrop=False)
 
-    FA = fractional_anisotropy(tenfit.evals)
-    FA[np.isnan(FA)] = 0
+    # LR image
+    recon_LR = dipy_dti_recon( img_LR, bval, bvec, autocrop=False)
 
-    MD1 = dti.mean_diffusivity(tenfit.evals)
-    FA = np.clip(FA, 0, 1)
-    RGB = color_fa(FA, tenfit.evecs)
+    OR_RLFA = recon_RL['FA']
+    OR_LRFA = recon_LR['FA']
+
+    if verbose:
+        print("JHU initialization ...")
+
+    JHU_atlas_aff = ants.registration( OR_RLFA, jhu_atlas, 'SyN' )['warpedmovout']
+    JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",6)
+    JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
+
+    dwp_OR = dewarp_imageset(
+        [OR_RLFA,OR_LRFA],
+        initial_template=JHU_atlas_aff,
+        iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[100,100,20] )
+
+    # apply the dewarping tx to the original dwi and reconstruct again
+    img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,
+        dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3   )
+    img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
+        dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3 )
+
+    if srmodel is not None:
+        if verbose:
+            print("convert img_RL_dwp to img_RL_dwp_SR")
+        img_RLdwp = antspymm.super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
+        if verbose:
+            print("convert img_LR_dwp to img_LR_dwp_SR")
+        img_LRdwp = antspymm.super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
+
+    recon_RL = dipy_dti_recon( img_RLdwp, bval, bvec, autocrop=True )
+    recon_LR = dipy_dti_recon( img_LRdwp, bval, bvec, autocrop=True )
+
+    meanFA = recon_RL['FA'] * 0.5 + recon_LR['FA'] * 0.5
+
+    if verbose:
+        print("JHU reg")
+
+    OR_FA2JHUreg = ants.registration( meanFA, jhu_atlas,
+        type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
+        reg_iterations=[100,100,20], verbose=verbose )
+    OR_FA_jhulabels = ants.apply_transforms( meanFA, jhu_labels,
+        OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
+
+    # FIXME need file FA_JHU_labels_edited to exist in antspymm repository
+    # Map intensity to df
+    df_FA_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
+        'FA_JHU_labels_edited',
+        meanFA,
+        OR_FA_jhulabels)
+    # Merge to wide format
+    df_FA_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+            {'df_FA_JHU_ORRL' : df_FA_JHU_ORRL},
+            col_names = ['Mean'],
+            identifier=None, identifier_name='sub59545')
     return {
-        'tensormodel':tenfit,
-        'MD':ants.from_nibabel(nib.Nifti1Image(MD1.astype(np.float32), img.affine)),
-        'FA':ants.from_nibabel(nib.Nifti1Image(FA.astype(np.float32), img.affine)),
-        'RGB': ants.from_nibabel(nib.Nifti1Image(RGB.astype(np.float32), img.affine)) }
+        'mean_fa':meanFA,
+        'mean_fa_summary':df_FA_JHU_ORRL_bfwide,
+        'jhu_labels':OR_FA_jhulabels,
+        'jhu_registration':OR_FA2JHUreg,
+        'recon_RL':recon_RL,
+        'recon_LR':recon_LR,
+        'dewarping':dwp_OR
+    }
 
 def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
