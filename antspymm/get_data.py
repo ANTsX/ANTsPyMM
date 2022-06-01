@@ -108,7 +108,8 @@ def get_data( name=None, force_download=False, version=8, target_extension='.csv
 
 
 
-def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **kwargs ):
+def dewarp_imageset( image_list, initial_template=None,
+    iterations=None, padding=0, target_idx=[0], **kwargs ):
     """
     Dewarp a set of images
 
@@ -120,6 +121,8 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
     Arguments
     ---------
     image_list : list containing antsImages 2D, 3D or 4D
+
+    initial_template : optional
 
     iterations : number of template building iterations
 
@@ -151,16 +154,23 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
         imagetype = 0
         avglist=image_list
 
-    if iterations is None:
-        iterations = 2
-
     pw=[]
     for k in range(len(avglist[0].shape)):
         pw.append( padding )
     for k in range(len(avglist)):
         avglist[k] = ants.pad_image( avglist[k], pad_width=pw  )
 
-    btp = ants.build_template( image_list=avglist,
+    if initial_template is None:
+        initial_template = avglist[0] * 0
+        for k in range(len(avglist)):
+            initial_template = initial_template + avglist[k]/len(avglist)
+
+    if iterations is None:
+        iterations = 2
+
+    btp = ants.build_template(
+        initial_template=initial_template,
+        image_list=avglist,
         gradient_step=0.5, blending_weight=0.8,
         iterations=iterations, **kwargs )
 
@@ -169,13 +179,16 @@ def dewarp_imageset( image_list, iterations=None, padding=0, target_idx=[0], **k
     mocofdlist = []
     reglist = []
     for k in range(len(image_list)):
-        moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='BOLDRigid' )
-        mocoplist.append( moco0['motion_parameters'] )
-        mocofdlist.append( moco0['FD'] )
-        locavg = ants.slice_image( moco0['motion_corrected'], axis=3, idx=0 ) * 0.0
-        for j in range(len(target_idx)):
-            locavg = locavg + ants.slice_image( moco0['motion_corrected'], axis=3, idx=target_idx[j] )
-        locavg = locavg * 1.0 / len(target_idx)
+        if imagetype == 3:
+            moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='BOLDRigid' )
+            mocoplist.append( moco0['motion_parameters'] )
+            mocofdlist.append( moco0['FD'] )
+            locavg = ants.slice_image( moco0['motion_corrected'], axis=3, idx=0 ) * 0.0
+            for j in range(len(target_idx)):
+                locavg = locavg + ants.slice_image( moco0['motion_corrected'], axis=3, idx=target_idx[j] )
+            locavg = locavg * 1.0 / len(target_idx)
+        else:
+            locavg = image_list[k]
         reg = ants.registration( btp, locavg, **kwargs )
         reglist.append( reg )
         if imagetype == 3:
@@ -310,7 +323,10 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'lowermeans':lowerindices,
     'highermeans':higherindices }
 
-def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dilate = 2, vol_idx=None ):
+def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
+    dilate = 2,
+    vol_idx = None,
+    autocrop = False ):
     """
     Super resolution on a timeseries or multi-channel image
 
@@ -329,6 +345,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
     dilate : dilate from dipy median_otsu function
 
     vol_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+
+    autocrop : boolean; see dipy for details
 
     Returns
     -------
@@ -353,7 +371,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4, dil
         vol_idx=vol_idx,
         median_radius = median_radius,
         numpass = numpass,
-        autocrop = True,
+        autocrop = autocrop,
         dilate = dilate )
 
     tenmodel = dti.TensorModel(gtab)
