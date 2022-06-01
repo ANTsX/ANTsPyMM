@@ -423,6 +423,10 @@ def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
     6. label images and do registration
     7. return relevant outputs
 
+    NOTE: this function does not perform motion correction.  the user should
+    perform this before using this function and pass in the appropriate image
+    and bvec files.
+
     Arguments
     ---------
     image : an antsImage holding B0 and DWI
