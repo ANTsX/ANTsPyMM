@@ -495,7 +495,9 @@ def joint_dti_recon(
     img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
         dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3 )
 
+    reg_its = [100,100,20]
     if srmodel is not None:
+        reg_its = [100,100,100,20]
         if verbose:
             print("convert img_RL_dwp to img_RL_dwp_SR")
         img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
@@ -514,7 +516,7 @@ def joint_dti_recon(
 
     OR_FA2JHUreg = ants.registration( meanFA, jhu_atlas,
         type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
-        reg_iterations=[100,100,20], verbose=verbose )
+        reg_iterations=reg_its, verbose=verbose )
     OR_FA_jhulabels = ants.apply_transforms( meanFA, jhu_labels,
         OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
 
