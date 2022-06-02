@@ -568,6 +568,7 @@ def joint_dti_recon(
             print("convert img_LR_dwp to img_LR_dwp_SR")
         img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
 
+    recon_RL = None
     if img_RL is not None:
         recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
                 autocrop=False, motion_correct=motion_correct )
