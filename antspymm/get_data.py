@@ -328,7 +328,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     dilate = 2,
     antspynet_masking = True,
     vol_idx = None,
-    autocrop = False ):
+    autocrop = False,
+    motion_correct = False ):
     """
     DiPy DTI reconstruction - following their own basic example
 
@@ -352,6 +353,8 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
 
     autocrop : boolean; see dipy for details
 
+    motion_correct : boolean
+
     Returns
     -------
     dictionary holding the tensorfit, MD, FA and RGB images
@@ -365,21 +368,51 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     gtab = gradient_table(bvals, bvecs)
     b0 = ants.slice_image( image, axis=3, idx=vol_idx[0] )
-
+    FD = None
+    motion_corrected = None
     if antspynet_masking:
         mask = None
+        avgb0 = None
         for myidx in vol_idx:
             b0 = ants.slice_image( image, axis=3, idx=myidx)
             temp = antspynet.brain_extraction( b0, 't2' )
             if mask is None:
                 mask = temp
+                avgb0 = b0
             else:
                 mask = mask + temp
+                avgb0 = avgb0 + b0
         mask = ants.iMath( mask, "Normalize" ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
-        mlist = []
-        for k in range( image.shape[3] ):
-            mlist.append( mask )
-        maskdata = ( image * ants.list_to_ndimage( image, mlist ) ).numpy()
+        avgb0 = ants.iMath( avgb0 * mask, 'Normalize' )
+        if not motion_correct:
+            maskedimage = []
+            for myidx in range(image.shape[3]):
+                b0 = ants.slice_image( image, axis=3, idx=myidx)
+                # temp = antspynet.brain_extraction( b0, 't2' ).threshold_image( 0.5, 1.0 ).iMath("FillHoles")
+                b0bxt = ants.iMath( mask, "MD", 2 )
+                maskedimage.append( b0 * mask )
+            maskedimage = ants.list_to_ndimage( image, maskedimage )
+            maskdata = maskedimage.numpy()
+        if motion_correct:
+            moco0 = ants.motion_correction(
+                image=image,
+                fixed=avgb0,
+                type_of_transform='Rigid',
+                aff_metric='Mattes',
+                aff_sampling=32,
+                aff_smoothing_sigmas=(2,1,0),
+                aff_shrink_factors=(3,2,1),
+                aff_random_sampling_rate=1.0,
+                grad_step=0.025,
+                aff_iterations=(200,200,50) )
+            FD = moco0['FD']
+            motion_corrected = moco0['motion_corrected']
+            maskedimage = []
+            for myidx in range(image.shape[3]):
+                b0 = ants.slice_image( moco0['motion_corrected'], axis=3, idx=myidx)
+                maskedimage.append( b0 * mask )
+            maskedimage = ants.list_to_ndimage( image, maskedimage )
+            maskdata = maskedimage.numpy()
     else:
         maskdata, mask = median_otsu(
             image.numpy(),
@@ -405,27 +438,38 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
     RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
     return {
-        'tensormodel':tenfit,
-        'MD':MD1,
-        'FA':FA,
-        'RGB':ants.merge_channels( [RGB0,RGB1,RGB2] )
+        'tensormodel' : tenfit,
+        'MD' : MD1,
+        'FA' : FA,
+        'RGB' : ants.merge_channels( [RGB0,RGB1,RGB2] ),
+        'motion_corrected' : motion_corrected,
+        'framewise_displacement' : FD
         }
 
 def joint_dti_recon(
-    img_LR, img_RL,
-    bval_LR, bval_RL,
-    bvec_LR, bvec_RL,
-    jhu_atlas, jhu_labels,
-    srmodel=None, verbose = False ):
+    img_LR,
+    bval_LR,
+    bvec_LR,
+    jhu_atlas,
+    jhu_labels,
+    srmodel = None,
+    img_RL = None,
+    bval_RL = None,
+    bvec_RL = None,
+    t1w = None,
+    motion_correct = False,
+    verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
-    2. perform initial LR, RL reconstruction
+    2. perform initial LR, RL reconstruction (2nd is optional)
     3. dewarp the images using JHU FA to reformat the size of the images
     4. apply dewarping to the original data
         ===> may want to apply SR at this step
     5. reconstruct DTI again
     6. label images and do registration
     7. return relevant outputs
+
+    NOTE: RL images are optional; should pass t1w in this case.
 
     NOTE: this function does not perform motion correction.  the user should
     perform this before using this function and pass in the appropriate image
@@ -436,21 +480,25 @@ def joint_dti_recon(
 
     img_LR : an antsImage holding B0 and DWI LR acquisition
 
-    img_RL : an antsImage holding B0 and DWI RL acquisition
-
     bval_LR : bvalue filename LR
 
-    bval_RL : bvalue filename RL
-
     bvec_LR : bvector filename LR
-
-    bvec_RL : bvector filename RL
 
     jhu_atlas : atlas FA image
 
     jhu_labels : atlas labels
 
     srmodel : optional h5 (tensorflow) model
+
+    img_RL : an antsImage holding B0 and DWI RL acquisition
+
+    bval_RL : bvalue filename RL
+
+    bvec_RL : bvector filename RL
+
+    t1w : antsimage t1w neuroimage (brain-extracted)
+
+    motion_correct : boolean
 
     verbose : boolean
 
@@ -469,60 +517,84 @@ def joint_dti_recon(
         print("Recon DTI on OR images ...")
 
     # RL image
-    recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL, autocrop=False)
+    if img_RL is not None:
+        recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
+            autocrop=False, motion_correct=motion_correct )
+        OR_RLFA = recon_RL['FA']
 
     # LR image
-    recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR, autocrop=False)
-
-    OR_RLFA = recon_RL['FA']
+    recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
+        autocrop=False, motion_correct=motion_correct )
     OR_LRFA = recon_LR['FA']
 
     if verbose:
         print("JHU initialization ...")
 
-    JHU_atlas_aff = ants.registration( OR_RLFA, jhu_atlas, 'SyN' )['warpedmovout']
+    JHU_atlas_aff = ants.registration( OR_LRFA, jhu_atlas, 'SyN' )['warpedmovout']
     JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",6)
     JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
 
-    dwp_OR = dewarp_imageset(
-        [OR_RLFA,OR_LRFA],
-        initial_template=JHU_atlas_aff,
-        iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
+    if img_RL is not None:
+        dwp_OR = dewarp_imageset(
+            [OR_RLFA,OR_LRFA],
+            initial_template=JHU_atlas_aff,
+            iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
+    else:
+        reg = ants.registration( t1w, OR_LRFA, 'antsRegistrationSyNQuickRepro[s]' )
+        dwp_OR ={
+            'deformable_registrations':[reg],
+            'dewarpedmean':reg['warpedmovout']
+            }
 
     # apply the dewarping tx to the original dwi and reconstruct again
-    img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,
-        dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3   )
-    img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
-        dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3 )
+    if img_RL is not None:
+        img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,
+            dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3   )
+        img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
+            dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3 )
+
+    if img_RL is None:
+        img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
+            dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3 )
 
     reg_its = [100,100,20]
     if srmodel is not None:
         reg_its = [100,100,100,20]
-        if verbose:
-            print("convert img_RL_dwp to img_RL_dwp_SR")
-        img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
+        if img_RL is not None:
+            if verbose:
+                print("convert img_RL_dwp to img_RL_dwp_SR")
+                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
         img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
 
-    recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL, autocrop=True )
-    recon_LR = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR, autocrop=True )
+    if img_RL is not None:
+        recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
+                autocrop=False, motion_correct=motion_correct )
 
-    meanFA = recon_RL['FA'] * 0.5 + recon_LR['FA'] * 0.5
-    meanMD = recon_RL['MD'] * 0.5 + recon_LR['MD'] * 0.5
+    recon_LR = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
+                autocrop=False, motion_correct=motion_correct )
+
+    if img_RL is not None:
+        reconFA = recon_RL['FA'] * 0.5 + recon_LR['FA'] * 0.5
+        reconMD = recon_RL['MD'] * 0.5 + recon_LR['MD'] * 0.5
+    else:
+        reconFA = recon_LR['FA']
+        reconMD = recon_LR['MD']
+
 
     if verbose:
         print("JHU reg")
 
-    OR_FA2JHUreg = ants.registration( meanFA, jhu_atlas,
+    OR_FA2JHUreg = ants.registration( reconFA, jhu_atlas,
         type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
         reg_iterations=reg_its, verbose=verbose )
-    OR_FA_jhulabels = ants.apply_transforms( meanFA, jhu_labels,
+    OR_FA_jhulabels = ants.apply_transforms( reconFA, jhu_labels,
         OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
 
     df_FA_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
         'FA_JHU_labels_edited',
-        meanFA,
+        reconFA,
         OR_FA_jhulabels)
     df_FA_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
             {'df_FA_JHU_ORRL' : df_FA_JHU_ORRL},
@@ -530,17 +602,17 @@ def joint_dti_recon(
 
     df_MD_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
         'FA_JHU_labels_edited',
-        meanMD,
+        reconMD,
         OR_FA_jhulabels)
     df_MD_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
             {'df_MD_JHU_ORRL' : df_MD_JHU_ORRL},
             col_names = ['Mean'] )
 
     return {
-        'mean_fa':meanFA,
-        'mean_fa_summary':df_FA_JHU_ORRL_bfwide,
-        'mean_md':meanMD,
-        'mean_md_summary':df_MD_JHU_ORRL_bfwide,
+        'recon_fa':reconFA,
+        'recon_fa_summary':df_FA_JHU_ORRL_bfwide,
+        'recon_md':reconMD,
+        'recon_md_summary':df_MD_JHU_ORRL_bfwide,
         'jhu_labels':OR_FA_jhulabels,
         'jhu_registration':OR_FA2JHUreg,
         'recon_RL':recon_RL,
