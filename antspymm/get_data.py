@@ -540,19 +540,12 @@ def joint_dti_recon(
             initial_template=JHU_atlas_aff,
             iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
     else:
-        rigreg = ants.registration(
-            t1w,
-            OR_LRFA,
-            'Rigid',
-            aff_metric='GC',
-            gradient_step=0.05 )
         synreg = ants.registration(
             t1w,
             OR_LRFA,
-            'SyNOnly',
-            syn_metric='CC',
-            syn_sampling=2,
-            initial_transform = rigreg['fwdtransforms'] )
+            'SyNBold',
+            total_sigma=0.5,
+            gradient_step=0.05 )
         dwp_OR ={
             'deformable_registrations':[synreg],
             'dewarpedmean':synreg['warpedmovout']
@@ -601,7 +594,7 @@ def joint_dti_recon(
 
     OR_FA2JHUreg = ants.registration( reconFA, jhu_atlas,
         type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
-        reg_iterations=reg_its, verbose=verbose )
+        reg_iterations=reg_its, verbose=False )
     OR_FA_jhulabels = ants.apply_transforms( reconFA, jhu_labels,
         OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
 
