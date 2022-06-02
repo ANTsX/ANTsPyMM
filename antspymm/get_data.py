@@ -540,10 +540,22 @@ def joint_dti_recon(
             initial_template=JHU_atlas_aff,
             iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
     else:
-        reg = ants.registration( t1w, OR_LRFA, 'antsRegistrationSyNQuickRepro[s]' )
+        rigreg = ants.registration(
+            t1w,
+            OR_LRFA,
+            'Rigid',
+            aff_metric='GC',
+            gradient_step=0.05 )
+        synreg = ants.registration(
+            t1w,
+            OR_LRFA,
+            'SyNOnly',
+            syn_metric='CC',
+            syn_sampling=2,
+            initial_transform = rigreg['fwdtransforms'] )
         dwp_OR ={
-            'deformable_registrations':[reg],
-            'dewarpedmean':reg['warpedmovout']
+            'deformable_registrations':[synreg],
+            'dewarpedmean':synreg['warpedmovout']
             }
 
     # apply the dewarping tx to the original dwi and reconstruct again
