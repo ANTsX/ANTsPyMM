@@ -498,10 +498,10 @@ def joint_dti_recon(
     if srmodel is not None:
         if verbose:
             print("convert img_RL_dwp to img_RL_dwp_SR")
-        img_RLdwp = antspymm.super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
+        img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
-        img_LRdwp = antspymm.super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
+        img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
 
     recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL, autocrop=True )
     recon_LR = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR, autocrop=True )

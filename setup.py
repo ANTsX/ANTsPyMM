@@ -4,7 +4,7 @@ from setuptools import setup
 long_description = open("README.md").read()
 
 setup(name='antspymm',
-      version='0.1.3',
+      version='0.1.4',
       description='multi-channel/time-series medical image processing with antspyx',
       long_description=long_description,
       long_description_content_type="text/markdown; charset=UTF-8; variant=GFM",
