@@ -411,7 +411,11 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
         'RGB':ants.merge_channels( [RGB0,RGB1,RGB2] )
         }
 
-def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
+def joint_dti_recon(
+    img_LR, img_RL,
+    bval_LR, bval_RL,
+    bvec_LR, bvec_RL,
+    jhu_atlas, jhu_labels,
     srmodel=None, verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -429,21 +433,26 @@ def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
 
     Arguments
     ---------
-    image : an antsImage holding B0 and DWI
 
-    bvalsfn : bvalue filename
+    img_LR : an antsImage holding B0 and DWI LR acquisition
 
-    bvecsfn : bvector filename
+    img_RL : an antsImage holding B0 and DWI RL acquisition
 
-    median_radius : median_radius from dipy median_otsu function
+    bval_LR : bvalue filename LR
 
-    numpass : numpass from dipy median_otsu function
+    bval_RL : bvalue filename RL
 
-    dilate : dilate from dipy median_otsu function
+    bvec_LR : bvector filename LR
 
-    vol_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+    bvec_RL : bvector filename RL
 
-    autocrop : boolean; see dipy for details
+    jhu_atlas : atlas FA image
+
+    jhu_labels : atlas labels
+
+    srmodel : optional h5 (tensorflow) model
+
+    verbose : boolean
 
     Returns
     -------
@@ -460,10 +469,10 @@ def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
         print("Recon DTI on OR images ...")
 
     # RL image
-    recon_RL = dipy_dti_recon( img_RL, bval, bvec, autocrop=False)
+    recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL, autocrop=False)
 
     # LR image
-    recon_LR = dipy_dti_recon( img_LR, bval, bvec, autocrop=False)
+    recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR, autocrop=False)
 
     OR_RLFA = recon_RL['FA']
     OR_LRFA = recon_LR['FA']
@@ -494,10 +503,11 @@ def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
             print("convert img_LR_dwp to img_LR_dwp_SR")
         img_LRdwp = antspymm.super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
 
-    recon_RL = dipy_dti_recon( img_RLdwp, bval, bvec, autocrop=True )
-    recon_LR = dipy_dti_recon( img_LRdwp, bval, bvec, autocrop=True )
+    recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL, autocrop=True )
+    recon_LR = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR, autocrop=True )
 
     meanFA = recon_RL['FA'] * 0.5 + recon_LR['FA'] * 0.5
+    meanMD = recon_RL['MD'] * 0.5 + recon_LR['MD'] * 0.5
 
     if verbose:
         print("JHU reg")
@@ -508,20 +518,27 @@ def joint_dti_recon( img_LR, img_RL, bval, bvec, jhu_atlas, jhu_labels,
     OR_FA_jhulabels = ants.apply_transforms( meanFA, jhu_labels,
         OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
 
-    # FIXME need file FA_JHU_labels_edited to exist in antspymm repository
-    # Map intensity to df
     df_FA_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
         'FA_JHU_labels_edited',
         meanFA,
         OR_FA_jhulabels)
-    # Merge to wide format
     df_FA_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
             {'df_FA_JHU_ORRL' : df_FA_JHU_ORRL},
-            col_names = ['Mean'],
-            identifier=None, identifier_name='sub59545')
+            col_names = ['Mean'] )
+
+    df_MD_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
+        'FA_JHU_labels_edited',
+        meanMD,
+        OR_FA_jhulabels)
+    df_MD_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+            {'df_MD_JHU_ORRL' : df_MD_JHU_ORRL},
+            col_names = ['Mean'] )
+
     return {
         'mean_fa':meanFA,
         'mean_fa_summary':df_FA_JHU_ORRL_bfwide,
+        'mean_md':meanMD,
+        'mean_md_summary':df_MD_JHU_ORRL_bfwide,
         'jhu_labels':OR_FA_jhulabels,
         'jhu_registration':OR_FA2JHUreg,
         'recon_RL':recon_RL,
