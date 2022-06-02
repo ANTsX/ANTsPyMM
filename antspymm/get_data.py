@@ -487,7 +487,7 @@ def joint_dti_recon(
     dwp_OR = dewarp_imageset(
         [OR_RLFA,OR_LRFA],
         initial_template=JHU_atlas_aff,
-        iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[100,100,20] )
+        iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
 
     # apply the dewarping tx to the original dwi and reconstruct again
     img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,

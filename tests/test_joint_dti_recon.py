@@ -12,14 +12,15 @@ import pandas as pd
 import tensorflow as tf
 
 print(" Load in JHU atlas and labels ")
-ex_path = "~/.antspyt1w/"
-JHU_atlas = ants.image_read( ex_path + 'JHU-ICBM-FA-1mm.nii.gz') # Read in JHU atlas
-JHU_labels = ants.image_read( ex_path + 'JHU-ICBM-labels-1mm.nii.gz') # Read in JHU labels
+ex_path = os.path.expanduser( "~/.antspyt1w/" )
+ex_path_mm = os.path.expanduser( "~/.antspymm/" )
+JHU_atlas = ants.image_read( ex_path + 'JHU-ICBM-FA-1mm.nii.gz' ) # Read in JHU atlas
+JHU_labels = ants.image_read( ex_path + 'JHU-ICBM-labels-1mm.nii.gz' ) # Read in JHU labels
 
 #### Load in data ####
 print("Load in subject data ...")
-lrid = ex_path + "I1499279_Anon_20210819142214_5"
-rlid = ex_path + "I1499337_Anon_20210819142214_6"
+lrid = ex_path_mm + "I1499279_Anon_20210819142214_5"
+rlid = ex_path_mm + "I1499337_Anon_20210819142214_6"
 # Load in image L-R
 img_LR_in = ants.image_read( lrid + '.nii.gz') # LR dwi image
 img_LR_bval = lrid + '.bval' # bval
