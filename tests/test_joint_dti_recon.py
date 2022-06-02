@@ -31,11 +31,17 @@ img_RL_bval = lrid + '.bval' # bval
 img_RL_bvec = lrid + '.bvec'
 
 myoutx = antspymm.joint_dti_recon(
-    img_LR_in, img_RL_in,
-    img_LR_bval, img_RL_bval,
-    img_LR_bvec, img_RL_bvec,
-    jhu_atlas=JHU_atlas, jhu_labels=JHU_labels,
-    srmodel=None, verbose = True)
+    img_LR_in,
+    img_LR_bval,
+    img_LR_bvec,
+    jhu_atlas = JHU_atlas,
+    jhu_labels = JHU_labels,
+    srmodel = None,
+    img_RL = img_RL_in,
+    bval_RL = img_RL_bval,
+    bvec_RL = img_RL_bvec,
+    motion_correct = True,
+    verbose = True)
 
 if False:
     ants.image_write( myoutx['recon_RL']['RGB'], '/tmp/temp1.nii.gz'  )

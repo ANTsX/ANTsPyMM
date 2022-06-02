@@ -36,6 +36,7 @@ myoutx = antspymm.joint_dti_recon(
     jhu_labels=JHU_labels,
     t1w = t1w,
     srmodel=None,
+    motion_correct=True,
     verbose = True)
 
 if False:
