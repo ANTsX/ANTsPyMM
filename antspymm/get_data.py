@@ -394,23 +394,32 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
             maskedimage = ants.list_to_ndimage( image, maskedimage )
             maskdata = maskedimage.numpy()
         if motion_correct:
-            moco0 = ants.motion_correction(
-                image=image,
-                fixed=avgb0,
-                type_of_transform='Rigid',
-                aff_metric='Mattes',
-                aff_sampling=32,
-                aff_smoothing_sigmas=(2,1,0),
-                aff_shrink_factors=(3,2,1),
-                aff_random_sampling_rate=1.0,
-                grad_step=0.025,
-                aff_iterations=(200,200,50) )
-            FD = moco0['FD']
-            motion_corrected = moco0['motion_corrected']
             maskedimage = []
             for myidx in range(image.shape[3]):
-                b0 = ants.slice_image( moco0['motion_corrected'], axis=3, idx=myidx)
+                b0 = ants.slice_image( image, axis=3, idx=myidx)
+                maskedimage.append( ants.iMath( b0,'Normalize' ) )
+            maskedimage = ants.list_to_ndimage( image, maskedimage )
+            temp = ants.get_average_of_timeseries( maskedimage )
+            moco0 = ants.motion_correction(
+                image=maskedimage,
+                fixed=temp,
+                type_of_transform='Rigid',
+                aff_metric='Mattes',
+                aff_sampling=20,
+                aff_smoothing_sigmas=(2,1,0),
+                aff_shrink_factors=(3,2,1),
+                aff_random_sampling_rate=0.5,
+                grad_step=0.025,
+                aff_iterations=(200,200,20) )
+            FD = moco0['FD']
+            maskedimage = []
+            mocoimage = []
+            for myidx in range(image.shape[3]):
+                b0 = ants.slice_image( image, axis=3, idx=myidx)
+                b0 = ants.apply_transforms( avgb0, b0, moco0['motion_parameters'][myidx] )
+                mocoimage.append( b0 )
                 maskedimage.append( b0 * mask )
+            motion_corrected = ants.list_to_ndimage( image, mocoimage )
             maskedimage = ants.list_to_ndimage( image, maskedimage )
             maskdata = maskedimage.numpy()
     else:
@@ -443,6 +452,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
         'FA' : FA,
         'RGB' : ants.merge_channels( [RGB0,RGB1,RGB2] ),
         'motion_corrected' : motion_corrected,
+        'motion_corrected_masked' : maskedimage,
         'framewise_displacement' : FD
         }
 
@@ -536,9 +546,10 @@ def joint_dti_recon(
 
     if img_RL is not None:
         dwp_OR = dewarp_imageset(
-            [OR_RLFA,OR_LRFA],
+            [OR_LRFA, OR_RLFA],
             initial_template=JHU_atlas_aff,
-            iterations = 5, syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
+            iterations = 5,
+            syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
     else:
         synreg = ants.registration(
             t1w,
@@ -553,10 +564,10 @@ def joint_dti_recon(
 
     # apply the dewarping tx to the original dwi and reconstruct again
     if img_RL is not None:
-        img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,
-            dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3   )
         img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
-            dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3 )
+            dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3 )
+        img_RLdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_RL,
+            dwp_OR['deformable_registrations'][1]['fwdtransforms'], imagetype = 3   )
 
     if img_RL is None:
         img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
@@ -623,7 +634,9 @@ def joint_dti_recon(
         'jhu_registration':OR_FA2JHUreg,
         'recon_RL':recon_RL,
         'recon_LR':recon_LR,
-        'dewarping':dwp_OR
+        'dewarping':dwp_OR,
+        'img_LRdwp':img_LRdwp,
+        'img_RLdwp':img_RLdwp
     }
 
 def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
