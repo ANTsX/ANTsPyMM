@@ -43,8 +43,8 @@ myoutx = antspymm.joint_dti_recon(
     motion_correct = True,
     verbose = True)
 
-if False:
-    ants.image_write( myoutx['recon_RL']['RGB'], '/tmp/temp1.nii.gz'  )
-    ants.image_write( myoutx['recon_LR']['RGB'], '/tmp/temp2.nii.gz'  )
+if True:
+    ants.image_write( myoutx['recon_RL']['RGB'], '/tmp/temp1rgb.nii.gz'  )
+    ants.image_write( myoutx['recon_LR']['RGB'], '/tmp/temp2rgb.nii.gz'  )
     ants.image_write( myoutx['recon_fa'], '/tmp/temp1fa.nii.gz'  )
     ants.image_write( myoutx['recon_md'], '/tmp/temp1md.nii.gz'  )

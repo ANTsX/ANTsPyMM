@@ -530,9 +530,9 @@ def joint_dti_recon(
     if verbose:
         print("JHU initialization ...")
 
-    JHU_atlas_aff = ants.registration( OR_LRFA, jhu_atlas, 'SyN' )['warpedmovout']
-    JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",6)
-    JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
+    JHU_atlas_aff = ants.registration( OR_LRFA, jhu_atlas, 'Similarity' )['warpedmovout']
+    # JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",6)
+    # JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
 
     if img_RL is not None:
         dwp_OR = dewarp_imageset(
