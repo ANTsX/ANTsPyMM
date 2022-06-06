@@ -370,6 +370,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     b0 = ants.slice_image( image, axis=3, idx=vol_idx[0] )
     FD = None
     motion_corrected = None
+    maskedimage = None
     if antspynet_masking:
         mask = None
         avgb0 = None
