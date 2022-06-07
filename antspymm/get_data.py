@@ -564,6 +564,8 @@ def joint_dti_recon(
             }
 
     # apply the dewarping tx to the original dwi and reconstruct again
+    img_RLdwp = None
+    img_LRdwp = None
     if img_RL is not None:
         img_LRdwp = ants.apply_transforms( dwp_OR['dewarpedmean'], img_LR,
             dwp_OR['deformable_registrations'][0]['fwdtransforms'], imagetype = 3 )
@@ -584,6 +586,9 @@ def joint_dti_recon(
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
         img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
+
+    if verbose:
+        print("recon after distortion correction")
 
     recon_RL = None
     if img_RL is not None:
