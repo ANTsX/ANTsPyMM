@@ -573,7 +573,7 @@ def joint_dti_recon(
     JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
 
     synreg = None
-    ts_LR_avg = recon_LR[dewarp_modality]
+    ts_LR_avg = recon_LR[dewarp_modality] * recon_LR['dwi_mask']
     ts_RL_avg = None
 
     t1wrig = None
@@ -585,8 +585,8 @@ def joint_dti_recon(
         if dewarp_modality == 'FA':
             targeter = JHU_atlas_aff
         else:
-            targeter = ts_LR_avg
-        ts_RL_avg = recon_RL[dewarp_modality] # ants.get_average_of_timeseries( recon_RL['motion_corrected'] )
+            targeter = ts_LR_avg * recon_RL['dwi_mask']
+        ts_RL_avg = recon_RL[dewarp_modality] * recon_RL['dwi_mask'] # ants.get_average_of_timeseries( recon_RL['motion_corrected'] )
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
             initial_template=targeter,

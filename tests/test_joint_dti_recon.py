@@ -45,6 +45,10 @@ myoutx = antspymm.joint_dti_recon(
     verbose = True)
 
 if True:
+    ants.image_write( myoutx['dtrecon_LR']['FA'], '/tmp/temp1fa1.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_RL']['FA'], '/tmp/temp2fa1.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_LR_dewarp']['FA'], '/tmp/temp1fa2.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_RL_dewarp']['FA'], '/tmp/temp2fa2.nii.gz'  )
     ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp1rgb.nii.gz'  )
     ants.image_write( myoutx['dtrecon_RL_dewarp']['RGB'], '/tmp/temp2rgb.nii.gz'  )
     ants.image_write( myoutx['recon_fa'], '/tmp/temp1fa.nii.gz'  )
