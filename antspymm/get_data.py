@@ -550,7 +550,7 @@ def joint_dti_recon(
         print("Recon DTI on OR images ...")
 
     # RL image
-    mymd = 16
+    mymd = 2
     recon_RL = None
     if img_RL is not None:
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
