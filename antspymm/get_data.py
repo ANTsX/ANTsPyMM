@@ -385,11 +385,13 @@ def dipy_dti_recon(
     average_b0 = ants.iMath( average_b0, 'Normalize' )
     average_dwi = ants.iMath( average_dwi, 'Normalize' )
 
+    bxtmod='bold'
+    bxtmod='t2'
     get_mask = False
     if mask is None:
         get_mask = True
 #        mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
-        mask = antspynet.brain_extraction( average_b0, 't2' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+        mask = antspynet.brain_extraction( average_b0, bxtmod ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
 
     maskdil = ants.iMath( mask, "MD", mask_dilation )
 
@@ -442,7 +444,7 @@ def dipy_dti_recon(
             average_b0 = ants.iMath( average_b0, 'Normalize' )
             average_dwi = ants.iMath( average_dwi, 'Normalize' )
             # mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
-            mask = antspynet.brain_extraction( average_b0, 'bold' ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
+            mask = antspynet.brain_extraction( average_b0, bxtmod ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
 
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(maskdata)
@@ -487,7 +489,7 @@ def joint_dti_recon(
     bvec_RL = None,
     t1w = None,
     motion_correct = False,
-    dewarp_modality = 'average_dwi',
+    dewarp_modality = 'FA',
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels

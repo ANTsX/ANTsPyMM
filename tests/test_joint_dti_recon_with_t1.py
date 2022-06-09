@@ -43,6 +43,6 @@ myoutx = antspymm.joint_dti_recon(
 doit=True
 if doit:
     ants.image_write( myoutx['t1w_rigid'], '/tmp/tempt1w.nii.gz'  )
-    ants.image_write( myoutx['recon_LR_dewarp']['RGB'], '/tmp/temp2.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp2.nii.gz'  )
     ants.image_write( myoutx['recon_fa'], '/tmp/temp1fa.nii.gz'  )
     ants.image_write( myoutx['recon_md'], '/tmp/temp1md.nii.gz'  )
