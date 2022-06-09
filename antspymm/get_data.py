@@ -388,7 +388,8 @@ def dipy_dti_recon(
     get_mask = False
     if mask is None:
         get_mask = True
-        mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+#        mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+        mask = antspynet.brain_extraction( avgb0, 't2' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
 
     maskdil = ants.iMath( mask, "MD", mask_dilation )
 
@@ -440,7 +441,8 @@ def dipy_dti_recon(
                     avgb0 = avgb0 + b0
             avgb0 = ants.iMath( avgb0, 'Normalize' )
             average_dwi = ants.iMath( average_dwi, 'Normalize' )
-            mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+            # mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+            mask = antspynet.brain_extraction( avgb0, 't2' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
 
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(maskdata)
@@ -589,7 +591,8 @@ def joint_dti_recon(
             t1wtarget,
             'SyNOnly',
             total_sigma=0.0,
-            syn_metric='CC', syn_sampling=2, reg_iterations=[100,100,20],
+            # syn_metric='CC', syn_sampling=2, 
+            reg_iterations=[100,100,20],
             gradient_step=0.1 )
         dwp_OR ={
             'deformable_registrations':[synreg],
