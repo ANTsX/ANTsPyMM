@@ -324,11 +324,12 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'lowermeans':lowerindices,
     'highermeans':higherindices }
 
-def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
-    dilate = 2,
-    antspynet_masking = True,
-    vol_idx = None,
-    autocrop = False,
+def dipy_dti_recon(
+    image,
+    bvalsfn,
+    bvecsfn,
+    mask = None,
+    b0_idx = None,
     motion_correct = False,
     mask_dilation = 0 ):
     """
@@ -342,17 +343,9 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
 
     bvecsfn : bvector filename
 
-    median_radius : median_radius from dipy median_otsu function
+    mask : brain mask for the DWI/DTI reconstruction
 
-    numpass : numpass from dipy median_otsu function
-
-    dilate : dilate from dipy median_otsu function
-
-    antspynet_masking : boolean will not use median_otsu
-
-    vol_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
-
-    autocrop : boolean; see dipy for details
+    b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
 
     motion_correct : boolean
 
@@ -360,54 +353,62 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
 
     Returns
     -------
-    dictionary holding the tensorfit, MD, FA and RGB images
+    dictionary holding the tensorfit, MD, FA and RGB images and motion parameters (optional)
 
     Example
     -------
     >>> import antspymm
     """
-    if vol_idx is None:
-        vol_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+
+    if b0_idx is None:
+        b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+
     bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     gtab = gradient_table(bvals, bvecs)
-    b0 = ants.slice_image( image, axis=3, idx=vol_idx[0] )
+    b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     FD = None
     motion_corrected = None
     maskedimage = None
     motion_parameters = None
-    if antspynet_masking:
-        mask = None
-        avgb0 = None
-        for myidx in vol_idx:
+
+    # first get the average images
+    avgb0 = ants.slice_image( image, axis=3, idx=0 ) * 0
+    average_dwi = avgb0.clone()
+    for myidx in range(image.shape[3]):
+        b0 = ants.slice_image( image, axis=3, idx=myidx)
+        average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
+
+    for myidx in b0_idx:
+        b0 = ants.slice_image( image, axis=3, idx=myidx)
+        avgb0 = avgb0 + b0
+
+    avgb0 = ants.iMath( avgb0, 'Normalize' )
+    average_dwi = ants.iMath( average_dwi, 'Normalize' )
+
+    get_mask = False
+    if mask is None:
+        get_mask = True
+        mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
+
+    maskdil = ants.iMath( mask, "MD", mask_dilation )
+
+    # now extract the masked image data with or without motion correct
+    if not motion_correct:
+        maskedimage = []
+        for myidx in range(image.shape[3]):
             b0 = ants.slice_image( image, axis=3, idx=myidx)
-            temp = antspynet.brain_extraction( b0, 't2' )
-            if mask is None:
-                mask = temp
-                avgb0 = b0
-            else:
-                mask = mask + temp
-                avgb0 = avgb0 + b0
-        mask = ants.iMath( mask, "Normalize" ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent").iMath("MD",mask_dilation)
-        avgb0 = ants.iMath( avgb0 * mask, 'Normalize' )
-        if not motion_correct:
-            maskedimage = []
-            for myidx in range(image.shape[3]):
-                b0 = ants.slice_image( image, axis=3, idx=myidx)
-                # temp = antspynet.brain_extraction( b0, 't2' ).threshold_image( 0.5, 1.0 ).iMath("FillHoles")
-                b0bxt = ants.iMath( mask, "MD", 2 )
-                maskedimage.append( b0 * mask )
-            maskedimage = ants.list_to_ndimage( image, maskedimage )
-            maskdata = maskedimage.numpy()
-        if motion_correct:
-            maskedimage = []
-            for myidx in range(image.shape[3]):
+            maskedimage.append( b0 * maskdil )
+        maskedimage = ants.list_to_ndimage( image, maskedimage )
+        maskdata = maskedimage.numpy()
+    if motion_correct:
+        maskedimage = []
+        for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 maskedimage.append( ants.iMath( b0,'Normalize' ) )
-            maskedimage = ants.list_to_ndimage( image, maskedimage )
-            temp = ants.get_average_of_timeseries( maskedimage )
-            moco0 = ants.motion_correction(
+        maskedimage = ants.list_to_ndimage( image, maskedimage )
+        moco0 = ants.motion_correction(
                 image=maskedimage,
-                fixed=temp,
+                fixed=average_dwi,
                 type_of_transform='Rigid',
                 aff_metric='Mattes',
                 aff_sampling=20,
@@ -416,26 +417,30 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
                 aff_random_sampling_rate=0.5,
                 grad_step=0.025,
                 aff_iterations=(200,200,20) )
-            motion_parameters = moco0['motion_parameters']
-            FD = moco0['FD']
-            maskedimage = []
-            mocoimage = []
-            for myidx in range(image.shape[3]):
+        motion_parameters = moco0['motion_parameters']
+        FD = moco0['FD']
+        maskedimage = []
+        mocoimage = []
+        for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 b0 = ants.apply_transforms( avgb0, b0, moco0['motion_parameters'][myidx] )
                 mocoimage.append( b0 )
-                maskedimage.append( b0 * mask )
-            motion_corrected = ants.list_to_ndimage( image, mocoimage )
-            maskedimage = ants.list_to_ndimage( image, maskedimage )
-            maskdata = maskedimage.numpy()
-    else:
-        maskdata, mask = median_otsu(
-            image.numpy(),
-            vol_idx=vol_idx,
-            median_radius = median_radius,
-            numpass = numpass,
-            autocrop = autocrop,
-            dilate = dilate )
+                maskedimage.append( b0 * maskdil )
+        motion_corrected = ants.list_to_ndimage( image, mocoimage )
+        maskedimage = ants.list_to_ndimage( image, maskedimage )
+        maskdata = maskedimage.numpy()
+        if get_mask:
+            avgb0 = ants.slice_image( image, axis=3, idx=0 ) * 0
+            average_dwi = avgb0.clone()
+            for myidx in range(image.shape[3]):
+                    b0 = ants.slice_image( image, axis=3, idx=myidx)
+                    average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
+            for myidx in b0_idx:
+                    b0 = ants.slice_image( image, axis=3, idx=myidx)
+                    avgb0 = avgb0 + b0
+            avgb0 = ants.iMath( avgb0, 'Normalize' )
+            average_dwi = ants.iMath( average_dwi, 'Normalize' )
+            mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
 
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(maskdata)
@@ -452,6 +457,7 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
     RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
     RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
     RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
+    famask = antspynet.brain_extraction( FA, 'fa' ).threshold_image(0.5,1).iMath("GetLargestComponent").iMath("FillHoles")
     return {
         'tensormodel' : tenfit,
         'MD' : MD1,
@@ -460,7 +466,11 @@ def dipy_dti_recon( image, bvalsfn, bvecsfn, median_radius = 4, numpass = 4,
         'motion_corrected' : motion_corrected,
         'motion_corrected_masked' : maskedimage,
         'framewise_displacement' : FD,
-        'motion_parameters':motion_parameters
+        'motion_parameters':motion_parameters,
+        'avgb0':avgb0,
+        'average_dwi':average_dwi,
+        'dwi_mask':mask,
+        'famask':famask
         }
 
 def joint_dti_recon(
@@ -534,56 +544,73 @@ def joint_dti_recon(
         print("Recon DTI on OR images ...")
 
     # RL image
+    mymd = 16
+    recon_RL = None
     if img_RL is not None:
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
-            autocrop=False, motion_correct=motion_correct, mask_dilation=12 )
+            motion_correct=motion_correct, mask_dilation=mymd )
         OR_RLFA = recon_RL['FA']
 
     # LR image
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
-        autocrop=False, motion_correct=motion_correct, mask_dilation=12 )
+        motion_correct=motion_correct,
+        mask_dilation=mymd )
     OR_LRFA = recon_LR['FA']
 
     if verbose:
         print("JHU initialization ...")
 
-    JHU_atlas_aff = ants.registration( OR_LRFA, jhu_atlas, 'Similarity' )['warpedmovout']
-    # JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",6)
-    # JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
+    JHU_atlas_aff = ants.registration(
+        OR_LRFA * recon_LR['famask'],
+        jhu_atlas, 'Affine' )['warpedmovout']
+    JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",20)
+    JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
 
-    ts_LR_avg = ants.get_average_of_timeseries( recon_LR['motion_corrected'] )
+    synreg = None
+    mymod = 'average_dwi' # or 'avgb0'
+    ts_LR_avg = recon_LR[mymod]
+    ts_RL_avg = None
+
+    t1wrig = None
+    if t1w is not None:
+        t1wtarget = recon_LR[ 'dwi_mask' ] * recon_LR[mymod]
+        t1wrig = ants.registration( t1wtarget, t1w, 'Rigid' )['warpedmovout']
 
     if img_RL is not None:
-        ts_RL_avg = ants.get_average_of_timeseries( recon_RL['motion_corrected'] )
+        ts_RL_avg = recon_RL[mymod] # ants.get_average_of_timeseries( recon_RL['motion_corrected'] )
         dwp_OR = dewarp_imageset(
-#            [OR_LRFA, OR_RLFA],
             [ts_LR_avg, ts_RL_avg],
             initial_template=ts_LR_avg,
             iterations = 5,
             syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
     else:
         synreg = ants.registration(
-            t1w,
-            OR_LRFA,
-            'SyNBold',
-            total_sigma=0.5,
-            gradient_step=0.05 )
+            t1wrig,
+            t1wtarget,
+            'SyNOnly',
+            total_sigma=0.0,
+            syn_metric='CC', syn_sampling=2, reg_iterations=[100,100,20],
+            gradient_step=0.1 )
         dwp_OR ={
             'deformable_registrations':[synreg],
             'dewarpedmean':synreg['warpedmovout']
             }
 
-    # apply the dewarping tx to the original dwi and reconstruct again
-    def concat_dewarp( refimg, originalDWI, dwpTx, motion_parameters, motion_correct=True ):
+    def concat_dewarp(
+            refimg,
+            originalDWI,
+            dwpTx,
+            motion_parameters,
+            motion_correct=True ):
+        # apply the dewarping tx to the original dwi and reconstruct again
+        # NOTE: refimg must be in the same space for this to work correctly
+        # due to the use of ants.list_to_ndimage( originalDWI, dwpimage )
         dwpimage = []
         for myidx in range(originalDWI.shape[3]):
             b0 = ants.slice_image( originalDWI, axis=3, idx=myidx)
-            if not motion_correct:
-                concatx = dwpTx
+            concatx = dwpTx.copy()
             if motion_correct:
-                concatx = motion_parameters[myidx].copy()
-                for j in range(len(dwpTx)):
-                    concatx.append( dwpTx[j]  )
+                concatx.append( motion_parameters[myidx][0] )
             warpedb0 = ants.apply_transforms( refimg, b0, concatx )
             dwpimage.append( warpedb0 )
         return ants.list_to_ndimage( originalDWI, dwpimage )
@@ -591,17 +618,19 @@ def joint_dti_recon(
     img_RLdwp = None
     img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'], img_LR,
             dwp_OR['deformable_registrations'][0]['fwdtransforms'],
-            recon_LR['motion_parameters']
+            recon_LR['motion_parameters'],
+            motion_correct=motion_correct
             )
     if img_RL is not None:
         img_RLdwp = concat_dewarp( dwp_OR['dewarpedmean'], img_RL,
             dwp_OR['deformable_registrations'][1]['fwdtransforms'],
-            recon_RL['motion_parameters']
+            recon_RL['motion_parameters'],
+            motion_correct=motion_correct
             )
 
-    reg_its = [100,100,20]
+    reg_its = [100,50,10]
     if srmodel is not None:
-        reg_its = [100,100,100,20]
+        reg_its = [100] + reg_its
         if img_RL is not None:
             if verbose:
                 print("convert img_RL_dwp to img_RL_dwp_SR")
@@ -613,20 +642,22 @@ def joint_dti_recon(
     if verbose:
         print("recon after distortion correction")
 
-    recon_RL = None
+    recon_RL_dewarp = None
     if img_RL is not None:
-        recon_RL = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
-                autocrop=False, motion_correct=motion_correct, mask_dilation=0 )
+        recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
+                motion_correct=False,
+                mask_dilation=0 )
 
-    recon_LR = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
-                autocrop=False, motion_correct=motion_correct, mask_dilation=0  )
+    recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
+                motion_correct=False,
+                mask_dilation=0  )
 
     if img_RL is not None:
-        reconFA = recon_RL['FA'] * 0.5 + recon_LR['FA'] * 0.5
-        reconMD = recon_RL['MD'] * 0.5 + recon_LR['MD'] * 0.5
+        reconFA = recon_RL_dewarp['FA'] * 0.5 + recon_LR_dewarp['FA'] * 0.5
+        reconMD = recon_RL_dewarp['MD'] * 0.5 + recon_LR_dewarp['MD'] * 0.5
     else:
-        reconFA = recon_LR['FA']
-        reconMD = recon_LR['MD']
+        reconFA = recon_LR_dewarp['FA']
+        reconMD = recon_LR_dewarp['MD']
 
     if verbose:
         print("JHU reg")
@@ -660,11 +691,14 @@ def joint_dti_recon(
         'recon_md_summary':df_MD_JHU_ORRL_bfwide,
         'jhu_labels':OR_FA_jhulabels,
         'jhu_registration':OR_FA2JHUreg,
-        'recon_RL':recon_RL,
-        'recon_LR':recon_LR,
-        'dewarping':dwp_OR,
-        'img_LRdwp':img_LRdwp,
-        'img_RLdwp':img_RLdwp
+        'dtrecon_LR':recon_LR,
+        'dtrecon_LR_dewarp':recon_LR_dewarp,
+        'dtrecon_RL':recon_RL,
+        'dtrecon_RL_dewarp':recon_RL_dewarp,
+        'dewarping_object':dwp_OR,
+        'dwi_LR_dewarped':img_LRdwp,
+        'dwi_RL_dewarped':img_RLdwp,
+        't1w_rigid':t1wrig
     }
 
 
