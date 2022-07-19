@@ -550,7 +550,7 @@ def joint_dti_recon(
         print("Recon DTI on OR images ...")
 
     # RL image
-    mymd = 2
+    mymd = 1
     recon_RL = None
     if img_RL is not None:
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
@@ -609,6 +609,7 @@ def joint_dti_recon(
     def concat_dewarp(
             refimg,
             originalDWI,
+            physSpaceDWI,
             dwpTx,
             motion_parameters,
             motion_correct=True ):
@@ -623,16 +624,20 @@ def joint_dti_recon(
                 concatx.append( motion_parameters[myidx][0] )
             warpedb0 = ants.apply_transforms( refimg, b0, concatx )
             dwpimage.append( warpedb0 )
-        return ants.list_to_ndimage( originalDWI, dwpimage )
+        return ants.list_to_ndimage( physSpaceDWI, dwpimage )
 
     img_RLdwp = None
-    img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'], img_LR,
+    img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'],
+            img_LR,
+            img_LR, # phys-space == original space
             dwp_OR['deformable_registrations'][0]['fwdtransforms'],
             recon_LR['motion_parameters'],
             motion_correct=motion_correct
             )
     if img_RL is not None:
-        img_RLdwp = concat_dewarp( dwp_OR['dewarpedmean'], img_RL,
+        img_RLdwp = concat_dewarp( dwp_OR['dewarpedmean'],
+            img_RL,
+            img_LR, # phys-space != original space
             dwp_OR['deformable_registrations'][1]['fwdtransforms'],
             recon_RL['motion_parameters'],
             motion_correct=motion_correct
