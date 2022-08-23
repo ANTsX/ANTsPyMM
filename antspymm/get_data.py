@@ -566,15 +566,14 @@ def joint_dti_recon(
     # RL image
     mymd = 1
     recon_RL = None
-    if img_RL is not None and brain_mask is None and reference_image is None:
-        recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
-            motion_correct=motion_correct, mask_dilation=mymd )
-        OR_RLFA = recon_RL['FA']
-    if img_RL is not None and brain_mask is not None and reference_image is None:
-        recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
-            mask = brain_mask,
-            motion_correct=motion_correct, mask_dilation=mymd )
-        OR_RLFA = recon_RL['FA']
+
+    temp = ants.get_average_of_timeseries( img_LR )
+    maskInRightSpace = True
+    if not brain_mask is None:
+        maskInRightSpace = ants.image_physical_space_consistency( brain_mask, temp )
+        if not maskInRightSpace :
+            raise ValueError('not maskInRightSpace ... provided brain mask should be in DWI space;see  ants.get_average_of_timeseries(dwi) to find the right space')
+
     if img_RL is not None :
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
