@@ -331,7 +331,8 @@ def dipy_dti_recon(
     mask = None,
     b0_idx = None,
     motion_correct = False,
-    mask_dilation = 0 ):
+    mask_dilation = 0,
+    average_b0 = None ):
     """
     DiPy DTI reconstruction - following their own basic example
 
@@ -350,6 +351,8 @@ def dipy_dti_recon(
     motion_correct : boolean
 
     mask_dilation : integer zero or more dilates the brain mask
+
+    average_b0 : optional reference average b0
 
     Returns
     -------
@@ -372,15 +375,18 @@ def dipy_dti_recon(
     motion_parameters = None
 
     # first get the average images
-    average_b0 = ants.slice_image( image, axis=3, idx=0 ) * 0
+    haveB0 = True
+    if average_b0 is None:
+        haveB0 = False
+        average_b0 = ants.slice_image( image, axis=3, idx=0 ) * 0
+        for myidx in b0_idx:
+            b0 = ants.slice_image( image, axis=3, idx=myidx)
+            average_b0 = average_b0 + b0
+
     average_dwi = average_b0.clone()
     for myidx in range(image.shape[3]):
         b0 = ants.slice_image( image, axis=3, idx=myidx)
         average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
-
-    for myidx in b0_idx:
-        b0 = ants.slice_image( image, axis=3, idx=myidx)
-        average_b0 = average_b0 + b0
 
     average_b0 = ants.iMath( average_b0, 'Normalize' )
     average_dwi = ants.iMath( average_dwi, 'Normalize' )
@@ -411,7 +417,7 @@ def dipy_dti_recon(
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         moco0 = ants.motion_correction(
                 image=maskedimage,
-                fixed=average_dwi,
+                fixed=average_b0,
                 type_of_transform='Rigid',
                 aff_metric='Mattes',
                 aff_sampling=20,
@@ -433,14 +439,16 @@ def dipy_dti_recon(
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         maskdata = maskedimage.numpy()
         if get_mask:
-            average_b0 = ants.slice_image( image, axis=3, idx=0 ) * 0
+            if not haveB0:
+                average_b0 = ants.slice_image( image, axis=3, idx=0 ) * 0
             average_dwi = average_b0.clone()
             for myidx in range(image.shape[3]):
                     b0 = ants.slice_image( image, axis=3, idx=myidx)
                     average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
             for myidx in b0_idx:
                     b0 = ants.slice_image( image, axis=3, idx=myidx)
-                    average_b0 = average_b0 + b0
+                    if not haveB0:
+                        average_b0 = average_b0 + b0
             average_b0 = ants.iMath( average_b0, 'Normalize' )
             average_dwi = ants.iMath( average_dwi, 'Normalize' )
             # mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
@@ -488,6 +496,8 @@ def joint_dti_recon(
     bval_RL = None,
     bvec_RL = None,
     t1w = None,
+    brain_mask = None,
+    reference_image = None,
     motion_correct = False,
     dewarp_modality = 'FA',
     verbose = False ):
@@ -529,6 +539,10 @@ def joint_dti_recon(
 
     t1w : antsimage t1w neuroimage (brain-extracted)
 
+    brain_mask : mask for the DWI - just 3D
+
+    reference_image : the "target" image for the DWI (e.g. average B0)
+
     motion_correct : boolean
 
     dewarp_modality : string average_dwi, average_b0, MD or FA
@@ -552,15 +566,27 @@ def joint_dti_recon(
     # RL image
     mymd = 1
     recon_RL = None
-    if img_RL is not None:
+    if img_RL is not None and brain_mask is None and reference_image is None:
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             motion_correct=motion_correct, mask_dilation=mymd )
         OR_RLFA = recon_RL['FA']
+    if img_RL is not None and brain_mask is not None and reference_image is None:
+        recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
+            mask = brain_mask,
+            motion_correct=motion_correct, mask_dilation=mymd )
+        OR_RLFA = recon_RL['FA']
+    if img_RL is not None :
+        recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
+            mask = brain_mask, average_b0 = reference_image,
+            motion_correct=motion_correct, mask_dilation=mymd )
+        OR_RLFA = recon_RL['FA']
 
-    # LR image
+
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
-        motion_correct=motion_correct,
-        mask_dilation=mymd )
+            mask = brain_mask, average_b0 = reference_image,
+            motion_correct=motion_correct,
+            mask_dilation=mymd )
+
     OR_LRFA = recon_LR['FA']
 
     if verbose:
@@ -660,10 +686,12 @@ def joint_dti_recon(
     recon_RL_dewarp = None
     if img_RL is not None:
         recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
+            mask = brain_mask, average_b0 = reference_image,
                 motion_correct=False,
                 mask_dilation=0 )
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
+            mask = brain_mask, average_b0 = reference_image,
                 motion_correct=False,
                 mask_dilation=0  )
 
