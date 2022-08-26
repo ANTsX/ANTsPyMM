@@ -13,3 +13,4 @@ from .get_data import wmh
 from .get_data import neuromelanin
 from .get_data import joint_dti_recon
 from .get_data import resting_state_fmri_networks
+from .get_data import t1_based_dwi_brain_extraction

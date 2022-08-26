@@ -324,6 +324,54 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'lowermeans':lowerindices,
     'highermeans':higherindices }
 
+def t1_based_dwi_brain_extraction(
+    t1w,
+    dwi,
+    b0_idx = None,
+    transform='Rigid'
+):
+    """
+    Map a t1-based brain extraction to b0 and return a mask and average b0
+
+    Arguments
+    ---------
+    t1w : an antsImage holding B0 and DWI
+
+    t1w : an antsImage holding B0 and DWI
+
+    b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+
+    transform : boolean
+
+    Returns
+    -------
+    dictionary holding the avg_b0 and its mask
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    t1w_use = ants.resample_image( t1w, [2,2,2] ).iMath("Normalize")
+    t1bxt = ants.threshold_image( t1w_use, 0.05, 1 ).iMath("FillHoles")
+    if b0_idx is None:
+        b0_idx = segment_timeseries_by_meanvalue( dwi )['highermeans']
+    # first get the average b0
+    if len( b0_idx ) > 1:
+        b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] ).iMath("Normalize")
+        for n in range(1,len(b0_idx)):
+            temp = ants.slice_image( dwi, axis=3, idx=b0_idx[n] )
+            reg = ants.registration( b0_avg, temp, 'Rigid' )
+            b0_avg = b0_avg + ants.iMath( reg['warpedmovout'], "Normalize")
+    else:
+        b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
+    b0_avg = ants.iMath(b0_avg,"Normalize")
+    reg = ants.registration( b0_avg, t1w_use, transform, syn_metric='mattes', total_sigma=0.5, verbose=False )
+    outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
+    return  {
+    'b0_avg':b0_avg,
+    'b0_mask':outmsk }
+
+
 def dipy_dti_recon(
     image,
     bvalsfn,
