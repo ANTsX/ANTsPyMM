@@ -335,13 +335,13 @@ def t1_based_dwi_brain_extraction(
 
     Arguments
     ---------
-    t1w : an antsImage holding B0 and DWI
+    t1w : an antsImage probably but not necessarily T1-weighted
 
-    t1w : an antsImage holding B0 and DWI
+    dwi : an antsImage holding B0 and DWI
 
     b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
 
-    transform : boolean
+    transform : string Rigid or SyNBold
 
     Returns
     -------
@@ -365,7 +365,7 @@ def t1_based_dwi_brain_extraction(
     else:
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
     b0_avg = ants.iMath(b0_avg,"Normalize")
-    reg = ants.registration( b0_avg, t1w_use, transform, syn_metric='mattes', total_sigma=0.5, verbose=False )
+    reg = ants.registration( b0_avg, t1w_use, transform, syn_metric='mattes', total_sigma=3.0, verbose=False )
     outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
     return  {
     'b0_avg':b0_avg,
