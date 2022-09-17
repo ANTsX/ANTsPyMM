@@ -392,7 +392,9 @@ def dipy_dti_recon(
 
     bvecsfn : bvector filename
 
-    mask : brain mask for the DWI/DTI reconstruction
+    mask : brain mask for the DWI/DTI reconstruction; if it is not in the same
+        space as the image, we will resample directly to the image space.  This
+        could lead to problems if the inputs are really incorrect.
 
     b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
 
@@ -400,7 +402,9 @@ def dipy_dti_recon(
 
     mask_dilation : integer zero or more dilates the brain mask
 
-    average_b0 : optional reference average b0
+    average_b0 : optional reference average b0; if it is not in the same
+        space as the image, we will resample directly to the image space.  This
+        could lead to problems if the inputs are really incorrect.
 
     Returns
     -------
@@ -430,8 +434,13 @@ def dipy_dti_recon(
         for myidx in b0_idx:
             b0 = ants.slice_image( image, axis=3, idx=myidx)
             average_b0 = average_b0 + b0
+    else:
+        average_b0 = ants.resample_image_to_target( average_b0, b0, interp_type='linear' )
 
-    average_dwi = average_b0.clone()
+    if mask is not None:
+        mask = ants.resample_image_to_target( mask, b0, interp_type='nearestNeighbor' )
+
+    average_dwi = average_b0.clone() * 0.0
     for myidx in range(image.shape[3]):
         b0 = ants.slice_image( image, axis=3, idx=myidx)
         average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
