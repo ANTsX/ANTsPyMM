@@ -813,6 +813,7 @@ def dwi_deterministic_tracking(
     fa_thresh = 0.25,
     seed_density = 1,
     step_size = 0.5,
+    return_connectivity=True,
     verbose = False ):
     """
 
@@ -840,7 +841,9 @@ def dwi_deterministic_tracking(
 
     seed_density : 1 default number of seeds per voxel
 
-    step_size : 0.5
+    step_size : 0.5 for tracking
+
+    return_connectivity : boolean controlling whether we compute an roi by roi connectivity matrix
 
     verbose : boolean
 
@@ -941,24 +944,23 @@ def dwi_deterministic_tracking(
 
 
     # save_nifti('example_cc_path_length_map.nii.gz', wmpl.astype(np.float32),affine)
-
-    M = np.zeros( [len(ulabs),len(ulabs)])
-    for k in range(len(ulabs)):
-        cc_slice = labels == ulabs[k]
-        cc_streamlines = utils.target(streamlines, affine, cc_slice)
-        cc_streamlines = Streamlines(cc_streamlines)
-        for j in ulabs[(int(k)+1):len(ulabs)]:
-            cc_slice2 = labels == ulabs[j]
-            cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
-            cc_streamlines2 = Streamlines(cc_streamlines2)
-            if len(cc_streamlines2) > 0 :
-                wmpl = path_length(cc_streamlines2, affine, cc_slice2)
-                mean_path_length = wmpl[wmpl>0].mean()
-                total_path_length = wmpl[wmpl>0].sum()
-                M[int(j),int(k)] = mean_path_length
-
-    # convert M to data frame
-    Mdf = pd.DataFrame(M, columns = label_dataframe['Description'] )
+    Mdf = None
+    if return_connectivity:
+        M = np.zeros( [len(ulabs),len(ulabs)])
+        for k in range(len(ulabs)):
+            cc_slice = labels == ulabs[k]
+            cc_streamlines = utils.target(streamlines, affine, cc_slice)
+            cc_streamlines = Streamlines(cc_streamlines)
+            for j in ulabs[(int(k)+1):len(ulabs)]:
+                cc_slice2 = labels == ulabs[j]
+                cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
+                cc_streamlines2 = Streamlines(cc_streamlines2)
+                if len(cc_streamlines2) > 0 :
+                    wmpl = path_length(cc_streamlines2, affine, cc_slice2)
+                    mean_path_length = wmpl[wmpl>0].mean()
+                    total_path_length = wmpl[wmpl>0].sum()
+                    M[int(j),int(k)] = mean_path_length
+        Mdf = pd.DataFrame(M, columns = label_dataframe['Description'] )
 
     return {
           'tractogram': sft,
