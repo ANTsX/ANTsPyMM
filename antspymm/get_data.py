@@ -1,7 +1,7 @@
 
 __all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon',
     'segment_timeseries_by_meanvalue', 'wmh', 'neuromelanin',
-    'resting_state_fmri_networks']
+    'resting_state_fmri_networks', 'dwi_deterministic_tracking']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -799,6 +799,172 @@ def joint_dti_recon(
         'dwi_RL_dewarped':img_RLdwp,
         't1w_rigid':t1wrig
     }
+
+
+
+def dwi_deterministic_tracking(
+    dwi,
+    fa,
+    mask,
+    bval_fname,
+    bvec_fname,
+    label_image,
+    label_dataframe,
+    fa_thresh = 0.25,
+    seed_density = 1,
+    step_size = 0.5,
+    verbose = False ):
+    """
+
+    Performs deterministic tractography from the DWI and returns a tractogram
+    and path length data frame.
+
+    Arguments
+    ---------
+
+    dwi : an antsImage holding DWI acquisition
+
+    fa : an antsImage holding FA values
+
+    mask : mask within which to do tracking
+
+    bval_fname : bvalue filename LR
+
+    bvec_fname : bvector filename LR
+
+    label_image : atlas labels
+
+    label_dataframe : pandas dataframe containing descriptions for the labels in antspy style (Label,Description columns)
+
+    fa_thresh : 0.25 defaults
+
+    seed_density : 1 default number of seeds per voxel
+
+    step_size : 0.5
+
+    verbose : boolean
+
+    Returns
+    -------
+    dictionary holding tracts and summary statistics.
+
+    Example
+    -------
+    >>> import antspymm
+    """
+
+    if verbose:
+        print("tractography ...")
+
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    labels = label_image.numpy()
+    dwi_img = dwi.to_nibabel()
+    affine = dwi_img.affine
+    bvals, bvecs = read_bvals_bvecs(bval_fname, bvec_fname)
+    gtab = gradient_table(bvals, bvecs)
+
+    # this uses the existing ants-based mask
+    dwi_data = dwi_img.get_fdata()
+    dwi_mask = mask.numpy() == 1
+    if verbose:
+        print("Begin FIT")
+    dti_model = dti.TensorModel(gtab)
+    dti_fit = dti_model.fit(dwi_data, mask=dwi_mask)  # This step may take a while
+    evecs_img = dti_fit.evecs
+    if verbose:
+        print("END FIT")
+
+    from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
+    stopping_criterion = ThresholdStoppingCriterion(fa.numpy(), fa_thresh)
+
+    from dipy.data import get_sphere
+    sphere = get_sphere('symmetric362')
+    from dipy.direction import peaks_from_model
+    if verbose:
+        print("Begin PEAKS")
+    peak_indices = peaks_from_model(
+        model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
+        min_separation_angle=25, mask=dwi_mask, npeaks=2)
+    if verbose:
+        print("end PEAKS")
+
+    # Now we can use EuDX to track all of the white matter.
+    seed_mask = fa.numpy().copy()
+    seed_mask[seed_mask >= fa_thresh] = 1
+    seed_mask[seed_mask < fa_thresh] = 0
+    seeds = utils.seeds_from_mask(seed_mask, affine=affine, density=seed_density)
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    streamlines_generator = LocalTracking(
+        peak_indices, stopping_criterion, seeds, affine=affine, step_size=step_size)
+    streamlines = Streamlines(streamlines_generator)
+
+    from dipy.io.stateful_tractogram import Space, StatefulTractogram
+    from dipy.io.streamline import save_tractogram
+    sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
+
+    # Save the tractogram
+    # save_tractogram(sft, os.path.join("./tractogram_deterministic_EuDX.trk"))
+
+    import numpy as np
+    from dipy.io.image import load_nifti_data, load_nifti, save_nifti
+    import pandas as pd
+    ulabs = label_dataframe['Label']
+    pathLmean = np.zeros( [len(ulabs)])
+    pathLtot = np.zeros( [len(ulabs)])
+    for k in range(len(ulabs)):
+        cc_slice = labels == ulabs[k]
+        cc_streamlines = utils.target(streamlines, affine, cc_slice)
+        cc_streamlines = Streamlines(cc_streamlines)
+        if len(cc_streamlines) > 0:
+            wmpl = path_length(cc_streamlines, affine, cc_slice)
+            mean_path_length = wmpl[wmpl>0].mean()
+            total_path_length = wmpl[wmpl>0].sum()
+            pathLmean[int(k)] = mean_path_length
+            pathLtot[int(k)] = total_path_length
+
+    # convert paths to data frames
+    pathdf = label_dataframe.copy()
+    pathdf.insert(pathdf.shape[1], "mpl", pathLmean )
+    pathdf.insert(pathdf.shape[1], "tpl", pathLtot )
+    pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {path_length:pathdf }, ['mpl', 'tpl'] )
+
+
+    # save_nifti('example_cc_path_length_map.nii.gz', wmpl.astype(np.float32),affine)
+
+    M = np.zeros( [len(ulabs),len(ulabs)])
+    for k in range(len(ulabs)):
+        cc_slice = labels == ulabs[k]
+        cc_streamlines = utils.target(streamlines, affine, cc_slice)
+        cc_streamlines = Streamlines(cc_streamlines)
+        for j in ulabs[(int(k)+1):len(ulabs)]:
+            cc_slice2 = labels == ulabs[j]
+            cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
+            cc_streamlines2 = Streamlines(cc_streamlines2)
+            if len(cc_streamlines2) > 0 :
+                wmpl = path_length(cc_streamlines2, affine, cc_slice2)
+                mean_path_length = wmpl[wmpl>0].mean()
+                total_path_length = wmpl[wmpl>0].sum()
+                M[int(j),int(k)] = mean_path_length
+
+    # convert M to data frame
+    Mdf = pd.DataFrame(M, columns = label_dataframe['Description'] )
+
+    return {
+          'tractogram': sft,
+          'path_lengths': pathdfw,
+          'connectivity_matrix': Mdf
+          }
 
 
 def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
