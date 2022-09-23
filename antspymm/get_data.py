@@ -958,9 +958,14 @@ def dwi_deterministic_tracking(
     Tdfw = None
     Mdf = None
     Tdf = None
+    Ctdf = None
+    Ctdfw = None
     if return_connectivity:
+        if verbose:
+            print("Begin connectivity")
         M = np.zeros( [len(ulabs),len(ulabs)])
         T = np.zeros( [len(ulabs),len(ulabs)])
+        myCount = np.zeros( [len(ulabs),len(ulabs)])
         for k in range(len(ulabs)):
             cc_slice = labels == ulabs[k]
             cc_streamlines = utils.target(streamlines, affine, cc_slice)
@@ -975,28 +980,39 @@ def dwi_deterministic_tracking(
                     total_path_length = wmpl[wmpl>0].sum()
                     M[int(j),int(k)] = mean_path_length
                     T[int(j),int(k)] = mean_path_length
+                    myCount[int(j),int(k)] = len( cc_streamlines2 )
+        if verbose:
+            print("end connectivity")
         Mdf = label_dataframe.copy()
         Tdf = label_dataframe.copy()
+        Ctdf = label_dataframe.copy()
         newcolnamesM = []
         newcolnamesT = []
+        newcolnamesC = []
         for k in range(len(ulabs)):
             nn1 = "CnxMeanPL"+str(k).zfill(3)
             nn2 = "CnxTotPL"+str(k).zfill(3)
+            nn3 = "CnxCount"+str(k).zfill(3)
             Mdf.insert(Mdf.shape[1], nn1, M[k,:] )
             Tdf.insert(Tdf.shape[1], nn2, T[k,:] )
+            Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
             newcolnamesM.append( nn1 )
             newcolnamesT.append( nn2 )
+            newcolnamesC.append( nn3)
         Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkm:Mdf }, newcolnamesM )
         Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkt:Tdf }, newcolnamesT )
+        Ctdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkc:Ctdf }, newcolnamesC )
 
     return {
           'tractogram': sft,
           'streamlines': streamlines,
           'path_lengths': pathdfw,
           'connectivity_matrix_mean': Mdf,
-          'connectivity_matrix_total': Mdf,
+          'connectivity_matrix_total': Tdf,
+          'connectivity_matrix_count': Ctdf,
           'connectivity_matrix_mean_wide': Mdfw,
-          'connectivity_matrix_total_wide': Tdfw
+          'connectivity_matrix_total_wide': Tdfw,
+          'connectivity_matrix_count_wide': Ctdfw
           }
 
 
