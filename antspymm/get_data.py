@@ -933,6 +933,7 @@ def dwi_deterministic_tracking(
     ulabs = label_dataframe['Label']
     pathLmean = np.zeros( [len(ulabs)])
     pathLtot = np.zeros( [len(ulabs)])
+    pathCt = np.zeros( [len(ulabs)])
     for k in range(len(ulabs)):
         cc_slice = labels == ulabs[k]
         cc_streamlines = utils.target(streamlines, affine, cc_slice)
@@ -943,17 +944,19 @@ def dwi_deterministic_tracking(
             total_path_length = wmpl[wmpl>0].sum()
             pathLmean[int(k)] = mean_path_length
             pathLtot[int(k)] = total_path_length
+            pathCt[int(k)] = len(cc_streamlines)
 
     # convert paths to data frames
     pathdf = label_dataframe.copy()
-    pathdf.insert(pathdf.shape[1], "mpl", pathLmean )
-    pathdf.insert(pathdf.shape[1], "tpl", pathLtot )
-    pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {path_length:pathdf }, ['mpl', 'tpl'] )
+    pathdf.insert(pathdf.shape[1], "mean_path_length", pathLmean )
+    pathdf.insert(pathdf.shape[1], "total_path_length", pathLtot )
+    pathdf.insert(pathdf.shape[1], "streamline_count", pathCt )
+    pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format(
+        {path_length:pathdf }, ['mean_path_length', 'total_path_length', 'streamline_count'] )
 
     if verbose:
         print("path length done ...")
 
-    # save_nifti('example_cc_path_length_map.nii.gz', wmpl.astype(np.float32),affine)
     Mdfw = None
     Tdfw = None
     Mdf = None
@@ -970,7 +973,7 @@ def dwi_deterministic_tracking(
             cc_slice = labels == ulabs[k]
             cc_streamlines = utils.target(streamlines, affine, cc_slice)
             cc_streamlines = Streamlines(cc_streamlines)
-            for j in ulabs[(int(k)+1):len(ulabs)]:
+            for j in range(len(ulabs)):
                 cc_slice2 = labels == ulabs[j]
                 cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
                 cc_streamlines2 = Streamlines(cc_streamlines2)
@@ -979,7 +982,7 @@ def dwi_deterministic_tracking(
                     mean_path_length = wmpl[wmpl>0].mean()
                     total_path_length = wmpl[wmpl>0].sum()
                     M[int(j),int(k)] = mean_path_length
-                    T[int(j),int(k)] = mean_path_length
+                    T[int(j),int(k)] = total_path_length
                     myCount[int(j),int(k)] = len( cc_streamlines2 )
         if verbose:
             print("end connectivity")
@@ -999,9 +1002,9 @@ def dwi_deterministic_tracking(
             newcolnamesM.append( nn1 )
             newcolnamesT.append( nn2 )
             newcolnamesC.append( nn3)
-        Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkm:Mdf }, newcolnamesM )
-        Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkt:Tdf }, newcolnamesT )
-        Ctdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkc:Ctdf }, newcolnamesC )
+        Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
+        Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
+        Ctdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
 
     return {
           'tractogram': sft,
