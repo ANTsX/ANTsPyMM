@@ -902,15 +902,21 @@ def dwi_deterministic_tracking(
         print("end PEAKS")
 
     # Now we can use EuDX to track all of the white matter.
+    if verbose:
+        print("seed mask ...")
     seed_mask = fa.numpy().copy()
     seed_mask[seed_mask >= fa_thresh] = 1
     seed_mask[seed_mask < fa_thresh] = 0
     seeds = utils.seeds_from_mask(seed_mask, affine=affine, density=seed_density)
     from dipy.tracking.local_tracking import LocalTracking
     from dipy.tracking.streamline import Streamlines
+    if verbose:
+        print("streamlines begin ...")
     streamlines_generator = LocalTracking(
         peak_indices, stopping_criterion, seeds, affine=affine, step_size=step_size)
     streamlines = Streamlines(streamlines_generator)
+    if verbose:
+        print("streamlines done ...")
 
     from dipy.io.stateful_tractogram import Space, StatefulTractogram
     from dipy.io.streamline import save_tractogram
@@ -919,6 +925,8 @@ def dwi_deterministic_tracking(
     # Save the tractogram
     # save_tractogram(sft, os.path.join("./tractogram_deterministic_EuDX.trk"))
 
+    if verbose:
+        print("path length begin ...")
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -942,11 +950,17 @@ def dwi_deterministic_tracking(
     pathdf.insert(pathdf.shape[1], "tpl", pathLtot )
     pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {path_length:pathdf }, ['mpl', 'tpl'] )
 
+    if verbose:
+        print("path length done ...")
 
     # save_nifti('example_cc_path_length_map.nii.gz', wmpl.astype(np.float32),affine)
+    Mdfw = None
+    Tdfw = None
     Mdf = None
+    Tdf = None
     if return_connectivity:
         M = np.zeros( [len(ulabs),len(ulabs)])
+        T = np.zeros( [len(ulabs),len(ulabs)])
         for k in range(len(ulabs)):
             cc_slice = labels == ulabs[k]
             cc_streamlines = utils.target(streamlines, affine, cc_slice)
@@ -960,12 +974,29 @@ def dwi_deterministic_tracking(
                     mean_path_length = wmpl[wmpl>0].mean()
                     total_path_length = wmpl[wmpl>0].sum()
                     M[int(j),int(k)] = mean_path_length
-        Mdf = pd.DataFrame(M, columns = label_dataframe['Description'] )
+                    T[int(j),int(k)] = mean_path_length
+        Mdf = label_dataframe.copy()
+        Tdf = label_dataframe.copy()
+        newcolnamesM = []
+        newcolnamesT = []
+        for k in range(len(ulabs)):
+            nn1 = "CnxMeanPL"+str(k).zfill(3)
+            nn2 = "CnxTotPL"+str(k).zfill(3)
+            Mdf.insert(Mdf.shape[1], nn1, M[k,:] )
+            Tdf.insert(Tdf.shape[1], nn2, T[k,:] )
+            newcolnamesM.append( nn1 )
+            newcolnamesT.append( nn2 )
+        Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkm:Mdf }, newcolnamesM )
+        Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( {networkt:Tdf }, newcolnamesT )
 
     return {
           'tractogram': sft,
+          'streamlines': streamlines,
           'path_lengths': pathdfw,
-          'connectivity_matrix': Mdf
+          'connectivity_matrix_mean': Mdf,
+          'connectivity_matrix_total': Mdf,
+          'connectivity_matrix_mean_wide': Mdfw,
+          'connectivity_matrix_total_wide': Tdfw
           }
 
 
