@@ -805,7 +805,6 @@ def joint_dti_recon(
 def dwi_deterministic_tracking(
     dwi,
     fa,
-    mask,
     bval_fname,
     bvec_fname,
     label_image,
@@ -814,6 +813,7 @@ def dwi_deterministic_tracking(
     seed_density = 1,
     step_size = 0.5,
     return_connectivity=True,
+    mask=None,
     verbose = False ):
     """
 
@@ -826,8 +826,6 @@ def dwi_deterministic_tracking(
     dwi : an antsImage holding DWI acquisition
 
     fa : an antsImage holding FA values
-
-    mask : mask within which to do tracking
 
     bval_fname : bvalue filename LR
 
@@ -844,6 +842,9 @@ def dwi_deterministic_tracking(
     step_size : 0.5 for tracking
 
     return_connectivity : boolean controlling whether we compute an roi by roi connectivity matrix
+
+    mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
+        and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
 
     verbose : boolean
 
@@ -877,6 +878,8 @@ def dwi_deterministic_tracking(
     gtab = gradient_table(bvals, bvecs)
 
     # this uses the existing ants-based mask
+    if mask is None:
+        mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
     dwi_data = dwi_img.get_fdata()
     dwi_mask = mask.numpy() == 1
     if verbose:
@@ -925,8 +928,9 @@ def dwi_deterministic_tracking(
     # Save the tractogram
     # save_tractogram(sft, os.path.join("./tractogram_deterministic_EuDX.trk"))
 
+    volUnit = np.prod( ants.get_spacing( fa ) )
     if verbose:
-        print("path length begin ...")
+        print("path length begin ... volUnit = " + str( volUnit ) )
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -944,7 +948,7 @@ def dwi_deterministic_tracking(
             total_path_length = wmpl[wmpl>0].sum()
             pathLmean[int(k)] = mean_path_length
             pathLtot[int(k)] = total_path_length
-            pathCt[int(k)] = len(cc_streamlines)
+            pathCt[int(k)] = len(cc_streamlines) * volUnit
 
     # convert paths to data frames
     pathdf = label_dataframe.copy()
@@ -953,6 +957,7 @@ def dwi_deterministic_tracking(
     pathdf.insert(pathdf.shape[1], "streamline_count", pathCt )
     pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format(
         {path_length:pathdf }, ['mean_path_length', 'total_path_length', 'streamline_count'] )
+    allconnexwide = pathdfw
 
     if verbose:
         print("path length done ...")
@@ -983,7 +988,7 @@ def dwi_deterministic_tracking(
                     total_path_length = wmpl[wmpl>0].sum()
                     M[int(j),int(k)] = mean_path_length
                     T[int(j),int(k)] = total_path_length
-                    myCount[int(j),int(k)] = len( cc_streamlines2 )
+                    myCount[int(j),int(k)] = len( cc_streamlines2 ) * volUnit
         if verbose:
             print("end connectivity")
         Mdf = label_dataframe.copy()
@@ -1001,21 +1006,23 @@ def dwi_deterministic_tracking(
             Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
             newcolnamesM.append( nn1 )
             newcolnamesT.append( nn2 )
-            newcolnamesC.append( nn3)
+            newcolnamesC.append( nn3 )
         Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
         Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
         Ctdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
+        allconnexwide = pd.concat( [
+            pathdfw,
+            Mdfw,
+            Tdfw,
+            Ctdfw ], axis=1 )
 
     return {
           'tractogram': sft,
           'streamlines': streamlines,
-          'path_lengths': pathdfw,
+          'connectivity': allconnexwide,
           'connectivity_matrix_mean': Mdf,
           'connectivity_matrix_total': Tdf,
-          'connectivity_matrix_count': Ctdf,
-          'connectivity_matrix_mean_wide': Mdfw,
-          'connectivity_matrix_total_wide': Tdfw,
-          'connectivity_matrix_count_wide': Ctdfw
+          'connectivity_matrix_count': Ctdf
           }
 
 
