@@ -374,8 +374,8 @@ def t1_based_dwi_brain_extraction(
 
 def dipy_dti_recon(
     image,
-    bvals,
-    bvecs,
+    bvalsfn,
+    bvalsfn,
     mask = None,
     b0_idx = None,
     motion_correct = False,
@@ -388,9 +388,9 @@ def dipy_dti_recon(
     ---------
     image : an antsImage holding B0 and DWI
 
-    bvals : bvalues  obtained by dipy read_bvals_bvecs or the values themselves
+    bvalsfn : bvalues  obtained by dipy read_bvals_bvecs or the values themselves
 
-    bvecs : bvectors obtained by dipy read_bvals_bvecs or the values themselves
+    bvecsfn : bvectors obtained by dipy read_bvals_bvecs or the values themselves
 
     mask : brain mask for the DWI/DTI reconstruction; if it is not in the same
         space as the image, we will resample directly to the image space.  This
@@ -425,8 +425,8 @@ def dipy_dti_recon(
     if isinstance(bvecsfn, str):
         bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     else: # assume we already read them
-        bvals = bvalsfn
-        bvecs = bvecsfn
+        bvals = bvalsfn.copy()
+        bvecs = bvecsfn.copy()
     gtab = gradient_table(bvals, bvecs)
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     FD = None
