@@ -1064,6 +1064,8 @@ def dwi_streamline_connectivity(
     import dipy.reconst.dti as dti
     from dipy.segment.clustering import QuickBundles
     from dipy.tracking.utils import path_length
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
 
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
@@ -1108,7 +1110,7 @@ def dwi_streamline_connectivity(
     Tdf = None
     Ctdf = None
     Ctdfw = None
-    if return_connectivity:
+    if True:
         if verbose:
             print("Begin connectivity")
         M = np.zeros( [len(ulabs),len(ulabs)])
