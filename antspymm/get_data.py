@@ -551,7 +551,9 @@ def dipy_dti_recon(
         'average_b0':average_b0,
         'average_dwi':average_dwi,
         'dwi_mask':mask,
-        'famask':famask
+        'famask':famask,
+        'bvals':bvals,
+        'bvecs':bvecs
         }
 
 def joint_dti_recon(
@@ -647,13 +649,14 @@ def joint_dti_recon(
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct, mask_dilation=mymd )
+        bvec_RL = recon_RL['bvecs']
         OR_RLFA = recon_RL['FA']
-
 
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct,
             mask_dilation=mymd )
+    bvec_LR = recon_LR['bvecs']
 
     OR_LRFA = recon_LR['FA']
 
