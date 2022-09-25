@@ -17,7 +17,7 @@ import random
 import functools
 from operator import mul
 from scipy.sparse.linalg import svds
-from scipy.stats.stats import pearsonr
+from scipy.stats import pearsonr
 import re
 
 from dipy.core.histeq import histeq
@@ -351,7 +351,7 @@ def t1_based_dwi_brain_extraction(
     -------
     >>> import antspymm
     """
-    t1w_use = ants.resample_image( t1w, [2,2,2] ).iMath("Normalize")
+    t1w_use = ants.iMath( t1w, "Normalize" )
     t1bxt = ants.threshold_image( t1w_use, 0.05, 1 ).iMath("FillHoles")
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( dwi )['highermeans']
@@ -994,9 +994,6 @@ def dwi_deterministic_tracking(
         Mdf = label_dataframe.copy()
         Tdf = label_dataframe.copy()
         Ctdf = label_dataframe.copy()
-        newcolnamesM = []
-        newcolnamesT = []
-        newcolnamesC = []
         for k in range(len(ulabs)):
             nn1 = "CnxMeanPL"+str(k).zfill(3)
             nn2 = "CnxTotPL"+str(k).zfill(3)
@@ -1004,12 +1001,9 @@ def dwi_deterministic_tracking(
             Mdf.insert(Mdf.shape[1], nn1, M[k,:] )
             Tdf.insert(Tdf.shape[1], nn2, T[k,:] )
             Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
-            newcolnamesM.append( nn1 )
-            newcolnamesT.append( nn2 )
-            newcolnamesC.append( nn3 )
-        Mdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
-        Tdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
-        Ctdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
+        Mdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
+        Tdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
+        Ctdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
         allconnexwide = pd.concat( [
             pathdfw,
             Mdfw,
@@ -1024,6 +1018,219 @@ def dwi_deterministic_tracking(
           'connectivity_matrix_total': Tdf,
           'connectivity_matrix_count': Ctdf
           }
+
+
+def dwi_streamline_connectivity(
+    streamlines,
+    label_image,
+    label_dataframe,
+    verbose = False ):
+    """
+
+    Performs streamline connectivity and returns a tractogram
+    and path length data frame.
+
+    Arguments
+    ---------
+
+    streamlines : streamline object from dipy
+
+    label_image : atlas labels
+
+    label_dataframe : pandas dataframe containing descriptions for the labels in antspy style (Label,Description columns)
+
+    verbose : boolean
+
+    Returns
+    -------
+    dictionary holding tracts and summary statistics.
+
+    Example
+    -------
+    >>> import antspymm
+    """
+
+    if verbose:
+        print("streamline connections ...")
+
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+
+    volUnit = np.prod( ants.get_spacing( label_image ) )
+    labels = label_image.numpy()
+    affine = label_image.to_nibabel().affine
+
+    if verbose:
+        print("path length begin ... volUnit = " + str( volUnit ) )
+    import numpy as np
+    from dipy.io.image import load_nifti_data, load_nifti, save_nifti
+    import pandas as pd
+    ulabs = label_dataframe['Label']
+    pathLmean = np.zeros( [len(ulabs)])
+    pathLtot = np.zeros( [len(ulabs)])
+    pathCt = np.zeros( [len(ulabs)])
+    for k in range(len(ulabs)):
+        cc_slice = labels == ulabs[k]
+        cc_streamlines = utils.target(streamlines, affine, cc_slice)
+        cc_streamlines = Streamlines(cc_streamlines)
+        if len(cc_streamlines) > 0:
+            wmpl = path_length(cc_streamlines, affine, cc_slice)
+            mean_path_length = wmpl[wmpl>0].mean()
+            total_path_length = wmpl[wmpl>0].sum()
+            pathLmean[int(k)] = mean_path_length
+            pathLtot[int(k)] = total_path_length
+            pathCt[int(k)] = len(cc_streamlines) * volUnit
+
+    # convert paths to data frames
+    pathdf = label_dataframe.copy()
+    pathdf.insert(pathdf.shape[1], "mean_path_length", pathLmean )
+    pathdf.insert(pathdf.shape[1], "total_path_length", pathLtot )
+    pathdf.insert(pathdf.shape[1], "streamline_count", pathCt )
+    pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format(
+        {path_length:pathdf }, ['mean_path_length', 'total_path_length', 'streamline_count'] )
+    allconnexwide = pathdfw
+
+    if verbose:
+        print("path length done ...")
+
+    Mdfw = None
+    Tdfw = None
+    Mdf = None
+    Tdf = None
+    Ctdf = None
+    Ctdfw = None
+    if return_connectivity:
+        if verbose:
+            print("Begin connectivity")
+        M = np.zeros( [len(ulabs),len(ulabs)])
+        T = np.zeros( [len(ulabs),len(ulabs)])
+        myCount = np.zeros( [len(ulabs),len(ulabs)])
+        for k in range(len(ulabs)):
+            cc_slice = labels == ulabs[k]
+            cc_streamlines = utils.target(streamlines, affine, cc_slice)
+            cc_streamlines = Streamlines(cc_streamlines)
+            for j in range(len(ulabs)):
+                cc_slice2 = labels == ulabs[j]
+                cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
+                cc_streamlines2 = Streamlines(cc_streamlines2)
+                if len(cc_streamlines2) > 0 :
+                    wmpl = path_length(cc_streamlines2, affine, cc_slice2)
+                    mean_path_length = wmpl[wmpl>0].mean()
+                    total_path_length = wmpl[wmpl>0].sum()
+                    M[int(j),int(k)] = mean_path_length
+                    T[int(j),int(k)] = total_path_length
+                    myCount[int(j),int(k)] = len( cc_streamlines2 ) * volUnit
+        if verbose:
+            print("end connectivity")
+        Mdf = label_dataframe.copy()
+        Tdf = label_dataframe.copy()
+        Ctdf = label_dataframe.copy()
+        for k in range(len(ulabs)):
+            nn1 = "CnxMeanPL"+str(k).zfill(3)
+            nn2 = "CnxTotPL"+str(k).zfill(3)
+            nn3 = "CnxCount"+str(k).zfill(3)
+            Mdf.insert(Mdf.shape[1], nn1, M[k,:] )
+            Tdf.insert(Tdf.shape[1], nn2, T[k,:] )
+            Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
+        Mdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
+        Tdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
+        Ctdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
+        allconnexwide = pd.concat( [
+            pathdfw,
+            Mdfw,
+            Tdfw,
+            Ctdfw ], axis=1 )
+
+    return {
+          'connectivity': allconnexwide,
+          'connectivity_matrix_mean': Mdf,
+          'connectivity_matrix_total': Tdf,
+          'connectivity_matrix_count': Ctdf
+          }
+
+
+def hierarchical_modality_summary(
+    target_image,
+    hier,
+    transformlist,
+    modality_name,
+    return_keys = ["Mean","Volume"],
+    verbose = False ):
+    """
+
+    Use output of antspyt1w.hierarchical to summarize a modality
+
+    Arguments
+    ---------
+
+    target_image : the image to summarize - should be brain extracted
+
+    hier : dictionary holding antspyt1w.hierarchical output
+
+    transformlist : spatial transformations mapping from T1 to this modality (e.g. from ants.registration)
+
+    modality_name : adds the modality name to the data frame columns
+
+    return_keys = ["Mean","Volume"] keys to return
+
+    verbose : boolean
+
+    Returns
+    -------
+    data frame holding summary statistics in wide format
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    dfout = pd.DataFrame()
+    def myhelper( target_image, seg, mytx, mapname, modname, mydf, extra='', verbose=False ):
+        if verbose:
+            print( mapname )
+        cortmapped = ants.apply_transforms(
+            target_image,
+            seg,
+            mytx, interpolator='nearestNeighbor' )
+        mapped = antspyt1w.map_intensity_to_dataframe(
+            mapname,
+            target_image,
+            cortmapped)
+        mapped.iloc[:,1] = modname + '_' + extra + mapped.iloc[:,1]
+        mappedw = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+            { 'x' : mapped},
+            col_names = return_keys )
+        if verbose:
+            print( mappedw.keys() )
+        if mydf.shape[0] > 0:
+            mydf = pd.concat( [ mydf, mappedw], axis=1 )
+        else:
+            mydf = mappedw
+        return mydf
+    if hier['dkt_parc']['dkt_cortex'] is not None:
+        dfout = myhelper( target_image, hier['dkt_parc']['dkt_cortex'], transformlist,
+            "dkt", modality_name, dfout, extra='', verbose=verbose )
+    if hier['deep_cit168lab'] is not None:
+        dfout = myhelper( target_image, hier['deep_cit168lab'], transformlist,
+            "CIT168_Reinf_Learn_v1_label_descriptions_pad", modality_name, dfout, extra='deep_', verbose=verbose )
+    if hier['cit168lab'] is not None:
+        dfout = myhelper( target_image, hier['cit168lab'], transformlist,
+            "CIT168_Reinf_Learn_v1_label_descriptions_pad", modality_name, dfout, extra='', verbose=verbose  )
+    if hier['bf'] is not None:
+        dfout = myhelper( target_image, hier['bf'], transformlist,
+            "nbm3CH13", modality_name, dfout, extra='', verbose=verbose  )
+    # if hier['mtl'] is not None:
+    #    dfout = myhelper( target_image, hier['mtl'], reg,
+    #        "mtl_description", modality_name, dfout, extra='', verbose=verbose  )
+    return dfout
 
 
 def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :

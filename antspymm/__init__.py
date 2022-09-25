@@ -15,3 +15,5 @@ from .get_data import joint_dti_recon
 from .get_data import resting_state_fmri_networks
 from .get_data import t1_based_dwi_brain_extraction
 from .get_data import dwi_deterministic_tracking
+from .get_data import dwi_streamline_connectivity
+from .get_data import hierarchical_modality_summary
