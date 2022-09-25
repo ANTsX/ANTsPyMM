@@ -375,7 +375,7 @@ def t1_based_dwi_brain_extraction(
 def dipy_dti_recon(
     image,
     bvalsfn,
-    bvalsfn,
+    bvecsfn,
     mask = None,
     b0_idx = None,
     motion_correct = False,
