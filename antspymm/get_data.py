@@ -374,8 +374,8 @@ def t1_based_dwi_brain_extraction(
 
 def dipy_dti_recon(
     image,
-    bvalsfn,
-    bvecsfn,
+    bvals,
+    bvecs,
     mask = None,
     b0_idx = None,
     motion_correct = False,
@@ -388,9 +388,9 @@ def dipy_dti_recon(
     ---------
     image : an antsImage holding B0 and DWI
 
-    bvalsfn : bvalue filename
+    bvals : bvalues  obtained by dipy read_bvals_bvecs or the values themselves
 
-    bvecsfn : bvector filename
+    bvecs : bvectors obtained by dipy read_bvals_bvecs or the values themselves
 
     mask : brain mask for the DWI/DTI reconstruction; if it is not in the same
         space as the image, we will resample directly to the image space.  This
@@ -422,7 +422,11 @@ def dipy_dti_recon(
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
 
-    bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
+    if isinstance(bvecsfn, str):
+        bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
+    else: # assume we already read them
+        bvals = bvalsfn
+        bvecs = bvecsfn
     gtab = gradient_table(bvals, bvecs)
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     FD = None
@@ -649,6 +653,7 @@ def joint_dti_recon(
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct, mask_dilation=mymd )
+        bval_RL = recon_RL['bvals']
         bvec_RL = recon_RL['bvecs']
         OR_RLFA = recon_RL['FA']
 
@@ -656,6 +661,7 @@ def joint_dti_recon(
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct,
             mask_dilation=mymd )
+    bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
 
     OR_LRFA = recon_LR['FA']
