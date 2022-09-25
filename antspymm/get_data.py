@@ -902,7 +902,7 @@ def dwi_deterministic_tracking(
     labels = label_image.numpy()
     dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
-    if isinstance( bvals, str ) or isinstance( bvecs, str )
+    if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     gtab = gradient_table(bvals, bvecs)
 
