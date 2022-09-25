@@ -410,11 +410,15 @@ def dipy_dti_recon(
     -------
     dictionary holding the tensorfit, MD, FA and RGB images and motion parameters (optional)
 
+    NOTE -- see dipy reorient_bvecs(gtab, affines, atol=1e-2):
+
     Example
     -------
     >>> import antspymm
     """
 
+    from scipy.linalg import inv, polar
+    from dipy.core.gradients import reorient_bvecs
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
 
@@ -487,11 +491,19 @@ def dipy_dti_recon(
         FD = moco0['FD']
         maskedimage = []
         mocoimage = []
+        dipymoco = np.zeros( [image.shape[3],3,3] )
         for myidx in range(image.shape[3]):
-                b0 = ants.slice_image( image, axis=3, idx=myidx)
-                b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
-                mocoimage.append( b0 )
-                maskedimage.append( b0 * maskdil )
+            dipymoco[myidx,:,:] = np.eye( 3 )
+            if moco0['motion_parameters'][myidx] != 'NA':
+                txparam = ants.read_transform(moco0['motion_parameters'][myidx][0] )
+                txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
+                Rinv = inv( txparam )
+                bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
+            b0 = ants.slice_image( image, axis=3, idx=myidx)
+            b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
+            mocoimage.append( b0 )
+            maskedimage.append( b0 * maskdil )
+        gtab = gradient_table(bvals, bvecs)
         motion_corrected = ants.list_to_ndimage( image, mocoimage )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         maskdata = maskedimage.numpy()
