@@ -638,9 +638,12 @@ def joint_dti_recon(
     if verbose:
         print("Recon DTI on OR images ...")
 
+
     # RL image
     mymd = 1
     recon_RL = None
+    bval_RL = None
+    bvec_RL = None
 
     temp = ants.get_average_of_timeseries( img_LR )
     maskInRightSpace = True
@@ -818,7 +821,11 @@ def joint_dti_recon(
         'dewarping_object':dwp_OR,
         'dwi_LR_dewarped':img_LRdwp,
         'dwi_RL_dewarped':img_RLdwp,
-        't1w_rigid':t1wrig
+        't1w_rigid':t1wrig,
+        'bval_LR':bval_LR,
+        'bvec_LR':bvec_LR,
+        'bval_RL':bval_RL,
+        'bvec_RL':bvec_RL,
     }
 
 
@@ -826,8 +833,8 @@ def joint_dti_recon(
 def dwi_deterministic_tracking(
     dwi,
     fa,
-    bval_fname,
-    bvec_fname,
+    bvals,
+    bvecs,
     label_image,
     label_dataframe,
     fa_thresh = 0.25,
@@ -848,9 +855,9 @@ def dwi_deterministic_tracking(
 
     fa : an antsImage holding FA values
 
-    bval_fname : bvalue filename LR
+    bvals : bvalues
 
-    bvec_fname : bvector filename LR
+    bvecs : bvectors
 
     label_image : atlas labels
 
@@ -895,7 +902,8 @@ def dwi_deterministic_tracking(
     labels = label_image.numpy()
     dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
-    bvals, bvecs = read_bvals_bvecs(bval_fname, bvec_fname)
+    if isinstance( bvals, str ) or isinstance( bvecs, str )
+        bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     gtab = gradient_table(bvals, bvecs)
 
     # this uses the existing ants-based mask
