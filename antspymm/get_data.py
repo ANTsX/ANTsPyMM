@@ -835,13 +835,13 @@ def dwi_deterministic_tracking(
     fa,
     bvals,
     bvecs,
-    label_image,
-    label_dataframe,
+    mask=None,
+    label_image = None,
+    seed_labels = None,
     fa_thresh = 0.25,
     seed_density = 1,
     step_size = 0.5,
     return_connectivity=True,
-    mask=None,
     verbose = False ):
     """
 
@@ -859,9 +859,12 @@ def dwi_deterministic_tracking(
 
     bvecs : bvectors
 
+    mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
+        and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
+
     label_image : atlas labels
 
-    label_dataframe : pandas dataframe containing descriptions for the labels in antspy style (Label,Description columns)
+    seed_labels : list of label numbers from the atlas labels
 
     fa_thresh : 0.25 defaults
 
@@ -870,9 +873,6 @@ def dwi_deterministic_tracking(
     step_size : 0.5 for tracking
 
     return_connectivity : boolean controlling whether we compute an roi by roi connectivity matrix
-
-    mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
-        and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
 
     verbose : boolean
 
@@ -899,7 +899,7 @@ def dwi_deterministic_tracking(
     import dipy.reconst.dti as dti
     from dipy.segment.clustering import QuickBundles
     from dipy.tracking.utils import path_length
-    labels = label_image.numpy()
+
     dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
@@ -938,9 +938,15 @@ def dwi_deterministic_tracking(
     # Now we can use EuDX to track all of the white matter.
     if verbose:
         print("seed mask ...")
-    seed_mask = fa.numpy().copy()
-    seed_mask[seed_mask >= fa_thresh] = 1
-    seed_mask[seed_mask < fa_thresh] = 0
+    if label_image is None or seed_labels is None:
+        seed_mask = fa.numpy().copy()
+        seed_mask[seed_mask >= fa_thresh] = 1
+        seed_mask[seed_mask < fa_thresh] = 0
+    else:
+        labels = label_image.numpy()
+        seed_mask = labels * 0
+        for u in seed_labels:
+            seed_mask[ seed_mask == u ] = 1
     seeds = utils.seeds_from_mask(seed_mask, affine=affine, density=seed_density)
     from dipy.tracking.local_tracking import LocalTracking
     from dipy.tracking.streamline import Streamlines
@@ -958,8 +964,200 @@ def dwi_deterministic_tracking(
 
     return {
           'tractogram': sft,
-          'streamlines': streamlines
+          'streamlines': streamlines,
+          'peaks': peak_indices
           }
+
+
+
+def dwi_deterministic_tracking(
+    dwi,
+    fa,
+    bvals,
+    bvecs,
+    mask=None,
+    label_image = None,
+    seed_labels = None,
+    fa_thresh = 0.25,
+    seed_density = 1,
+    step_size = 0.5,
+    verbose = False ):
+    """
+
+    Performs deterministic tractography from the DWI and returns a tractogram
+    and path length data frame.
+
+    Arguments
+    ---------
+
+    dwi : an antsImage holding DWI acquisition
+
+    fa : an antsImage holding FA values
+
+    bvals : bvalues
+
+    bvecs : bvectors
+
+    mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
+        and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
+
+    label_image : atlas labels
+
+    seed_labels : list of label numbers from the atlas labels
+
+    fa_thresh : 0.25 defaults
+
+    seed_density : 1 default number of seeds per voxel
+
+    step_size : 0.5 for tracking
+
+    verbose : boolean
+
+    Returns
+    -------
+    dictionary holding tracts and stateful object.
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    dwi_img = dwi.to_nibabel()
+    affine = dwi_img.affine
+    if isinstance( bvals, str ) or isinstance( bvecs, str ):
+        bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
+    gtab = gradient_table(bvals, bvecs)
+    if mask is None:
+        mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
+    dwi_data = dwi_img.get_fdata()
+    dwi_mask = mask.numpy() == 1
+    dti_model = dti.TensorModel(gtab)
+    dti_fit = dti_model.fit(dwi_data, mask=dwi_mask)  # This step may take a while
+    evecs_img = dti_fit.evecs
+    from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
+    stopping_criterion = ThresholdStoppingCriterion(fa.numpy(), fa_thresh)
+    from dipy.data import get_sphere
+    sphere = get_sphere('symmetric362')
+    from dipy.direction import peaks_from_model
+    if verbose:
+        print("begin peaks")
+    peak_indices = peaks_from_model(
+        model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
+        min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
+        return_sh=False, parallel=True, num_processes=4
+        )
+    if label_image is None or seed_labels is None:
+        seed_mask = fa.numpy().copy()
+        seed_mask[seed_mask >= fa_thresh] = 1
+        seed_mask[seed_mask < fa_thresh] = 0
+    else:
+        labels = label_image.numpy()
+        seed_mask = labels * 0
+        for u in seed_labels:
+            seed_mask[ labels == u ] = 1
+    seeds = utils.seeds_from_mask(seed_mask, affine=affine, density=seed_density)
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    if verbose:
+        print("streamlines begin ...")
+    streamlines_generator = LocalTracking(
+        peak_indices, stopping_criterion, seeds, affine=affine, step_size=step_size)
+    streamlines = Streamlines(streamlines_generator)
+    from dipy.io.stateful_tractogram import Space, StatefulTractogram
+    from dipy.io.streamline import save_tractogram
+    sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
+    if verbose:
+        print("done")
+    return {
+          'tractogram': sft,
+          'streamlines': streamlines,
+          'peaks': peak_indices
+          }
+
+def dwi_streamline_pairwise_connectivity(
+    streamlines,
+    label_image,
+    exclusion_label = None,
+    verbose = False ):
+    """
+
+    Return streamlines connecting all of the regions in the label set. Ideal
+    for just 2 regions.
+
+    Arguments
+    ---------
+
+    streamlines : streamline object from dipy
+
+    label_image : atlas labels
+
+    verbose : boolean
+
+    Returns
+    -------
+    the subset of streamlines
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    volUnit = np.prod( ants.get_spacing( label_image ) )
+    labels = label_image.numpy()
+    affine = label_image.to_nibabel().affine
+    import numpy as np
+    from dipy.io.image import load_nifti_data, load_nifti, save_nifti
+    import pandas as pd
+    ulabs = np.unique( labels[ labels > 0 ] )
+    if exclusion_label is not None:
+        ulabs = ulabs[ ulabs != exclusion_label ]
+        exc_slice = labels == exclusion_label
+    if verbose:
+        print("Begin connectivity")
+    tracts = []
+    for k in range(len(ulabs)):
+        cc_slice = labels == ulabs[k]
+        cc_streamlines = utils.target(streamlines, affine, cc_slice)
+        cc_streamlines = Streamlines(cc_streamlines)
+        if exclusion_label is not None:
+            cc_streamlines = utils.target(cc_streamlines, affine, exc_slice, include=False)
+            cc_streamlines = Streamlines(cc_streamlines)
+        for j in range(len(ulabs)):
+            cc_slice2 = labels == ulabs[j]
+            cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
+            cc_streamlines2 = Streamlines(cc_streamlines2)
+            if exclusion_label is not None:
+                cc_streamlines2 = utils.target(cc_streamlines2, affine, exc_slice, include=False)
+                cc_streamlines2 = Streamlines(cc_streamlines2)
+            tracts.append( cc_streamlines2 )
+        if verbose:
+            print("end connectivity")
+    return {
+          'pairwise_tracts': tracts
+          }
+
 
 
 def dwi_streamline_connectivity(
@@ -969,8 +1167,8 @@ def dwi_streamline_connectivity(
     verbose = False ):
     """
 
-    Performs streamline connectivity and returns a tractogram
-    and path length data frame.
+    Summarize network connetivity of the input streamlines between all of the
+    regions in the label set.
 
     Arguments
     ---------
@@ -985,7 +1183,7 @@ def dwi_streamline_connectivity(
 
     Returns
     -------
-    dictionary holding tracts and summary statistics.
+    dictionary holding summary connection statistics in wide format and matrix format.
 
     Example
     -------
