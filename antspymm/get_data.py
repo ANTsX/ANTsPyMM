@@ -878,7 +878,7 @@ def dwi_deterministic_tracking(
 
     Returns
     -------
-    dictionary holding tracts and summary statistics.
+    dictionary holding tracts and stateful object.
 
     Example
     -------
@@ -929,7 +929,9 @@ def dwi_deterministic_tracking(
         print("Begin PEAKS")
     peak_indices = peaks_from_model(
         model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
-        min_separation_angle=25, mask=dwi_mask, npeaks=2)
+        min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
+        return_sh=False, parallel=True, num_processes=4
+        )
     if verbose:
         print("end PEAKS")
 
@@ -954,98 +956,9 @@ def dwi_deterministic_tracking(
     from dipy.io.streamline import save_tractogram
     sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
 
-    # Save the tractogram
-    # save_tractogram(sft, os.path.join("./tractogram_deterministic_EuDX.trk"))
-
-    volUnit = np.prod( ants.get_spacing( fa ) )
-    if verbose:
-        print("path length begin ... volUnit = " + str( volUnit ) )
-    import numpy as np
-    from dipy.io.image import load_nifti_data, load_nifti, save_nifti
-    import pandas as pd
-    ulabs = label_dataframe['Label']
-    pathLmean = np.zeros( [len(ulabs)])
-    pathLtot = np.zeros( [len(ulabs)])
-    pathCt = np.zeros( [len(ulabs)])
-    for k in range(len(ulabs)):
-        cc_slice = labels == ulabs[k]
-        cc_streamlines = utils.target(streamlines, affine, cc_slice)
-        cc_streamlines = Streamlines(cc_streamlines)
-        if len(cc_streamlines) > 0:
-            wmpl = path_length(cc_streamlines, affine, cc_slice)
-            mean_path_length = wmpl[wmpl>0].mean()
-            total_path_length = wmpl[wmpl>0].sum()
-            pathLmean[int(k)] = mean_path_length
-            pathLtot[int(k)] = total_path_length
-            pathCt[int(k)] = len(cc_streamlines) * volUnit
-
-    # convert paths to data frames
-    pathdf = label_dataframe.copy()
-    pathdf.insert(pathdf.shape[1], "mean_path_length", pathLmean )
-    pathdf.insert(pathdf.shape[1], "total_path_length", pathLtot )
-    pathdf.insert(pathdf.shape[1], "streamline_count", pathCt )
-    pathdfw =antspyt1w.merge_hierarchical_csvs_to_wide_format(
-        {path_length:pathdf }, ['mean_path_length', 'total_path_length', 'streamline_count'] )
-    allconnexwide = pathdfw
-
-    if verbose:
-        print("path length done ...")
-
-    Mdfw = None
-    Tdfw = None
-    Mdf = None
-    Tdf = None
-    Ctdf = None
-    Ctdfw = None
-    if return_connectivity:
-        if verbose:
-            print("Begin connectivity")
-        M = np.zeros( [len(ulabs),len(ulabs)])
-        T = np.zeros( [len(ulabs),len(ulabs)])
-        myCount = np.zeros( [len(ulabs),len(ulabs)])
-        for k in range(len(ulabs)):
-            cc_slice = labels == ulabs[k]
-            cc_streamlines = utils.target(streamlines, affine, cc_slice)
-            cc_streamlines = Streamlines(cc_streamlines)
-            for j in range(len(ulabs)):
-                cc_slice2 = labels == ulabs[j]
-                cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
-                cc_streamlines2 = Streamlines(cc_streamlines2)
-                if len(cc_streamlines2) > 0 :
-                    wmpl = path_length(cc_streamlines2, affine, cc_slice2)
-                    mean_path_length = wmpl[wmpl>0].mean()
-                    total_path_length = wmpl[wmpl>0].sum()
-                    M[int(j),int(k)] = mean_path_length
-                    T[int(j),int(k)] = total_path_length
-                    myCount[int(j),int(k)] = len( cc_streamlines2 ) * volUnit
-        if verbose:
-            print("end connectivity")
-        Mdf = label_dataframe.copy()
-        Tdf = label_dataframe.copy()
-        Ctdf = label_dataframe.copy()
-        for k in range(len(ulabs)):
-            nn1 = "CnxMeanPL"+str(k).zfill(3)
-            nn2 = "CnxTotPL"+str(k).zfill(3)
-            nn3 = "CnxCount"+str(k).zfill(3)
-            Mdf.insert(Mdf.shape[1], nn1, M[k,:] )
-            Tdf.insert(Tdf.shape[1], nn2, T[k,:] )
-            Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
-        Mdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkm' : Mdf },  Mdf.keys()[2:Mdf.shape[1]] )
-        Tdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkt' : Tdf },  Tdf.keys()[2:Tdf.shape[1]] )
-        Ctdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
-        allconnexwide = pd.concat( [
-            pathdfw,
-            Mdfw,
-            Tdfw,
-            Ctdfw ], axis=1 )
-
     return {
           'tractogram': sft,
-          'streamlines': streamlines,
-          'connectivity': allconnexwide,
-          'connectivity_matrix_mean': Mdf,
-          'connectivity_matrix_total': Tdf,
-          'connectivity_matrix_count': Ctdf
+          'streamlines': streamlines
           }
 
 
