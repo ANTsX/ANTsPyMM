@@ -949,11 +949,7 @@ def dwi_deterministic_tracking(
           'peak_indices': peak_indices
           }
 
-def dwi_streamline_pairwise_connectivity(
-    streamlines,
-    label_image,
-    exclusion_label = None,
-    verbose = False ):
+def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_connect=[1,None], verbose=False ):
     """
 
     Return streamlines connecting all of the regions in the label set. Ideal
@@ -966,18 +962,63 @@ def dwi_streamline_pairwise_connectivity(
 
     label_image : atlas labels
 
-    exclusion_label : fibers are excluded if they pass through this label
+    labels_to_connect : list of 2 labels or [label,None]
 
     verbose : boolean
 
     Returns
     -------
-    the subset of streamlines
+    the subset of streamlines and a streamline count
 
     Example
     -------
     >>> import antspymm
     """
+    from dipy.tracking.streamline import Streamlines
+    keep_streamlines = Streamlines()
+    affine = label_image.to_nibabel().affine
+    lin_T, offset = utils._mapping_to_voxel(affine)
+    label_image_np = label_image.numpy()
+    def check_it( sl, target_label, label_image, index, full=False ):
+        if full:
+            maxind=sl.shape[0]
+            for index in range(maxind):
+                pt = utils._to_voxel_coordinates(sl[index,:], lin_T, offset)
+                mylab = (label_image[ pt[0], pt[1], pt[2] ]).astype(int)
+                if mylab == target_label[0] or mylab == target_label[1]:
+                    return { 'ok': True, 'label':mylab }
+        else:
+            pt = utils._to_voxel_coordinates(sl[index,:], lin_T, offset)
+            mylab = (label_image[ pt[0], pt[1], pt[2] ]).astype(int)
+            if mylab == target_label[0] or mylab == target_label[1]:
+                return { 'ok': True, 'label':mylab }
+        return { 'ok': False, 'label':None }
+    ct=0
+    for k in range( len( streamlines ) ):
+        sl = streamlines[k]
+        mycheck = check_it( sl, labels_to_connect, label_image_np, index=0, full=True )
+        if mycheck['ok']:
+            otherind=1
+            if mycheck['label'] == labels_to_connect[1]:
+                otherind=0
+            lsl = len( sl )-1
+            pt = utils._to_voxel_coordinates(sl[lsl,:], lin_T, offset)
+            mylab_end = (label_image_np[ pt[0], pt[1], pt[2] ]).astype(int)
+            accept_point = mylab_end == labels_to_connect[otherind]
+            if verbose and accept_point:
+                print( mylab_end )
+            if labels_to_connect[1] is None:
+                accept_point = mylab_end != 0
+            if accept_point:
+                keep_streamlines.append(sl)
+                ct=ct+1
+    return { 'streamlines': keep_streamlines, 'count': ct }
+
+def dwi_streamline_pairwise_connectivity_old(
+    streamlines,
+    label_image,
+    exclusion_label = None,
+    verbose = False ):
     import os
     import re
     import nibabel as nib
@@ -1011,20 +1052,118 @@ def dwi_streamline_pairwise_connectivity(
         if exclusion_label is not None:
             cc_streamlines = utils.target(cc_streamlines, affine, exc_slice, include=False)
             cc_streamlines = Streamlines(cc_streamlines)
-        cc_slice2 = labels == ulabs[k]
-        cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
-        cc_streamlines2 = Streamlines(cc_streamlines2)
-        if exclusion_label is not None:
-            cc_streamlines2 = utils.target(cc_streamlines2, affine, exc_slice, include=False)
+        for j in range(len(ulabs)):
+            cc_slice2 = labels == ulabs[j]
+            cc_streamlines2 = utils.target(cc_streamlines, affine, cc_slice2)
             cc_streamlines2 = Streamlines(cc_streamlines2)
-        tracts.append( cc_streamlines2 )
+            if exclusion_label is not None:
+                cc_streamlines2 = utils.target(cc_streamlines2, affine, exc_slice, include=False)
+                cc_streamlines2 = Streamlines(cc_streamlines2)
+            tracts.append( cc_streamlines2 )
         if verbose:
             print("end connectivity")
     return {
           'pairwise_tracts': tracts
           }
 
+
 def dwi_streamline_connectivity(
+    streamlines,
+    label_image,
+    label_dataframe,
+    verbose = False ):
+    """
+
+    Summarize network connetivity of the input streamlines between all of the
+    regions in the label set.
+
+    Arguments
+    ---------
+
+    streamlines : streamline object from dipy
+
+    label_image : atlas labels
+
+    label_dataframe : pandas dataframe containing descriptions for the labels in antspy style (Label,Description columns)
+
+    verbose : boolean
+
+    Returns
+    -------
+    dictionary holding summary connection statistics in wide format and matrix format.
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    volUnit = np.prod( ants.get_spacing( label_image ) )
+    labels = label_image.numpy()
+    affine = label_image.to_nibabel().affine
+    import numpy as np
+    from dipy.io.image import load_nifti_data, load_nifti, save_nifti
+    import pandas as pd
+    ulabs = label_dataframe['Label']
+    labels_to_connect = ulabs[ulabs > 0]
+    Ctdf = None
+    lin_T, offset = utils._mapping_to_voxel(affine)
+    label_image_np = label_image.numpy()
+    def check_it( sl, target_label, label_image, index, not_label = None ):
+        pt = utils._to_voxel_coordinates(sl[index,:], lin_T, offset)
+        mylab = (label_image[ pt[0], pt[1], pt[2] ]).astype(int)
+        if not_label is None:
+            if ( mylab == target_label ).sum() > 0 :
+                return { 'ok': True, 'label':mylab }
+        else:
+            if ( mylab == target_label ).sum() > 0 and ( mylab == not_label ).sum() == 0:
+                return { 'ok': True, 'label':mylab }
+        return { 'ok': False, 'label':None }
+    ct=0
+    which = lambda lst:list(np.where(lst)[0])
+    myCount = np.zeros( [len(ulabs),len(ulabs)])
+    for k in range( len( streamlines ) ):
+            sl = streamlines[k]
+            mycheck = check_it( sl, labels_to_connect, label_image_np, index=0 )
+            if mycheck['ok']:
+                exclabel=mycheck['label']
+                lsl = len( sl )-1
+                mycheck2 = check_it( sl, labels_to_connect, label_image_np, index=lsl, not_label=exclabel )
+                if mycheck2['ok']:
+                    myCount[ulabs == mycheck['label'],ulabs == mycheck2['label']]+=1
+                    ct=ct+1
+    Ctdf = label_dataframe.copy()
+    for k in range(len(ulabs)):
+            nn3 = "CnxCount"+str(k).zfill(3)
+            Ctdf.insert(Ctdf.shape[1], nn3, myCount[k,:] )
+    Ctdfw = antspyt1w.merge_hierarchical_csvs_to_wide_format( { 'networkc': Ctdf },  Ctdf.keys()[2:Ctdf.shape[1]] )
+    return { 'connectivity_matrix' :  myCount, 'connectivity_wide' : Ctdfw }
+
+def dwi_streamline_connectivity_old(
     streamlines,
     label_image,
     label_dataframe,
