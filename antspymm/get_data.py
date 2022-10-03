@@ -1438,7 +1438,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
 
 
-def neuromelanin( list_nm_images, t1, t1slab, t1lab ) :
+def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srmodel=None ) :
 
   """
   Outputs the averaged and registered neuromelanin image, and neuromelanin labels
@@ -1451,18 +1451,38 @@ def neuromelanin( list_nm_images, t1, t1slab, t1lab ) :
   t1 : ANTsImage
     input 3-D T1 brain image
 
-  t1slab : ANTsImage
-    t1 slab - a label image that roughly locates the likely position of the NM slab acquisition
+  t1_head : ANTsImage
+    input 3-D T1 head image
 
   t1lab : ANTsImage
     t1 labels that will be propagated to the NM
 
+  brain_stem_dilation : integer default 8
+    dilates the brain stem mask to better match coverage of NM
+
+  srmodel : None -- this is a work in progress feature, probably not optimal
 
   Returns
   ---------
-  Averaged and registered neuromelanin image and neuromelanin labels
+  Averaged and registered neuromelanin image and neuromelanin labels and wide csv
 
   """
+
+  fnt=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni.nii.gz" )
+  fntbst=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni_brainstem.nii.gz")
+  fnslab=os.path.expanduser("~/.antspyt1w/CIT168_MT_Slab_adni.nii.gz")
+  fntseg=os.path.expanduser("~/.antspyt1w/det_atlas_25_pad_LR_adni.nii.gz")
+
+  template = ants.image_read( fnt )
+  templatebstem = ants.image_read( fntbst ).threshold_image( 1, 1000 )
+  reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
+  # map brain stem and slab to t1 for neuromelanin processing
+  bstem2t1 = ants.apply_transforms( t1, templatebstem,
+    reg['fwdtransforms'],
+    interpolator='nearestNeighbor' ).iMath("MD",1)
+  slab2t1 = ants.apply_transforms( t1, ants.image_read( fnslab ),
+    reg['fwdtransforms'], interpolator = 'nearestNeighbor')
+  cropper = ants.iMath( bstem2t1 , "MD", brain_stem_dilation ) * slab2t1
 
   # Average images in image_list
   avg = list_nm_images[0]*0.0
@@ -1482,14 +1502,39 @@ def neuromelanin( list_nm_images, t1, t1slab, t1lab ) :
   for k in range(len( reglist )):
     nm_avg = nm_avg + reglist[k] / len( reglist )
 
-  t1c = ants.crop_image( t1, t1slab )
+  t1c = ants.crop_image( t1_head, cropper ).iMath("Normalize")
   slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
-  nmlab = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
+  labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
+  cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
+  # ants.plot( nm_avg,  slabreg['warpedmovout'], slices=[8,10,12], axis=2 )
+  # ants.plot( nm_avg, nmpro['NM_labels'], axis=2, slices=[8,10,12] )
+  # now do SR processing
+  nmcropped = ants.crop_image( nm_avg, cropper2nm )
+  if srmodel is not None: # over-writes prior results with SR results
+      nm_avg = antspynet.apply_super_resolution_model_to_image(
+        nmcropped, srmodel, target_range=[0,1], regression_order=None )
+      slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
+      labels2nm = ants.apply_transforms( nm_avg, t1lab,
+        slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
+
+  #  map summary measurements to wide format
+  nmdf = antspyt1w.map_intensity_to_dataframe(
+          'CIT168_Reinf_Learn_v1_label_descriptions_pad',
+          nm_avg,
+          labels2nm)
+  nmdf_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+              {'NM' : nmdf},
+              col_names = ['Mean'] )
 
   return{
       'NM_avg' : nm_avg,
-      'NM_labels': nmlab }
+      'NM_labels': labels2nm,
+      'NM_cropped': nmcropped,
+      'NM_dataframe': nmdf,
+      'NM_dataframe_wide': nmdf_wide,
+      't1_to_NM': slabreg['warpedmovout'] }
+
 
 
 
@@ -1637,8 +1682,10 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
 
   A = pd.DataFrame( A )
   A.columns = newnames
-  A['networks']=newnames
+  A['Description']=newnames
   outdict['corr'] = A
+  # A_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format( {'RSF' : A}, col_names = A.keys() )
+  # outdict['corr_wide'] = A_wide
   outdict['brainmask'] = bmask
 
   return outdict
