@@ -59,7 +59,6 @@ t1atropos = hier['dkt_parc']['tissue_segmentation']
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
-derka
 ################################## do the nm .....
 import tensorflow as tf
 import tensorflow.keras as keras
