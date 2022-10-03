@@ -1,3 +1,7 @@
+# convert to pynb via p2j mm.py -o
+# convert the ipynb to html via:
+#   jupyter nbconvert ANTsPyMM/tests/mm.ipynb --execute --to html
+#
 import os
 os.environ["TF_NUM_INTEROP_THREADS"] = "8"
 os.environ["TF_NUM_INTRAOP_THREADS"] = "8"
@@ -56,9 +60,19 @@ t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
 t1wide.to_csv( t1widefn )
 t1imgbrn = hier['brain_n4_dnz']
 t1atropos = hier['dkt_parc']['tissue_segmentation']
+ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
+ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
+ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
+ants.plot( rsfpro['meanBold'], rsfpro['DefaultMode'],
+    title='DefaultMode',
+    axis=2, nslices=21, ncol=7, crop=True )
+ants.plot( rsfpro['meanBold'], rsfpro['FrontoparietalTaskControl'],
+    title='FrontoparietalTaskControl',
+    axis=2, nslices=21, ncol=7, crop=True )
+# dataframe output is called rsfpro['corr_wide']
 ################################## do the nm .....
 import tensorflow as tf
 import tensorflow.keras as keras
@@ -69,8 +83,11 @@ for k in range( len( nmfn ) ):
 nmpro = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'] )
 nmprosr = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmdl )
 # this is for checking the processing
-ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=[8,10,12], axis=2 )
-ants.plot( nmpro['NM_avg'], nmpro['NM_labels'], axis=2, slices=[8,10,12] )
+mysl = [8,10,12]
+ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2 )
+ants.plot( nmpro['NM_cropped'], axis=2, slices=mysl, overlay_alpha=0.3 )
+ants.plot( nmpro['NM_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3 )
+ants.plot( nmpro['NM_cropped'], nmpro['NM_labels'], axis=2, slices=mysl )
 ################################## do the dti .....
 dtibxt_data = antspymm.t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dwi, transform='Rigid' )
 mydti = antspymm.joint_dti_recon(
@@ -85,6 +102,9 @@ mydti = antspymm.joint_dti_recon(
         srmodel=None,
         motion_correct=True, # set to False if using input from qsiprep
         verbose = True)
+ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA' )
+ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
+ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
 # summarize dwi with T1 outputs
 # first - register ....
 reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'Rigid' )
@@ -121,4 +141,6 @@ cnxmat = antspymm.dwi_streamline_connectivity( mystr['streamlines'], dktmapped, 
 # FIXME --- put all these output together in wide format
 ################################## do the flair .....
 flairpro = antspymm.wmh( flair, t1, t1atropos, mmfromconvexhull=12 )
+ants.plot( flair,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
+ants.plot( flair, flairpro['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
 # FIXME --- put all these output together in wide format
