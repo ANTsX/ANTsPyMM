@@ -37,10 +37,6 @@ dwi = ants.image_read( dwi_fname )
 rsf = ants.image_read( rsf_fname )
 flair = ants.image_read( flair_fname )
 nmfn = glob.glob( os.path.expanduser("~/data/PPMI/MV/PPMI/nifti/40543/20210819/2D_GRE-MT/14_22_13.0/*nii.gz" ))
-fnt=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni.nii.gz" )
-fntbst=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni_brainstem.nii.gz")
-fnslab=os.path.expanduser("~/.antspyt1w/CIT168_MT_Slab_adni.nii.gz")
-fntseg=os.path.expanduser("~/.antspyt1w/det_atlas_25_pad_LR_adni.nii.gz")
 #####################
 #  T1 hierarchical  #
 #####################
