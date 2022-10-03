@@ -59,9 +59,6 @@ t1atropos = hier['dkt_parc']['tissue_segmentation']
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
-A = rsfpro['corr']
-A_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format( {'RSF' : A}, col_names = A.keys() )
-
 derka
 ################################## do the nm .....
 import tensorflow as tf

@@ -1665,27 +1665,33 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     outdict[ netname ] = corrImg
     ct = ct + 1
 
-  A = np.zeros( ( len( numofnets ), len( numofnets ) ) )
+  A = np.zeros( ( len( numofnets ) , len( numofnets ) ) )
+  A_wide = np.zeros( ( 1, len( numofnets ) * len( numofnets ) ) )
   newnames=[]
-
+  newnames_wide=[]
+  ct = 0
   for i in range( len( numofnets ) ):
       netnamei = re.sub( " ", "", networks[numofnets[i]] )
       netnamei = re.sub( "-", "", netnamei )
-      newnames.append( netnamei )
+      newnames.append( netnamei  )
       binmask = ants.threshold_image( outdict[ netnamei ], 0.2, 1.0 )
       ww = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
       dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
       for j in range( len( numofnets ) ):
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )
+          newnames_wide.append( netnamei + "_2_" + netnamej )
           A[i,j] = outdict[ netnamej ][ dfnImg == 1].mean()
+          A_wide[0,ct] = A[i,j]
+          ct=ct+1
 
   A = pd.DataFrame( A )
   A.columns = newnames
-  A['Description']=newnames
+  A['networks']=newnames
+  A_wide = pd.DataFrame( A_wide )
+  A_wide.columns = newnames_wide
   outdict['corr'] = A
-  # A_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format( {'RSF' : A}, col_names = A.keys() )
-  # outdict['corr_wide'] = A_wide
+  outdict['corr_wide'] = A_wide
   outdict['brainmask'] = bmask
 
   return outdict
