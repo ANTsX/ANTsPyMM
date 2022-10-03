@@ -83,12 +83,12 @@ ants.plot( rsfpro['meanBold'], rsfpro['FrontoparietalTaskControl'],
 ################################## do the nm .....
 import tensorflow as tf
 import tensorflow.keras as keras
-srmdl = tf.keras.models.load_model( '/Users/stnava/code/DPR/models/dsr3d_2up_64_256_6_3_v0.0.h5', compile=False )
+# srmdl = tf.keras.models.load_model( '~/code/DPR/models/dsr3d_2up_64_256_6_3_v0.0.h5', compile=False )
 mynm = list()
 for k in range( len( nmfn ) ):
     mynm.append( ants.image_read( nmfn[k] ) )
 nmpro = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'] )
-nmprosr = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmdl )
+# nmprosr = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmdl )
 # this is for checking the processing
 mysl = [8,10,12]
 ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2 )
