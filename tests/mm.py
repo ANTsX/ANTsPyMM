@@ -18,25 +18,35 @@ import antspynet
 from os.path import exists
 ex_path = os.path.expanduser( "~/.antspyt1w/" )
 ex_path_mm = os.path.expanduser( "~/.antspymm/" )
-mycsv = pd.read_csv(  os.path.expanduser( ex_path + "FA_JHU_labels_edited.csv" ) )
-citcsv = pd.read_csv(  os.path.expanduser(  ex_path + "CIT168_Reinf_Learn_v1_label_descriptions_pad.csv" ) )
-dktcsv = pd.read_csv(  os.path.expanduser( ex_path + "dkt.csv" ) )
-JHU_atlas = ants.image_read( ex_path + 'JHU-ICBM-FA-1mm.nii.gz') # Read in JHU atlas
-JHU_labels = ants.image_read( ex_path + 'JHU-ICBM-labels-1mm.nii.gz') # Read in JHU labels
-t1fn = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/3D_T1-weighted/14_22_13.0/40543-20210819-3D_T1-weighted-14_22_13.0_repeat_1.nii.gz")
-ddir = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/DTI_LR/14_51_41.0/" )
+mycsvfn = ex_path + "FA_JHU_labels_edited.csv"
+citcsvfn = ex_path + "CIT168_Reinf_Learn_v1_label_descriptions_pad.csv"
+dktcsvfn = ex_path + "dkt.csv"
+JHU_atlasfn = ex_path + 'JHU-ICBM-FA-1mm.nii.gz' # Read in JHU atlas
+JHU_labelsfn = ex_path + 'JHU-ICBM-labels-1mm.nii.gz' # Read in JHU labels
+if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ):
+    print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
+    stophere
+mycsv = pd.read_csv(  mycsvfn )
+citcsv = pd.read_csv(  os.path.expanduser(  citcsvfn ) )
+dktcsv = pd.read_csv(  os.path.expanduser( dktcsvfn ) )
+JHU_atlas = ants.image_read( JHU_atlasfn ) # Read in JHU atlas
+JHU_labels = ants.image_read( JHU_labelsfn ) # Read in JHU labels
+subjectrootpath = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/" )
+t1fn = os.path.expanduser( subjectrootpath + "3D_T1-weighted/14_22_13.0/40543-20210819-3D_T1-weighted-14_22_13.0_repeat_1.nii.gz")
+ddir = os.path.expanduser( subjectrootpath + "DTI_LR/14_51_41.0/" )
 pfx = ddir + "40543-20210819-DTI_LR-14_51_41.0_repeat_1"
 dwi_fname = pfx + ".nii.gz"
 bvec_fname = pfx + ".bvec"
 bval_fname = pfx + ".bval"
-rsfdir = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/rsfMRI_RL/14_22_13.0/" )
+rsfdir = os.path.expanduser( subjectrootpath + "rsfMRI_RL/14_22_13.0/" )
 rsf_fname = rsfdir + "40543-20210819-rsfMRI_RL-14_22_13.0_repeat_1.nii.gz"
-flair_fname = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/3D_T2_FLAIR/14_22_13.0/40543-20210819-3D_T2_FLAIR-14_22_13.0_repeat_1.nii.gz" )
+flair_fname = os.path.expanduser( subjectrootpath + "3D_T2_FLAIR/14_22_13.0/40543-20210819-3D_T2_FLAIR-14_22_13.0_repeat_1.nii.gz" )
 t1 = ants.image_read( t1fn )
-dwi = ants.image_read( dwi_fname )
 rsf = ants.image_read( rsf_fname )
+nmfn = glob.glob( os.path.expanduser(subjectrootpath + "2D_GRE-MT/14_22_13.0/*nii.gz" ))
+dwi = ants.image_read( dwi_fname )
 flair = ants.image_read( flair_fname )
-nmfn = glob.glob( os.path.expanduser("~/data/PPMI/MV/PPMI/nifti/40543/20210819/2D_GRE-MT/14_22_13.0/*nii.gz" ))
+## >> the end of input functions << ##
 #####################
 #  T1 hierarchical  #
 #####################
@@ -44,7 +54,8 @@ myod = os.path.expanduser('~/data/PPMI/MV/processed/40543/20210819/')
 os.makedirs(myod,  exist_ok = True)
 identifier = '40543_20210819'
 myop = myod + identifier
-t1widefn = myop + "_mergewide.csv"
+t1widefn = myop + "_t1mergewide.csv"
+mmwidefn = myop + "_mmmergewide.csv"
 print("begin: "  + myop )
 if not exists( t1widefn ):
     hier = antspyt1w.hierarchical( t1, output_prefix=myop )
@@ -52,7 +63,7 @@ if not exists( t1widefn ):
 else:
     hier = antspyt1w.read_hierarchical( myop )
 t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
-    hier['dataframes'], identifier=identifier )
+    hier['dataframes'], identifier=None )
 t1wide.to_csv( t1widefn )
 t1imgbrn = hier['brain_n4_dnz']
 t1atropos = hier['dkt_parc']['tissue_segmentation']
@@ -139,4 +150,19 @@ cnxmat = antspymm.dwi_streamline_connectivity( mystr['streamlines'], dktmapped, 
 flairpro = antspymm.wmh( flair, t1, t1atropos, mmfromconvexhull=12 )
 ants.plot( flair,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
 ants.plot( flair, flairpro['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
-# FIXME --- put all these output together in wide format
+################################################
+# put all these output together in wide format #
+# joint [ t1, rsf, dti, nm, flair ]
+mm_wide = pd.concat( [
+  t1wide.iloc[: , 1:],
+  nmpro['NM_dataframe_wide'].iloc[: , 1:],
+  mydti['recon_fa_summary'].iloc[: , 1:],
+  mydti['recon_md_summary'].iloc[: , 1:],
+  fat1summ.iloc[: , 1:],
+  mdt1summ.iloc[: , 1:],
+  cnxmat['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
+  ], axis=1 )
+mm_wide = mm_wide.copy()
+mm_wide['flair_wmh'] = flairpro['wmh_mass']
+# mm_wide.shape
+mm_wide.to_csv( mmwidefn )
