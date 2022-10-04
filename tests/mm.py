@@ -23,7 +23,8 @@ citcsvfn = ex_path + "CIT168_Reinf_Learn_v1_label_descriptions_pad.csv"
 dktcsvfn = ex_path + "dkt.csv"
 JHU_atlasfn = ex_path + 'JHU-ICBM-FA-1mm.nii.gz' # Read in JHU atlas
 JHU_labelsfn = ex_path + 'JHU-ICBM-labels-1mm.nii.gz' # Read in JHU labels
-if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ):
+templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ) or not exists( templatefn ):
     print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
     stophere
 mycsv = pd.read_csv(  mycsvfn )
@@ -31,6 +32,7 @@ citcsv = pd.read_csv(  os.path.expanduser(  citcsvfn ) )
 dktcsv = pd.read_csv(  os.path.expanduser( dktcsvfn ) )
 JHU_atlas = ants.image_read( JHU_atlasfn ) # Read in JHU atlas
 JHU_labels = ants.image_read( JHU_labelsfn ) # Read in JHU labels
+template = ants.image_read( templatefn ) # Read in template
 subjectrootpath = os.path.expanduser( "~/data/PPMI/MV/PPMI/nifti/40543/20210819/" )
 t1fn = os.path.expanduser( subjectrootpath + "3D_T1-weighted/14_22_13.0/40543-20210819-3D_T1-weighted-14_22_13.0_repeat_1.nii.gz")
 ddir = os.path.expanduser( subjectrootpath + "DTI_LR/14_51_41.0/" )
@@ -70,6 +72,8 @@ t1atropos = hier['dkt_parc']['tissue_segmentation']
 ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
 ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
 ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
+kkthk = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'], iterations=3 ) # FIXME testing value-real=45
+ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, ncol=7, crop=True )
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
@@ -155,6 +159,7 @@ ants.plot( flair, flairpro['WMH_probability_map'],  axis=2, nslices=21, ncol=7, 
 # joint [ t1, rsf, dti, nm, flair ]
 mm_wide = pd.concat( [
   t1wide.iloc[: , 1:],
+  kkthk['thickness_dataframe'].iloc[: , 1:],
   nmpro['NM_dataframe_wide'].iloc[: , 1:],
   mydti['recon_fa_summary'].iloc[: , 1:],
   mydti['recon_md_summary'].iloc[: , 1:],
@@ -168,4 +173,32 @@ mm_wide['flair_wmh'] = flairpro['wmh_mass']
 mm_wide.to_csv( mmwidefn )
 
 
-### NOTES: deforming to a common space and writing out images
+#################################################################
+### NOTES: deforming to a common space and writing out images ###
+### images we want come from: DTI, NM, rsf, thickness ###########
+#################################################################
+if True:
+    # might reconsider this template space - cropped and/or higher res?
+    template = ants.resample_image( template, [1,1,1], use_voxels=False )
+    t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
+    thk2template = ants.apply_transforms( template, kkthk['thickness_image'], t1reg['fwdtransforms'])
+    ants.image_write( thk2template, myop+'_thickness2template.nii.gz' )
+    dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
+    rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
+    md2template = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+    ants.image_write( md2template, myop+'_md2template.nii.gz' )
+    ants.plot(template, md2template, crop=True, axis=2, ncol=7, nslices=21 )
+    fa2template = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+    ants.image_write( fa2template, myop+'_fa2template.nii.gz' )
+    ants.plot(template, fa2template, crop=True, axis=2, ncol=7, nslices=21 )
+    dfn2template = ants.apply_transforms( template, rsfpro['DefaultMode'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
+    ants.image_write( dfn2template, myop+'_dfn2template.nii.gz' )
+    ants.plot(template, dfn2template, crop=True, axis=2, ncol=7, nslices=21 )
+    fptc2template = ants.apply_transforms( template, rsfpro['FrontoparietalTaskControl'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
+    ants.image_write( fptc2template, myop+'_fptc2template.nii.gz' )
+    ants.plot(template, fptc2template, crop=True, axis=2, ncol=7, nslices=21 )
+    nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
+    nm2template = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
+        whichtoinvert=[False,False,True])
+    ants.image_write( nm2template, myop+'_nm2template.nii.gz' )
+    ants.plot(template, nm2template, crop=True, axis=2, ncol=7, nslices=21 )

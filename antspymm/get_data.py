@@ -1533,7 +1533,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srm
       'NM_cropped': nmcropped,
       'NM_dataframe': nmdf,
       'NM_dataframe_wide': nmdf_wide,
-      't1_to_NM': slabreg['warpedmovout'] }
+      't1_to_NM': slabreg['warpedmovout'],
+      't1_to_NM_transform' : slabreg['fwdtransforms'] }
 
 
 
