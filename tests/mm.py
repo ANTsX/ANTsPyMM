@@ -73,16 +73,16 @@ ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extrac
 ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
 ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
 kkthk = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'], iterations=3 ) # FIXME testing value-real=45
-ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, ncol=7, crop=True )
+ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
 ants.plot( rsfpro['meanBold'], rsfpro['DefaultMode'],
     title='DefaultMode',
-    axis=2, nslices=21, ncol=7, crop=True )
+    axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
 ants.plot( rsfpro['meanBold'], rsfpro['FrontoparietalTaskControl'],
     title='FrontoparietalTaskControl',
-    axis=2, nslices=21, ncol=7, crop=True )
+    axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
 # dataframe output is called rsfpro['corr_wide']
 ################################## do the nm .....
 import tensorflow as tf
@@ -95,10 +95,10 @@ nmpro = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'] )
 # nmprosr = antspymm.neuromelanin( mynm, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmdl )
 # this is for checking the processing
 mysl = [8,10,12]
-ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2 )
-ants.plot( nmpro['NM_cropped'], axis=2, slices=mysl, overlay_alpha=0.3 )
-ants.plot( nmpro['NM_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3 )
-ants.plot( nmpro['NM_cropped'], nmpro['NM_labels'], axis=2, slices=mysl )
+ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1' )
+ants.plot( nmpro['NM_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop' )
+ants.plot( nmpro['NM_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1' )
+ants.plot( nmpro['NM_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
 ################################## do the dti .....
 dtibxt_data = antspymm.t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dwi, transform='Rigid' )
 mydti = antspymm.joint_dti_recon(
@@ -187,18 +187,18 @@ if True:
     rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
     md2template = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
     ants.image_write( md2template, myop+'_md2template.nii.gz' )
-    ants.plot(template, md2template, crop=True, axis=2, ncol=7, nslices=21 )
+    ants.plot(template, md2template, crop=True, axis=2, ncol=7, nslices=21, title='md 2 template' )
     fa2template = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
     ants.image_write( fa2template, myop+'_fa2template.nii.gz' )
-    ants.plot(template, fa2template, crop=True, axis=2, ncol=7, nslices=21 )
+    ants.plot(template, fa2template, crop=True, axis=2, ncol=7, nslices=21, title='fa 2 template' )
     dfn2template = ants.apply_transforms( template, rsfpro['DefaultMode'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
     ants.image_write( dfn2template, myop+'_dfn2template.nii.gz' )
-    ants.plot(template, dfn2template, crop=True, axis=2, ncol=7, nslices=21 )
+    ants.plot(template, dfn2template, crop=True, axis=2, ncol=7, nslices=21, title='dfn 2 template' )
     fptc2template = ants.apply_transforms( template, rsfpro['FrontoparietalTaskControl'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
     ants.image_write( fptc2template, myop+'_fptc2template.nii.gz' )
-    ants.plot(template, fptc2template, crop=True, axis=2, ncol=7, nslices=21 )
+    ants.plot(template, fptc2template, crop=True, axis=2, ncol=7, nslices=21, title='fptc 2 template' )
     nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
     nm2template = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
         whichtoinvert=[False,False,True])
     ants.image_write( nm2template, myop+'_nm2template.nii.gz' )
-    ants.plot(template, nm2template, crop=True, axis=2, ncol=7, nslices=21 )
+    ants.plot(template, nm2template, crop=True, axis=2, ncol=7, nslices=21, title='nm 2 template' )
