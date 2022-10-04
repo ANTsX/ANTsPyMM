@@ -1639,8 +1639,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict = {}
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
-  outdict['nuisance'] = nuisance
-  outdict['FD'] = dwp['FD'][dwpind]
 
   # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
@@ -1694,5 +1692,12 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['corr'] = A
   outdict['corr_wide'] = A_wide
   outdict['brainmask'] = bmask
+
+  rsfNuisance = pd.DataFrame( nuisance )
+  rsfNuisance['FD']=dwp['FD'][dwpind]
+
+  outdict['nuisance'] = rsfNuisance
+  outdict['FD_max'] = rsfNuisance['FD'].max()
+  outdict['FD_mean'] = rsfNuisance['FD'].mean()
 
   return outdict

@@ -168,8 +168,13 @@ mm_wide = pd.concat( [
   ], axis=1 )
 mm_wide = mm_wide.copy()
 mm_wide['flair_wmh'] = flairpro['wmh_mass']
+mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
+mm_wide['rsf_FD_max'] = rsfpro['FD_max']
 # mm_wide.shape
 mm_wide.to_csv( mmwidefn )
+# write out csvs
+rsfpro['corr'].to_csv( myop+'_rsfcorr.csv' )
+pd.DataFrame(cnxmat['connectivity_matrix']).to_csv( myop+'_dtistreamlinecorr.csv' )
 
 
 #################################################################
@@ -190,12 +195,11 @@ if True:
     fa2template = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
     ants.image_write( fa2template, myop+'_fa2template.nii.gz' )
     ants.plot(template, fa2template, crop=True, axis=2, ncol=7, nslices=21, title='fa 2 template' )
-    dfn2template = ants.apply_transforms( template, rsfpro['DefaultMode'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
-    ants.image_write( dfn2template, myop+'_dfn2template.nii.gz' )
-    ants.plot(template, dfn2template, crop=True, axis=2, ncol=7, nslices=21, title='dfn 2 template' )
-    fptc2template = ants.apply_transforms( template, rsfpro['FrontoparietalTaskControl'],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
-    ants.image_write( fptc2template, myop+'_fptc2template.nii.gz' )
-    ants.plot(template, fptc2template, crop=True, axis=2, ncol=7, nslices=21, title='fptc 2 template' )
+    mynets = list([ 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
+    for netid in mynets:
+        dfn2template = ants.apply_transforms( template, rsfpro[netid],t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
+        ants.image_write( dfn2template, myop+'_'+netid+'2template.nii.gz' )
+        ants.plot(template, dfn2template, crop=True, axis=2, ncol=7, nslices=21, title=netid + ' 2 template' )
     nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
     nm2template = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
         whichtoinvert=[False,False,True])
