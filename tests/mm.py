@@ -72,7 +72,8 @@ t1atropos = hier['dkt_parc']['tissue_segmentation']
 ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
 ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
 ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
-kkthk = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'], iterations=3 ) # FIXME testing value-real=45
+kkthk = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
+    labels=hier['dkt_parc']['dkt_cortex'], iterations=3 ) # FIXME 3=testing, >=45=real
 ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
