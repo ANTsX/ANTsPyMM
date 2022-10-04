@@ -166,3 +166,6 @@ mm_wide = mm_wide.copy()
 mm_wide['flair_wmh'] = flairpro['wmh_mass']
 # mm_wide.shape
 mm_wide.to_csv( mmwidefn )
+
+
+### NOTES: deforming to a common space and writing out images
