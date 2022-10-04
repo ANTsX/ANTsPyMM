@@ -79,10 +79,8 @@ ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, n
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
 ants.plot( rsfpro['meanBold'], rsfpro['DefaultMode'],
-    title='DefaultMode',
     axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
 ants.plot( rsfpro['meanBold'], rsfpro['FrontoparietalTaskControl'],
-    title='FrontoparietalTaskControl',
     axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
 # dataframe output is called rsfpro['corr_wide']
 ################################## do the nm .....
