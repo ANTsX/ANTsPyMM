@@ -177,8 +177,11 @@ mm_wide = mm_wide.copy()
 mm_wide['flair_wmh'] = flairpro['wmh_mass']
 mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
 mm_wide['rsf_FD_max'] = rsfpro['FD_max']
-mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
-mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
+if mydti['dtrecon_LR']['framewise_displacement'] is not None:
+    mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
+    mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
+else:
+    mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
 # mm_wide.shape
 mm_wide.to_csv( mmwidefn )
 # write out csvs
