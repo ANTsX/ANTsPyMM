@@ -73,7 +73,7 @@ ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extrac
 ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
 ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
 kkthk = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
-    labels=hier['dkt_parc']['dkt_cortex'], iterations=3 ) # FIXME 3=testing, >=45=real
+    labels=hier['dkt_parc']['dkt_cortex'], iterations=45 ) # FIXME 3=testing, >=45=real
 ants.plot( hier['brain_n4_dnz'], kkthk['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
 ################################## do the rsf .....
 rsfpro = antspymm.resting_state_fmri_networks( rsf, hier['brain_n4_dnz'], t1atropos,
@@ -112,6 +112,11 @@ mydti = antspymm.joint_dti_recon(
         srmodel=None,
         motion_correct=True, # set to False if using input from qsiprep
         verbose = True)
+# write the bvals, bvecs, (large file) DWI, the DTI, the labels and the streamlines
+antspymm.write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + '_reoriented' )
+ants.image_write( mydti['dwi_LR_dewarped'],  myop + '_dwi.nii.gz' )
+ants.image_write( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + '_DTIRGB.nii.gz' )
+ants.image_write( mydti['jhu_labels'],  myop+'_dtijhulabels.nii.gz' )
 ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA' )
 ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
 ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
@@ -146,6 +151,8 @@ mystr = antspymm.dwi_deterministic_tracking(
     seed_density = 1,
     mask=mask,
     verbose=True )
+from dipy.io.streamline import save_tractogram
+save_tractogram(mystr['tractogram'], myop+'_dtitracts.trk')
 ##########################################
 cnxmat = antspymm.dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
 # FIXME --- put all these output together in wide format
@@ -170,6 +177,8 @@ mm_wide = mm_wide.copy()
 mm_wide['flair_wmh'] = flairpro['wmh_mass']
 mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
 mm_wide['rsf_FD_max'] = rsfpro['FD_max']
+mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
+mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
 # mm_wide.shape
 mm_wide.to_csv( mmwidefn )
 # write out csvs
