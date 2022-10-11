@@ -841,6 +841,7 @@ def dwi_deterministic_tracking(
     seed_density = 1,
     step_size = 0.15,
     peak_indices = None,
+    num_processes,
     verbose = False ):
     """
 
@@ -873,6 +874,8 @@ def dwi_deterministic_tracking(
 
     peak_indices : pass these in, if they are previously estimated.  otherwise, will
         compute on the fly (slow)
+        
+    num_processes : number of subprocesses 
 
     verbose : boolean
 
@@ -918,7 +921,7 @@ def dwi_deterministic_tracking(
         peak_indices = peaks_from_model(
             model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
             min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
-            return_sh=False, parallel=True, num_processes=4
+            return_sh=False, parallel=True, num_processes=num_processes
             )
 
     if label_image is None or seed_labels is None:
