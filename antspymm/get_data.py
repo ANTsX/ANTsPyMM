@@ -834,7 +834,7 @@ def dwi_deterministic_tracking(
     fa,
     bvals,
     bvecs,
-    num_processes,
+    num_processes=1,
     mask=None,
     label_image = None,
     seed_labels = None,
