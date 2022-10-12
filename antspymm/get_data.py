@@ -834,6 +834,7 @@ def dwi_deterministic_tracking(
     fa,
     bvals,
     bvecs,
+    num_processes,
     mask=None,
     label_image = None,
     seed_labels = None,
@@ -857,6 +858,8 @@ def dwi_deterministic_tracking(
     bvals : bvalues
 
     bvecs : bvectors
+    
+    num_processes : number of subprocesses 
 
     mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
         and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -918,7 +921,7 @@ def dwi_deterministic_tracking(
         peak_indices = peaks_from_model(
             model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
             min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
-            return_sh=False, parallel=True, num_processes=4
+            return_sh=False, parallel=True, num_processes=num_processes
             )
 
     if label_image is None or seed_labels is None:
