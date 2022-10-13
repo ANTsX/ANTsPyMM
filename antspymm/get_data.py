@@ -858,8 +858,8 @@ def dwi_deterministic_tracking(
     bvals : bvalues
 
     bvecs : bvectors
-    
-    num_processes : number of subprocesses 
+
+    num_processes : number of subprocesses
 
     mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
         and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -1441,7 +1441,8 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
 
 
-def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srmodel=None ) :
+def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
+    srmodel=None, verbose=False ) :
 
   """
   Outputs the averaged and registered neuromelanin image, and neuromelanin labels
@@ -1464,6 +1465,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srm
     dilates the brain stem mask to better match coverage of NM
 
   srmodel : None -- this is a work in progress feature, probably not optimal
+
+  verbose : boolean
 
   Returns
   ---------
@@ -1492,14 +1495,19 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srm
   for k in range(len( list_nm_images )):
     avg = avg + ants.resample_image_to_target( list_nm_images[k], avg ) / len( list_nm_images )
 
-  # Register each nm image in list_nm_images to the averaged nm image (avg)
+  if verbose:
+      print("Register each nm image in list_nm_images to the averaged nm image (avg)")
   reglist = []
+  txlist = []
   for k in range(len( list_nm_images )):
     current_image = ants.registration( avg, list_nm_images[k], type_of_transform = 'Rigid' )
+    txlist.append( current_image['fwdtransforms'][0] )
     current_image = current_image['warpedmovout']
     reglist.append( current_image )
 
-  # Average the reglist
+  if verbose:
+      print( " Average the reglist " )
+
   new_ilist = []
   nm_avg = reglist[0]*0
   for k in range(len( reglist )):
@@ -1507,16 +1515,34 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srm
 
   t1c = ants.crop_image( t1_head, cropper ).iMath("Normalize")
   slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
-  labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
+  labels2nm_avg = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
-  # ants.plot( nm_avg,  slabreg['warpedmovout'], slices=[8,10,12], axis=2 )
-  # ants.plot( nm_avg, nmpro['NM_labels'], axis=2, slices=[8,10,12] )
-  # now do SR processing
-  nmcropped = ants.crop_image( nm_avg, cropper2nm )
-  if srmodel is not None: # over-writes prior results with SR results
-      nm_avg = antspynet.apply_super_resolution_model_to_image(
-        nmcropped, srmodel, target_range=[0,1], regression_order=None )
+
+  if verbose:
+      print("now map these labels to each individual nm")
+
+  crop_mask_list = []
+  crop_nm_list = []
+  for k in range(len( list_nm_images )):
+      cropmask = ants.apply_transforms( list_nm_images[k], cropper2nm,
+        txlist[k], interpolator = 'nearestNeighbor', whichtoinvert=[True] )
+      crop_mask_list.append( cropmask )
+      temp = ants.crop_image( list_nm_images[k], cropmask )
+      crop_nm_list.append( temp )
+
+  if srmodel is not None:
+      if verbose:
+          print( " start sr " + str(len( crop_nm_list )) )
+      for k in range(len( crop_nm_list )):
+          if verbose:
+              print( " do sr " + str(k) )
+              print( crop_nm_list[k] )
+          crop_nm_list[k] = antspynet.apply_super_resolution_model_to_image(
+                crop_nm_list[k], srmodel, target_range=[0,1], regression_order=None )
+      nm_avg = crop_nm_list[0]*0.0
+      for k in range(len( crop_nm_list )):
+          nm_avg = nm_avg + ants.apply_transforms( avg, crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
       slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
       labels2nm = ants.apply_transforms( nm_avg, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -1533,7 +1559,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8, srm
   return{
       'NM_avg' : nm_avg,
       'NM_labels': labels2nm,
-      'NM_cropped': nmcropped,
+      'NM_cropped': crop_nm_list,
       'NM_dataframe': nmdf,
       'NM_dataframe_wide': nmdf_wide,
       't1_to_NM': slabreg['warpedmovout'],
