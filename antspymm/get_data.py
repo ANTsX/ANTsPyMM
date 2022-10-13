@@ -1442,6 +1442,8 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
+    bias_correct=True,
+    denoise=None,
     srmodel=None, verbose=False ) :
 
   """
@@ -1464,6 +1466,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   brain_stem_dilation : integer default 8
     dilates the brain stem mask to better match coverage of NM
 
+  bias_correct : boolean
+
+  denoise : None or integer
+
   srmodel : None -- this is a work in progress feature, probably not optimal
 
   verbose : boolean
@@ -1481,52 +1487,58 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
 
   template = ants.image_read( fnt )
   templatebstem = ants.image_read( fntbst ).threshold_image( 1, 1000 )
-  reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
+  # reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
+  reg = ants.registration( t1, template, 'SyN' )
   # map brain stem and slab to t1 for neuromelanin processing
   bstem2t1 = ants.apply_transforms( t1, templatebstem,
     reg['fwdtransforms'],
     interpolator='nearestNeighbor' ).iMath("MD",1)
   slab2t1 = ants.apply_transforms( t1, ants.image_read( fnslab ),
     reg['fwdtransforms'], interpolator = 'nearestNeighbor')
-  cropper = ants.iMath( bstem2t1 , "MD", brain_stem_dilation ) * slab2t1
+  bstem2t1 = ants.crop_image( bstem2t1, slab2t1 )
+  cropper = ants.decrop_image( bstem2t1, slab2t1 ).iMath("MD",brain_stem_dilation)
 
   # Average images in image_list
-  avg = list_nm_images[0]*0.0
+  nm_avg = list_nm_images[0]*0.0
   for k in range(len( list_nm_images )):
-    avg = avg + ants.resample_image_to_target( list_nm_images[k], avg ) / len( list_nm_images )
+    if denoise is not None:
+        list_nm_images[k] = ants.denoise_image( list_nm_images[k],
+            shrink_factor=1,
+            p=denoise,
+            r=denoise,
+            noise_model='Gaussian' )
+    if bias_correct :
+        list_nm_images[k] = ants.n4_bias_field_correction( list_nm_images[k] )
+    nm_avg = nm_avg + ants.resample_image_to_target( list_nm_images[k], nm_avg ) / len( list_nm_images )
 
   if verbose:
       print("Register each nm image in list_nm_images to the averaged nm image (avg)")
-  reglist = []
+  nm_avg_new = nm_avg * 0.0
   txlist = []
   for k in range(len( list_nm_images )):
-    current_image = ants.registration( avg, list_nm_images[k], type_of_transform = 'Rigid' )
+    current_image = ants.registration( list_nm_images[k], nm_avg, type_of_transform = 'Rigid' )
     txlist.append( current_image['fwdtransforms'][0] )
-    current_image = current_image['warpedmovout']
-    reglist.append( current_image )
+    current_image = current_image['warpedfixout']
+    nm_avg_new = nm_avg_new + current_image / len( list_nm_images )
+  nm_avg = nm_avg_new
 
-  if verbose:
-      print( " Average the reglist " )
-
-  new_ilist = []
-  nm_avg = reglist[0]*0
-  for k in range(len( reglist )):
-    nm_avg = nm_avg + reglist[k] / len( reglist )
-
-  t1c = ants.crop_image( t1_head, cropper ).iMath("Normalize")
+  t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize")
   slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
-  labels2nm_avg = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
+  labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
+  nm_avg_cropped = ants.crop_image( nm_avg, cropper2nm )
 
   if verbose:
       print("now map these labels to each individual nm")
-
   crop_mask_list = []
   crop_nm_list = []
   for k in range(len( list_nm_images )):
-      cropmask = ants.apply_transforms( list_nm_images[k], cropper2nm,
-        txlist[k], interpolator = 'nearestNeighbor', whichtoinvert=[True] )
+      concattx = []
+      concattx.append( txlist[k] )
+      concattx.append( slabreg['fwdtransforms'][0] )
+      cropmask = ants.apply_transforms( list_nm_images[k], cropper,
+        concattx, interpolator = 'nearestNeighbor' )
       crop_mask_list.append( cropmask )
       temp = ants.crop_image( list_nm_images[k], cropmask )
       crop_nm_list.append( temp )
@@ -1540,33 +1552,43 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
               print( crop_nm_list[k] )
           crop_nm_list[k] = antspynet.apply_super_resolution_model_to_image(
                 crop_nm_list[k], srmodel, target_range=[0,1], regression_order=None )
-      nm_avg = crop_nm_list[0]*0.0
+      nm_avg_cropped = crop_nm_list[0]*0.0
+      if verbose:
+          print( "  sr done " )
+          print( nm_avg )
       for k in range(len( crop_nm_list )):
-          nm_avg = nm_avg + ants.apply_transforms( avg, crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
-      slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
-      labels2nm = ants.apply_transforms( nm_avg, t1lab,
+          nm_avg_cropped = nm_avg_cropped + ants.apply_transforms( nm_avg_cropped, crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
+      # slabreg = ants.registration( nm_avg, t1c, 'Rigid', initial_transform=slabreg['fwdtransforms'][0], verbose=verbose )
+
+
+  labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
 
-  #  map summary measurements to wide format
+  if verbose:
+      print( "map summary measurements to wide format" )
   nmdf = antspyt1w.map_intensity_to_dataframe(
           'CIT168_Reinf_Learn_v1_label_descriptions_pad',
-          nm_avg,
+          nm_avg_cropped,
           labels2nm)
+  if verbose:
+      print( "merge to wide format" )
   nmdf_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
               {'NM' : nmdf},
               col_names = ['Mean'] )
-
+  if verbose:
+      print( "nm done" )
   return{
       'NM_avg' : nm_avg,
+      'NM_avg_cropped' : nm_avg_cropped,
       'NM_labels': labels2nm,
       'NM_cropped': crop_nm_list,
       'NM_dataframe': nmdf,
       'NM_dataframe_wide': nmdf_wide,
       't1_to_NM': slabreg['warpedmovout'],
-      't1_to_NM_transform' : slabreg['fwdtransforms'] }
-
-
-
+      't1_to_NM_transform' : slabreg['fwdtransforms'],
+      't1':t1,
+      't1cropper':cropper
+       }
 
 
 def resting_state_fmri_networks( fmri, t1, t1segmentation,
