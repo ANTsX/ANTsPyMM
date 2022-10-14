@@ -1443,7 +1443,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
-    denoise=None,
+    denoise=1,
     srmodel=None, verbose=False ) :
 
   """
@@ -1505,7 +1505,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
         list_nm_images[k] = ants.denoise_image( list_nm_images[k],
             shrink_factor=1,
             p=denoise,
-            r=denoise,
+            r=denoise+1,
             noise_model='Gaussian' )
     if bias_correct :
         list_nm_images[k] = ants.n4_bias_field_correction( list_nm_images[k] )
@@ -1552,14 +1552,30 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
               print( crop_nm_list[k] )
           crop_nm_list[k] = antspynet.apply_super_resolution_model_to_image(
                 crop_nm_list[k], srmodel, target_range=[0,1], regression_order=None )
-      nm_avg_cropped = crop_nm_list[0]*0.0
-      if verbose:
-          print( "  sr done " )
-          print( nm_avg )
-      for k in range(len( crop_nm_list )):
-          nm_avg_cropped = nm_avg_cropped + ants.apply_transforms( nm_avg_cropped, crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
-      # slabreg = ants.registration( nm_avg, t1c, 'Rigid', initial_transform=slabreg['fwdtransforms'][0], verbose=verbose )
 
+  nm_avg_cropped = crop_nm_list[0]*0.0
+  if verbose:
+      print( "cropped average" )
+      print( nm_avg_cropped )
+  for k in range(len( crop_nm_list )):
+      nm_avg_cropped = nm_avg_cropped + ants.apply_transforms( nm_avg_cropped,
+        crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
+  for loop in range( 3 ):
+      nm_avg_cropped_new = nm_avg_cropped * 0.0
+      for k in range(len( crop_nm_list )):
+            myreg = ants.registration(
+                ants.iMath(nm_avg_cropped,"Normalize"),
+                ants.iMath(crop_nm_list[k],"Normalize"),
+                'antsRegistrationSyNRepro[r]' )
+            warpednext = ants.apply_transforms(
+                nm_avg_cropped_new,
+                crop_nm_list[k],
+                myreg['fwdtransforms'] )
+            nm_avg_cropped_new = nm_avg_cropped_new + warpednext
+      nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
+
+  slabreg = ants.registration( nm_avg_cropped, t1c, 'Rigid',
+    initial_transform=slabreg['fwdtransforms'][0], verbose=verbose )
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -1582,12 +1598,13 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_avg_cropped' : nm_avg_cropped,
       'NM_labels': labels2nm,
       'NM_cropped': crop_nm_list,
+      'NM_midbrainROI': cropper2nm,
       'NM_dataframe': nmdf,
-      'NM_dataframe_wide': nmdf_wide,
-      't1_to_NM': slabreg['warpedmovout'],
-      't1_to_NM_transform' : slabreg['fwdtransforms'],
-      't1':t1,
-      't1cropper':cropper
+      'NM_dataframe_wide': nmdf_wide
+#      't1_to_NM': slabreg['warpedmovout'],
+#      't1_to_NM_transform' : slabreg['fwdtransforms'],
+#      't1':t1,
+#      't1cropper':cropper
        }
 
 
