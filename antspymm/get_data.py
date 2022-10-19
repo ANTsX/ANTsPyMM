@@ -216,7 +216,7 @@ def dewarp_imageset( image_list, initial_template=None,
 
 def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
     poly_order=1,
-    target_range=[-127.5,127.5],
+    target_range=[0,1],
     verbose=False ):
     """
     Super resolution on a timeseries or multi-channel image
