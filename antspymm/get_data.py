@@ -1508,7 +1508,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             r=denoise+1,
             noise_model='Gaussian' )
     if bias_correct :
-        list_nm_images[k] = ants.n4_bias_field_correction( list_nm_images[k] )
+        n4mask = ants.threshold_image( ants.iMath(list_nm_images[k], "Normalize" ), 0.05, 1 )
+        list_nm_images[k] = ants.n4_bias_field_correction( list_nm_images[k], mask=n4mask )
     nm_avg = nm_avg + ants.resample_image_to_target( list_nm_images[k], nm_avg ) / len( list_nm_images )
 
   if verbose:
@@ -1882,7 +1883,7 @@ def mm(
         'DTI' : None,
         'FA_summ' : None,
         'MD_summ' : None,
-        'tractography' : None
+        'tractography' : None,
         'tractography_connectivity' : None
     }
     normalization_dict = {
@@ -1992,7 +1993,7 @@ def mm(
     return output_dict, normalization_dict
 
 
-def write.mm( t1wide, mm ):
+def write_mm( t1wide, mm ):
     """
     write the output of the mm function
 
