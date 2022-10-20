@@ -18,10 +18,19 @@ or install via `pip install antspymm` **FIXME**
 
 # what this will do
 
-- FIXME
+process:
 
+* resting state
 
-the processes FIXME
+* neuromelanin mid-brain images
+
+* DWI
+
+* flair
+
+* voxel-based cortical thickness
+
+into tabular and template-based voxel-wise format.
 
 # first time setup
 
@@ -46,11 +55,23 @@ import antspyt1w
 import antspynet
 import ants
 
+... i/o code here ...
 
-img1 = ants.image_read( antspymm.get_data( "I1499279_Anon_20210819142214_5", target_extension=".nii.gz") )
-img2 = ants.image_read( antspymm.get_data( "I1499337_Anon_20210819142214_6", target_extension=".nii.gz") )
-dwp = antspymm.dewarp_imageset( [img1,img2] )
-# now write out the mean and dewarped images for further processing, eg with dipy
+tabPro, normPro = antspymm.mm( 
+    t1, 
+    hier, 
+    nm_image_list = mynm,
+    rsf_image = rsf,
+    dw_image = dwi,
+    bvals = bval_fname,
+    bvecs = bvec_fname,
+    flair_image = flair,
+    do_tractography=False, 
+    do_kk=False, 
+    do_normalization=True, 
+    verbose=True )
+
+antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
 
 ```
 
