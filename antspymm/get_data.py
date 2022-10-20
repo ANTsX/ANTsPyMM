@@ -1904,7 +1904,7 @@ def mm(
     ################################## do the rsf .....
     if rsf_image is not None:
         if rsf_image.shape[3] > 40: # FIXME - better heuristic?
-            output_dict['rsf'] = antspymm.resting_state_fmri_networks( rsf_image, hier['brain_n4_dnz'], t1atropos,
+            output_dict['rsf'] = resting_state_fmri_networks( rsf_image, hier['brain_n4_dnz'], t1atropos,
                 f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
     if nm_image_list is not None:
         if srmodel is None:
