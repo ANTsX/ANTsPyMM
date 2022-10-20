@@ -1810,7 +1810,8 @@ def mm(
     srmodel=None,
     do_tractography = False,
     do_kk = False,
-    do_normalization = True ):
+    do_normalization = True, 
+    verbose = False ):
     """ 
     Multiple modality processing and normalization
 
@@ -1843,6 +1844,8 @@ def mm(
     do_kk : boolean to control whether we compute kelly kapowski thickness image (slow)
 
     do_normalization : boolean
+
+    verbose : boolean
 
     """
     from os.path import exists
@@ -1899,20 +1902,28 @@ def mm(
         'DorsalAttention_norm' : None
     }
     if do_kk:
+        if verbose:
+            print('kk')
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     ################################## do the rsf .....
     if rsf_image is not None:
+        if verbose:
+            print('rsf')
         if rsf_image.shape[3] > 40: # FIXME - better heuristic?
             output_dict['rsf'] = resting_state_fmri_networks( rsf_image, hier['brain_n4_dnz'], t1atropos,
                 f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
     if nm_image_list is not None:
+        if verbose:
+            print('nm')
         if srmodel is None:
             output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'] )
         else:
             output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel )
 ################################## do the dti .....
     if dw_image is not None:
+        if verbose:
+            print('dti')
         dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
         output_dict['DTI'] = joint_dti_recon(
             dw_image,
@@ -1962,12 +1973,16 @@ def mm(
             output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
     ################################## do the flair .....
     if flair_image is not None:
+        if verbose:
+            print('flair')
         output_dict['flair'] = wmh( flair_image, t1_image, t1atropos, mmfromconvexhull=12 )
     #################################################################
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
     #################################################################
     if do_normalization:
+        if verbose:
+            print('normalization')
         # might reconsider this template space - cropped and/or higher res?
         template = ants.resample_image( template, [1,1,1], use_voxels=False )
         t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
@@ -1991,34 +2006,83 @@ def mm(
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
             normalization_dict['NM_norm'] = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
                 whichtoinvert=[False,False,True])
+
+    if verbose:
+        print('mm done')
     return output_dict, normalization_dict
 
 
-def write_mm( t1wide, mm ):
+def write_mm( output_prefix, t1wide, mm, mm_norm=None, separator='_' ):
     """
     write the output of the mm function
 
     Parameters
     -------------
 
+    output_prefix : prefix for file output
+
     t1wide : wide output data frame from t1 hierarchical
 
-    mm  : output of mm function
+    mm  : output of mm function for modality-space processing
+
+    mm_norm : output of mm function for normalized processing
+
+    separator : string or character separator
 
     """
-    # put all these output together in wide format #
-    # joint [ t1, rsf, dti, nm, flair ]
+    if mm_norm is not None:
+        for mykey in mm_norm.keys():
+            tempfn = output_prefix + separator + mykey + '.nii.gz'
+            if mm_norm[mykey] is not None:
+                ants.image_write( mm_norm[mykey], tempfn )
+    thkderk = t1wide.iloc[: , 1:]
+    kkderk = None
+    if mm['kk'] is not None:
+        kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
+    nmderk = None
+    if mm['NM'] is not None:
+        nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
+    faderk = mdderk = fat1derk = mdt1derk = None
+    if mm['DTI'] is not None:
+        faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
+        mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
+        fat1derk = mm['FA_summ'].iloc[: , 1:]
+        mdt1derk = mm['MD_summ'].iloc[: , 1:]
+    cnxderk = None
+    if mm['tractography_connectivity'] is not None:
+        cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
     mm_wide = pd.concat( [
-        t1wide.iloc[: , 1:],
-        kkthk['thickness_dataframe'].iloc[: , 1:],
-        nmpro['NM_dataframe_wide'].iloc[: , 1:],
-        mydti['recon_fa_summary'].iloc[: , 1:],
-        mydti['recon_md_summary'].iloc[: , 1:],
-        fat1summ.iloc[: , 1:],
-        mdt1summ.iloc[: , 1:],
-        cnxmat['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
-        ], axis=1 )
-    return mm_wide
+        thkderk,
+        kkderk,
+        nmderk,
+        faderk,
+        mdderk,
+        fat1derk,
+        mdt1derk,
+        cnxderk
+    ], axis=1 )
+    mm_wide = mm_wide.copy()
+    if False:
+        mm_wide['flair_wmh'] = flairpro['wmh_mass']
+        if 'rsfpro' in locals():
+            rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
+            mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
+            mm_wide['rsf_FD_max'] = rsfpro['FD_max']
+        else:
+            mm_wide['rsf_FD_mean'] = 'NA'
+            mm_wide['rsf_FD_max'] = 'NA'
+        if mydti['dtrecon_LR']['framewise_displacement'] is not None:
+            mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
+            mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
+        else:
+            mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
+        mm_wide.to_csv( mmwidefn )
+        # write out csvs
+        if 'rsfpro' in locals():
+            rsfpro['corr'].to_csv( myop+'_rsfcorr.csv' )
+        pd.DataFrame(cnxmat['connectivity_matrix']).to_csv( myop+'_dtistreamlinecorr.csv' )
+    tempfn = output_prefix + separator + 'mmwide.csv'
+    mm_wide.to_csv( tempfn )
+    return
 
-
-    
