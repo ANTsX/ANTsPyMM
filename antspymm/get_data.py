@@ -1805,7 +1805,7 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
 
 def mm( 
     t1_image, 
-    t1_hier,
+    hier,
     rsf_image=None, 
     flair_image=None, 
     nm_image_list=None, 
@@ -1825,7 +1825,7 @@ def mm(
 
     t1_image : raw t1 image
 
-    t1_hier  : output of antspyt1w.hierarchical ( see read hierarchical )
+    hier  : output of antspyt1w.hierarchical ( see read hierarchical )
 
     rsf_image : resting state fmri 
 
@@ -1911,13 +1911,13 @@ def mm(
                 f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
     if nm_image_list is not None:
         if srmodel is None:
-            output_dict['NM'] = antspymm.neuromelanin( nm_image_list, t1imgbrn, t1, hier['deep_cit168lab'] )
+            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'] )
         else:
-            output_dict['NM'] = antspymm.neuromelanin( nm_image_list, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmodel )
+            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel )
 ################################## do the dti .....
     if dw_image is not None:
-        dtibxt_data = antspymm.t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
-        output_dict['DTI'] = antspymm.joint_dti_recon(
+        dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
+        output_dict['DTI'] = joint_dti_recon(
             dw_image,
             bvals,
             bvecs,
@@ -1933,14 +1933,14 @@ def mm(
         # first - register ....
         reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'Rigid' )
         ##################################################
-        output_dict['FA_summ'] = antspymm.hierarchical_modality_summary(
+        output_dict['FA_summ'] = hierarchical_modality_summary(
             mydti['recon_fa'],
             hier=hier,
             modality_name='fa',
             transformlist=reg['fwdtransforms'],
             verbose = False )
         ##################################################
-        output_dict['MD_summ'] = antspymm.hierarchical_modality_summary(
+        output_dict['MD_summ'] = hierarchical_modality_summary(
             mydti['recon_md'],
             hier=hier,
             modality_name='md',
@@ -1953,7 +1953,7 @@ def mm(
             reg['fwdtransforms'], interpolator='nearestNeighbor' )
         mask = ants.threshold_image( mydti['recon_fa'], 0.05, 2.0 ).iMath("GetLargestComponent")
         if do_tractography:
-            output_dict['tractography'] = antspymm.dwi_deterministic_tracking(
+            output_dict['tractography'] = dwi_deterministic_tracking(
                 mydti['dwi_LR_dewarped'],
                 mydti['recon_fa'],
                 mydti['bval_LR'],
@@ -1961,10 +1961,10 @@ def mm(
                 seed_density = 1,
                 mask=mask,
                 verbose=False )
-            output_dict['tractography_connectivity'] = antspymm.dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
+            output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
     ################################## do the flair .....
     if flair_image is not None:
-        output_dict['flair'] = antspymm.wmh( flair_image, t1_image, t1atropos, mmfromconvexhull=12 )
+        output_dict['flair'] = wmh( flair_image, t1_image, t1atropos, mmfromconvexhull=12 )
     #################################################################
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
@@ -1974,12 +1974,14 @@ def mm(
         template = ants.resample_image( template, [1,1,1], use_voxels=False )
         t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
         if do_kk:
-            normalization_dict['kk_norm'] = ants.apply_transforms( template, kkthk['thickness_image'], t1reg['fwdtransforms'])
+            normalization_dict['kk_norm'] = ants.apply_transforms( template, output_dict['kk']['thickness_image'], t1reg['fwdtransforms'])
         if dw_image is not None:
+            mydti = output_dict['DTI']
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
             normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
-        if 'rsfpro' in locals():
+        if output_dict['rsf'] is not None:
+            rsfpro = output_dict['rsf']
             rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
             for netid in mynets:
                 rsfkey = netid + "_norm"
@@ -1987,6 +1989,7 @@ def mm(
                     template, rsfpro[netid],
                     t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
         if nm_image_list is not None:
+            nmpro = output_dict['NM']
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
             normalization_dict['NM_norm'] = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
                 whichtoinvert=[False,False,True])
