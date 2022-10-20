@@ -1601,13 +1601,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_cropped': crop_nm_list,
       'NM_midbrainROI': cropper2nm,
       'NM_dataframe': nmdf,
-      'NM_dataframe_wide': nmdf_wide
-#      't1_to_NM': slabreg['warpedmovout'],
-#      't1_to_NM_transform' : slabreg['fwdtransforms'],
-#      't1':t1,
-#      't1cropper':cropper
+      'NM_dataframe_wide': nmdf_wide,
+      't1_to_NM': slabreg['warpedmovout'],
+      't1_to_NM_transform' : slabreg['fwdtransforms']
        }
-
 
 def resting_state_fmri_networks( fmri, t1, t1segmentation,
     f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 ):
