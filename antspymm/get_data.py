@@ -1929,6 +1929,7 @@ def mm(
             srmodel=srmodel,
             motion_correct=True, # set to False if using input from qsiprep
             verbose = False)
+        mydti = output_dict['DTI']
         # summarize dwi with T1 outputs
         # first - register ....
         reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'Rigid' )
