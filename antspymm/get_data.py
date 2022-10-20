@@ -1800,3 +1800,223 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
     bvf = open(fname, 'wt')
     for dim_vals in bvecs.T:
         bvf.write(fmt % tuple(dim_vals))
+
+
+def mm( 
+    t1_image, 
+    t1_hier,
+    rsf_image=None, 
+    flair_image=None, 
+    nm_image_list=None, 
+    dw_image=None, bvals=None, bvecs=None, 
+    srmodel=None,
+    do_tractography = False,
+    do_kk = False,
+    do_normalization = True ):
+    """ 
+    Multiple modality processing and normalization
+
+    aggregates modality-specific processing under one roof.  see individual 
+    modality specific functions for details.
+
+    Parameters
+    -------------
+
+    t1_image : raw t1 image
+
+    t1_hier  : output of antspyt1w.hierarchical ( see read hierarchical )
+
+    rsf_image : resting state fmri 
+
+    flair_image : flair 
+
+    nm_image_list : list of neuromelanin images
+
+    dw_image : diffusion weighted image
+
+    bvals : bvals file name
+
+    bvecs : bvecs file name 
+
+    srmodel : optional srmodel
+
+    do_tractography : boolean
+
+    do_kk : boolean to control whether we compute kelly kapowski thickness image (slow)
+
+    do_normalization : boolean
+
+    """
+    from os.path import exists
+    ex_path = os.path.expanduser( "~/.antspyt1w/" )
+    ex_path_mm = os.path.expanduser( "~/.antspymm/" )
+    mycsvfn = ex_path + "FA_JHU_labels_edited.csv"
+    citcsvfn = ex_path + "CIT168_Reinf_Learn_v1_label_descriptions_pad.csv"
+    dktcsvfn = ex_path + "dkt.csv"
+    JHU_atlasfn = ex_path + 'JHU-ICBM-FA-1mm.nii.gz' # Read in JHU atlas
+    JHU_labelsfn = ex_path + 'JHU-ICBM-labels-1mm.nii.gz' # Read in JHU labels
+    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+    if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ) or not exists( templatefn ):
+        print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
+        stophere
+    mycsv = pd.read_csv(  mycsvfn )
+    citcsv = pd.read_csv(  os.path.expanduser(  citcsvfn ) )
+    dktcsv = pd.read_csv(  os.path.expanduser( dktcsvfn ) )
+    JHU_atlas = ants.image_read( JHU_atlasfn ) # Read in JHU atlas
+    JHU_labels = ants.image_read( JHU_labelsfn ) # Read in JHU labels
+    template = ants.image_read( templatefn ) # Read in template
+    #####################
+    #  T1 hierarchical  #
+    #####################
+    t1imgbrn = hier['brain_n4_dnz']
+    t1atropos = hier['dkt_parc']['tissue_segmentation']
+    mynets = list([ 'CinguloopercularTaskControl', 'DefaultMode', 
+        'MemoryRetrieval', 'VentralAttention', 'Visual', 
+        'FrontoparietalTaskControl', 'Salience', 'Subcortical', 
+        'DorsalAttention'])
+    output_dict = { 
+        'kk': None,
+        'rsf': None,
+        'flair' : None,
+        'NM' : None,
+        'DTI' : None,
+        'FA_summ' : None,
+        'MD_summ' : None,
+        'tractography' : None
+        'tractography_connectivity' : None
+    }
+    normalization_dict = {
+        'kk_norm': None,
+        'NM_norm' : None,
+        'FA_norm' : None,
+        'MD_norm' : None,
+        'CinguloopercularTaskControl_norm' : None, 
+        'DefaultMode_norm' : None,
+        'MemoryRetrieval_norm' : None,
+        'VentralAttention_norm' : None, 
+        'Visual_norm' : None,
+        'FrontoparietalTaskControl_norm' : None,
+        'Salience_norm' : None,
+        'Subcortical_norm' : None,
+        'DorsalAttention_norm' : None
+    }
+    if do_kk:
+        output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
+            labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
+    ################################## do the rsf .....
+    if rsf_image is not None:
+        if rsf_image.shape[3] > 40: # FIXME - better heuristic?
+            output_dict['rsf'] = antspymm.resting_state_fmri_networks( rsf_image, hier['brain_n4_dnz'], t1atropos,
+                f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
+    if nm_image_list is not None:
+        if srmodel is None:
+            output_dict['NM'] = antspymm.neuromelanin( nm_image_list, t1imgbrn, t1, hier['deep_cit168lab'] )
+        else:
+            output_dict['NM'] = antspymm.neuromelanin( nm_image_list, t1imgbrn, t1, hier['deep_cit168lab'], srmodel=srmodel )
+################################## do the dti .....
+    if dw_image is not None:
+        dtibxt_data = antspymm.t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
+        output_dict['DTI'] = antspymm.joint_dti_recon(
+            dw_image,
+            bvals,
+            bvecs,
+            jhu_atlas=JHU_atlas,
+            jhu_labels=JHU_labels,
+            t1w = hier['brain_n4_dnz'],
+            brain_mask = dtibxt_data['b0_mask'],
+            reference_image = dtibxt_data['b0_avg'],
+            srmodel=srmodel,
+            motion_correct=True, # set to False if using input from qsiprep
+            verbose = False)
+        # summarize dwi with T1 outputs
+        # first - register ....
+        reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'Rigid' )
+        ##################################################
+        output_dict['FA_summ'] = antspymm.hierarchical_modality_summary(
+            mydti['recon_fa'],
+            hier=hier,
+            modality_name='fa',
+            transformlist=reg['fwdtransforms'],
+            verbose = False )
+        ##################################################
+        output_dict['MD_summ'] = antspymm.hierarchical_modality_summary(
+            mydti['recon_md'],
+            hier=hier,
+            modality_name='md',
+            transformlist=reg['fwdtransforms'],
+            verbose = False )
+        # these inputs should come from nicely processed data
+        dktmapped = ants.apply_transforms(
+            mydti['recon_fa'],
+            hier['dkt_parc']['dkt_cortex'],
+            reg['fwdtransforms'], interpolator='nearestNeighbor' )
+        mask = ants.threshold_image( mydti['recon_fa'], 0.05, 2.0 ).iMath("GetLargestComponent")
+        if do_tractography:
+            output_dict['tractography'] = antspymm.dwi_deterministic_tracking(
+                mydti['dwi_LR_dewarped'],
+                mydti['recon_fa'],
+                mydti['bval_LR'],
+                mydti['bvec_LR'],
+                seed_density = 1,
+                mask=mask,
+                verbose=False )
+            output_dict['tractography_connectivity'] = antspymm.dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
+    ################################## do the flair .....
+    if flair_image is not None:
+        output_dict['flair'] = antspymm.wmh( flair_image, t1_image, t1atropos, mmfromconvexhull=12 )
+    #################################################################
+    ### NOTES: deforming to a common space and writing out images ###
+    ### images we want come from: DTI, NM, rsf, thickness ###########
+    #################################################################
+    if do_normalization:
+        # might reconsider this template space - cropped and/or higher res?
+        template = ants.resample_image( template, [1,1,1], use_voxels=False )
+        t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
+        if do_kk:
+            normalization_dict['kk_norm'] = ants.apply_transforms( template, kkthk['thickness_image'], t1reg['fwdtransforms'])
+        if dw_image is not None:
+            dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
+            normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+            normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+        if 'rsfpro' in locals():
+            rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
+            for netid in mynets:
+                rsfkey = netid + "_norm"
+                normalization_dict[rsfkey] = ants.apply_transforms( 
+                    template, rsfpro[netid],
+                    t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
+        if nm_image_list is not None:
+            nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
+            normalization_dict['NM_norm'] = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
+                whichtoinvert=[False,False,True])
+    return output_dict, normalization_dict
+
+
+def write.mm( t1wide, mm ):
+    """
+    write the output of the mm function
+
+    Parameters
+    -------------
+
+    t1wide : wide output data frame from t1 hierarchical
+
+    mm  : output of mm function
+
+    """
+    # put all these output together in wide format #
+    # joint [ t1, rsf, dti, nm, flair ]
+    mm_wide = pd.concat( [
+        t1wide.iloc[: , 1:],
+        kkthk['thickness_dataframe'].iloc[: , 1:],
+        nmpro['NM_dataframe_wide'].iloc[: , 1:],
+        mydti['recon_fa_summary'].iloc[: , 1:],
+        mydti['recon_md_summary'].iloc[: , 1:],
+        fat1summ.iloc[: , 1:],
+        mdt1summ.iloc[: , 1:],
+        cnxmat['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
+        ], axis=1 )
+    return mm_wide
+
+
+    
