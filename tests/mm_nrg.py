@@ -134,10 +134,11 @@ for x in myimgs:
                         do_kk=False, 
                         do_normalization=True, 
                         verbose=True )
-                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                        axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
-                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                        axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
+                    if tabPro['rsf'] is not None:
+                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                            axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
+                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
+                            axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
                 if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
                     bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                     bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
