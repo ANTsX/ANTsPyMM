@@ -2012,22 +2012,28 @@ def mm(
     return output_dict, normalization_dict
 
 
-def write_mm( output_prefix, t1wide, mm, mm_norm=None, separator='_' ):
+def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     """
-    write the output of the mm function
+    write the tabular and normalization output of the mm function
 
     Parameters
     -------------
 
-    output_prefix : prefix for file output
-
-    t1wide : wide output data frame from t1 hierarchical
+    output_prefix : prefix for file outputs - modality specific postfix will be added
 
     mm  : output of mm function for modality-space processing
 
     mm_norm : output of mm function for normalized processing
 
-    separator : string or character separator
+    t1wide : wide output data frame from t1 hierarchical
+
+    separator : string or character separator for filenames
+
+    Returns
+    ---------
+  
+    both csv and image files written to disk.  the primary outputs will be 
+    output_prefix + separator + 'mmwide.csv' and *norm.nii.gz images
 
     """
     if mm_norm is not None:
@@ -2035,7 +2041,9 @@ def write_mm( output_prefix, t1wide, mm, mm_norm=None, separator='_' ):
             tempfn = output_prefix + separator + mykey + '.nii.gz'
             if mm_norm[mykey] is not None:
                 ants.image_write( mm_norm[mykey], tempfn )
-    thkderk = t1wide.iloc[: , 1:]
+    thkderk = None
+    if t1wide is not None:
+        thkderk = t1wide.iloc[: , 1:]
     kkderk = None
     if mm['kk'] is not None:
         kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
@@ -2051,6 +2059,8 @@ def write_mm( output_prefix, t1wide, mm, mm_norm=None, separator='_' ):
     cnxderk = None
     if mm['tractography_connectivity'] is not None:
         cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
+        ofn = output_prefix + separator + 'dtistreamlinecorr.csv'
+        pd.DataFrame(mm['tractography_connectivity']['connectivity_matrix']).to_csv( ofn )
     mm_wide = pd.concat( [
         thkderk,
         kkderk,
@@ -2060,29 +2070,26 @@ def write_mm( output_prefix, t1wide, mm, mm_norm=None, separator='_' ):
         fat1derk,
         mdt1derk,
         cnxderk
-    ], axis=1 )
+        ], axis=1 )
     mm_wide = mm_wide.copy()
-    if False:
-        mm_wide['flair_wmh'] = flairpro['wmh_mass']
-        if 'rsfpro' in locals():
-            rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
-            mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
-            mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
-            mm_wide['rsf_FD_max'] = rsfpro['FD_max']
-        else:
-            mm_wide['rsf_FD_mean'] = 'NA'
-            mm_wide['rsf_FD_max'] = 'NA'
+    if mm['flair'] is not None:
+        mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
+    if mm['rsf'] is not None:
+        rsfpro = mm['rsf']
+        rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
+        mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
+        mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
+        mm_wide['rsf_FD_max'] = rsfpro['FD_max']
+        ofn = output_prefix + separator + 'rsfcorr.csv'
+        rsfpro['corr'].to_csv( ofn )
+    if mm['DTI'] is not None:
+        mydti = mm['DTI']
         if mydti['dtrecon_LR']['framewise_displacement'] is not None:
             mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
             mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
         else:
             mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
-        mm_wide.to_csv( mmwidefn )
-        # write out csvs
-        if 'rsfpro' in locals():
-            rsfpro['corr'].to_csv( myop+'_rsfcorr.csv' )
-        pd.DataFrame(cnxmat['connectivity_matrix']).to_csv( myop+'_dtistreamlinecorr.csv' )
-    tempfn = output_prefix + separator + 'mmwide.csv'
-    mm_wide.to_csv( tempfn )
+    mmwidefn = output_prefix + separator + 'mmwide.csv'
+    mm_wide.to_csv( mmwidefn )
     return
 

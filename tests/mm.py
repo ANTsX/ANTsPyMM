@@ -79,11 +79,10 @@ if not 'tabPro' in locals():
         do_normalization=True, 
         verbose=True )
 
-antspymm.write_mm( myop, t1wide, tabPro, normPro )
+antspymm.write_mm( output_prefix=myop, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator='_'  )
 
 if tabPro['kk'] is not None:
     ants.plot( hier['brain_n4_dnz'], tabpro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
-    ants.image_write( tabpro['kk']['thickness_image'],  myop + '_kkthickness.nii.gz' )
 
 ################################## do the rsf .....
 if tabPro['rsf'] is not None:
@@ -105,9 +104,6 @@ if tabPro['NM'] is not None:
 if tabPro['DTI'] is not None:
     mydti = tabPro['DTI']
     antspymm.write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + '_reoriented' )
-    ants.image_write( mydti['dwi_LR_dewarped'],  myop + '_dwi.nii.gz' )
-    ants.image_write( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + '_DTIRGB.nii.gz' )
-    ants.image_write( mydti['jhu_labels'],  myop+'_dtijhulabels.nii.gz' )
     ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction' )
     ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
     ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
