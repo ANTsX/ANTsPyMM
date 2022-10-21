@@ -2047,11 +2047,26 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     kkderk = None
     if mm['kk'] is not None:
         kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
+        mykey='thickness_image'
+        tempfn = output_prefix + separator + mykey + '.nii.gz'
+        ants.image_write( mm['kk'][mykey], tempfn )
     nmderk = None
     if mm['NM'] is not None:
         nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
+        for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
+            tempfn = output_prefix + separator + mykey + '.nii.gz'
+            ants.image_write( mm['NM'][mykey], tempfn )
+
     faderk = mdderk = fat1derk = mdt1derk = None
     if mm['DTI'] is not None:
+        mydti = mm['DTI']
+        myop = output_prefix + separator
+        write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
+        ants.image_write( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
+        ants.image_write( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
+        ants.image_write( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz' )
+        ants.image_write( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
+        ants.image_write( mydti['recon_md'],  myop+'dtimd.nii.gz' )
         faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
         mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
         fat1derk = mm['FA_summ'].iloc[: , 1:]
@@ -2075,7 +2090,11 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     if mm['flair'] is not None:
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
     if mm['rsf'] is not None:
+        mynets = list([ 'meanBold', 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
         rsfpro = mm['rsf']
+        for mykey in mynets:
+            myop = output_prefix + separator + mykey + '.nii.gz'
+            ants.image_write( rsfpro[mykey], myop )
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
         mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
