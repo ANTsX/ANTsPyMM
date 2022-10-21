@@ -52,7 +52,7 @@ ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7,
 # loop over modalities and then unique image IDs
 # we treat NM in a "special" way -- aggregating repeats 
 # other modalities (beyond T1) are treated individually
-for x in myimgs:
+for x in myimgs[1:4]:
     myimgsr = glob.glob( x+"/*" )
     overmod = x.split( "/" )
     overmod = overmod[ len(overmod)-1 ]
@@ -139,8 +139,12 @@ for x in myimgs:
                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                         axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
                 if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
+                    bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
+                    bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
                     tabPro, normPro = antspymm.mm( t1, hier, 
                         dw_image=img,
+                        bvals = bvalfn,
+                        bvecs = bvecfn,
                         srmodel=None,
                         do_tractography=False, 
                         do_kk=False, 
