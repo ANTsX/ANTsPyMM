@@ -2246,14 +2246,15 @@ def mm_nrg(
         overmod = x.split( "/" )
         overmod = overmod[ len(overmod)-1 ]
         if overmod == 'NM2DMT':
-            if verbose:
-                print("NM")
             myimgsr = glob.glob( x+"/*/*nii.gz" )
-            subjectpropath = re.sub( sourcedatafoldername, processDir, x ) + "MM"
+            subjectpropath = os.path.dirname( x )
+            subjectpropath = re.sub( subjectpropath, processDir, x )
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
-            identifier = mysplit[9] + mysep + mysplit[10] + mysep + 'NM2DMTMM' + mysep
+            identifier = mysplit[9] + mysep + mysplit[10] + mysep + 'NM2DMT' + mysep
             mymm = subjectpropath + "/" + identifier
+            if verbose:
+                print( "NM " + mymm )
             nmlist = []
             for zz in myimgsr:
                 nmlist.append( ants.image_read( zz ) )
@@ -2276,17 +2277,17 @@ def mm_nrg(
         else :
             for y in myimgsr:
                 myimg = glob.glob( y+"/*nii.gz" )
-                subjectpropath = re.sub( sourcedatafoldername, processDir, y )
+                subjectpropath = os.path.dirname( y )
+                subjectpropath = re.sub( subjectpropath, processDir, subjectpropath )
                 mysplit = subjectpropath.split("/")
                 mymod = mysplit[11] # FIXME system dependent
                 uid = mysplit[12]
-                if verbose:
-                    print("Modality specific processing: " + mymod )
-                mymodnew = mymod + "MM"
-                subjectpropath = re.sub( mymod, mymodnew, subjectpropath )
                 os.makedirs( subjectpropath, exist_ok=True  )
                 identifier = mysplit[9] + mysep + mysplit[10] + mysep + mymodnew + mysep + uid
                 mymm = subjectpropath + "/" + identifier
+                if verbose:
+                    print("Modality specific processing: " + mymod )
+                    print( mymm )
                 if verbose:
                     print(subjectpropath)
                     print(identifier)
