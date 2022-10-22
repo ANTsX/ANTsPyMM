@@ -21,6 +21,7 @@ import pandas as pd
 import glob
 import antspynet
 from os.path import exists
+realrun = True
 ex_path = os.path.expanduser( "~/.antspyt1w/" )
 templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
 if not exists( templatefn ):
@@ -108,7 +109,7 @@ for x in myimgs:
                 print(subjectpropath)
                 print(identifier)
                 img = ants.image_read( myimg[0] )
-                if mymod == 'T1' and False: # for a real run, set to True
+                if mymod == 'T1' and realrun: # for a real run, set to True
                     tabPro, normPro = antspymm.mm( t1, hier, 
                         srmodel=None,
                         do_tractography=False, 
@@ -147,7 +148,7 @@ for x in myimgs:
                         bvals = bvalfn,
                         bvecs = bvecfn,
                         srmodel=None,
-                        do_tractography=False, 
+                        do_tractography=realrun, 
                         do_kk=False, 
                         do_normalization=True, 
                         verbose=True )
