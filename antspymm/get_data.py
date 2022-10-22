@@ -2264,7 +2264,7 @@ def mm_nrg(
                         do_kk=False, 
                         do_normalization=True, 
                         verbose=True )
-            antspymm.write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+            write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
             nmpro = tabPro['NM']
             mysl = range( nmpro['NM_avg'].shape[2] )
             if visualize:
