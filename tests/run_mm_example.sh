@@ -1,2 +1,2 @@
-p2j ./tests/mm.py -o 
-jupyter nbconvert ./tests/mm.ipynb --execute --to html
+p2j ./tests/mm_nrg.py -o 
+jupyter nbconvert ./tests/mm_nrg.ipynb --execute --to html

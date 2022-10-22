@@ -20,4 +20,5 @@ from .get_data import hierarchical_modality_summary
 from .get_data import dwi_streamline_pairwise_connectivity
 from .get_data import write_bvals_bvecs
 from .get_data import mm
+from .get_data import mm_nrg
 from .get_data import write_mm

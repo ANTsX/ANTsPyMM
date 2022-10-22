@@ -1970,6 +1970,7 @@ def mm(
                 seed_density = 1,
                 mask=mask,
                 verbose=False )
+            mystr = output_dict['tractography']
             output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
     ################################## do the flair .....
     if flair_image is not None:
@@ -2112,3 +2113,238 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     mm_wide.to_csv( mmwidefn )
     return
 
+
+
+def mm_nrg( 
+    sourcedir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" ), # study folder
+    sid  = "100898",   # subject unique id
+    dtid = "20210331", # date
+    iid  = "1496183",  # image unique id for t1 - should have highest grade if repeats exist
+    sourcedatafoldername = 'images', # root for source data
+    processDir = "processed", # where output will go - parallel to sourcedatafoldername
+    mysep = '-', # define a separator for filename components
+    srmodel = None, # optional - will add a great deal of time
+    visualize = True,
+    verbose = True
+):
+    """
+    too dangerous to document ... use with care.
+
+    processes multiple modality MRI specifically:
+    
+    * T1w
+    * T2Flair
+    * DTI, DTI_LR, DTI_RL
+    * rsfMRI, rsfMRI_LR, rsfMRI_RL
+    * NM2DMT (neuromelanin)
+
+    other modalities may be added later ...
+
+    "trust me, i know what i'm doing" - sledgehammer
+
+    convert to pynb via:
+        p2j mm.py -o
+
+    convert the ipynb to html via:
+        jupyter nbconvert ANTsPyMM/tests/mm.ipynb --execute --to html
+
+    this function assumes NRG format for the input data .... 
+    we also assume that t1w hierarchical (if already done) was written 
+    via its standardized write function.
+    NRG = https://github.com/stnava/biomedicalDataOrganization
+
+    this function is verbose
+
+    Parameters
+    -------------
+
+    sourcedir : a study specific folder containing individual subject folders
+
+    sid  : subject unique id e.g. S001
+
+    dtid : date eg "20210331"
+
+    iid  : image unique id for t1 e.g. "1496183"  - this image should have the 
+        highest grade if repeats exist
+
+    sourcedatafoldername : root for source data e.g. "images"
+
+    processDir : where output will go - parallel to sourcedatafoldername e.g. 
+        "processed"
+
+    mysep : define a character separator for filename components
+
+    srmodel : None (optional) - will add a great deal of time
+
+    visualize : True - will plot some results to screen / notebook
+
+    verbose : boolean
+
+    Returns
+    ---------
+
+    writes output to disk and potentially produces figures that may be 
+    captured in a ipynb / html file.
+
+    """
+    import glob as glob
+    from os.path import exists
+    ex_path = os.path.expanduser( "~/.antspyt1w/" )
+    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+    if not exists( templatefn ):
+        print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
+        antspyt1w.get_data( force_download=True )
+        antspymm.get_data( force_download=True )
+    template = ants.image_read( templatefn ) # Read in template
+    realrun = True
+    subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
+    myimgs = glob.glob( subjectrootpath+"*" )
+    myimgs.sort( )
+    if verbose:
+        print( myimgs )
+    # hierarchical
+    # NOTE: if there are multiple T1s for this time point, should take 
+    # the one with the highest resnetGrade
+    t1fn = glob.glob( subjectrootpath + "/T1w/"+iid+"/*nii.gz")[0]
+    t1 = ants.image_read( t1fn )
+    hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
+    hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
+    hierfn = re.sub( ".nii.gz", "", hierfn)
+    hierfntest = hierfn + 'snseg.csv'
+    if verbose:
+        print( hierfntest )
+    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hier = None
+    if not hierexists:
+        subjectpropath = os.path.dirname( hierfn )
+        if verbose:
+            print( subjectpropath )
+        os.makedirs( subjectpropath, exist_ok=True  )
+        hier = antspyt1w.hierarchical( t1, hierfn, labels_to_register=None )
+        antspyt1w.write_hierarchical( hier, hierfn )
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier['dataframes'], identifier=None )
+        t1wide.to_csv( hierfn + 'wide.csv' )
+    ################################################
+    hier = antspyt1w.read_hierarchical( hierfn )
+    if exists( hierfn + 'wide.csv' ) :
+        t1wide = pd.read_csv( hierfn + 'wide.csv' )
+    else:
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier['dataframes'], identifier=None )
+    t1imgbrn = hier['brain_n4_dnz']
+    t1atropos = hier['dkt_parc']['tissue_segmentation']
+    if visualize:
+        ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
+        ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
+        ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
+    # loop over modalities and then unique image IDs
+    # we treat NM in a "special" way -- aggregating repeats 
+    # other modalities (beyond T1) are treated individually
+    for x in myimgs:
+        myimgsr = glob.glob( x+"/*" )
+        overmod = x.split( "/" )
+        overmod = overmod[ len(overmod)-1 ]
+        if overmod == 'NM2DMT':
+            if verbose:
+                print("NM")
+            myimgsr = glob.glob( x+"/*/*nii.gz" )
+            subjectpropath = re.sub( sourcedatafoldername, processDir, x ) + "MM"
+            mysplit = subjectpropath.split( "/" )
+            os.makedirs( subjectpropath, exist_ok=True  )
+            identifier = mysplit[9] + mysep + mysplit[10] + mysep + 'NM2DMTMM' + mysep
+            mymm = subjectpropath + "/" + identifier
+            nmlist = []
+            for zz in myimgsr:
+                nmlist.append( ants.image_read( zz ) )
+            tabPro, normPro = mm( t1, hier, 
+                        nm_image_list = nmlist,
+                        srmodel=srmodel,
+                        do_tractography=False, 
+                        do_kk=False, 
+                        do_normalization=True, 
+                        verbose=True )
+            antspymm.write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+            nmpro = tabPro['NM']
+            mysl = range( nmpro['NM_avg'].shape[2] )
+            if visualize:
+                ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1' )
+                mysl = range( nmpro['NM_avg_cropped'].shape[2] )
+                ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop' )
+                ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1' )
+                ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
+        else :
+            for y in myimgsr:
+                myimg = glob.glob( y+"/*nii.gz" )
+                subjectpropath = re.sub( sourcedatafoldername, processDir, y )
+                mysplit = subjectpropath.split("/")
+                mymod = mysplit[11] # FIXME system dependent
+                uid = mysplit[12]
+                if verbose:
+                    print("Modality specific processing: " + mymod )
+                mymodnew = mymod + "MM"
+                subjectpropath = re.sub( mymod, mymodnew, subjectpropath )
+                os.makedirs( subjectpropath, exist_ok=True  )
+                identifier = mysplit[9] + mysep + mysplit[10] + mysep + mymodnew + mysep + uid
+                mymm = subjectpropath + "/" + identifier
+                if verbose:
+                    print(subjectpropath)
+                    print(identifier)
+                img = ants.image_read( myimg[0] )
+                if mymod == 'T1' and realrun: # for a real run, set to True
+                    tabPro, normPro = mm( t1, hier, 
+                        srmodel=srmodel,
+                        do_tractography=False, 
+                        do_kk=True, 
+                        do_normalization=True, 
+                        verbose=True )
+                    if visualize:
+                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
+                if mymod == 'T2Flair':
+                    tabPro, normPro = mm( t1, hier, 
+                        flair_image = img,
+                        srmodel=srmodel,
+                        do_tractography=False, 
+                        do_kk=False, 
+                        do_normalization=True, 
+                        verbose=True )
+                    if visualize:
+                        ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
+                        ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
+                if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
+                    tabPro, normPro = mm( t1, hier, 
+                        rsf_image=img,
+                        srmodel=srmodel,
+                        do_tractography=False, 
+                        do_kk=False, 
+                        do_normalization=True, 
+                        verbose=True )
+                    if tabPro['rsf'] is not None and visualize:
+                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                            axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
+                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
+                            axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
+                if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
+                    bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
+                    bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
+                    tabPro, normPro = mm( t1, hier, 
+                        dw_image=img,
+                        bvals = bvalfn,
+                        bvecs = bvecfn,
+                        srmodel=srmodel,
+                        do_tractography=realrun, 
+                        do_kk=False, 
+                        do_normalization=True, 
+                        verbose=True )
+                    mydti = tabPro['DTI']
+                    if visualize:
+                        ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction' )
+                        ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
+                        ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
+                        ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
+                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                for mykey in normPro.keys():
+                    if normPro[mykey] is not None:
+                        if visualize:
+                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
+    
