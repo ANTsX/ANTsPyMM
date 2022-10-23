@@ -2195,6 +2195,8 @@ def mm_nrg(
         print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
         antspyt1w.get_data( force_download=True )
         antspymm.get_data( force_download=True )
+    temp = sourcedir.split( "/" )
+    splitCount = len( temp )
     template = ants.image_read( templatefn ) # Read in template
     realrun = True
     subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
@@ -2248,10 +2250,11 @@ def mm_nrg(
         if overmod == 'NM2DMT':
             myimgsr = glob.glob( x+"/*/*nii.gz" )
             subjectpropath = os.path.dirname( x )
-            subjectpropath = re.sub( subjectpropath, processDir, x )
+            subjectpropath = re.sub( sourcedatafoldername, processDir, x )
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
-            identifier = mysplit[9] + mysep + mysplit[10] + mysep + 'NM2DMT' + mysep
+            mysplitCount = len( mysplit )
+            identifier = mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT' + mysep
             mymm = subjectpropath + "/" + identifier
             if verbose:
                 print( "NM " + mymm )
@@ -2277,13 +2280,14 @@ def mm_nrg(
         else :
             for y in myimgsr:
                 myimg = glob.glob( y+"/*nii.gz" )
-                subjectpropath = os.path.dirname( y )
-                subjectpropath = re.sub( subjectpropath, processDir, subjectpropath )
+                subjectpropath = os.path.dirname( myimg[0] )
+                subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
                 mysplit = subjectpropath.split("/")
-                mymod = mysplit[11] # FIXME system dependent
-                uid = mysplit[12]
+                mysplitCount = len( mysplit )
+                mymod = mysplit[mysplitCount-2] # FIXME system dependent
+                uid = mysplit[mysplitCount-1] # unique image id
                 os.makedirs( subjectpropath, exist_ok=True  )
-                identifier = mysplit[9] + mysep + mysplit[10] + mysep + mymodnew + mysep + uid
+                identifier = mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print("Modality specific processing: " + mymod )
