@@ -2244,9 +2244,12 @@ def mm_nrg(
     # we treat NM in a "special" way -- aggregating repeats 
     # other modalities (beyond T1) are treated individually
     for x in myimgs:
+        dowrite=False
         myimgsr = glob.glob( x+"/*" )
         overmod = x.split( "/" )
         overmod = overmod[ len(overmod)-1 ]
+        if verbose:
+            print( 'overmod is : ' + overmod )
         if overmod == 'NM2DMT':
             myimgsr = glob.glob( x+"/*/*nii.gz" )
             subjectpropath = os.path.dirname( x )
@@ -2254,7 +2257,7 @@ def mm_nrg(
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
-            identifier = mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT' + mysep
+            identifier = mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
             mymm = subjectpropath + "/" + identifier
             if verbose:
                 print( "NM " + mymm )
@@ -2279,6 +2282,7 @@ def mm_nrg(
                 ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
         else :
             for y in myimgsr:
+                dowrite=False
                 myimg = glob.glob( y+"/*nii.gz" )
                 subjectpropath = os.path.dirname( myimg[0] )
                 subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
@@ -2296,7 +2300,10 @@ def mm_nrg(
                     print(subjectpropath)
                     print(identifier)
                 img = ants.image_read( myimg[0] )
-                if mymod == 'T1' and realrun: # for a real run, set to True
+                if mymod == 'T1w' : # for a real run, set to True
+                    dowrite=True
+                    if verbose:
+                        print('start kk')
                     tabPro, normPro = mm( t1, hier, 
                         srmodel=srmodel,
                         do_tractography=False, 
@@ -2306,6 +2313,7 @@ def mm_nrg(
                     if visualize:
                         ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
                 if mymod == 'T2Flair':
+                    dowrite=True
                     tabPro, normPro = mm( t1, hier, 
                         flair_image = img,
                         srmodel=srmodel,
@@ -2317,6 +2325,7 @@ def mm_nrg(
                         ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
                         ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
                 if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
+                    dowrite=True
                     tabPro, normPro = mm( t1, hier, 
                         rsf_image=img,
                         srmodel=srmodel,
@@ -2330,6 +2339,7 @@ def mm_nrg(
                         ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                             axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
                 if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
+                    dowrite=True
                     bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                     bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
                     tabPro, normPro = mm( t1, hier, 
@@ -2347,9 +2357,9 @@ def mm_nrg(
                         ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
                         ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
                         ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
-                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
-                for mykey in normPro.keys():
-                    if normPro[mykey] is not None:
-                        if visualize:
-                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
-    
+                if dowrite:
+                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                    for mykey in normPro.keys():
+                        if normPro[mykey] is not None:
+                            if visualize:
+                                ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
