@@ -2200,7 +2200,7 @@ def mm_nrg(
     if not exists( templatefn ):
         print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
         antspyt1w.get_data( force_download=True )
-        antspymm.get_data( force_download=True )
+        get_data( force_download=True )
     temp = sourcedir.split( "/" )
     splitCount = len( temp )
     template = ants.image_read( templatefn ) # Read in template
