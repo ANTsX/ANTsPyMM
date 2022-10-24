@@ -2364,8 +2364,7 @@ def mm_nrg(
                         ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
                         ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
                 if dowrite:
-                    mymm_loc = mymm + mysep + mymod
-                    write_mm( output_prefix=mymm_loc, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                     for mykey in normPro.keys():
                         if normPro[mykey] is not None:
                             if visualize:
