@@ -33,13 +33,14 @@ if doOr:
     )
 
 if doSr:
+    print("SR processing - will be slow")
     antspymm.mm_nrg(
         sourcedir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" ),
         sid  = "100898",   # subject unique id
         dtid = "20210331", # date
         iid  = "1496183",  # image unique id for t1 - should have highest grade if repeats exist
         sourcedatafoldername = 'images',
-        processDir = "processedOR",
+        processDir = "processedSR",
         mysep = '-', # define a separator for filename components
         srmodel = srmdl,
         visualize = True,
