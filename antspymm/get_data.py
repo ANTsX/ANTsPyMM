@@ -2037,6 +2037,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     output_prefix + separator + 'mmwide.csv' and *norm.nii.gz images
 
     """
+    from dipy.io.streamline import save_tractogram
     if mm_norm is not None:
         for mykey in mm_norm.keys():
             tempfn = output_prefix + separator + mykey + '.nii.gz'
@@ -2072,6 +2073,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
         fat1derk = mm['FA_summ'].iloc[: , 1:]
         mdt1derk = mm['MD_summ'].iloc[: , 1:]
+    if mm['tractography'] is not None:
+        ofn = output_prefix + separator + 'tractogram.trk'
+        save_tractogram( mm['tractography']['tractogram'], ofn )
     cnxderk = None
     if mm['tractography_connectivity'] is not None:
         cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
@@ -2089,6 +2093,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         ], axis=1 )
     mm_wide = mm_wide.copy()
     if mm['flair'] is not None:
+        myop = output_prefix + separator + 'wmh.nii.gz'
+        ants.image_write( mm['flair']['WMH_probability_map'], myop )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
     if mm['rsf'] is not None:
         mynets = list([ 'meanBold', 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
@@ -2358,7 +2364,8 @@ def mm_nrg(
                         ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
                         ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
                 if dowrite:
-                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                    mymm_loc = mymm + mysep + mymod
+                    write_mm( output_prefix=mymm_loc, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                     for mykey in normPro.keys():
                         if normPro[mykey] is not None:
                             if visualize:
