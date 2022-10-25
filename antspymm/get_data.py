@@ -829,6 +829,144 @@ def joint_dti_recon(
     }
 
 
+
+def middle_slice_snr( x, background_dilation=5 ):
+    """
+
+    Estimate signal to noise ratio (SNR) in 2D mid image from a 3D image.  
+    Estimates noise from a background mask which is a 
+    dilation of the foreground mask minus the foreground mask.
+    Actually estimates the reciprocal of the coefficient of variation.
+
+    Arguments
+    ---------
+
+    x : an antsImage
+
+    background_dilation : integer - amount to dilate foreground mask
+
+    """
+    xshp = x.shape
+    xmidslice = ants.slice_image( x, 2, int( xshp[2]/2 )  )
+    xmidslice = ants.iMath( xmidslice - xmidslice.min(), "Normalize" )
+    xmidslice = ants.n3_bias_field_correction( xmidslice )
+    xmidslice = ants.n3_bias_field_correction( xmidslice )
+    xmidslicemask = ants.threshold_image( xmidslice, "Otsu", 1 ).morphology("close",2).iMath("FillHoles")
+    xbkgmask = ants.iMath( xmidslicemask, "MD", background_dilation ) - xmidslicemask
+    signal = (xmidslice[ xmidslicemask == 1] ).mean()
+    noise = (xmidslice[ xbkgmask == 1] ).std()
+    return signal / noise
+
+def foreground_background_snr( x, background_dilation=10, 
+        erode_foreground=False):
+    """
+
+    Estimate signal to noise ratio (SNR) in an image.  
+    Estimates noise from a background mask which is a 
+    dilation of the foreground mask minus the foreground mask.
+    Actually estimates the reciprocal of the coefficient of variation.
+
+    Arguments
+    ---------
+
+    x : an antsImage
+
+    background_dilation : integer - amount to dilate foreground mask
+
+    erode_foreground : boolean - 2nd option which erodes the initial 
+    foregound mask  to create a new foreground mask.  the background 
+    mask is the initial mask minus the eroded mask.
+
+    """
+    xshp = x.shape
+    xbc = ants.iMath( x - x.min(), "Normalize" )
+    xbc = ants.n3_bias_field_correction( xbc )
+    xmask = ants.threshold_image( xbc, "Otsu", 1 ).morphology("close",2).iMath("FillHoles")
+    xbkgmask = ants.iMath( xmask, "MD", background_dilation ) - xmask
+    fgmask = xmask
+    if erode_foreground:
+        fgmask = ants.iMath( xmask, "ME", background_dilation )
+        xbkgmask = xmask - fgmask
+    signal = (xbc[ fgmask == 1] ).mean()
+    noise = (xbc[ xbkgmask == 1] ).std()
+    return signal / noise
+
+def quantile_snr( x, 
+    lowest_quantile=0.01, 
+    low_quantile=0.1, 
+    high_quantile=0.5,
+    highest_quantile=0.95 ):
+    """
+
+    Estimate signal to noise ratio (SNR) in an image.  
+    Estimates noise from a background mask which is a 
+    dilation of the foreground mask minus the foreground mask.
+    Actually estimates the reciprocal of the coefficient of variation.
+
+    Arguments
+    ---------
+
+    x : an antsImage
+
+    lowest_quantile : float value < 1 and > 0
+
+    low_quantile : float value < 1 and > 0
+
+    high_quantile : float value < 1 and > 0
+
+    highest_quantile : float value < 1 and > 0
+
+    """
+    import numpy as np
+    xshp = x.shape
+    xbc = ants.iMath( x - x.min(), "Normalize" )
+    xbc = ants.n3_bias_field_correction( xbc )
+    xbc = ants.iMath( xbc - xbc.min(), "Normalize" )
+    y = xbc.numpy()
+    ylowest = np.quantile( y[y>0], lowest_quantile )
+    ylo = np.quantile( y[y>0], low_quantile )
+    yhi = np.quantile( y[y>0], high_quantile )
+    yhiest = np.quantile( y[y>0], highest_quantile )
+    xbkgmask = ants.threshold_image( xbc, ylowest, ylo )
+    fgmask = ants.threshold_image( xbc, yhi, yhiest )
+    signal = (xbc[ fgmask == 1] ).mean()
+    noise = (xbc[ xbkgmask == 1] ).std()
+    return signal / noise
+
+def mask_snr( x, background_mask, foreground_mask ):
+    """
+
+    Estimate signal to noise ratio (SNR) in an image using 
+    a user-defined foreground and background mask.  
+    Actually estimates the reciprocal of the coefficient of variation.
+
+    Arguments
+    ---------
+
+    x : an antsImage
+
+    background_mask : binary antsImage
+
+    foreground_mask : binary antsImage
+
+    """
+    import numpy as np
+    xbc = ants.iMath( x - x.min(), "Normalize" )
+    xbc = ants.n3_bias_field_correction( xbc )
+    xbc = ants.iMath( xbc - xbc.min(), "Normalize" )
+    signal = (xbc[ foreground_mask == 1] ).mean()
+    noise = (xbc[ background_mask == 1] ).std()
+    return signal / noise
+
+#    print( x + " mid-snr: " + str(middle_slice_snr( ants.image_read(x))))
+# for x in fns:
+#    print( x + " fg-snr: " + str(foreground_background_snr( ants.image_read(x),20)))
+#    print( x + " mid-snr: " + str(middle_slice_snr( ants.image_read(x))))
+# for x in fns:
+#    qsnr = quantile_snr( ants.image_read(x),0.1,0.2,0.6,0.7)
+#    print( x + " mid-snr: " + str( qsnr ) )
+
+
 def dwi_deterministic_tracking(
     dwi,
     fa,
@@ -921,7 +1059,9 @@ def dwi_deterministic_tracking(
         peak_indices = peaks_from_model(
             model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
             min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
-            return_sh=False, parallel=False # , num_processes=num_processes
+            return_sh=False, 
+            parallel=True, 
+            num_processes=os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
             )
 
     if label_image is None or seed_labels is None:
