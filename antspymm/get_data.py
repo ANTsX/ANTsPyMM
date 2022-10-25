@@ -933,7 +933,7 @@ def quantile_snr( x,
     noise = (xbc[ xbkgmask == 1] ).std()
     return signal / noise
 
-def mask_snr( x, background_mask, foreground_mask ):
+def mask_snr( x, background_mask, foreground_mask, bias_correct=True ):
     """
 
     Estimate signal to noise ratio (SNR) in an image using 
@@ -949,10 +949,13 @@ def mask_snr( x, background_mask, foreground_mask ):
 
     foreground_mask : binary antsImage
 
+    bias_correct : boolean
+
     """
     import numpy as np
     xbc = ants.iMath( x - x.min(), "Normalize" )
-    xbc = ants.n3_bias_field_correction( xbc )
+    if bias_correct:
+        xbc = ants.n3_bias_field_correction( xbc )
     xbc = ants.iMath( xbc - xbc.min(), "Normalize" )
     signal = (xbc[ foreground_mask == 1] ).mean()
     noise = (xbc[ background_mask == 1] ).std()
@@ -1734,6 +1737,16 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
               col_names = ['Mean'] )
   if verbose:
       print( "nm done" )
+
+  rr_mask = ants.mask_image( labels2nm, labels2nm, [33,34] , binarize=True )
+  sn_mask = ants.mask_image( labels2nm, labels2nm, [7,9,23,25] , binarize=True )
+  nmavgsnr = mask_snr( nm_avg_cropped, rr_mask, sn_mask, bias_correct = False )
+
+  snavg = NM_avg_cropped[ sn_mask == 1].mean()
+  rravg = NM_avg_cropped[ rr_mask == 1].mean()
+  snstd = NM_avg_cropped[ sn_mask == 1].std()
+  rrstd = NM_avg_cropped[ rr_mask == 1].std()
+
   return{
       'NM_avg' : nm_avg,
       'NM_avg_cropped' : nm_avg_cropped,
@@ -1743,7 +1756,12 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_dataframe': nmdf,
       'NM_dataframe_wide': nmdf_wide,
       't1_to_NM': slabreg['warpedmovout'],
-      't1_to_NM_transform' : slabreg['fwdtransforms']
+      't1_to_NM_transform' : slabreg['fwdtransforms'],
+      'NM_avg_signaltonoise' : nmavgsnr,
+      'NM_avg_substantianigra' : snavg,
+      'NM_std_substantianigra' : snstd,
+      'NM_avg_refregion' : rravg,
+      'NM_std_refregion' : rrstd
        }
 
 def resting_state_fmri_networks( fmri, t1, t1segmentation,
@@ -2194,6 +2212,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         ants.image_write( mm['kk'][mykey], tempfn )
     nmderk = None
     if mm['NM'] is not None:
+        mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
         for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
             tempfn = output_prefix + separator + mykey + '.nii.gz'
@@ -2232,6 +2251,12 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         cnxderk
         ], axis=1 )
     mm_wide = mm_wide.copy()
+    if mm['NM'] is not None:
+        mm_wide['NM_avg_signaltonoise'] = mm['NM']['NM_avg_signaltonoise']
+        mm_wide['NM_avg_substantianigra'] = mm['NM']['NM_avg_substantianigra']
+        mm_wide['NM_std_substantianigra'] = mm['NM']['NM_std_substantianigra']
+        mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
+        mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
         ants.image_write( mm['flair']['WMH_probability_map'], myop )
