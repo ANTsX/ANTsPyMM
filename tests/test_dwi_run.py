@@ -49,11 +49,11 @@ if islocal:
 # now reconstruct DTI
 bvec = antspymm.get_data( id1, target_extension=".bvec")
 bval = antspymm.get_data( id1, target_extension=".bval")
-dd = antspymm.dipy_dti_recon( dwp['dewarped'][0], bval, bvec, vol_idx=b0indices )
+dd = antspymm.dipy_dti_recon( dwp['dewarped'][0], bval, bvec, b0_idx=b0indices )
 # ants.image_write( dd['RGB'], '/tmp/tempsr_rgb.nii.gz' )
 bvec = antspymm.get_data( id2, target_extension=".bvec")
 bval = antspymm.get_data( id2, target_extension=".bval")
-ee = antspymm.dipy_dti_recon( dwp['dewarped'][1], bval, bvec, vol_idx=b0indices )
+ee = antspymm.dipy_dti_recon( dwp['dewarped'][1], bval, bvec, b0_idx=b0indices )
 # ants.image_write( ee['RGB'], '/tmp/temp_rgb2.nii.gz' )
 # FIXME: - add test
 
