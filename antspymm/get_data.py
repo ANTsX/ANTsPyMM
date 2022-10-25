@@ -2212,7 +2212,6 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         ants.image_write( mm['kk'][mykey], tempfn )
     nmderk = None
     if mm['NM'] is not None:
-        mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
         for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
             tempfn = output_prefix + separator + mykey + '.nii.gz'
