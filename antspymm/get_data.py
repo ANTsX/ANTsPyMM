@@ -1742,10 +1742,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   sn_mask = ants.mask_image( labels2nm, labels2nm, [7,9,23,25] , binarize=True )
   nmavgsnr = mask_snr( nm_avg_cropped, rr_mask, sn_mask, bias_correct = False )
 
-  snavg = NM_avg_cropped[ sn_mask == 1].mean()
-  rravg = NM_avg_cropped[ rr_mask == 1].mean()
-  snstd = NM_avg_cropped[ sn_mask == 1].std()
-  rrstd = NM_avg_cropped[ rr_mask == 1].std()
+  snavg = nm_avg_cropped[ sn_mask == 1].mean()
+  rravg = nm_avg_cropped[ rr_mask == 1].mean()
+  snstd = nm_avg_cropped[ sn_mask == 1].std()
+  rrstd = nm_avg_cropped[ rr_mask == 1].std()
 
   return{
       'NM_avg' : nm_avg,
