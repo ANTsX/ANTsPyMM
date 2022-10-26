@@ -2127,7 +2127,7 @@ def mm(
             reference_image = dtibxt_data['b0_avg'],
             srmodel=srmodel,
             motion_correct=True, # set to False if using input from qsiprep
-            verbose = False)
+            verbose = verbose)
         mydti = output_dict['DTI']
         # summarize dwi with T1 outputs
         # first - register ....
@@ -2160,9 +2160,9 @@ def mm(
                 mydti['bvec_LR'],
                 seed_density = 1,
                 mask=mask,
-                verbose=False )
+                verbose = verbose )
             mystr = output_dict['tractography']
-            output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=True )
+            output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=verbose )
     ################################## do the flair .....
     if flair_image is not None:
         if verbose:
