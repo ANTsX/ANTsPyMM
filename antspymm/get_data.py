@@ -2457,7 +2457,6 @@ def mm_nrg(
         if verbose:
             print( 'overmod is : ' + overmod )
             print( 'x is : ' + x )
-        myimgsr = glob.glob( x+"/*/*nii.gz" )
         if overmod == 'NM2DMT':
             subjectpropath = os.path.dirname( x )
             subjectpropath = re.sub( sourcedatafoldername, processDir, x )
