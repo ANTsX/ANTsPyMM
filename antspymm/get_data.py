@@ -1972,12 +1972,16 @@ def crop_mcimage( x, mask ):
     mask  : mask for cropping
 
     """ 
+    cropmask = ants.crop_image( mask, mask )
     croplist = []
     if len(x.shape) > 3:
         for k in range(x.shape[3]):
             temp = ants.slice_image( x, axis=3, idx=k )
+            temp.set_origin( cropmask.get_origin() )
             croplist.append( ants.crop_image( temp, mask ) )
-        return ants.list_to_ndimage( x, croplist )
+        temp = ants.list_to_ndimage( x, croplist )
+        temp.set_origin( cropmask.get_origin() )
+        return temp
     else:
         return( ants.crop_image( x, mask ) )
 
@@ -2111,10 +2115,6 @@ def mm(
         dw_image = crop_mcimage( dw_image, cropmask  )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
         dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
-        dtibxt_data['b0_mask'].set_origin( ants.get_origin( dw_image )[0:3] )
-        dtibxt_data['b0_avg'].set_origin(  ants.get_origin( dw_image )[0:3] )
-        temp = ants.get_average_of_timeseries( dw_image )
-        maskInRightSpace = ants.image_physical_space_consistency( dtibxt_data['b0_mask'], temp )
         output_dict['DTI'] = joint_dti_recon(
             dw_image,
             bvals,
