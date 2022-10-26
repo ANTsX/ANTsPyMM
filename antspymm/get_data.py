@@ -2446,15 +2446,19 @@ def mm_nrg(
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats 
     # other modalities (beyond T1) are treated individually
-    for x in myimgs:
+    for xnum in range( len( myimgs ) ):
+        if verbose:
+            print( "we have : " + str(len(myimgs)) + " modalities.")
         dowrite=False
+        x = myimgs[xnum]
         myimgsr = glob.glob( x+"/*" )
         overmod = x.split( "/" )
         overmod = overmod[ len(overmod)-1 ]
         if verbose:
             print( 'overmod is : ' + overmod )
+            print( 'x is : ' + x )
+        myimgsr = glob.glob( x+"/*/*nii.gz" )
         if overmod == 'NM2DMT':
-            myimgsr = glob.glob( x+"/*/*nii.gz" )
             subjectpropath = os.path.dirname( x )
             subjectpropath = re.sub( sourcedatafoldername, processDir, x )
             mysplit = subjectpropath.split( "/" )
