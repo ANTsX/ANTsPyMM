@@ -2439,7 +2439,8 @@ def mm_nrg(
                 hier['dataframes'], identifier=None )
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    if visualize:
+    testloop = False
+    if visualize and not testloop:
         ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
         ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
         ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
@@ -2458,8 +2459,13 @@ def mm_nrg(
             print( 'overmod is : ' + overmod )
             print( 'x is : ' + x )
         if overmod == 'NM2DMT':
+            myimgsr = glob.glob( x+"/*/*nii.gz" )
+            myimgsr.sort()
             subjectpropath = os.path.dirname( x )
             subjectpropath = re.sub( sourcedatafoldername, processDir, x )
+            if verbose:
+                print( myimgsr )
+                print( "subjectpropath " + subjectpropath )
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
@@ -2470,22 +2476,23 @@ def mm_nrg(
             nmlist = []
             for zz in myimgsr:
                 nmlist.append( ants.image_read( zz ) )
-            tabPro, normPro = mm( t1, hier, 
+            if not testloop:
+                tabPro, normPro = mm( t1, hier, 
                         nm_image_list = nmlist,
                         srmodel=srmodel,
                         do_tractography=False, 
                         do_kk=False, 
                         do_normalization=True, 
                         verbose=True )
-            write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
-            nmpro = tabPro['NM']
-            mysl = range( nmpro['NM_avg'].shape[2] )
-            if visualize:
-                ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1' )
-                mysl = range( nmpro['NM_avg_cropped'].shape[2] )
-                ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop' )
-                ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1' )
-                ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
+                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                nmpro = tabPro['NM']
+                mysl = range( nmpro['NM_avg'].shape[2] )
+                if visualize:
+                    ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1' )
+                    mysl = range( nmpro['NM_avg_cropped'].shape[2] )
+                    ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop' )
+                    ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1' )
+                    ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
         else :
             for y in myimgsr:
                 dowrite=False
@@ -2505,67 +2512,69 @@ def mm_nrg(
                 if verbose:
                     print(subjectpropath)
                     print(identifier)
-                img = ants.image_read( myimg[0] )
-                if mymod == 'T1w' : # for a real run, set to True
-                    dowrite=True
-                    if verbose:
-                        print('start kk')
-                    tabPro, normPro = mm( t1, hier, 
-                        srmodel=srmodel,
-                        do_tractography=False, 
-                        do_kk=True, 
-                        do_normalization=True, 
-                        verbose=True )
-                    if visualize:
-                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
-                if mymod == 'T2Flair':
-                    dowrite=True
-                    tabPro, normPro = mm( t1, hier, 
-                        flair_image = img,
-                        srmodel=srmodel,
-                        do_tractography=False, 
-                        do_kk=False, 
-                        do_normalization=True, 
-                        verbose=True )
-                    if visualize:
-                        ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
-                        ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
-                if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
-                    dowrite=True
-                    tabPro, normPro = mm( t1, hier, 
-                        rsf_image=img,
-                        srmodel=srmodel,
-                        do_tractography=False, 
-                        do_kk=False, 
-                        do_normalization=True, 
-                        verbose=True )
-                    if tabPro['rsf'] is not None and visualize:
-                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                            axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
-                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                            axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
-                if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
-                    dowrite=True
-                    bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
-                    bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
-                    tabPro, normPro = mm( t1, hier, 
-                        dw_image=img,
-                        bvals = bvalfn,
-                        bvecs = bvecfn,
-                        srmodel=srmodel,
-                        do_tractography=realrun, 
-                        do_kk=False, 
-                        do_normalization=True, 
-                        verbose=True )
-                    mydti = tabPro['DTI']
-                    if visualize:
-                        ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction' )
-                        ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
-                        ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
-                        ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
-                if dowrite:
-                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
-                    for mykey in normPro.keys():
-                        if normPro[mykey] is not None:
-                            if visualize:
-                                ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
+                    print( myimg[0] )
+                # img = ants.image_read( myimg[0] )
+                if not testloop:
+                    if mymod == 'T1w' : # for a real run, set to True
+                        dowrite=True
+                        if verbose:
+                            print('start kk')
+                        tabPro, normPro = mm( t1, hier, 
+                            srmodel=srmodel,
+                            do_tractography=False, 
+                            do_kk=True, 
+                            do_normalization=True, 
+                            verbose=True )
+                        if visualize:
+                            ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
+                    if mymod == 'T2Flair':
+                        dowrite=True
+                        tabPro, normPro = mm( t1, hier, 
+                            flair_image = img,
+                            srmodel=srmodel,
+                            do_tractography=False, 
+                            do_kk=False, 
+                            do_normalization=True, 
+                            verbose=True )
+                        if visualize:
+                            ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
+                            ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
+                    if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
+                        dowrite=True
+                        tabPro, normPro = mm( t1, hier, 
+                            rsf_image=img,
+                            srmodel=srmodel,
+                            do_tractography=False, 
+                            do_kk=False, 
+                            do_normalization=True, 
+                            verbose=True )
+                        if tabPro['rsf'] is not None and visualize:
+                            ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                                axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
+                            ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
+                                axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
+                    if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
+                        dowrite=True
+                        bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
+                        bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
+                        tabPro, normPro = mm( t1, hier, 
+                            dw_image=img,
+                            bvals = bvalfn,
+                            bvecs = bvecfn,
+                            srmodel=srmodel,
+                            do_tractography=realrun, 
+                            do_kk=False, 
+                            do_normalization=True, 
+                            verbose=True )
+                        mydti = tabPro['DTI']
+                        if visualize:
+                            ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction' )
+                            ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
+                            ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
+                            ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
+                    if dowrite:
+                        write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                        for mykey in normPro.keys():
+                            if normPro[mykey] is not None:
+                                if visualize:
+                                    ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
