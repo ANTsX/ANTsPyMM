@@ -23,4 +23,5 @@ from .get_data import mm
 from .get_data import mm_nrg
 from .get_data import write_mm
 from .get_data import mask_snr
+from .get_data import crop_mcimage
 

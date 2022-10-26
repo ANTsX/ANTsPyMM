@@ -731,7 +731,7 @@ def joint_dti_recon(
             warpedb0 = ants.apply_transforms( refimg, b0, concatx )
             dwpimage.append( warpedb0 )
         return ants.list_to_ndimage( physSpaceDWI, dwpimage )
-
+ 
     img_RLdwp = None
     img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'],
             img_LR,
@@ -1059,12 +1059,15 @@ def dwi_deterministic_tracking(
     if peak_indices is None:
         if verbose:
             print("begin peaks")
+        mynump=1
+        if os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"):
+            mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
         peak_indices = peaks_from_model(
             model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
             min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
             return_sh=False, 
             parallel=True, 
-            num_processes=os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
+            num_processes=int(mynump)
             )
 
     if label_image is None or seed_labels is None:
@@ -1957,6 +1960,27 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
     for dim_vals in bvecs.T:
         bvf.write(fmt % tuple(dim_vals))
 
+def crop_mcimage( x, mask ):
+    """ 
+    crop a time series (4D) image by a 3D mask
+
+    Parameters
+    -------------
+
+    x : raw image
+
+    mask  : mask for cropping
+
+    """ 
+    croplist = []
+    if len(x.shape) > 3:
+        for k in range(x.shape[3]):
+            temp = ants.slice_image( x, axis=3, idx=k )
+            croplist.append( ants.crop_image( temp, mask ) )
+        return ants.list_to_ndimage( x, croplist )
+    else:
+        return( ants.crop_image( x, mask ) )
+
 
 def mm( 
     t1_image, 
@@ -2083,6 +2107,14 @@ def mm(
         if verbose:
             print('dti')
         dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
+        cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
+        dw_image = crop_mcimage( dw_image, cropmask  )
+        dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
+        dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
+        dtibxt_data['b0_mask'].set_origin( ants.get_origin( dw_image )[0:3] )
+        dtibxt_data['b0_avg'].set_origin(  ants.get_origin( dw_image )[0:3] )
+        temp = ants.get_average_of_timeseries( dw_image )
+        maskInRightSpace = ants.image_physical_space_consistency( dtibxt_data['b0_mask'], temp )
         output_dict['DTI'] = joint_dti_recon(
             dw_image,
             bvals,
