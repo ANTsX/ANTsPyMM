@@ -1973,14 +1973,14 @@ def crop_mcimage( x, mask ):
 
     """ 
     cropmask = ants.crop_image( mask, mask )
+    myorig = ants.get_origin(cropmask)
     croplist = []
     if len(x.shape) > 3:
         for k in range(x.shape[3]):
             temp = ants.slice_image( x, axis=3, idx=k )
-            temp.set_origin( cropmask.get_origin() )
             croplist.append( ants.crop_image( temp, mask ) )
         temp = ants.list_to_ndimage( x, croplist )
-        temp.set_origin( cropmask.get_origin() )
+        temp.set_origin( myorig )
         return temp
     else:
         return( ants.crop_image( x, mask ) )
