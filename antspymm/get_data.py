@@ -2513,7 +2513,7 @@ def mm_nrg(
                     print(subjectpropath)
                     print(identifier)
                     print( myimg[0] )
-                # img = ants.image_read( myimg[0] )
+                img = ants.image_read( myimg[0] )
                 if not testloop:
                     if mymod == 'T1w' : # for a real run, set to True
                         dowrite=True
