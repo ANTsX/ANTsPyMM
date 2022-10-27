@@ -1057,18 +1057,36 @@ def dwi_deterministic_tracking(
     sphere = get_sphere('symmetric362')
     from dipy.direction import peaks_from_model
     if peak_indices is None:
+        # problems with multi-threading ...
+        # see https://github.com/dipy/dipy/issues/2519
         if verbose:
             print("begin peaks")
         mynump=1
         if os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"):
             mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
+        current_openblas = os.environ.get('OPENBLAS_NUM_THREADS', '')
+        current_mkl = os.environ.get('MKL_NUM_THREADS', '')
+        # os.environ['DIPY_OPENBLAS_NUM_THREADS'] = current_openblas
+        # os.environ['DIPY_MKL_NUM_THREADS'] = current_mkl
+        # os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        # os.environ['MKL_NUM_THREADS'] = '1'
         peak_indices = peaks_from_model(
             model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
             min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
             return_sh=False, 
-            parallel=True, 
-            num_processes=int(mynump)
+            parallel=False,
+            num_processes=1 # int(mynump)
             )
+        if 'DIPY_OPENBLAS_NUM_THREADS' in os.environ and False:
+            os.environ['OPENBLAS_NUM_THREADS'] = \
+                os.environ.pop('DIPY_OPENBLAS_NUM_THREADS', '')
+            if os.environ['OPENBLAS_NUM_THREADS'] in ['', None]:
+                os.environ.pop('OPENBLAS_NUM_THREADS', '')
+        if 'DIPY_MKL_NUM_THREADS' in os.environ and False:
+            os.environ['MKL_NUM_THREADS'] = \
+                os.environ.pop('DIPY_MKL_NUM_THREADS', '')
+            if os.environ['MKL_NUM_THREADS'] in ['', None]:
+                os.environ.pop('MKL_NUM_THREADS', '')
 
     if label_image is None or seed_labels is None:
         seed_mask = fa.numpy().copy()

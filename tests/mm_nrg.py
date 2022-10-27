@@ -7,9 +7,12 @@
 # NRG = https://github.com/stnava/biomedicalDataOrganization
 ##################################################################
 import os
-os.environ["TF_NUM_INTEROP_THREADS"] = "8"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "8"
-os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "8"
+nthreads = str(8)
+os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
+os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
+os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
+os.environ["OPENBLAS_NUM_THREADS"] = nthreads
+os.environ["MKL_NUM_THREADS"] = nthreads
 import antspymm
 ###########################################################
 import tensorflow as tf
