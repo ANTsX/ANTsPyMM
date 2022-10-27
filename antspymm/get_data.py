@@ -215,7 +215,7 @@ def dewarp_imageset( image_list, initial_template=None,
 
 
 def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
-    poly_order=1,
+    poly_order=None,
     target_range=[0,1],
     verbose=False ):
     """
@@ -1071,8 +1071,10 @@ def dwi_deterministic_tracking(
         # os.environ['OPENBLAS_NUM_THREADS'] = '1'
         # os.environ['MKL_NUM_THREADS'] = '1'
         peak_indices = peaks_from_model(
-            model=dti_model, data=dwi_data, sphere=sphere, relative_peak_threshold=.2,
-            min_separation_angle=25, mask=dwi_mask, npeaks=5, return_odf=False,
+            model=dti_model, data=dwi_data, sphere=sphere,
+            relative_peak_threshold=.5,
+            min_separation_angle=25, mask=dwi_mask,
+            npeaks=3, return_odf=False,
             return_sh=False, 
             parallel=False,
             num_processes=1 # int(mynump)
