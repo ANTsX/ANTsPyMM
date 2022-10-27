@@ -32,7 +32,8 @@ if doOr:
         sourcedatafoldername = 'images',
         processDir = "processedOR",
         mysep = '-', # define a separator for filename components
-        srmodel = None, # or srmdl
+        srmodel_NM = None,
+        srmodel_DTI = None,
         visualize = doviz,
         verbose=True
     )
