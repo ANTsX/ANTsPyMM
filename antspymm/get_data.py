@@ -2346,7 +2346,8 @@ def mm_nrg(
     sourcedatafoldername = 'images', # root for source data
     processDir = "processed", # where output will go - parallel to sourcedatafoldername
     mysep = '-', # define a separator for filename components
-    srmodel = None, # optional - will add a great deal of time
+    srmodel_NM = None, # optional - will add a great deal of time
+    srmodel_DTI = None, # optional - will add a great deal of time
     visualize = True,
     verbose = True
 ):
@@ -2397,7 +2398,9 @@ def mm_nrg(
 
     mysep : define a character separator for filename components
 
-    srmodel : None (optional) - will add a great deal of time
+    srmodel_NM : None (optional) - will add a great deal of time
+
+    srmodel_DTI : None (optional) - will add a great deal of time
 
     visualize : True - will plot some results to screen / notebook
 
@@ -2499,7 +2502,7 @@ def mm_nrg(
             if not testloop:
                 tabPro, normPro = mm( t1, hier, 
                         nm_image_list = nmlist,
-                        srmodel=srmodel,
+                        srmodel=srmodel_NM,
                         do_tractography=False, 
                         do_kk=False, 
                         do_normalization=True, 
@@ -2540,7 +2543,7 @@ def mm_nrg(
                         if verbose:
                             print('start kk')
                         tabPro, normPro = mm( t1, hier, 
-                            srmodel=srmodel,
+                            srmodel=None,
                             do_tractography=False, 
                             do_kk=True, 
                             do_normalization=True, 
@@ -2551,7 +2554,7 @@ def mm_nrg(
                         dowrite=True
                         tabPro, normPro = mm( t1, hier, 
                             flair_image = img,
-                            srmodel=srmodel,
+                            srmodel=None,
                             do_tractography=False, 
                             do_kk=False, 
                             do_normalization=True, 
@@ -2563,7 +2566,7 @@ def mm_nrg(
                         dowrite=True
                         tabPro, normPro = mm( t1, hier, 
                             rsf_image=img,
-                            srmodel=srmodel,
+                            srmodel=None,
                             do_tractography=False, 
                             do_kk=False, 
                             do_normalization=True, 
@@ -2581,7 +2584,7 @@ def mm_nrg(
                             dw_image=img,
                             bvals = bvalfn,
                             bvecs = bvecfn,
-                            srmodel=srmodel,
+                            srmodel=srmodel_DTI,
                             do_tractography=realrun, 
                             do_kk=False, 
                             do_normalization=True, 

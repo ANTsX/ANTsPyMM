@@ -47,7 +47,8 @@ if doSr:
         sourcedatafoldername = 'images',
         processDir = "processedSR",
         mysep = '-', # define a separator for filename components
-        srmodel = srmdl,
+        srmodel_NM = srmdl,
+        srmodel_DTI = srmdl,
         visualize = doviz,
         verbose=True
     )
