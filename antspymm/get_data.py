@@ -380,7 +380,8 @@ def dipy_dti_recon(
     b0_idx = None,
     motion_correct = False,
     mask_dilation = 0,
-    average_b0 = None ):
+    average_b0 = None, 
+    verbose=False ):
     """
     DiPy DTI reconstruction - following their own basic example
 
@@ -405,6 +406,8 @@ def dipy_dti_recon(
     average_b0 : optional reference average b0; if it is not in the same
         space as the image, we will resample directly to the image space.  This
         could lead to problems if the inputs are really incorrect.
+
+    verbose : boolean
 
     Returns
     -------
@@ -466,6 +469,9 @@ def dipy_dti_recon(
 
     maskdil = ants.iMath( mask, "MD", mask_dilation )
 
+    if verbose:
+        print("recon A",flush=True)
+
     # now extract the masked image data with or without motion correct
     if not motion_correct:
         maskedimage = []
@@ -508,6 +514,8 @@ def dipy_dti_recon(
             mocoimage.append( b0 )
             maskedimage.append( b0 * maskdil )
         gtab = gradient_table(bvals, bvecs)
+        if verbose:
+            print("recon B",flush=True)
         motion_corrected = ants.list_to_ndimage( image, mocoimage )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         maskdata = maskedimage.numpy()
@@ -527,8 +535,14 @@ def dipy_dti_recon(
             # mask = antspynet.brain_extraction( average_dwi, 'flair' ).threshold_image(0.5,1).iMath("FillHoles").iMath("GetLargestComponent")
             mask = antspynet.brain_extraction( average_b0, bxtmod ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
 
+    if verbose:
+        print("recon dti.TensorModel",flush=True)
+
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(maskdata)
+
+    if verbose:
+        print("recon dti.TensorModel done",flush=True)
 
     FA = fractional_anisotropy(tenfit.evals)
     FA[np.isnan(FA)] = 0
@@ -761,7 +775,7 @@ def joint_dti_recon(
         img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
 
     if verbose:
-        print("recon after distortion correction")
+        print("recon after distortion correction", flush=True)
 
     recon_RL_dewarp = None
     if img_RL is not None:
@@ -773,7 +787,10 @@ def joint_dti_recon(
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=False,
-                mask_dilation=0  )
+                mask_dilation=0, verbose=True )
+
+    if verbose:
+        print("recon done", flush=True)
 
     if img_RL is not None:
         reconFA = recon_RL_dewarp['FA'] * 0.5 + recon_LR_dewarp['FA'] * 0.5
@@ -783,7 +800,7 @@ def joint_dti_recon(
         reconMD = recon_LR_dewarp['MD']
 
     if verbose:
-        print("JHU reg")
+        print("JHU reg",flush=True)
 
     OR_FA2JHUreg = ants.registration( reconFA, jhu_atlas,
         type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
