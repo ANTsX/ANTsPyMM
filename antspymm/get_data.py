@@ -1056,6 +1056,8 @@ def dwi_deterministic_tracking(
     import dipy.reconst.dti as dti
     from dipy.segment.clustering import QuickBundles
     from dipy.tracking.utils import path_length
+    if verbose:
+        print("begin tracking",flush=True)
     dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
@@ -1066,6 +1068,8 @@ def dwi_deterministic_tracking(
     dwi_data = dwi_img.get_fdata()
     dwi_mask = mask.numpy() == 1
     dti_model = dti.TensorModel(gtab)
+    if verbose:
+        print("begin tracking fit",flush=True)
     dti_fit = dti_model.fit(dwi_data, mask=dwi_mask)  # This step may take a while
     evecs_img = dti_fit.evecs
     from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
@@ -1077,7 +1081,7 @@ def dwi_deterministic_tracking(
         # problems with multi-threading ...
         # see https://github.com/dipy/dipy/issues/2519
         if verbose:
-            print("begin peaks")
+            print("begin peaks",flush=True)
         mynump=1
         if os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"):
             mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
@@ -1120,7 +1124,7 @@ def dwi_deterministic_tracking(
     from dipy.tracking.local_tracking import LocalTracking
     from dipy.tracking.streamline import Streamlines
     if verbose:
-        print("streamlines begin ...")
+        print("streamlines begin ...", flush=True)
     streamlines_generator = LocalTracking(
         peak_indices, stopping_criterion, seeds, affine=affine, step_size=step_size)
     streamlines = Streamlines(streamlines_generator)
@@ -1128,7 +1132,7 @@ def dwi_deterministic_tracking(
     from dipy.io.streamline import save_tractogram
     sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
     if verbose:
-        print("done")
+        print("streamlines done", flush=True)
     return {
           'tractogram': sft,
           'streamlines': streamlines,
