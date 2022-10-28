@@ -1092,9 +1092,12 @@ def dwi_deterministic_tracking(
         # os.environ['OPENBLAS_NUM_THREADS'] = '1'
         # os.environ['MKL_NUM_THREADS'] = '1'
         peak_indices = peaks_from_model(
-            model=dti_model, data=dwi_data, sphere=sphere,
+            model=dti_model,
+            data=dwi_data,
+            sphere=sphere,
             relative_peak_threshold=.5,
-            min_separation_angle=25, mask=dwi_mask,
+            min_separation_angle=25,
+            mask=dwi_mask,
             npeaks=3, return_odf=False,
             return_sh=False, 
             parallel=False,
@@ -1137,6 +1140,141 @@ def dwi_deterministic_tracking(
           'tractogram': sft,
           'streamlines': streamlines,
           'peak_indices': peak_indices
+          }
+
+
+
+def dwi_closest_peak_tracking(
+    dwi,
+    fa,
+    bvals,
+    bvecs,
+    num_processes=1,
+    mask=None,
+    label_image = None,
+    seed_labels = None,
+    fa_thresh = 0.05,
+    seed_density = 1,
+    step_size = 0.15,
+    peak_indices = None,
+    verbose = False ):
+    """
+
+    Performs deterministic tractography from the DWI and returns a tractogram
+    and path length data frame.
+
+    Arguments
+    ---------
+
+    dwi : an antsImage holding DWI acquisition
+
+    fa : an antsImage holding FA values
+
+    bvals : bvalues
+
+    bvecs : bvectors
+
+    num_processes : number of subprocesses
+
+    mask : mask within which to do tracking - if None, we will make a mask using the fa_thresh
+        and the code ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
+
+    label_image : atlas labels
+
+    seed_labels : list of label numbers from the atlas labels
+
+    fa_thresh : 0.25 defaults
+
+    seed_density : 1 default number of seeds per voxel
+
+    step_size : for tracking
+
+    peak_indices : pass these in, if they are previously estimated.  otherwise, will
+        compute on the fly (slow)
+
+    verbose : boolean
+
+    Returns
+    -------
+    dictionary holding tracts and stateful object.
+
+    Example
+    -------
+    >>> import antspymm
+    """
+    import os
+    import re
+    import nibabel as nib
+    import numpy as np
+    import ants
+    from dipy.io.gradients import read_bvals_bvecs
+    from dipy.core.gradients import gradient_table
+    from dipy.tracking import utils
+    import dipy.reconst.dti as dti
+    from dipy.segment.clustering import QuickBundles
+    from dipy.tracking.utils import path_length
+    from dipy.core.gradients import gradient_table
+    from dipy.data import small_sphere
+    from dipy.direction import BootDirectionGetter, ClosestPeakDirectionGetter
+    from dipy.reconst.csdeconv import (ConstrainedSphericalDeconvModel,
+                                    auto_response_ssst)
+    from dipy.reconst.shm import CsaOdfModel
+    from dipy.tracking.local_tracking import LocalTracking
+    from dipy.tracking.streamline import Streamlines
+    from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
+
+    if verbose:
+        print("begin tracking",flush=True)
+    dwi_img = dwi.to_nibabel()
+    affine = dwi_img.affine
+    if isinstance( bvals, str ) or isinstance( bvecs, str ):
+        bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
+    gtab = gradient_table(bvals, bvecs)
+    if mask is None:
+        mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
+    dwi_data = dwi_img.get_fdata()
+    dwi_mask = mask.numpy() == 1
+
+
+    response, ratio = auto_response_ssst(gtab, dwi_data, roi_radii=10, fa_thr=0.7)
+    csd_model = ConstrainedSphericalDeconvModel(gtab, response, sh_order=6)
+    csd_fit = csd_model.fit(dwi_data, mask=dwi_mask)
+    csa_model = CsaOdfModel(gtab, sh_order=6)
+    gfa = csa_model.fit(dwi_data, mask=dwi_mask).gfa
+    stopping_criterion = ThresholdStoppingCriterion(gfa, .25)
+
+
+    if label_image is None or seed_labels is None:
+        seed_mask = fa.numpy().copy()
+        seed_mask[seed_mask >= fa_thresh] = 1
+        seed_mask[seed_mask < fa_thresh] = 0
+    else:
+        labels = label_image.numpy()
+        seed_mask = labels * 0
+        for u in seed_labels:
+            seed_mask[ labels == u ] = 1
+    seeds = utils.seeds_from_mask(seed_mask, affine=affine, density=seed_density)
+    if verbose:
+        print("streamlines begin ...", flush=True)
+
+    pmf = csd_fit.odf(small_sphere).clip(min=0)
+    if verbose:
+        print("ClosestPeakDirectionGetter begin ...", flush=True)
+    peak_dg = ClosestPeakDirectionGetter.from_pmf(pmf, max_angle=30.,
+                                                sphere=small_sphere)
+    if verbose:
+        print("local tracking begin ...", flush=True)
+    streamlines_generator = LocalTracking(peak_dg, stopping_criterion, seeds,
+                                            affine, step_size=.5)
+    streamlines = Streamlines(streamlines_generator)
+    from dipy.io.stateful_tractogram import Space, StatefulTractogram
+    from dipy.io.streamline import save_tractogram
+    sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
+    if verbose:
+        print("streamlines done", flush=True)
+    return {
+          'tractogram': sft,
+          'streamlines': streamlines
           }
 
 def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_connect=[1,None], verbose=False ):
@@ -2193,8 +2331,8 @@ def mm(
             hier['dkt_parc']['dkt_cortex'],
             reg['fwdtransforms'], interpolator='nearestNeighbor' )
         mask = ants.threshold_image( mydti['recon_fa'], 0.05, 2.0 ).iMath("GetLargestComponent")
-        if do_tractography:
-            output_dict['tractography'] = dwi_deterministic_tracking(
+        if do_tractography: # dwi_deterministic_tracking
+            output_dict['tractography'] = dwi_closest_peak_tracking(
                 mydti['dwi_LR_dewarped'],
                 mydti['recon_fa'],
                 mydti['bval_LR'],
