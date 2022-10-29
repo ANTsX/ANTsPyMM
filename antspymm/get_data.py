@@ -1087,10 +1087,10 @@ def dwi_deterministic_tracking(
             mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
         current_openblas = os.environ.get('OPENBLAS_NUM_THREADS', '')
         current_mkl = os.environ.get('MKL_NUM_THREADS', '')
-        # os.environ['DIPY_OPENBLAS_NUM_THREADS'] = current_openblas
-        # os.environ['DIPY_MKL_NUM_THREADS'] = current_mkl
-        # os.environ['OPENBLAS_NUM_THREADS'] = '1'
-        # os.environ['MKL_NUM_THREADS'] = '1'
+        os.environ['DIPY_OPENBLAS_NUM_THREADS'] = current_openblas
+        os.environ['DIPY_MKL_NUM_THREADS'] = current_mkl
+        os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        os.environ['MKL_NUM_THREADS'] = '1'
         peak_indices = peaks_from_model(
             model=dti_model,
             data=dwi_data,
@@ -1100,15 +1100,15 @@ def dwi_deterministic_tracking(
             mask=dwi_mask,
             npeaks=3, return_odf=False,
             return_sh=False, 
-            parallel=False,
-            num_processes=1 # int(mynump)
+            parallel=int(mynump) > 1,
+            num_processes=int(mynump)
             )
-        if 'DIPY_OPENBLAS_NUM_THREADS' in os.environ and False:
+        if 'DIPY_OPENBLAS_NUM_THREADS' in os.environ:
             os.environ['OPENBLAS_NUM_THREADS'] = \
                 os.environ.pop('DIPY_OPENBLAS_NUM_THREADS', '')
             if os.environ['OPENBLAS_NUM_THREADS'] in ['', None]:
                 os.environ.pop('OPENBLAS_NUM_THREADS', '')
-        if 'DIPY_MKL_NUM_THREADS' in os.environ and False:
+        if 'DIPY_MKL_NUM_THREADS' in os.environ:
             os.environ['MKL_NUM_THREADS'] = \
                 os.environ.pop('DIPY_MKL_NUM_THREADS', '')
             if os.environ['MKL_NUM_THREADS'] in ['', None]:
@@ -2331,8 +2331,8 @@ def mm(
             hier['dkt_parc']['dkt_cortex'],
             reg['fwdtransforms'], interpolator='nearestNeighbor' )
         mask = ants.threshold_image( mydti['recon_fa'], 0.05, 2.0 ).iMath("GetLargestComponent")
-        if do_tractography: # dwi_deterministic_tracking
-            output_dict['tractography'] = dwi_closest_peak_tracking(
+        if do_tractography: # dwi_deterministic_tracking dwi_closest_peak_tracking
+            output_dict['tractography'] = dwi_deterministic_tracking(
                 mydti['dwi_LR_dewarped'],
                 mydti['recon_fa'],
                 mydti['bval_LR'],
