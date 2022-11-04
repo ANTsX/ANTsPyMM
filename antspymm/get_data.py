@@ -234,7 +234,7 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
 
     target_range : 2-element tuple
         a tuple or array defining the (min, max) of the input image
-        (e.g., -127.5, 127.5).  Output images will be scaled back to original
+        (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
         intensity. This range should match the mapping used in the training
         of the network.
 
@@ -1769,7 +1769,9 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
     denoise=1,
-    srmodel=None, verbose=False ) :
+    srmodel=None, 
+    target_range=[0,1],
+    verbose=False ) :
 
   """
   Outputs the averaged and registered neuromelanin image, and neuromelanin labels
@@ -1796,6 +1798,12 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   denoise : None or integer
 
   srmodel : None -- this is a work in progress feature, probably not optimal
+
+  target_range : 2-element tuple
+        a tuple or array defining the (min, max) of the input image
+        (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
+        intensity. This range should match the mapping used in the training
+        of the network.
 
   verbose : boolean
 
@@ -1877,7 +1885,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
               print( " do sr " + str(k) )
               print( crop_nm_list[k] )
           crop_nm_list[k] = antspynet.apply_super_resolution_model_to_image(
-                crop_nm_list[k], srmodel, target_range=[0,1], regression_order=None )
+                crop_nm_list[k], srmodel, target_range=target_range, regression_order=None )
 
   nm_avg_cropped = crop_nm_list[0]*0.0
   if verbose:
@@ -2176,7 +2184,8 @@ def mm(
     srmodel=None,
     do_tractography = False,
     do_kk = False,
-    do_normalization = True, 
+    do_normalization = True,
+    target_range = [0,1], 
     verbose = False ):
     """ 
     Multiple modality processing and normalization
@@ -2210,6 +2219,12 @@ def mm(
     do_kk : boolean to control whether we compute kelly kapowski thickness image (slow)
 
     do_normalization : boolean
+
+    target_range : 2-element tuple
+        a tuple or array defining the (min, max) of the input image
+        (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
+        intensity. This range should match the mapping used in the training
+        of the network.
 
     verbose : boolean
 
@@ -2285,7 +2300,7 @@ def mm(
         if srmodel is None:
             output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'] )
         else:
-            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel )
+            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel, target_range=target_range )
 ################################## do the dti .....
     if dw_image is not None:
         if verbose:
