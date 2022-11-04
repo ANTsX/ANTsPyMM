@@ -2667,7 +2667,11 @@ def mm_nrg(
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
-            identifier = mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
+            project = mysplit[mysplitCount-4]   
+            subject = mysplit[mysplitCount-3]   
+            date = mysplit[mysplitCount-2]   
+            modality = "NM2DMT"
+            identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
             mymm = subjectpropath + "/" + identifier
             if verbose:
                 print( "NM " + mymm )
@@ -2705,7 +2709,7 @@ def mm_nrg(
                 mymod = mysplit[mysplitCount-2] # FIXME system dependent
                 uid = mysplit[mysplitCount-1] # unique image id
                 os.makedirs( subjectpropath, exist_ok=True  )
-                identifier = mysep.join(project, date, subject, mymod, uid) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
+                identifier = mysep.join([project, date, subject, mymod, uid]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print("Modality specific processing: " + mymod )
