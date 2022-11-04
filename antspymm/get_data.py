@@ -2699,10 +2699,13 @@ def mm_nrg(
                 subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
                 mysplit = subjectpropath.split("/")
                 mysplitCount = len( mysplit )
+                project = mysplit[mysplitCount-5]
+                date = mysplit[mysplitCount-4]
+                subject = mysplit[mysplitCount-3]
                 mymod = mysplit[mysplitCount-2] # FIXME system dependent
                 uid = mysplit[mysplitCount-1] # unique image id
                 os.makedirs( subjectpropath, exist_ok=True  )
-                identifier = mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
+                identifier = mysep.join(project, date, subject, mymod, uid) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print("Modality specific processing: " + mymod )
