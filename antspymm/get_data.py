@@ -2612,6 +2612,7 @@ def mm_nrg(
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
     hierfn = re.sub( ".nii.gz", "", hierfn)
+    hierfn = hierfn + mysep
     hierfntest = hierfn + 'snseg.csv'
     if verbose:
         print( hierfntest )
@@ -2626,11 +2627,11 @@ def mm_nrg(
         antspyt1w.write_hierarchical( hier, hierfn )
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-        t1wide.to_csv( hierfn + 'wide.csv' )
+        t1wide.to_csv( hierfn + 'mmwide.csv' )
     ################################################
     hier = antspyt1w.read_hierarchical( hierfn )
-    if exists( hierfn + 'wide.csv' ) :
-        t1wide = pd.read_csv( hierfn + 'wide.csv' )
+    if exists( hierfn + 'mmwide.csv' ) :
+        t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
     else:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
@@ -2666,7 +2667,11 @@ def mm_nrg(
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
-            identifier = mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
+            project = mysplit[mysplitCount-4]   
+            subject = mysplit[mysplitCount-3]   
+            date = mysplit[mysplitCount-2]   
+            modality = "NM2DMT"
+            identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
             mymm = subjectpropath + "/" + identifier
             if verbose:
                 print( "NM " + mymm )
@@ -2698,10 +2703,13 @@ def mm_nrg(
                 subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
                 mysplit = subjectpropath.split("/")
                 mysplitCount = len( mysplit )
+                project = mysplit[mysplitCount-5]
+                date = mysplit[mysplitCount-4]
+                subject = mysplit[mysplitCount-3]
                 mymod = mysplit[mysplitCount-2] # FIXME system dependent
                 uid = mysplit[mysplitCount-1] # unique image id
                 os.makedirs( subjectpropath, exist_ok=True  )
-                identifier = mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
+                identifier = mysep.join([project, date, subject, mymod, uid]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print("Modality specific processing: " + mymod )
