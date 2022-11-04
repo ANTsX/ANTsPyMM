@@ -2627,11 +2627,11 @@ def mm_nrg(
         antspyt1w.write_hierarchical( hier, hierfn )
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-        t1wide.to_csv( hierfn + 'wide.csv' )
+        t1wide.to_csv( hierfn + 'mmwide.csv' )
     ################################################
     hier = antspyt1w.read_hierarchical( hierfn )
-    if exists( hierfn + 'wide.csv' ) :
-        t1wide = pd.read_csv( hierfn + 'wide.csv' )
+    if exists( hierfn + 'mmwide.csv' ) :
+        t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
     else:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
@@ -2667,7 +2667,7 @@ def mm_nrg(
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
-            identifier = mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
+            identifier = mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
             mymm = subjectpropath + "/" + identifier
             if verbose:
                 print( "NM " + mymm )
