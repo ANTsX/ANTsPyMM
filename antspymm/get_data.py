@@ -2612,6 +2612,7 @@ def mm_nrg(
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
     hierfn = re.sub( ".nii.gz", "", hierfn)
+    hierfn = hierfn + mysep
     hierfntest = hierfn + 'snseg.csv'
     if verbose:
         print( hierfntest )
