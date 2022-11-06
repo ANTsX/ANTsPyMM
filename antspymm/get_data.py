@@ -2520,6 +2520,7 @@ def mm_nrg(
     sourcedatafoldername = 'images', # root for source data
     processDir = "processed", # where output will go - parallel to sourcedatafoldername
     mysep = '-', # define a separator for filename components
+    srmodel_T1 = None, # optional - will add a great deal of time
     srmodel_NM = None, # optional - will add a great deal of time
     srmodel_DTI = None, # optional - will add a great deal of time
     visualize = True,
@@ -2571,6 +2572,8 @@ def mm_nrg(
         "processed"
 
     mysep : define a character separator for filename components
+
+    srmodel_T1 : None (optional) - will add a great deal of time
 
     srmodel_NM : None (optional) - will add a great deal of time
 
