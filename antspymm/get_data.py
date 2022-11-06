@@ -2639,25 +2639,25 @@ def mm_nrg(
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
     if srmodel_T1 is not None :
-        hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
-        hierfn = re.sub( "T1w", "T1wHierarchicalSR", hierfn)
-        hierfn = re.sub( ".nii.gz", "", hierfn)
-        hierfn = hierfn + mysep
-        hierfntest = hierfn + 'mtl.csv'
+        hierfnSR = re.sub( sourcedatafoldername, processDir, t1fn)
+        hierfnSR = re.sub( "T1w", "T1wHierarchicalSR", hierfnSR)
+        hierfnSR = re.sub( ".nii.gz", "", hierfnSR)
+        hierfnSR = hierfnSR + mysep
+        hierfntest = hierfnSR + 'mtl.csv'
         if verbose:
             print( hierfntest )
         hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
         if not hierexists:
-            subjectpropath = os.path.dirname( hierfn )
+            subjectpropath = os.path.dirname( hierfnSR )
             if verbose:
                 print( subjectpropath )
             os.makedirs( subjectpropath, exist_ok=True  )
             # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
-            hier = antspyt1w.hierarchical_to_sr( hier, srmodel_T1, tissue_sr=False )
-            antspyt1w.write_hierarchical( hier, hierfn )
-            t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
-                    hier['dataframes'], identifier=None )
-            t1wide.to_csv( hierfn + 'mmwide.csv' )
+            hierSR = antspyt1w.hierarchical_to_sr( hier, srmodel_T1, tissue_sr=False )
+            antspyt1w.write_hierarchical( hierSR, hierfnSR )
+            t1wideSR = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                    hierSR['dataframes'], identifier=None )
+            t1wideSR.to_csv( hierSR + 'mmwide.csv' )
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
