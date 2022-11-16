@@ -2015,7 +2015,6 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
 
   dwpind = 0
   # get falff and alff
-  myfalff=alff_image( dwp['dewarped'][dwpind], bmask, flo=f[0], fhi=f[1] )
   mycompcor = ants.compcor( dwp['dewarped'][dwpind],
     ncompcor=nc, quantile=0.90, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
@@ -2050,6 +2049,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   gmsignal = gmmat.mean( axis = 1 )
   nuisance = np.c_[ nuisance, gmsignal ]
   gmmat = ants.regress_components( gmmat, nuisance )
+
+  myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1], nuisance=nuisance )
 
   networks = powers_areal_mni_itk['SystemName'].unique()
 
@@ -2612,6 +2613,7 @@ def mm_nrg(
     subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
     myimgs = glob.glob( subjectrootpath+"*" )
     myimgs.sort( )
+    # myimgs = [myimgs[3],myimgs[5]]
     if verbose:
         print( myimgs )
     # hierarchical
@@ -3102,21 +3104,24 @@ def alffmap( x, flo=0.01, fhi=0.1, tr=1, detrend = True ):
     return {  'alff':numer, 'falff': numer/denom }
 
 
-def alff_image( x, mask, flo=0.01, fhi=0.1 ):
+def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
     """
     Amplitude of Low Frequency Fluctuations (ALFF; Zang et al., 2007) and
     fractional Amplitude of Low Frequency Fluctuations (f/ALFF; Zou et al., 2008)
     are related measures that quantify the amplitude of low frequency
     oscillations (LFOs).  This function outputs ALFF and fALFF for the input.
 
-    x input clean resting state fmri
-    mask mask over which to compute f/alff
-    flo low frequency, typically 0.01
-    fhi high frequency, typically 0.1
+    x - input clean resting state fmri
+    mask - mask over which to compute f/alff
+    flo - low frequency, typically 0.01
+    fhi - high frequency, typically 0.1
+    nuisance - optional nuisance matrix
 
-    return image output showing ALFF and fALFF values
+    return dictionary with ALFF and fALFF images
     """
     xmat = ants.timeseries_to_matrix( x, mask )
+    if nuisance is not None:
+        xmat = ants.regress_components( xmat, nuisance )
     alffvec = xmat[0,:]*0
     falffvec = xmat[0,:]*0
     mytr = ants.get_spacing( x )[3]

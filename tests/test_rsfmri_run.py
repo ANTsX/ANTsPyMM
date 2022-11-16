@@ -26,11 +26,6 @@ id1 = "LS2001_3T_rfMRI_REST1_LR_gdc"
 id2 = "LS2001_3T_rfMRI_REST1_RL_gdc"
 img1 = ants.image_read( antspymm.get_data( id1, target_extension=".nii.gz") )
 img2 = ants.image_read( antspymm.get_data( id2, target_extension=".nii.gz") )
-# FIXME: - test that these are the same values
-# NOTE: could run SR at this point - will take a long time - example here:
-# mdlfn = antspymm.get_data( "brainSR", target_extension=".h5")
-# mdl = tf.keras.models.load_model( mdlfn )
-# srimg = antspymm.super_res_mcimage( img, mdl, verbose=False )
 
 if 'dwp' not in globals() and False:
     dwp = antspymm.dewarp_imageset( [img1,img2], iterations=3, padding=0,
@@ -51,9 +46,11 @@ und = ants.get_average_of_timeseries( img1 ) # dwp['dewarpedmean']
 bmask = antspynet.brain_extraction( und, 'bold' ).threshold_image( 0.3, 1.0 )
 powers_areal_mni_itk = pd.read_csv(antspymm.get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
 t1fn = antspymm.get_data( 'LS2001_3T_T1w_MPR1_gdc' , target_extension='.nii.gz' )
+print("do t1")
 t1 = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
 t1bxt = antspynet.brain_extraction( t1, 't1' ).threshold_image( 0.3, 1.0 )
 t1seg = antspynet.deep_atropos( t1 )
 t1segmentation = t1seg['segmentation_image']
+print("do rsf")
 rsf = antspymm.resting_state_fmri_networks(
   img1, t1 * t1bxt, t1segmentation, f=[0.03, 0.08], spa=1.5, spt=0.5, nc=6)
