@@ -8,3 +8,4 @@ tensorflow>=2.2
 pathlib
 dipy
 nibabel
+scipy

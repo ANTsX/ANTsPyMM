@@ -25,4 +25,11 @@ from .get_data import mm_nrg
 from .get_data import write_mm
 from .get_data import mask_snr
 from .get_data import crop_mcimage
+from .get_data import alff_image
+from .get_data import alffmap
+from .get_data import spec_taper
+from .get_data import spec_ci
+from .get_data import spec_pgram
+from .get_data import plot_spec
+
 
