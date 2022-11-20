@@ -3132,3 +3132,23 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
     alffi=ants.make_image( mask, alffvec )
     falffi=ants.make_image( mask, falffvec )
     return {  'alff':alffi, 'falff': falffi }
+
+
+def down2iso( x, interpolation='linear' ):
+    """
+    will downsample an anisotropic image to an isotropic resolution
+
+    x: input image
+
+    interpolation: linear or nearestneighbor
+
+    return image downsampled to isotropic resolution
+    """
+    spc = ants.get_spacing( x )
+    minspc = np.asarray(spc).min()
+    newspc = np.repeat( minspc, x.dimension )
+    if interpolation == 'linear':
+        xs = ants.resample_image( x, newspc, interp_type=0)
+    else:
+        xs = ants.resample_image( x, newspc, interp_type=1)
+    return xs
