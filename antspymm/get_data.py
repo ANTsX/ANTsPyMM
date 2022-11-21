@@ -217,6 +217,7 @@ def dewarp_imageset( image_list, initial_template=None,
 def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
     poly_order=None,
     target_range=[0,1],
+    isotropic = False,
     verbose=False ):
     """
     Super resolution on a timeseries or multi-channel image
@@ -237,6 +238,8 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
         (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
         intensity. This range should match the mapping used in the training
         of the network.
+
+    isotropic : boolean
 
     verbose : boolean
 
@@ -272,7 +275,16 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
         if poly_order is not None:
             bilin = ants.resample_image_to_target( temp, mysr )
             mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
+        if isotropic:
+            mysr = down2iso( mysr )
         mcsr.append( mysr )
+
+    upshape = list()
+    for j in range(len(ishape)-1):
+        upshape.append( mysr.shape[j] )
+    upshape.append( ishape[ idim-1 ] )
+    if verbose:
+        print("SR will be of voxel size:" + str(upshape) )
 
     imageup = ants.resample_image( image, upshape, use_voxels = True )
     if verbose:
@@ -769,10 +781,10 @@ def joint_dti_recon(
         if img_RL is not None:
             if verbose:
                 print("convert img_RL_dwp to img_RL_dwp_SR")
-                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, verbose=verbose )
+                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, isotropic=True, verbose=verbose )
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
-        img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, verbose=verbose )
+        img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, isotropic=True, verbose=verbose )
 
     if verbose:
         print("recon after distortion correction", flush=True)
