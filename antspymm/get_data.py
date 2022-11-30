@@ -392,7 +392,7 @@ def dipy_dti_recon(
     b0_idx = None,
     motion_correct = False,
     mask_dilation = 0,
-    average_b0 = None, 
+    average_b0 = None,
     verbose=False ):
     """
     DiPy DTI reconstruction - following their own basic example
@@ -757,7 +757,7 @@ def joint_dti_recon(
             warpedb0 = ants.apply_transforms( refimg, b0, concatx )
             dwpimage.append( warpedb0 )
         return ants.list_to_ndimage( physSpaceDWI, dwpimage )
- 
+
     img_RLdwp = None
     img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'],
             img_LR,
@@ -862,8 +862,8 @@ def joint_dti_recon(
 def middle_slice_snr( x, background_dilation=5 ):
     """
 
-    Estimate signal to noise ratio (SNR) in 2D mid image from a 3D image.  
-    Estimates noise from a background mask which is a 
+    Estimate signal to noise ratio (SNR) in 2D mid image from a 3D image.
+    Estimates noise from a background mask which is a
     dilation of the foreground mask minus the foreground mask.
     Actually estimates the reciprocal of the coefficient of variation.
 
@@ -886,12 +886,12 @@ def middle_slice_snr( x, background_dilation=5 ):
     noise = (xmidslice[ xbkgmask == 1] ).std()
     return signal / noise
 
-def foreground_background_snr( x, background_dilation=10, 
+def foreground_background_snr( x, background_dilation=10,
         erode_foreground=False):
     """
 
-    Estimate signal to noise ratio (SNR) in an image.  
-    Estimates noise from a background mask which is a 
+    Estimate signal to noise ratio (SNR) in an image.
+    Estimates noise from a background mask which is a
     dilation of the foreground mask minus the foreground mask.
     Actually estimates the reciprocal of the coefficient of variation.
 
@@ -902,8 +902,8 @@ def foreground_background_snr( x, background_dilation=10,
 
     background_dilation : integer - amount to dilate foreground mask
 
-    erode_foreground : boolean - 2nd option which erodes the initial 
-    foregound mask  to create a new foreground mask.  the background 
+    erode_foreground : boolean - 2nd option which erodes the initial
+    foregound mask  to create a new foreground mask.  the background
     mask is the initial mask minus the eroded mask.
 
     """
@@ -920,15 +920,15 @@ def foreground_background_snr( x, background_dilation=10,
     noise = (xbc[ xbkgmask == 1] ).std()
     return signal / noise
 
-def quantile_snr( x, 
-    lowest_quantile=0.01, 
-    low_quantile=0.1, 
+def quantile_snr( x,
+    lowest_quantile=0.01,
+    low_quantile=0.1,
     high_quantile=0.5,
     highest_quantile=0.95 ):
     """
 
-    Estimate signal to noise ratio (SNR) in an image.  
-    Estimates noise from a background mask which is a 
+    Estimate signal to noise ratio (SNR) in an image.
+    Estimates noise from a background mask which is a
     dilation of the foreground mask minus the foreground mask.
     Actually estimates the reciprocal of the coefficient of variation.
 
@@ -965,8 +965,8 @@ def quantile_snr( x,
 def mask_snr( x, background_mask, foreground_mask, bias_correct=True ):
     """
 
-    Estimate signal to noise ratio (SNR) in an image using 
-    a user-defined foreground and background mask.  
+    Estimate signal to noise ratio (SNR) in an image using
+    a user-defined foreground and background mask.
     Actually estimates the reciprocal of the coefficient of variation.
 
     Arguments
@@ -1111,7 +1111,7 @@ def dwi_deterministic_tracking(
             min_separation_angle=25,
             mask=dwi_mask,
             npeaks=3, return_odf=False,
-            return_sh=False, 
+            return_sh=False,
             parallel=int(mynump) > 1,
             num_processes=int(mynump)
             )
@@ -1781,7 +1781,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
     denoise=1,
-    srmodel=None, 
+    srmodel=None,
     target_range=[0,1],
     verbose=False ) :
 
@@ -2166,7 +2166,7 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
         bvf.write(fmt % tuple(dim_vals))
 
 def crop_mcimage( x, mask ):
-    """ 
+    """
     crop a time series (4D) image by a 3D mask
 
     Parameters
@@ -2176,7 +2176,7 @@ def crop_mcimage( x, mask ):
 
     mask  : mask for cropping
 
-    """ 
+    """
     cropmask = ants.crop_image( mask, mask )
     myorig = list( ants.get_origin(cropmask) )
     myorig.append( ants.get_origin( x )[3] )
@@ -2192,23 +2192,23 @@ def crop_mcimage( x, mask ):
         return( ants.crop_image( x, mask ) )
 
 
-def mm( 
-    t1_image, 
+def mm(
+    t1_image,
     hier,
-    rsf_image=None, 
-    flair_image=None, 
-    nm_image_list=None, 
-    dw_image=None, bvals=None, bvecs=None, 
+    rsf_image=None,
+    flair_image=None,
+    nm_image_list=None,
+    dw_image=None, bvals=None, bvecs=None,
     srmodel=None,
     do_tractography = False,
     do_kk = False,
     do_normalization = True,
-    target_range = [0,1], 
+    target_range = [0,1],
     verbose = False ):
-    """ 
+    """
     Multiple modality processing and normalization
 
-    aggregates modality-specific processing under one roof.  see individual 
+    aggregates modality-specific processing under one roof.  see individual
     modality specific functions for details.
 
     Parameters
@@ -2218,9 +2218,9 @@ def mm(
 
     hier  : output of antspyt1w.hierarchical ( see read hierarchical )
 
-    rsf_image : resting state fmri 
+    rsf_image : resting state fmri
 
-    flair_image : flair 
+    flair_image : flair
 
     nm_image_list : list of neuromelanin images
 
@@ -2228,7 +2228,7 @@ def mm(
 
     bvals : bvals file name
 
-    bvecs : bvecs file name 
+    bvecs : bvecs file name
 
     srmodel : optional srmodel
 
@@ -2270,11 +2270,11 @@ def mm(
     #####################
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    mynets = list([ 'CinguloopercularTaskControl', 'DefaultMode', 
-        'MemoryRetrieval', 'VentralAttention', 'Visual', 
-        'FrontoparietalTaskControl', 'Salience', 'Subcortical', 
+    mynets = list([ 'CinguloopercularTaskControl', 'DefaultMode',
+        'MemoryRetrieval', 'VentralAttention', 'Visual',
+        'FrontoparietalTaskControl', 'Salience', 'Subcortical',
         'DorsalAttention'])
-    output_dict = { 
+    output_dict = {
         'kk': None,
         'rsf': None,
         'flair' : None,
@@ -2290,12 +2290,12 @@ def mm(
         'NM_norm' : None,
         'FA_norm' : None,
         'MD_norm' : None,
-        'alff_norm' : None, 
-        'falff_norm' : None, 
-        'CinguloopercularTaskControl_norm' : None, 
+        'alff_norm' : None,
+        'falff_norm' : None,
+        'CinguloopercularTaskControl_norm' : None,
         'DefaultMode_norm' : None,
         'MemoryRetrieval_norm' : None,
-        'VentralAttention_norm' : None, 
+        'VentralAttention_norm' : None,
         'Visual_norm' : None,
         'FrontoparietalTaskControl_norm' : None,
         'Salience_norm' : None,
@@ -2404,7 +2404,7 @@ def mm(
             rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
             for netid in mynets:
                 rsfkey = netid + "_norm"
-                normalization_dict[rsfkey] = ants.apply_transforms( 
+                normalization_dict[rsfkey] = ants.apply_transforms(
                     template, rsfpro[netid],
                     t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
         if nm_image_list is not None:
@@ -2437,8 +2437,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
 
     Returns
     ---------
-  
-    both csv and image files written to disk.  the primary outputs will be 
+
+    both csv and image files written to disk.  the primary outputs will be
     output_prefix + separator + 'mmwide.csv' and *norm.nii.gz images
 
     """
@@ -2532,7 +2532,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
 
 
 
-def mm_nrg( 
+def mm_nrg(
     sourcedir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" ), # study folder
     sid  = "100898",   # subject unique id
     dtid = "20210331", # date
@@ -2550,7 +2550,7 @@ def mm_nrg(
     too dangerous to document ... use with care.
 
     processes multiple modality MRI specifically:
-    
+
     * T1w
     * T2Flair
     * DTI, DTI_LR, DTI_RL
@@ -2567,8 +2567,8 @@ def mm_nrg(
     convert the ipynb to html via:
         jupyter nbconvert ANTsPyMM/tests/mm.ipynb --execute --to html
 
-    this function assumes NRG format for the input data .... 
-    we also assume that t1w hierarchical (if already done) was written 
+    this function assumes NRG format for the input data ....
+    we also assume that t1w hierarchical (if already done) was written
     via its standardized write function.
     NRG = https://github.com/stnava/biomedicalDataOrganization
 
@@ -2583,12 +2583,12 @@ def mm_nrg(
 
     dtid : date eg "20210331"
 
-    iid  : image unique id for t1 e.g. "1496183"  - this image should have the 
+    iid  : image unique id for t1 e.g. "1496183"  - this image should have the
         highest grade if repeats exist
 
     sourcedatafoldername : root for source data e.g. "images"
 
-    processDir : where output will go - parallel to sourcedatafoldername e.g. 
+    processDir : where output will go - parallel to sourcedatafoldername e.g.
         "processed"
 
     mysep : define a character separator for filename components
@@ -2606,7 +2606,7 @@ def mm_nrg(
     Returns
     ---------
 
-    writes output to disk and potentially produces figures that may be 
+    writes output to disk and potentially produces figures that may be
     captured in a ipynb / html file.
 
     """
@@ -2623,14 +2623,18 @@ def mm_nrg(
     template = ants.image_read( templatefn ) # Read in template
     realrun = True
     subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
+    if verbose:
+        print("subjectrootpath: "+ subjectrootpath )
     myimgs = glob.glob( subjectrootpath+"*" )
     myimgs.sort( )
     # myimgs = [myimgs[3],myimgs[5]]
     if verbose:
         print( myimgs )
     # hierarchical
-    # NOTE: if there are multiple T1s for this time point, should take 
+    # NOTE: if there are multiple T1s for this time point, should take
     # the one with the highest resnetGrade
+    if verbose:
+        print("t1 search path: "+ subjectrootpath + "/T1w/"+iid+"/*nii.gz" )
     t1fn = glob.glob( subjectrootpath + "/T1w/"+iid+"/*nii.gz")[0]
     t1 = ants.image_read( t1fn )
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
@@ -2693,7 +2697,7 @@ def mm_nrg(
         ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
         ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
     # loop over modalities and then unique image IDs
-    # we treat NM in a "special" way -- aggregating repeats 
+    # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for xnum in range( len( myimgs ) ):
         if verbose:
@@ -2717,9 +2721,9 @@ def mm_nrg(
             mysplit = subjectpropath.split( "/" )
             os.makedirs( subjectpropath, exist_ok=True  )
             mysplitCount = len( mysplit )
-            project = mysplit[mysplitCount-4]   
-            subject = mysplit[mysplitCount-3]   
-            date = mysplit[mysplitCount-2]   
+            project = mysplit[mysplitCount-4]
+            subject = mysplit[mysplitCount-3]
+            date = mysplit[mysplitCount-2]
             modality = "NM2DMT"
             identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
             mymm = subjectpropath + "/" + identifier
@@ -2729,12 +2733,12 @@ def mm_nrg(
             for zz in myimgsr:
                 nmlist.append( ants.image_read( zz ) )
             if not testloop:
-                tabPro, normPro = mm( t1, hier, 
+                tabPro, normPro = mm( t1, hier,
                         nm_image_list = nmlist,
                         srmodel=srmodel_NM,
-                        do_tractography=False, 
-                        do_kk=False, 
-                        do_normalization=True, 
+                        do_tractography=False,
+                        do_kk=False,
+                        do_normalization=True,
                         verbose=True )
                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
                 nmpro = tabPro['NM']
@@ -2774,34 +2778,34 @@ def mm_nrg(
                         dowrite=True
                         if verbose:
                             print('start kk')
-                        tabPro, normPro = mm( t1, hier, 
+                        tabPro, normPro = mm( t1, hier,
                             srmodel=None,
-                            do_tractography=False, 
-                            do_kk=True, 
-                            do_normalization=True, 
+                            do_tractography=False,
+                            do_kk=True,
+                            do_normalization=True,
                             verbose=True )
                         if visualize:
                             ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
                     if mymod == 'T2Flair':
                         dowrite=True
-                        tabPro, normPro = mm( t1, hier, 
+                        tabPro, normPro = mm( t1, hier,
                             flair_image = img,
                             srmodel=None,
-                            do_tractography=False, 
-                            do_kk=False, 
-                            do_normalization=True, 
+                            do_tractography=False,
+                            do_kk=False,
+                            do_normalization=True,
                             verbose=True )
                         if visualize:
                             ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
                             ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
                     if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
                         dowrite=True
-                        tabPro, normPro = mm( t1, hier, 
+                        tabPro, normPro = mm( t1, hier,
                             rsf_image=img,
                             srmodel=None,
-                            do_tractography=False, 
-                            do_kk=False, 
-                            do_normalization=True, 
+                            do_tractography=False,
+                            do_kk=False,
+                            do_normalization=True,
                             verbose=True )
                         if tabPro['rsf'] is not None and visualize:
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
@@ -2812,14 +2816,14 @@ def mm_nrg(
                         dowrite=True
                         bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                         bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
-                        tabPro, normPro = mm( t1, hier, 
+                        tabPro, normPro = mm( t1, hier,
                             dw_image=img,
                             bvals = bvalfn,
                             bvecs = bvecfn,
                             srmodel=srmodel_DTI,
-                            do_tractography=realrun, 
-                            do_kk=False, 
-                            do_normalization=True, 
+                            do_tractography=realrun,
+                            do_kk=False,
+                            do_normalization=True,
                             verbose=True )
                         mydti = tabPro['DTI']
                         if visualize:
@@ -2839,44 +2843,44 @@ def spec_taper(x, p=0.1):
     from statsmodels.regression.linear_model import yule_walker
     """
     Computes a tapered version of x, with tapering p.
-    
+
     Adapted from R's stats::spec.taper at https://github.com/telmo-correa/time-series-analysis/blob/master/Python/spectrum.py
 
     """
-    
+
     p = np.r_[p]
     assert np.all((p >= 0) & (p < 0.5)), "'p' must be between 0 and 0.5"
-    
+
     x = np.r_[x].astype('float64')
     original_shape = x.shape
-    
+
     assert len(original_shape) <= 2, "'x' must have at most 2 dimensions"
     while len(x.shape) < 2:
         x = np.expand_dims(x, axis=1)
-    
+
     nr, nc = x.shape
     if len(p) == 1:
         p = p * np.ones(nc)
     else:
         assert len(p) == nc, "length of 'p' must be 1 or equal the number of columns of 'x'"
-    
+
     for i in range(nc):
         m = int(np.floor(nr * p[i]))
         if m == 0:
             continue
         w = 0.5 * (1 - np.cos(np.pi * np.arange(1, 2 * m, step=2)/(2 * m)))
         x[:, i] = np.r_[w, np.ones(nr - 2 * m), w[::-1]] * x[:, i]
-    
+
     x = np.reshape(x, original_shape)
     return x
 
 def plot_spec(spec_res, coverage=None, ax=None, title=None):
     import matplotlib.pyplot as plt
     """Convenience plotting method, also includes confidence cross in the same style as R.
-    
+
     Note that the location of the cross is irrelevant; only width and height matter."""
     f, Pxx = spec_res['freq'], spec_res['spec']
-    
+
     if coverage is not None:
         ci = spec_ci(spec_res['df'], coverage=coverage)
         conf_x = (max(spec_res['freq']) - spec_res['bandwidth']) + np.r_[-0.5, 0.5] * spec_res['bandwidth']
@@ -2884,7 +2888,7 @@ def plot_spec(spec_res, coverage=None, ax=None, title=None):
 
     if ax is None:
         ax = plt.gca()
-    
+
     ax.plot(f, Pxx, color='C0')
     ax.set_xlabel('Frequency')
     ax.set_ylabel('Log Spectrum')
@@ -2900,22 +2904,22 @@ def spec_ci(df, coverage=0.95):
     from statsmodels.regression.linear_model import yule_walker
     """
     Computes the confidence interval for a spectral fit, based on the number of degrees of freedom.
-    
+
     Adapted from R's stats::plot.spec at https://github.com/telmo-correa/time-series-analysis/blob/master/Python/spectrum.py
 
     """
-    
+
     assert coverage >= 0 and coverage < 1, "coverage probability out of range [0, 1)"
-    
+
     tail = 1 - coverage
-    
+
     phi = stats.chi2.cdf(x=df, df=df)
     upper_quantile = 1 - tail * (1 - phi)
     lower_quantile = tail * phi
-    
+
     return df / stats.chi2.ppf([upper_quantile, lower_quantile], df=df)
 
-def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True, demean=False, detrend=True, 
+def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True, demean=False, detrend=True,
                plot=True, **kwargs):
     """
     Computes the spectral density estimate using a periodogram.  Optionally, it also:
@@ -2925,9 +2929,9 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
     - Pads the provided series before computation to speed up FFT calculation.
     - Performs demeaning or detrending on the series.
     - Plots results.
-    
+
     Implemented to ensure compatibility with R's spectral functions, as opposed to reusing scipy's periodogram.
-    
+
     Adapted from R's stats::spec.pgram at https://github.com/telmo-correa/time-series-analysis/blob/master/Python/spectrum.py
 
     example:
@@ -2942,7 +2946,7 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
     from statsmodels.regression.linear_model import yule_walker
     def daniell_window_modified(m):
         """ Single-pass modified Daniell kernel window.
-        
+
         Weight is normalized to add up to 1, and all values are the same, other than the first and the
         last, which are divided by 2.
         """
@@ -2953,10 +2957,10 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
 
     def daniell_window_convolve(v):
         """ Convolved version of multiple modified Daniell kernel windows.
-        
+
         Parameter v should be an iterable of m values.
         """
-        
+
         if len(v) == 0:
             return np.r_[1]
 
@@ -2964,24 +2968,24 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
             return daniell_window_modified(v[0])
 
         return signal.convolve(daniell_window_modified(v[0]), daniell_window_convolve(v[1:]))
-    
+
     # Ensure we can store non-integers in x, and that it is a numpy object
     x = np.r_[x].astype('float64')
     original_shape = x.shape
-    
+
     # Ensure correct dimensions
     assert len(original_shape) <= 2, "'x' must have at most 2 dimensions"
     while len(x.shape) < 2:
         x = np.expand_dims(x, axis=1)
-        
+
     N, nser = x.shape
     N0 = N
-    
+
     # Ensure only one of spans, kernel is provided, and build the kernel window if needed
     assert (spans is None) or (kernel is None), "must specify only one of 'spans' or 'kernel'"
     if spans is not None:
         kernel = daniell_window_convolve(np.floor_divide(np.r_[spans], 2))
-        
+
     # Detrend or demean the series
     if detrend:
         t = np.arange(N) - (N - 1)/2
@@ -2989,38 +2993,38 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
         x -= (np.repeat(np.expand_dims(np.mean(x, axis=0), 0), N, axis=0) + np.outer(np.sum(x.T * t, axis=1), t/sumt2).T)
     elif demean:
         x -= np.mean(x, axis=0)
-        
+
     # Compute taper and taper adjustment variables
     x = spec_taper(x, taper)
     u2 = (1 - (5/8) * taper * 2)
     u4 = (1 - (93/128) * taper * 2)
-         
+
     # Pad the series with copies of the same shape, but filled with zeroes
     if pad > 0:
         x = np.r_[x, np.zeros((pad * x.shape[0], x.shape[1]))]
         N = x.shape[0]
-        
+
     # Further pad the series to accelerate FFT computation
     if fast:
         newN = fft.next_fast_len(N, True)
         x = np.r_[x, np.zeros((newN - N, x.shape[1]))]
         N = newN
-        
+
     # Compute the Fourier frequencies (R's spec.pgram convention style)
     Nspec = int(np.floor(N/2))
     freq = (np.arange(Nspec) + 1) * xfreq / N
-    
+
     # Translations to keep same row / column convention as stats::mvfft
     xfft = fft.fft(x.T).T
-    
+
     # Compute the periodogram for each i, j
     pgram = np.empty((N, nser, nser), dtype='complex')
     for i in range(nser):
         for j in range(nser):
             pgram[:, i, j] = xfft[:, i] * np.conj(xfft[:, j]) / (N0 * xfreq)
             pgram[0, i, j] = 0.5 * (pgram[1, i, j] + pgram[-1, i, j])
-       
-    if kernel is None:    
+
+    if kernel is None:
         # Values pre-adjustment
         df = 2
         bandwidth = np.sqrt(1 / 12)
@@ -3035,27 +3039,27 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
             indexes = range(-half_window, len(signal) - half_window)
             orig_conv = np.real(fft.ifft(fft.fft(signal) * fft.fft(np.r_[np.zeros(pad), kernel])))
             return orig_conv.take(indexes, mode='wrap')
-                
+
         # Convolve pgram with kernel with circular conv
         for i in range(nser):
             for j in range(nser):
                 pgram[:, i, j] = conv_circular(pgram[:, i, j], kernel)
-        
+
         df = 2 / np.sum(kernel**2)
         m = (len(kernel) - 1)/2
         k = np.arange(-m, m+1)
         bandwidth = np.sqrt(np.sum((1/12 + k**2) * kernel))
-    
+
     df = df/(u4/u2**2)*(N0/N)
     bandwidth = bandwidth * xfreq/N
-    
+
     # Remove padded results
     pgram = pgram[1:(Nspec+1), :, :]
-    
+
     spec = np.empty((Nspec, nser))
     for i in range(nser):
         spec[:, i] = np.real(pgram[:, i, i])
-    
+
     if nser == 1:
         coh = None
         phase = None
@@ -3067,10 +3071,10 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
                 index = int(i + j*(j-1)/2)
                 coh[:, index] = np.abs(pgram[:, i, j])**2 / (spec[:, i] * spec[:, j])
                 phase[:, index] = np.angle(pgram[:, i, j])
-            
+
     spec = spec / u2
     spec = spec.squeeze()
-    
+
     results = {
         'freq': freq,
         'spec': spec,
@@ -3087,10 +3091,10 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
         'demean': demean,
         'method': 'Raw Periodogram' if kernel is None else 'Smoothed Periodogram'
     }
-    
+
     if plot:
         plot_spec(results, coverage=0.95, **kwargs)
-    
+
     return results
 
 def alffmap( x, flo=0.01, fhi=0.1, tr=1, detrend = True ):
