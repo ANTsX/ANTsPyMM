@@ -425,7 +425,9 @@ def dipy_dti_recon(
     -------
     dictionary holding the tensorfit, MD, FA and RGB images and motion parameters (optional)
 
-    NOTE -- see dipy reorient_bvecs(gtab, affines, atol=1e-2):
+    NOTE -- see dipy reorient_bvecs(gtab, affines, atol=1e-2)
+    NOTE -- if the bvec.shape[0] is smaller than the image.shape[3], we neglect
+        the tailing image volumes.
 
     Example
     -------
@@ -482,18 +484,24 @@ def dipy_dti_recon(
     maskdil = ants.iMath( mask, "MD", mask_dilation )
 
     if verbose:
-        print("recon A",flush=True)
+        print("recon part one",flush=True)
 
     # now extract the masked image data with or without motion correct
     if not motion_correct:
         maskedimage = []
         for myidx in range(image.shape[3]):
-            b0 = ants.slice_image( image, axis=3, idx=myidx)
-            maskedimage.append( b0 * maskdil )
+            if myidx < bvecs.shape[0]:
+                b0 = ants.slice_image( image, axis=3, idx=myidx)
+                maskedimage.append( b0 * maskdil )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         maskdata = maskedimage.numpy()
     if motion_correct:
         maskedimage = []
+        if verbose:
+            print( "image" )
+            print( image.shape )
+            print( "bvecs" )
+            print( bvecs.shape )
         for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 maskedimage.append( ants.iMath( b0,'Normalize' ) )
@@ -515,19 +523,20 @@ def dipy_dti_recon(
         mocoimage = []
         dipymoco = np.zeros( [image.shape[3],3,3] )
         for myidx in range(image.shape[3]):
-            dipymoco[myidx,:,:] = np.eye( 3 )
-            if moco0['motion_parameters'][myidx] != 'NA':
-                txparam = ants.read_transform(moco0['motion_parameters'][myidx][0] )
-                txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
-                Rinv = inv( txparam )
-                bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
-            b0 = ants.slice_image( image, axis=3, idx=myidx)
-            b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
-            mocoimage.append( b0 )
-            maskedimage.append( b0 * maskdil )
+            if myidx < bvecs.shape[0]:
+                dipymoco[myidx,:,:] = np.eye( 3 )
+                if moco0['motion_parameters'][myidx] != 'NA':
+                        txparam = ants.read_transform(moco0['motion_parameters'][myidx][0] )
+                        txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
+                        Rinv = inv( txparam )
+                        bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
+                b0 = ants.slice_image( image, axis=3, idx=myidx)
+                b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
+                mocoimage.append( b0 )
+                maskedimage.append( b0 * maskdil )
         gtab = gradient_table(bvals, bvecs)
         if verbose:
-            print("recon B",flush=True)
+            print("recon part two",flush=True)
         motion_corrected = ants.list_to_ndimage( image, mocoimage )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
         maskdata = maskedimage.numpy()
@@ -689,7 +698,7 @@ def joint_dti_recon(
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct,
-            mask_dilation=mymd )
+            mask_dilation=mymd, verbose=verbose )
     bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
 
