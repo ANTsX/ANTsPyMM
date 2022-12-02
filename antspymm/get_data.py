@@ -426,6 +426,7 @@ def dipy_dti_recon(
     dictionary holding the tensorfit, MD, FA and RGB images and motion parameters (optional)
 
     NOTE -- see dipy reorient_bvecs(gtab, affines, atol=1e-2)
+
     NOTE -- if the bvec.shape[0] is smaller than the image.shape[3], we neglect
         the tailing image volumes.
 
@@ -673,12 +674,31 @@ def joint_dti_recon(
     if verbose:
         print("Recon DTI on OR images ...")
 
+    def fix_dwi_shape( img, bvalfn, bvecfn ):
+        if isinstance(bvecfn, str):
+            bvals, bvecs = read_bvals_bvecs( bvalfn , bvecfn   )
+        if bvecs.shape[0] < img.shape[3]:
+            imgout = ants.from_numpy( img[:,:,:,0:bvecs.shape[0]] )
+            imgout = ants.copy_image_info( img, imgout )
+            return( imgout )
+        else:
+            return( img )
 
     # RL image
     mymd = 1
     recon_RL = None
     bval_RL = None
     bvec_RL = None
+
+    if verbose:
+        print( img_LR )
+
+    img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
+    if img_RL is not None:
+        img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
+
+    if verbose:
+        print( img_LR )
 
     temp = ants.get_average_of_timeseries( img_LR )
     maskInRightSpace = True
