@@ -2815,6 +2815,15 @@ def mm_nrg(
                             verbose=True )
                         if visualize:
                             ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
+                        ex_path = os.path.expanduser( "~/.antspyt1w/" )
+                        templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+                        template = ants.image_read( template )
+                        template = ants.resample_image( template, [1,1,1], use_voxels=False )
+                        t1reg = ants.registration( template, hier['brain_n4_dnz'],
+                            "antsRegistrationSyNQuickRepro[s]", outprefix = mymm + "_syn_" )
+                        myjac = ants.create_jacobian_determinant_image( template, 
+                            t1reg['fwdtransforms'][0], do_log=True, geom=True )
+                        ants.image_write( myjac, mymm + "_syn_logjacobian.nii.gz" )
                     if mymod == 'T2Flair':
                         dowrite=True
                         tabPro, normPro = mm( t1, hier,
