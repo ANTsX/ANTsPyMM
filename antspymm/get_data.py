@@ -2155,7 +2155,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['brainmask'] = bmask
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
-  for k in range(270):
+  for k in range(1,270):
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
         anatname = re.sub("_","",anatname)
@@ -2163,8 +2163,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
         anatname='Unk'
     fname='falffPoint'+str(k)+anatname
     aname='alffMeanPoint'+str(k)+anatname
-    outdict[fname]=(rsf['falff'][ptImg==k]).mean()
-    outdict[aname]=(rsf['alff'][ptImg==k]).mean()
+    outdict[fname]=(outdict['falff'][ptImg==k]).mean()
+    outdict[aname]=(outdict['alff'][ptImg==k]).mean()
     
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=dwp['FD'][dwpind]
@@ -2556,6 +2556,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
             ants.image_write( rsfpro[mykey], myop )
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
         mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
+        # falff and alff
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
