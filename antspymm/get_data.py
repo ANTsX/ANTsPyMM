@@ -2027,6 +2027,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   """
   import numpy as np
   import pandas as pd
+  import re
+  import math
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
 
@@ -2153,7 +2155,17 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['brainmask'] = bmask
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
-
+  for k in range(270):
+    anatname=( pts2bold['AAL'][k] )
+    if isinstance(anatname, str):
+        anatname = re.sub("_","",anatname)
+    else:
+        anatname='Unk'
+    fname='falffPoint'+str(k)+anatname
+    aname='alffMeanPoint'+str(k)+anatname
+    outdict[fname]=(rsf['falff'][ptImg==k]).mean()
+    outdict[aname]=(rsf['alff'][ptImg==k]).mean()
+    
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=dwp['FD'][dwpind]
 
@@ -2722,9 +2734,9 @@ def mm_nrg(
     t1atropos = hier['dkt_parc']['tissue_segmentation']
     testloop = False
     if visualize and not testloop:
-        ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction' )
-        ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation'  )
-        ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex'   )
+        ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
+        ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation', filename=mymm+"brainsegmentation.png"  )
+        ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex', filename=mymm+"cortex.png"   )
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
@@ -2773,11 +2785,11 @@ def mm_nrg(
                 nmpro = tabPro['NM']
                 mysl = range( nmpro['NM_avg'].shape[2] )
                 if visualize:
-                    ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1' )
+                    ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+"NMavg.png" )
                     mysl = range( nmpro['NM_avg_cropped'].shape[2] )
-                    ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop' )
-                    ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1' )
-                    ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels' )
+                    ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+"NMavgcrop.png" )
+                    ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+"NMavgcropt1.png" )
+                    ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+"NMavgcroplabels.png" )
         else :
             for y in myimgsr:
                 dowrite=False
@@ -2814,7 +2826,7 @@ def mm_nrg(
                             do_normalization=True,
                             verbose=True )
                         if visualize:
-                            ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk' )
+                            ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
                         ex_path = os.path.expanduser( "~/.antspyt1w/" )
                         templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
                         template = ants.image_read( template )
@@ -2834,8 +2846,8 @@ def mm_nrg(
                             do_normalization=True,
                             verbose=True )
                         if visualize:
-                            ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair' )
-                            ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH' )
+                            ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+"flair.png" )
+                            ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+"flairWMH.png" )
                     if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
                         dowrite=True
                         tabPro, normPro = mm( t1, hier,
@@ -2847,9 +2859,9 @@ def mm_nrg(
                             verbose=True )
                         if tabPro['rsf'] is not None and visualize:
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                                axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode' )
+                                axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl' )
+                                axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
                     if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
                         dowrite=True
                         bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
@@ -2865,16 +2877,16 @@ def mm_nrg(
                             verbose=True )
                         mydti = tabPro['DTI']
                         if visualize:
-                            ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction' )
-                            ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)' )
-                            ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU' )
-                            ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD' )
+                            ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction', filename=mymm+"FAinit.png"  )
+                            ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+"FAbetter.png"  )
+                            ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU', filename=mymm+"FAJHU.png"  )
+                            ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD', filename=mymm+"MD.png"  )
                     if dowrite:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                         for mykey in normPro.keys():
                             if normPro[mykey] is not None:
                                 if visualize:
-                                    ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey  )
+                                    ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mykey+".png"   )
 
 def spec_taper(x, p=0.1):
     from scipy import stats, signal, fft
