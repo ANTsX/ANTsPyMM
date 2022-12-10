@@ -2741,7 +2741,7 @@ def mm_nrg(
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for xnum in range( len( myimgs ) ):
-    # for xnum in [5]:
+    # for xnum in [6]:
         if verbose:
             print( "we have : " + str(len(myimgs)) + " modalities.")
         dowrite=False
