@@ -2862,6 +2862,8 @@ def mm_nrg(
                             do_normalization=True,
                             verbose=True )
                         if tabPro['rsf'] is not None and visualize:
+                            ants.plot( tabPro['rsf']['meanBold'],
+                                axis=2, nslices=21, ncol=7, crop=True, title='meanBOLD', filename=mymm+"meanBOLD.png" )
                             ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
                                 axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+"boldALFF.png" )
                             ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
