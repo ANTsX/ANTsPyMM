@@ -2557,6 +2557,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
         mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
         # falff and alff
+        search_key='alffPoint'
         alffkeys = [key for key, val in rsfpro.items() if search_key in key]
         for myalf in alffkeys:
             mm_wide[ myalf ]=rsfpro[myalf]
