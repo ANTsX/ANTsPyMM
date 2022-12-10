@@ -2741,6 +2741,7 @@ def mm_nrg(
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for xnum in range( len( myimgs ) ):
+    # for xnum in [5]:
         if verbose:
             print( "we have : " + str(len(myimgs)) + " modalities.")
         dowrite=False
@@ -2821,7 +2822,7 @@ def mm_nrg(
                             print('start t1 registration')
                         ex_path = os.path.expanduser( "~/.antspyt1w/" )
                         templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-                        template = ants.image_read( template )
+                        template = ants.image_read( templatefn )
                         template = ants.resample_image( template, [1,1,1], use_voxels=False )
                         t1reg = ants.registration( template, hier['brain_n4_dnz'],
                             "antsRegistrationSyNQuickRepro[s]", outprefix = mymm + "_syn_" )
@@ -2861,6 +2862,8 @@ def mm_nrg(
                             do_normalization=True,
                             verbose=True )
                         if tabPro['rsf'] is not None and visualize:
+                            ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['alff'],
+                                axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+"boldALFF.png" )
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
                                 axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
