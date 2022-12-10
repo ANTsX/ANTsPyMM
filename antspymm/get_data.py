@@ -37,7 +37,7 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def get_data( name=None, force_download=False, version=8, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=9, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
@@ -1855,20 +1855,26 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   """
 
   fnt=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni.nii.gz" )
+  fntNM=os.path.expanduser("~/.antspymm/CIT168_T1w_700um_pad_adni_NM_norm_avg.nii.gz" )
   fntbst=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni_brainstem.nii.gz")
   fnslab=os.path.expanduser("~/.antspyt1w/CIT168_MT_Slab_adni.nii.gz")
   fntseg=os.path.expanduser("~/.antspyt1w/det_atlas_25_pad_LR_adni.nii.gz")
 
   template = ants.image_read( fnt )
+  templateNM = ants.iMath( ants.image_read( fntNM ), "Normalize" )
   templatebstem = ants.image_read( fntbst ).threshold_image( 1, 1000 )
   # reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
   reg = ants.registration( t1, template, 'SyN' )
+  # map NM avg to t1 for neuromelanin processing
+  nmavg2t1 = ants.apply_transforms( t1, templateNM,
+    reg['fwdtransforms'], interpolator='linear' )
+  slab2t1 = ants.threshold_image( nmavg2t1, "Otsu", 2 ).threshold_image(1,2).iMath("MD",1).iMath("FillHoles")
   # map brain stem and slab to t1 for neuromelanin processing
   bstem2t1 = ants.apply_transforms( t1, templatebstem,
     reg['fwdtransforms'],
     interpolator='nearestNeighbor' ).iMath("MD",1)
-  slab2t1 = ants.apply_transforms( t1, ants.image_read( fnslab ),
-    reg['fwdtransforms'], interpolator = 'nearestNeighbor')
+#  slab2t1 = ants.apply_transforms( t1, ants.image_read( fnslab ),
+#    reg['fwdtransforms'], interpolator = 'nearestNeighbor')
   bstem2t1 = ants.crop_image( bstem2t1, slab2t1 )
   cropper = ants.decrop_image( bstem2t1, slab2t1 ).iMath("MD",brain_stem_dilation)
 
@@ -1897,8 +1903,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     nm_avg_new = nm_avg_new + current_image / len( list_nm_images )
   nm_avg = nm_avg_new
 
-  t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize")
-  slabreg = ants.registration( nm_avg, t1c, 'Rigid' )
+  t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
+  nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
+  slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -1949,7 +1956,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabreg = ants.registration( nm_avg_cropped, t1c, 'Rigid',
+  slabreg = ants.registration( nm_avg_cropped, nmavg2t1c, 'Rigid',
     initial_transform=slabreg['fwdtransforms'][0], verbose=verbose )
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
@@ -2742,7 +2749,7 @@ def mm_nrg(
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for xnum in range( len( myimgs ) ):
-    # for xnum in [6]:
+    # for xnum in [2]:
         if verbose:
             print( "we have : " + str(len(myimgs)) + " modalities.")
         dowrite=False
