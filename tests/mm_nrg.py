@@ -3,7 +3,7 @@
 # convert the ipynb to html via:
 #   jupyter nbconvert ANTsPyMM/tests/mm_nrg.ipynb --execute --to html
 #
-# this assumes NRG format for the input data .... 
+# this assumes NRG format for the input data ....
 # NRG = https://github.com/stnava/biomedicalDataOrganization
 ##################################################################
 import os
@@ -22,15 +22,15 @@ srmdl = tf.keras.models.load_model( mdlfn, compile=False )
 doOr = True
 doSr = False
 doviz = True
-mydir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" )
+mydir = os.path.expanduser( "/Users/stnava/Downloads/PPMI500/source/data/PPMI/" )
 if doOr:
     antspymm.mm_nrg(
         sourcedir = mydir,
-        sid  = "100898",   # subject unique id
-        dtid = "20210331", # date
-        iid  = "1496183",  # image unique id for t1 - should have highest grade if repeats exist
-        sourcedatafoldername = 'images',
-        processDir = "processedOR",
+        sid  = "100267",   # subject unique id
+        dtid = "20210219", # date
+        iid  = "1497590",  # image unique id for t1 - should have highest grade if repeats exist
+        sourcedatafoldername = 'source',
+        processDir = "processed",
         mysep = '-', # define a separator for filename components
         srmodel_NM = None,
         srmodel_DTI = None,

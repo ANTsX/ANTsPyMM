@@ -2165,7 +2165,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     aname='alffMeanPoint'+str(k)+anatname
     outdict[fname]=(outdict['falff'][ptImg==k]).mean()
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
-    
+
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=dwp['FD'][dwpind]
 
@@ -2737,10 +2737,6 @@ def mm_nrg(
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
     testloop = False
-    if visualize and not testloop:
-        ants.plot( t1imgbrn,  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
-        ants.plot( t1imgbrn, t1atropos, axis=2, nslices=21, ncol=7, crop=True, title='segmentation', filename=mymm+"brainsegmentation.png"  )
-        ants.plot( t1imgbrn, hier['dkt_parc']['dkt_cortex'], axis=2, nslices=21, ncol=7, crop=True, title='cortex', filename=mymm+"cortex.png"   )
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
@@ -2830,6 +2826,7 @@ def mm_nrg(
                             do_normalization=True,
                             verbose=True )
                         if visualize:
+                            ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
                             ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
                         ex_path = os.path.expanduser( "~/.antspyt1w/" )
                         templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
@@ -2837,7 +2834,7 @@ def mm_nrg(
                         template = ants.resample_image( template, [1,1,1], use_voxels=False )
                         t1reg = ants.registration( template, hier['brain_n4_dnz'],
                             "antsRegistrationSyNQuickRepro[s]", outprefix = mymm + "_syn_" )
-                        myjac = ants.create_jacobian_determinant_image( template, 
+                        myjac = ants.create_jacobian_determinant_image( template,
                             t1reg['fwdtransforms'][0], do_log=True, geom=True )
                         ants.image_write( myjac, mymm + "_syn_logjacobian.nii.gz" )
                     if mymod == 'T2Flair':
