@@ -486,10 +486,10 @@ def dipy_dti_recon(
             b0 = ants.slice_image( image, axis=3, idx=myidx)
             average_b0 = average_b0 + b0
     else:
-        average_b0 = ants.resample_image( average_b0, ants.get_spacing(b0), interp_type=0 )
+        average_b0 = ants.resample_image_to_target( average_b0, b0, interp_type='linear' )
 
     if mask is not None:
-        mask = ants.resample_image( mask, ants.get_spacing(b0), interp_type=1 )
+        mask = ants.resample_image_to_target( mask, b0, interp_type='nearestNeighbor')
 
     average_dwi = b0.clone() * 0.0
     for myidx in range(image.shape[3]):
