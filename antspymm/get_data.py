@@ -461,12 +461,12 @@ def dipy_dti_recon(
             b0 = ants.slice_image( image, axis=3, idx=myidx)
             average_b0 = average_b0 + b0
     else:
-        average_b0 = ants.resample_image_to_target( average_b0, b0, interp_type='linear' )
+        average_b0 = ants.resample_image( average_b0, ants.get_spacing(b0), interp_type=0 )
 
     if mask is not None:
-        mask = ants.resample_image_to_target( mask, b0, interp_type='nearestNeighbor' )
+        mask = ants.resample_image( mask, ants.get_spacing(b0), interp_type=1 )
 
-    average_dwi = average_b0.clone() * 0.0
+    average_dwi = b0.clone() * 0.0
     for myidx in range(image.shape[3]):
         b0 = ants.slice_image( image, axis=3, idx=myidx)
         average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
@@ -499,25 +499,29 @@ def dipy_dti_recon(
     if motion_correct:
         maskedimage = []
         if verbose:
+            print("B0 average")
+            print( average_b0.shape )
             print( "image" )
             print( image.shape )
             print( "bvecs" )
             print( bvecs.shape )
         for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
-                maskedimage.append( ants.iMath( b0,'Normalize' ) )
+                b0 = ants.iMath( b0,'Normalize' )
+                b0 = ants.iMath( b0,'TruncateIntensity',0.01,0.9)
+                maskedimage.append( b0 )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
+        average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.9 )
         moco0 = ants.motion_correction(
                 image=maskedimage,
-                fixed=average_b0,
+                fixed=average_b0_trunc,
                 type_of_transform='Rigid',
                 aff_metric='Mattes',
-                aff_sampling=20,
-                aff_smoothing_sigmas=(2,1,0),
-                aff_shrink_factors=(3,2,1),
-                aff_random_sampling_rate=0.5,
-                grad_step=0.025,
-                aff_iterations=(200,200,20) )
+                aff_sampling=32,
+                aff_smoothing_sigmas=(3,2,1,0),
+                aff_shrink_factors=(2,2,1,1),
+                aff_random_sampling_rate=0.20,
+                aff_iterations=(50,50,50,20) )
         motion_parameters = moco0['motion_parameters']
         FD = moco0['FD']
         maskedimage = []
@@ -544,7 +548,7 @@ def dipy_dti_recon(
         if get_mask:
             if not haveB0:
                 average_b0 = ants.slice_image( image, axis=3, idx=0 ) * 0
-            average_dwi = average_b0.clone()
+            average_dwi = b0.clone()
             for myidx in range(image.shape[3]):
                     b0 = ants.slice_image( image, axis=3, idx=myidx)
                     average_dwi = average_dwi + ants.iMath( b0,'Normalize' )
@@ -884,6 +888,7 @@ def joint_dti_recon(
         'bvec_LR':bvec_LR,
         'bval_RL':bval_RL,
         'bvec_RL':bvec_RL,
+        'b0avg':reference_image
     }
 
 
@@ -2374,10 +2379,24 @@ def mm(
         if verbose:
             print('dti')
         dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
-        cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
-        dw_image = crop_mcimage( dw_image, cropmask  )
-        dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
-        dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
+        padder = [4,4,4]
+        dtibxt_data['b0_mask'] = ants.pad_image( dtibxt_data['b0_mask'], pad_width=padder )
+        dtibxt_data['b0_avg'] = ants.pad_image( dtibxt_data['b0_avg'], pad_width=padder )
+        # cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 12 )
+        # dw_image = crop_mcimage( dw_image, cropmask  )
+        # dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
+        # dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
+#        ants.image_write( dtibxt_data['b0_avg'], '/tmp/tempb0avg.nii.gz' )
+#        mydp = dipy_dti_recon(
+#            dw_image,
+#            bvals,
+#            bvecs,
+#            mask = dtibxt_data['b0_mask'],
+#            motion_correct = True,
+#            average_b0 = dtibxt_data['b0_avg'],
+#            verbose=True )
+#        ants.image_write( mydp['motion_corrected'] , '/tmp/tempdwi.nii.gz')
+#        derka
         output_dict['DTI'] = joint_dti_recon(
             dw_image,
             bvals,
@@ -2522,6 +2541,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         ants.image_write( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz' )
         ants.image_write( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
         ants.image_write( mydti['recon_md'],  myop+'dtimd.nii.gz' )
+        ants.image_write( mydti['b0avg'],  myop+'b0avg.nii.gz' )
         faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
         mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
         fat1derk = mm['FA_summ'].iloc[: , 1:]
@@ -2824,7 +2844,8 @@ def mm_nrg(
                     print( myimg[0] )
                 if not testloop:
                     img = ants.image_read( myimg[0] )
-                    if mymod == 'T1w' : # for a real run, set to True
+                    ishapelen = len( img.shape )
+                    if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
                         dowrite=True
                         if verbose:
                             print('start t1 registration')
@@ -2848,7 +2869,7 @@ def mm_nrg(
                         if visualize:
                             ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
                             ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
-                    if mymod == 'T2Flair':
+                    if mymod == 'T2Flair' and ishapelen == 3:
                         dowrite=True
                         tabPro, normPro = mm( t1, hier,
                             flair_image = img,
@@ -2860,7 +2881,7 @@ def mm_nrg(
                         if visualize:
                             ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+"flair.png" )
                             ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+"flairWMH.png" )
-                    if mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' :
+                    if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                         dowrite=True
                         tabPro, normPro = mm( t1, hier,
                             rsf_image=img,
@@ -2880,7 +2901,7 @@ def mm_nrg(
                                 axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
                             ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                 axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
-                    if mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI':
+                    if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                         dowrite=True
                         bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                         bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
