@@ -1954,7 +1954,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
   ants.image_write( t1c, '/tmp/t1c.nii.gz')
   ants.image_write( nmavg2t1c, '/tmp/nmavg2t1c.nii.gz')
-  ants.image_write( nmavg, '/tmp/nmavg.nii.gz')
+  ants.image_write( nm_avg, '/tmp/nmavg.nii.gz')
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
   slabreg0 = rigid_initializer( nm_avg, nmavg2t1c )
   slabreg1 = rigid_initializer( nm_avg, t1c )
