@@ -2830,7 +2830,7 @@ def mm_nrg(
             antspyt1w.write_hierarchical( hierSR, hierfnSR )
             t1wideSR = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                     hierSR['dataframes'], identifier=None )
-            t1wideSR.to_csv( hierSR + 'mmwide.csv' )
+            t1wideSR.to_csv( hierfnSR + 'mmwide.csv' )
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
