@@ -1835,7 +1835,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
-def rigid_initializer( fixed, moving, n_simulations=4, sd_affine=0.2, transform='rigid', verbose=True ):
+def rigid_initializer( fixed, moving, n_simulations=16, sd_affine=0.2, transform='rigid', verbose=True ):
         import tempfile
         uu = antspynet.randomly_transform_image_data( fixed, [[moving]],
                 number_of_simulations = n_simulations,
@@ -1952,8 +1952,18 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
 
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
+  ants.image_write( t1c, '/tmp/t1c.nii.gz')
+  ants.image_write( nmavg2t1c, '/tmp/nmavg2t1c.nii.gz')
+  ants.image_write( nmavg, '/tmp/nmavg.nii.gz')
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
-  slabreg = rigid_initializer( nm_avg, nmavg2t1c )
+  slabreg0 = rigid_initializer( nm_avg, nmavg2t1c )
+  slabreg1 = rigid_initializer( nm_avg, t1c )
+  miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+        ants.iMath(slabreg0['warpedmovout']) )
+  miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+        ants.iMath(slabreg1['warpedmovout'] ))
+  if miNM < miT1:
+    slabreg = slabreg0
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
