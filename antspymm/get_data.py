@@ -2838,7 +2838,7 @@ def mm_nrg(
                 nmlist.append( ants.image_read( zz ) )
             srmodel_NM_mdl = None
             if srmodel_NM:
-                bestup = siq.optimize_upsampling_shape( ants.get_spacing(zz[0]), modality='NM' )
+                bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM' )
                 mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
                 if exists( mdlfn ):
                     if verbose:
