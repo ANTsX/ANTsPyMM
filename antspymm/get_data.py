@@ -2017,15 +2017,15 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabreg = rigid_initializer( nm_avg_cropped, t1c )
-
-#  slabreg['fwdtransforms'][0] = ants.affine_initializer( nm_avg_cropped,
-#    nmavg2t1c, search_factor=20, radian_fraction=0.3,
-#    use_principal_axis=False,
-#    local_search_iterations=50, mask=None, txfn=None)
-#  slabreg = ants.registration( nm_avg_cropped, nmavg2t1c, 'Rigid',
-#    initial_transform=slabreg['fwdtransforms'][0],
-#    verbose=verbose )
+  slabregUpdated = rigid_initializer( nm_avg_cropped, t1c )
+  tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg['fwdtransforms'] )
+  tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated['fwdtransforms'] )
+  miUpdate = ants.image_mutual_information(
+    ants.iMath(nm_avg_cropped,"Normalize"), ants.iMath(tempUpdate,"Normalize") )
+  miOrig = ants.image_mutual_information(
+    ants.iMath(nm_avg_cropped,"Normalize"), ants.iMath(tempOrig,"Normalize") )
+  if miUpdate < miOrig :
+      slabreg = slabregUpdated
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
