@@ -17,14 +17,8 @@ import antspymm
 ###########################################################
 import tensorflow as tf
 import tensorflow.keras as keras
-mdlfn = os.path.expanduser( '~/code/DPR/models/dsr3d_2up_64_256_6_3_v0.0.h5' )
-srmdl = tf.keras.models.load_model( mdlfn, compile=False )
-doOr = True
-doSr = False
-doviz = True
 mydir = os.path.expanduser( "/Users/stnava/Downloads/PPMI500/source/data/PPMI/" )
-if doOr:
-    antspymm.mm_nrg(
+antspymm.mm_nrg(
         sourcedir = mydir,
         sid  = "100267",   # subject unique id
         dtid = "20210219", # date
@@ -32,24 +26,9 @@ if doOr:
         sourcedatafoldername = 'source',
         processDir = "processed",
         mysep = '-', # define a separator for filename components
-        srmodel_NM = None,
-        srmodel_DTI = None,
-        visualize = doviz,
-        verbose=True
-    )
-
-if doSr:
-    print("SR processing - will be slow")
-    antspymm.mm_nrg(
-        sourcedir = mydir,
-        sid  = "100898",   # subject unique id
-        dtid = "20210331", # date
-        iid  = "1496183",  # image unique id for t1 - should have highest grade if repeats exist
-        sourcedatafoldername = 'images',
-        processDir = "processedSR",
-        mysep = '-', # define a separator for filename components
-        srmodel_NM = srmdl,
-        srmodel_DTI = srmdl,
-        visualize = doviz,
+        srmodel_T1 = True,
+        srmodel_NM = True,
+        srmodel_DTI = True,
+        visualize = True,
         verbose=True
     )

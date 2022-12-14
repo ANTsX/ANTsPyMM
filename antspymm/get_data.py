@@ -31,6 +31,7 @@ import nibabel as nib
 import ants
 import antspynet
 import antspyt1w
+import siq
 import tensorflow as tf
 
 from multiprocessing import Pool
@@ -128,7 +129,7 @@ def get_models( force_download=False ):
         os.remove( DATA_PATH + target_file_name )
 
     if force_download:
-        download_data( version = version )
+        download_data( version = 0 )
     return
 
 
@@ -2403,13 +2404,13 @@ def mm(
         if verbose:
             print('dti')
         dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
+        cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
+        dw_image = crop_mcimage( dw_image, cropmask  )
+        dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
+        dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
         padder = [4,4,4]
         dtibxt_data['b0_mask'] = ants.pad_image( dtibxt_data['b0_mask'], pad_width=padder )
         dtibxt_data['b0_avg'] = ants.pad_image( dtibxt_data['b0_avg'], pad_width=padder )
-        # cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 12 )
-        # dw_image = crop_mcimage( dw_image, cropmask  )
-        # dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
-        # dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
 #        ants.image_write( dtibxt_data['b0_avg'], '/tmp/tempb0avg.nii.gz' )
 #        mydp = dipy_dti_recon(
 #            dw_image,
@@ -2637,9 +2638,9 @@ def mm_nrg(
     sourcedatafoldername = 'images', # root for source data
     processDir = "processed", # where output will go - parallel to sourcedatafoldername
     mysep = '-', # define a separator for filename components
-    srmodel_T1 = None, # optional - will add a great deal of time
-    srmodel_NM = None, # optional - will add a great deal of time
-    srmodel_DTI = None, # optional - will add a great deal of time
+    srmodel_T1 = False, # optional - will add a great deal of time
+    srmodel_NM = False, # optional - will add a great deal of time
+    srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
     verbose = True
 ):
@@ -2690,13 +2691,13 @@ def mm_nrg(
 
     mysep : define a character separator for filename components
 
-    srmodel_T1 : None (optional) - will add a great deal of time
+    srmodel_T1 : False (default) - will add a great deal of time
 
-    srmodel_NM : None (optional) - will add a great deal of time
+    srmodel_NM : False (default) - will add a great deal of time
 
-    srmodel_DTI : None (optional) - will add a great deal of time
+    srmodel_DTI : False (default) - will add a great deal of time
 
-    visualize : True - will plot some results to screen / notebook
+    visualize : True - will plot some results to png
 
     verbose : boolean
 
@@ -2710,6 +2711,7 @@ def mm_nrg(
     import glob as glob
     from os.path import exists
     ex_path = os.path.expanduser( "~/.antspyt1w/" )
+    ex_pathmm = os.path.expanduser( "~/.antspymm/" )
     templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
     if not exists( templatefn ):
         print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
@@ -2760,7 +2762,7 @@ def mm_nrg(
     else:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-    if srmodel_T1 is not None :
+    if srmodel_T1 :
         hierfnSR = re.sub( sourcedatafoldername, processDir, t1fn)
         hierfnSR = re.sub( "T1w", "T1wHierarchicalSR", hierfnSR)
         hierfnSR = re.sub( ".nii.gz", "", hierfnSR)
@@ -2775,7 +2777,15 @@ def mm_nrg(
                 print( subjectpropath )
             os.makedirs( subjectpropath, exist_ok=True  )
             # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
-            hierSR = antspyt1w.hierarchical_to_sr( hier, srmodel_T1, tissue_sr=False )
+            bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality='T1' )
+            mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_2chan_featvggL6_postseg_best_mdl.h5"
+            if verbose:
+                print( mdlfn )
+            if exists( mdlfn ):
+                srmodel_T1_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+            else:
+                print( mdlfn + " does not exist - will not run.")
+            hierSR = antspyt1w.hierarchical_to_sr( hier, srmodel_T1_mdl, blending=None, tissue_sr=False )
             antspyt1w.write_hierarchical( hierSR, hierfnSR )
             t1wideSR = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                     hierSR['dataframes'], identifier=None )
@@ -2826,10 +2836,20 @@ def mm_nrg(
             nmlist = []
             for zz in myimgsr:
                 nmlist.append( ants.image_read( zz ) )
+            srmodel_NM_mdl = None
+            if srmodel_NM:
+                bestup = siq.optimize_upsampling_shape( ants.get_spacing(zz[0]), modality='NM' )
+                mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                if exists( mdlfn ):
+                    if verbose:
+                        print(mdlfn)
+                    srmodel_NM_mdl = tf.keras.models.load_model( mdlfn, compile=False  )
+                else:
+                    print( mdlfn + " does not exist - wont use SR")
             if not testloop:
                 tabPro, normPro = mm( t1, hier,
                         nm_image_list = nmlist,
-                        srmodel=srmodel_NM,
+                        srmodel=srmodel_NM_mdl,
                         do_tractography=False,
                         do_kk=False,
                         do_normalization=True,
@@ -2935,11 +2955,23 @@ def mm_nrg(
                         dowrite=True
                         bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                         bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
+                        srmodel_DTI_mdl=None
+                        if srmodel_DTI:
+                            temp = ants.get_spacing(img)
+                            dtspc=[temp[0],temp[1],temp[2]]
+                            bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
+                            mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                            if exists( mdlfn ):
+                                if verbose:
+                                    print(mdlfn)
+                                srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                            else:
+                                print(mdlfn + " does not exist - wont use SR")
                         tabPro, normPro = mm( t1, hier,
                             dw_image=img,
                             bvals = bvalfn,
                             bvecs = bvecfn,
-                            srmodel=srmodel_DTI,
+                            srmodel=srmodel_DTI_mdl,
                             do_tractography=realrun,
                             do_kk=False,
                             do_normalization=True,

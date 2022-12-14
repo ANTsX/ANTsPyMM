@@ -9,3 +9,4 @@ pathlib
 dipy
 nibabel
 scipy
+siq
