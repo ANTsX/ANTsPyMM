@@ -762,7 +762,7 @@ def joint_dti_recon(
             t1wrig,
             t1wtarget,
             'SyNOnly',
-            total_sigma=1.0,
+            total_sigma=3.0,
             # syn_metric='CC', syn_sampling=2,
             reg_iterations=[20,10],
             gradient_step=0.1 )
