@@ -2847,28 +2847,34 @@ def mm_nrg(
                     ishapelen = len( img.shape )
                     if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
                         dowrite=True
-                        if verbose:
-                            print('start t1 registration')
-                        ex_path = os.path.expanduser( "~/.antspyt1w/" )
-                        templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-                        template = ants.image_read( templatefn )
-                        template = ants.resample_image( template, [1,1,1], use_voxels=False )
-                        t1reg = ants.registration( template, hier['brain_n4_dnz'],
-                            "antsRegistrationSyNQuickRepro[s]", outprefix = mymm + "_syn_" )
-                        myjac = ants.create_jacobian_determinant_image( template,
-                            t1reg['fwdtransforms'][0], do_log=True, geom=True )
-                        ants.image_write( myjac, mymm + "_syn_logjacobian.nii.gz" )
-                        if verbose:
-                            print('start kk')
-                        tabPro, normPro = mm( t1, hier,
-                            srmodel=None,
-                            do_tractography=False,
-                            do_kk=True,
-                            do_normalization=True,
-                            verbose=True )
-                        if visualize:
-                            ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
-                            ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
+                        regout = mymm + mysep + "syn"
+                        if not exists( regout + "logjacobian.nii.gz" ):
+                            if verbose:
+                                print('start t1 registration')
+                            ex_path = os.path.expanduser( "~/.antspyt1w/" )
+                            templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+                            template = ants.image_read( templatefn )
+                            template = ants.resample_image( template, [1,1,1], use_voxels=False )
+                            t1reg = ants.registration( template, hier['brain_n4_dnz'],
+                                "antsRegistrationSyNQuickRepro[s]", outprefix = regout )
+                            myjac = ants.create_jacobian_determinant_image( template,
+                                t1reg['fwdtransforms'][0], do_log=True, geom=True )
+                            ants.image_write( myjac, regout + "logjacobian.nii.gz" )
+                            if visualize:
+                                ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
+                                ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
+                        if not exists( mymm + mysep + "kk_norm.nii.gz" ):
+                            if verbose:
+                                print('start kk')
+                            tabPro, normPro = mm( t1, hier,
+                                srmodel=None,
+                                do_tractography=False,
+                                do_kk=True,
+                                do_normalization=True,
+                                verbose=True )
+                            if visualize:
+                                ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
+                                ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
                     if mymod == 'T2Flair' and ishapelen == 3:
                         dowrite=True
                         tabPro, normPro = mm( t1, hier,
