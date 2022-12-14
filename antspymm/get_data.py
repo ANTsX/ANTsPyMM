@@ -2243,7 +2243,7 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
     for dim_vals in bvecs.T:
         bvf.write(fmt % tuple(dim_vals))
 
-def crop_mcimage( x, mask ):
+def crop_mcimage( x, mask, padder=None ):
     """
     crop a time series (4D) image by a 3D mask
 
@@ -2262,7 +2262,10 @@ def crop_mcimage( x, mask ):
     if len(x.shape) > 3:
         for k in range(x.shape[3]):
             temp = ants.slice_image( x, axis=3, idx=k )
-            croplist.append( ants.crop_image( temp, mask ) )
+            temp = ants.crop_image( temp, mask )
+            if padder is not None:
+                temp = ants.pad_image( temp, pad_width=padder )
+            croplist.append( temp )
         temp = ants.list_to_ndimage( x, croplist )
         temp.set_origin( myorig )
         return temp
@@ -2405,12 +2408,12 @@ def mm(
             print('dti')
         dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
         cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
-        dw_image = crop_mcimage( dw_image, cropmask  )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
         dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
         padder = [4,4,4]
         dtibxt_data['b0_mask'] = ants.pad_image( dtibxt_data['b0_mask'], pad_width=padder )
         dtibxt_data['b0_avg'] = ants.pad_image( dtibxt_data['b0_avg'], pad_width=padder )
+        dw_image = crop_mcimage( dw_image, cropmask, padder  )
 #        ants.image_write( dtibxt_data['b0_avg'], '/tmp/tempb0avg.nii.gz' )
 #        mydp = dipy_dti_recon(
 #            dw_image,
@@ -2890,7 +2893,6 @@ def mm_nrg(
                     img = ants.image_read( myimg[0] )
                     ishapelen = len( img.shape )
                     if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
-                        dowrite=True
                         regout = mymm + mysep + "syn"
                         if not exists( regout + "logjacobian.nii.gz" ):
                             if verbose:
@@ -2908,6 +2910,7 @@ def mm_nrg(
                                 ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
                                 ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
                         if not exists( mymm + mysep + "kk_norm.nii.gz" ):
+                            dowrite=True
                             if verbose:
                                 print('start kk')
                             tabPro, normPro = mm( t1, hier,
