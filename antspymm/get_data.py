@@ -239,7 +239,9 @@ def dewarp_imageset( image_list, initial_template=None,
         'motionparameters': mocoplist }
 
 
-def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
+def super_res_mcimage( image,
+    srmodel,
+    truncation=[0.0001,0.995],
     poly_order=None,
     target_range=[0,1],
     isotropic = False,
@@ -280,16 +282,19 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
     mcsr = list()
-    counter = 0
     for k in range(nTimePoints):
-        mycount = round(k / nTimePoints * 100)
-        if verbose and mycount == counter:
-            counter = counter + 10
+        if verbose and (( k % 5 ) == 0 ):
+            mycount = round(k / nTimePoints * 100)
             print(mycount, end="%.", flush=True)
         temp = ants.slice_image( image, axis=idim - 1, idx=k )
         temp = ants.iMath( temp, "TruncateIntensity", truncation[0], truncation[1] )
         mysr = antspynet.apply_super_resolution_model_to_image( temp, srmodel,
             target_range = target_range )
+        if poly_order is not None:
+            bilin = ants.resample_image_to_target( temp, mysr )
+            mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
+        if isotropic:
+            mysr = down2iso( mysr )
         if k == 0:
             upshape = list()
             for j in range(len(ishape)-1):
@@ -297,11 +302,6 @@ def super_res_mcimage( image, srmodel, truncation=[0.0001,0.995],
             upshape.append( ishape[ idim-1 ] )
             if verbose:
                 print("SR will be of voxel size:" + str(upshape) )
-        if poly_order is not None:
-            bilin = ants.resample_image_to_target( temp, mysr )
-            mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
-        if isotropic:
-            mysr = down2iso( mysr )
         mcsr.append( mysr )
 
     upshape = list()
@@ -1835,6 +1835,23 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
+def rigid_initializer( fixed, moving, n_simulations=4, sd_affine=0.2, transform='rigid', verbose=True ):
+        import tempfile
+        uu = antspynet.randomly_transform_image_data( fixed, [[moving]],
+                number_of_simulations = n_simulations,
+                transform_type=transform, sd_affine=sd_affine )['simulated_transforms']
+        bestmi = math.inf
+        with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
+            for k in range(n_simulations):
+                ants.write_transform( uu[k], tp.name )
+                reg = ants.registration( fixed, moving, 'Rigid', initial_transform=tp.name, verbose=False )
+                mymi = ants.image_mutual_information( fixed, reg['warpedmovout'] )
+                if mymi < bestmi:
+                    if verbose:
+                        print( "mi @ " + str(k) + " : " + str(mymi))
+                    bestmi = mymi
+                    bestreg = reg
+        return bestreg
 
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
@@ -1935,7 +1952,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
 
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
-  slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
+  # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
+  slabreg = rigid_initializer( nm_avg, nmavg2t1c )
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -1986,8 +2004,15 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabreg = ants.registration( nm_avg_cropped, nmavg2t1c, 'Rigid',
-    initial_transform=slabreg['fwdtransforms'][0], verbose=verbose )
+  slabreg = rigid_initializer( nm_avg_cropped, nmavg2t1c )
+
+#  slabreg['fwdtransforms'][0] = ants.affine_initializer( nm_avg_cropped,
+#    nmavg2t1c, search_factor=20, radian_fraction=0.3,
+#    use_principal_axis=False,
+#    local_search_iterations=50, mask=None, txfn=None)
+#  slabreg = ants.registration( nm_avg_cropped, nmavg2t1c, 'Rigid',
+#    initial_transform=slabreg['fwdtransforms'][0],
+#    verbose=verbose )
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -2399,9 +2424,9 @@ def mm(
         if verbose:
             print('nm')
         if srmodel is None:
-            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'] )
+            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], verbose=verbose )
         else:
-            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel, target_range=target_range )
+            output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel, target_range=target_range, verbose=verbose  )
 ################################## do the dti .....
     if dw_image is not None:
         if verbose:
@@ -3304,7 +3329,7 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
     return {  'alff':alffi, 'falff': falffi }
 
 
-def down2iso( x, interpolation='linear' ):
+def down2iso( x, interpolation='linear', takemin=False ):
     """
     will downsample an anisotropic image to an isotropic resolution
 
@@ -3312,11 +3337,16 @@ def down2iso( x, interpolation='linear' ):
 
     interpolation: linear or nearestneighbor
 
+    takemin : boolean map to min space; otherwise max
+
     return image downsampled to isotropic resolution
     """
     spc = ants.get_spacing( x )
-    minspc = np.asarray(spc).min()
-    newspc = np.repeat( minspc, x.dimension )
+    if takemin:
+        newspc = np.asarray(spc).min()
+    else:
+        newspc = np.asarray(spc).max()
+    newspc = np.repeat( newspc, x.dimension )
     if interpolation == 'linear':
         xs = ants.resample_image( x, newspc, interp_type=0)
     else:
