@@ -38,6 +38,9 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
+def mm_read( x ):
+    return ants.image_read( x, reorient=False )
+
 def get_data( name=None, force_download=False, version=9, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
@@ -1835,20 +1838,23 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
-def rigid_initializer( fixed, moving, n_simulations=16, sd_affine=0.2, transform='rigid', verbose=True ):
+def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30, transform='rigid', verbose=True ):
         import tempfile
-        uu = antspynet.randomly_transform_image_data( fixed, [[moving]],
-                number_of_simulations = n_simulations,
-                transform_type=transform, sd_affine=sd_affine )['simulated_transforms']
         bestmi = math.inf
+        rRotGenerator = ants.contrib.RandomRotate3D( ( 0, max_rotation ), reference=fixed )
         with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
             for k in range(n_simulations):
-                ants.write_transform( uu[k], tp.name )
-                reg = ants.registration( fixed, moving, 'Rigid', initial_transform=tp.name, verbose=False )
+                ants.write_transform( rRotGenerator.transform(), tp.name )
+                reg = ants.registration( fixed, moving, 'Rigid',
+#                    aff_iterations=[200,20],
+#                    aff_shrink_factors=[1,1],
+#                    aff_smoothing_sigmas=[1,0],
+                    initial_transform=tp.name,
+                    verbose=False )
                 mymi = ants.image_mutual_information( fixed, reg['warpedmovout'] )
                 if mymi < bestmi:
                     if verbose:
-                        print( "mi @ " + str(k) + " : " + str(mymi))
+                        print( "mi @ " + str(k) + " : " + str(mymi), flush=True)
                     bestmi = mymi
                     bestreg = reg
         return bestreg
@@ -1907,9 +1913,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   fnslab=os.path.expanduser("~/.antspyt1w/CIT168_MT_Slab_adni.nii.gz")
   fntseg=os.path.expanduser("~/.antspyt1w/det_atlas_25_pad_LR_adni.nii.gz")
 
-  template = ants.image_read( fnt )
-  templateNM = ants.iMath( ants.image_read( fntNM ), "Normalize" )
-  templatebstem = ants.image_read( fntbst ).threshold_image( 1, 1000 )
+  template = mm_read( fnt )
+  templateNM = ants.iMath( mm_read( fntNM ), "Normalize" )
+  templatebstem = mm_read( fntbst ).threshold_image( 1, 1000 )
   # reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
   reg = ants.registration( t1, template, 'SyN' )
   # map NM avg to t1 for neuromelanin processing
@@ -1920,8 +1926,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   bstem2t1 = ants.apply_transforms( t1, templatebstem,
     reg['fwdtransforms'],
     interpolator='nearestNeighbor' ).iMath("MD",1)
-#  slab2t1 = ants.apply_transforms( t1, ants.image_read( fnslab ),
-#    reg['fwdtransforms'], interpolator = 'nearestNeighbor')
+  slab2t1B = ants.apply_transforms( t1, mm_read( fnslab ),
+    reg['fwdtransforms'], interpolator = 'nearestNeighbor')
   bstem2t1 = ants.crop_image( bstem2t1, slab2t1 )
   cropper = ants.decrop_image( bstem2t1, slab2t1 ).iMath("MD",brain_stem_dilation)
 
@@ -1944,26 +1950,29 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nm_avg_new = nm_avg * 0.0
   txlist = []
   for k in range(len( list_nm_images )):
-    current_image = ants.registration( list_nm_images[k], nm_avg, type_of_transform = 'Rigid' )
+    if verbose:
+        print(str(k) + " of " + str(len( list_nm_images ) ) )
+    current_image = ants.registration( list_nm_images[k], nm_avg,
+        type_of_transform = 'Rigid' )
     txlist.append( current_image['fwdtransforms'][0] )
     current_image = current_image['warpedfixout']
     nm_avg_new = nm_avg_new + current_image / len( list_nm_images )
   nm_avg = nm_avg_new
 
+  if verbose:
+      print("do slab registration to map anatomy to NM space")
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
-  ants.image_write( t1c, '/tmp/t1c.nii.gz')
-  ants.image_write( nmavg2t1c, '/tmp/nmavg2t1c.nii.gz')
-  ants.image_write( nm_avg, '/tmp/nmavg.nii.gz')
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
-  slabreg0 = rigid_initializer( nm_avg, nmavg2t1c )
-  slabreg1 = rigid_initializer( nm_avg, t1c )
-  miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-        ants.iMath(slabreg0['warpedmovout']) )
-  miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-        ants.iMath(slabreg1['warpedmovout'] ))
-  if miNM < miT1:
-    slabreg = slabreg0
+  slabreg = rigid_initializer( nm_avg, t1c )
+  if False:
+      slabregT1 = rigid_initializer( nm_avg, t1c )
+      miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+            ants.iMath(slabreg0['warpedmovout'],"Normalize") )
+      miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+            ants.iMath(slabreg1['warpedmovout'],"Normalize") )
+      if miT1 < miNM:
+        slabreg = slabregT1
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -2014,7 +2023,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabreg = rigid_initializer( nm_avg_cropped, nmavg2t1c )
+  slabreg = rigid_initializer( nm_avg_cropped, t1c )
 
 #  slabreg['fwdtransforms'][0] = ants.affine_initializer( nm_avg_cropped,
 #    nmavg2t1c, search_factor=20, radian_fraction=0.3,
@@ -2141,7 +2150,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   syst = powers_areal_mni_itk['SystemName']
   Brod = powers_areal_mni_itk['Brodmann']
   xAAL  = powers_areal_mni_itk['AAL']
-  ch2 = ants.image_read( ants.get_ants_data( "ch2" ) )
+  ch2 = mm_read( ants.get_ants_data( "ch2" ) )
   treg = ants.registration( t1, ch2, 'SyN' )
   concatx2 = treg['invtransforms'] + t1reg['invtransforms']
   pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
@@ -2378,9 +2387,9 @@ def mm(
     mycsv = pd.read_csv(  mycsvfn )
     citcsv = pd.read_csv(  os.path.expanduser(  citcsvfn ) )
     dktcsv = pd.read_csv(  os.path.expanduser( dktcsvfn ) )
-    JHU_atlas = ants.image_read( JHU_atlasfn ) # Read in JHU atlas
-    JHU_labels = ants.image_read( JHU_labelsfn ) # Read in JHU labels
-    template = ants.image_read( templatefn ) # Read in template
+    JHU_atlas = mm_read( JHU_atlasfn ) # Read in JHU atlas
+    JHU_labels = mm_read( JHU_labelsfn ) # Read in JHU labels
+    template = mm_read( templatefn ) # Read in template
     #####################
     #  T1 hierarchical  #
     #####################
@@ -2757,7 +2766,7 @@ def mm_nrg(
         get_data( force_download=True )
     temp = sourcedir.split( "/" )
     splitCount = len( temp )
-    template = ants.image_read( templatefn ) # Read in template
+    template = mm_read( templatefn ) # Read in template
     realrun = True
     subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
     if verbose:
@@ -2773,7 +2782,7 @@ def mm_nrg(
     if verbose:
         print("t1 search path: "+ subjectrootpath + "/T1w/"+iid+"/*nii.gz" )
     t1fn = glob.glob( subjectrootpath + "/T1w/"+iid+"/*nii.gz")[0]
-    t1 = ants.image_read( t1fn )
+    t1 = mm_read( t1fn )
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
     hierfn = re.sub( ".nii.gz", "", hierfn)
@@ -2873,7 +2882,7 @@ def mm_nrg(
                 print( "NM " + mymm )
             nmlist = []
             for zz in myimgsr:
-                nmlist.append( ants.image_read( zz ) )
+                nmlist.append( mm_read( zz ) )
             srmodel_NM_mdl = None
             if srmodel_NM:
                 bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
@@ -2925,7 +2934,7 @@ def mm_nrg(
                     print(identifier)
                     print( myimg[0] )
                 if not testloop:
-                    img = ants.image_read( myimg[0] )
+                    img = mm_read( myimg[0] )
                     ishapelen = len( img.shape )
                     if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
                         regout = mymm + mysep + "syn"
@@ -2934,7 +2943,7 @@ def mm_nrg(
                                 print('start t1 registration')
                             ex_path = os.path.expanduser( "~/.antspyt1w/" )
                             templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-                            template = ants.image_read( templatefn )
+                            template = mm_read( templatefn )
                             template = ants.resample_image( template, [1,1,1], use_voxels=False )
                             t1reg = ants.registration( template, hier['brain_n4_dnz'],
                                 "antsRegistrationSyNQuickRepro[s]", outprefix = regout )
