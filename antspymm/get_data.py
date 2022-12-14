@@ -111,7 +111,7 @@ def get_data( name=None, force_download=False, version=9, target_extension='.csv
     return datapath
 
 
-def get_models( force_download=False ):
+def get_models( version=2, force_download=True ):
     """
     Get ANTsPyMM data models
 
@@ -125,14 +125,14 @@ def get_models( force_download=False ):
     os.makedirs(DATA_PATH, exist_ok=True)
 
     def download_data( version ):
-        url = "https://figshare.com/ndownloader/articles/21718412"
+        url = "https://figshare.com/ndownloader/articles/21718412/versions/"+str(version)
         target_file_name = "21718412.zip"
         target_file_name_path = tf.keras.utils.get_file(target_file_name, url,
             cache_subdir=DATA_PATH, extract = True )
         os.remove( DATA_PATH + target_file_name )
 
     if force_download:
-        download_data( version = 0 )
+        download_data( version = version )
     return
 
 
