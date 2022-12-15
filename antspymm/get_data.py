@@ -1832,7 +1832,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
-def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30,
+def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
         import tempfile
         bestmi = math.inf
@@ -1850,6 +1850,9 @@ def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                 if mytx == 'translation':
                     regtx = 'Translation'
                     rRotGenerator = ants.contrib.RandomTranslate3D( ( maxtrans*(-1.0), maxtrans ), reference=fixed )
+                elif mytx == 'affine':
+                    regtx = 'Affine'
+                    rRotGenerator = ants.contrib.RandomRotate3D( ( maxtrans*(-1.0), maxtrans ), reference=fixed )
                 else:
                     rRotGenerator = ants.contrib.RandomRotate3D( ( max_rotation*(-1.0), max_rotation ), reference=fixed )
                 for k in range(n_simulations):
@@ -1985,9 +1988,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   ants.image_write( t1c, '/tmp/t1c.nii.gz' )
   ants.image_write( t1_head, '/tmp/t1_head.nii.gz' )
   ants.image_write( t1, '/tmp/t1.nii.gz' )
-  slabreg = rigid_initializer( nm_avg, t1c, verbose=verbose )
+  slabreg = tra_initializer( nm_avg, t1c, verbose=verbose )
   if False:
-      slabregT1 = rigid_initializer( nm_avg, t1c, verbose=verbose  )
+      slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
       miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
             ants.iMath(slabreg0['warpedmovout'],"Normalize") )
       miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
@@ -2044,7 +2047,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabregUpdated = rigid_initializer( nm_avg_cropped, t1c, verbose=verbose  )
+  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg['fwdtransforms'] )
   tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated['fwdtransforms'] )
   miUpdate = ants.image_mutual_information(

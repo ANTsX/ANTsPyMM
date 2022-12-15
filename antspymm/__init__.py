@@ -33,5 +33,5 @@ from .get_data import spec_ci
 from .get_data import spec_pgram
 from .get_data import plot_spec
 from .get_data import down2iso
-from .get_data import rigid_initializer
+from .get_data import tra_initializer
 from .get_data import mm_read
