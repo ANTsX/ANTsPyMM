@@ -2792,10 +2792,10 @@ def mm_nrg(
     splitCount = len( temp )
     template = mm_read( templatefn ) # Read in template
     realrun = True
-    subjectrootpath = sourcedir +sid+"/"+ dtid+ "/"
+    subjectrootpath = os.path.join(sourcedir,sid, dtid)
     if verbose:
         print("subjectrootpath: "+ subjectrootpath )
-    myimgs = glob.glob( subjectrootpath+"*" )
+    myimgs = glob.glob( subjectrootpath+"/*" )
     myimgs.sort( )
     # myimgs = [myimgs[3],myimgs[5]]
     if verbose:
@@ -2803,9 +2803,10 @@ def mm_nrg(
     # hierarchical
     # NOTE: if there are multiple T1s for this time point, should take
     # the one with the highest resnetGrade
+    t1_search_path = os.path.join(subjectrootpath, "T1w", iid, "*nii.gz")
     if verbose:
-        print("t1 search path: "+ subjectrootpath + "/T1w/"+iid+"/*nii.gz" )
-    t1fn = glob.glob( subjectrootpath + "/T1w/"+iid+"/*nii.gz")[0]
+        print(f"t1 search path: {t1_search_path}")
+    t1fn = glob.glob(t1_search_path)[0]
     t1 = mm_read( t1fn )
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
