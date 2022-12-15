@@ -3,6 +3,9 @@ from setuptools import setup
 
 long_description = open("README.md").read()
 
+with open("./requirements.txt") as f:
+      requirements = f.read().splitlines()
+
 setup(name='antspymm',
       version='0.4.0',
       description='multi-channel/time-series medical image processing with antspyx',
@@ -12,5 +15,6 @@ setup(name='antspymm',
       author='Avants, Gosselin, Tustison, Reardon',
       author_email='stnava@gmail.com',
       license='Apache 2.0',
+      install_requires=requirements,
       packages=['antspymm'],
       zip_safe=False)
