@@ -15,9 +15,6 @@ os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
 import antspymm
-###########################################################
-import tensorflow as tf
-import tensorflow.keras as keras
 mydir = os.path.expanduser( "~/PPMI500/source/data/PPMI/" )
 srOption = False
 # set srOption True to run auto-selected SR ... must call antspymm.get_data() first.
