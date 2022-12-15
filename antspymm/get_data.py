@@ -3022,7 +3022,7 @@ def mm_nrg(
                                     axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
                                 ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                     axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
-                        if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4 and False:
+                        if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                             dowrite=True
                             bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                             bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
