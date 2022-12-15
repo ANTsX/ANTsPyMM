@@ -1832,27 +1832,47 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
       'WMH_probability_map' : probability_mask_WM,
       'wmh_mass': wmh_sum }
 
-def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30, transform='rigid', verbose=True ):
+def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30,
+    transform=['rigid'], verbose=False ):
         import tempfile
         bestmi = math.inf
-        rRotGenerator = ants.contrib.RandomRotate3D( ( 0, max_rotation ), reference=fixed )
-        with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
-            for k in range(n_simulations):
-                ants.write_transform( rRotGenerator.transform(), tp.name )
-                reg = ants.registration( fixed, moving, 'Rigid',
-#                    aff_iterations=[200,20],
-#                    aff_shrink_factors=[1,1],
-#                    aff_smoothing_sigmas=[1,0],
-                    initial_transform=tp.name,
-                    verbose=False )
-                mymi = ants.image_mutual_information( fixed, reg['warpedmovout'] )
-                if mymi < bestmi:
-                    if verbose:
-                        print( "mi @ " + str(k) + " : " + str(mymi), flush=True)
-                    bestmi = mymi
-                    bestreg = reg
+        myorig = list(ants.get_origin( fixed ))
+        mymax = 0;
+        for k in range(len( myorig ) ):
+            if abs(myorig[k]) > mymax:
+                mymax = abs(myorig[k])
+        maxtrans = mymax * 0.05
+        bestreg=ants.registration( fixed,moving,'Translation')
+        initTx = ants.read_transform( bestreg['fwdtransforms'][0] )
+        for mytx in transform:
+            regtx = 'Rigid'
+            with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
+                if mytx == 'translation':
+                    regtx = 'Translation'
+                    rRotGenerator = ants.contrib.RandomTranslate3D( ( maxtrans*(-1.0), maxtrans ), reference=fixed )
+                else:
+                    rRotGenerator = ants.contrib.RandomRotate3D( ( max_rotation*(-1.0), max_rotation ), reference=fixed )
+                for k in range(n_simulations):
+                    simtx = ants.compose_ants_transforms( [rRotGenerator.transform(), initx] )
+                    ants.write_transform( simtx, tp.name )
+                    if k > 0:
+                        reg = ants.registration( fixed, moving, regtx,
+                            initial_transform=tp.name,
+                            verbose=False )
+                    else:
+                        reg = ants.registration( fixed, moving, regtx, verbose=False )
+                    mymi = math.inf
+                    temp = reg['warpedmovout']
+                    myvar = temp.numpy().var()
+                    print( str(k) + " : " + regtx  + " : " + mytx + " _var_ " + str( myvar ) )
+                    if myvar > 0 :
+                        mymi = ants.image_mutual_information( fixed, temp )
+                        if mymi < bestmi:
+                            if verbose:
+                                print( "mi @ " + str(k) + " : " + str(mymi), flush=True)
+                            bestmi = mymi
+                            bestreg = reg
         return bestreg
-
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
@@ -1958,9 +1978,16 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
-  slabreg = rigid_initializer( nm_avg, t1c )
+  ants.image_write( slab2t1B, '/tmp/slab2t1B.nii.gz' )
+  ants.image_write( slab2t1, '/tmp/slab2t1.nii.gz' )
+  ants.image_write( nmavg2t1c, '/tmp/nmavg2t1c.nii.gz' )
+  ants.image_write( nm_avg, '/tmp/nm_avg.nii.gz' )
+  ants.image_write( t1c, '/tmp/t1c.nii.gz' )
+  ants.image_write( t1_head, '/tmp/t1_head.nii.gz' )
+  ants.image_write( t1, '/tmp/t1.nii.gz' )
+  slabreg = rigid_initializer( nm_avg, t1c, verbose=verbose )
   if False:
-      slabregT1 = rigid_initializer( nm_avg, t1c )
+      slabregT1 = rigid_initializer( nm_avg, t1c, verbose=verbose  )
       miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
             ants.iMath(slabreg0['warpedmovout'],"Normalize") )
       miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
@@ -2017,7 +2044,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabregUpdated = rigid_initializer( nm_avg_cropped, t1c )
+  slabregUpdated = rigid_initializer( nm_avg_cropped, t1c, verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg['fwdtransforms'] )
   tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated['fwdtransforms'] )
   miUpdate = ants.image_mutual_information(
@@ -2995,7 +3022,7 @@ def mm_nrg(
                                     axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
                                 ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                     axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
-                        if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
+                        if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4 and False:
                             dowrite=True
                             bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
                             bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
