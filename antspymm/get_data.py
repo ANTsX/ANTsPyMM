@@ -1843,7 +1843,7 @@ def rigid_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                 mymax = abs(myorig[k])
         maxtrans = mymax * 0.05
         bestreg=ants.registration( fixed,moving,'Translation')
-        initTx = ants.read_transform( bestreg['fwdtransforms'][0] )
+        initx = ants.read_transform( bestreg['fwdtransforms'][0] )
         for mytx in transform:
             regtx = 'Rigid'
             with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
