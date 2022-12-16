@@ -2819,7 +2819,6 @@ def mm_nrg(
         print("subjectrootpath: "+ subjectrootpath )
     myimgs = glob.glob( subjectrootpath+"/*" )
     myimgs.sort( )
-    # myimgs = [myimgs[3],myimgs[5]]
     if verbose:
         print( myimgs )
     # hierarchical
@@ -2896,195 +2895,205 @@ def mm_nrg(
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
-    for xnum in range( len( myimgs ) ):
-    # for xnum in [2]:
-        if verbose and xnum == 0:
-            print( "we have : " + str(len(myimgs)) + " modalities.")
-        dowrite=False
-        x = myimgs[xnum]
-        myimgsr = glob.glob( x+"/*" )
-        overmod = x.split( "/" )
-        overmod = overmod[ len(overmod)-1 ]
+    if verbose:
+        print(  " we have : " + str(len(myimgs)) + " modalities.")
+    overmodlist = [ "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL","NM2DMT","T1w", "T2Flair"]
+    for overmod in overmodlist:
+        mod_search_path = os.path.join(subjectrootpath, overmod, "*", "*nii.gz")
         if verbose:
-            print( 'overmod is : ' + overmod )
-            print( 'x is : ' + x )
-        if overmod == 'NM2DMT':
-            myimgsr = glob.glob( x+"/*/*nii.gz" )
-            myimgsr.sort()
-            if len( myimgsr ) == 1:
-                myimgsr = myimgsr + myimgsr
-            subjectpropath = os.path.dirname( x )
-            subjectpropath = re.sub( sourcedatafoldername, processDir, x )
+            print(f"modality search path: {mod_search_path}")
+        myimgsr = glob.glob(mod_search_path)
+        if len(myimgsr) > 0:
+            overmodx = str(overmod)
+            dowrite=False
             if verbose:
-                print( myimgsr )
-                print( "subjectpropath " + subjectpropath )
-            mysplit = subjectpropath.split( "/" )
-            os.makedirs( subjectpropath, exist_ok=True  )
-            mysplitCount = len( mysplit )
-            project = mysplit[mysplitCount-4]
-            subject = mysplit[mysplitCount-3]
-            date = mysplit[mysplitCount-2]
-            modality = "NM2DMT"
-            identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
-            mymm = subjectpropath + "/" + identifier
-            if verbose:
-                print( "NM " + mymm )
-            nmlist = []
-            for zz in myimgsr:
-                nmlist.append( mm_read( zz ) )
-            srmodel_NM_mdl = None
-            if srmodel_NM:
-                bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
-                mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
-                if exists( mdlfn ):
-                    if verbose:
-                        print(mdlfn)
-                    srmodel_NM_mdl = tf.keras.models.load_model( mdlfn, compile=False  )
+                print( 'overmod is : ' + overmodx )
+                print( 'xx is : ' + myimgsr[0] )
+            if overmodx == 'NM2DMT':
+                myimgsr2 = glob.glob( xx+"/*/*nii.gz" )
+                myimgsr2.sort()
+                is4d = False
+                if len( myimgsr2 ) == 1: # check dimension
+                    temp = ants.image_read( myimgsr2[0] )
+                    if temp.dimension == 4:
+                        is4d = True
+                    else:
+                        myimgsr2 = myimgsr2 + myimgsr2
+                subjectpropath = os.path.dirname( xx )
+                subjectpropath = re.sub( sourcedatafoldername, processDir, x )
+                if verbose:
+                    print( myimgsr2 )
+                    print( "subjectpropath " + subjectpropath )
+                mysplit = subjectpropath.split( "/" )
+                os.makedirs( subjectpropath, exist_ok=True  )
+                mysplitCount = len( mysplit )
+                project = mysplit[mysplitCount-4]
+                subject = mysplit[mysplitCount-3]
+                date = mysplit[mysplitCount-2]
+                modality = "NM2DMT"
+                identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
+                mymm = subjectpropath + "/" + identifier
+                if verbose:
+                    print( "NM " + mymm )
+                if is4d:
+                    nmlist = ants.ndimage_to_list( mm_read( zz ) )
                 else:
-                    print( mdlfn + " does not exist - wont use SR")
-            if not testloop:
-                tabPro, normPro = mm( t1, hier,
-                        nm_image_list = nmlist,
-                        srmodel=srmodel_NM_mdl,
-                        do_tractography=False,
-                        do_kk=False,
-                        do_normalization=True,
-                        verbose=True )
-                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
-                nmpro = tabPro['NM']
-                mysl = range( nmpro['NM_avg'].shape[2] )
-                if visualize:
-                    ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+"NMavg.png" )
-                    mysl = range( nmpro['NM_avg_cropped'].shape[2] )
-                    ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+"NMavgcrop.png" )
-                    ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+"NMavgcropt1.png" )
-                    ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+"NMavgcroplabels.png" )
-        else :
-            for y in myimgsr:
-                dowrite=False
-                myimg = glob.glob( y+"/*nii.gz" )
-                if len( myimg ) > 0 :
-                    subjectpropath = os.path.dirname( myimg[0] )
-                    subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
-                    mysplit = subjectpropath.split("/")
-                    mysplitCount = len( mysplit )
-                    project = mysplit[mysplitCount-5]
-                    date = mysplit[mysplitCount-4]
-                    subject = mysplit[mysplitCount-3]
-                    mymod = mysplit[mysplitCount-2] # FIXME system dependent
-                    uid = mysplit[mysplitCount-1] # unique image id
-                    os.makedirs( subjectpropath, exist_ok=True  )
-                    identifier = mysep.join([project, date, subject, mymod, uid]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
-                    mymm = subjectpropath + "/" + identifier
-                    if verbose:
-                        print("Modality specific processing: " + mymod )
-                        print( mymm )
-                    if verbose:
-                        print(subjectpropath)
-                        print(identifier)
-                        print( myimg[0] )
-                    if not testloop:
-                        img = mm_read( myimg[0] )
-                        ishapelen = len( img.shape )
-                        if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
-                            regout = mymm + mysep + "syn"
-                            if not exists( regout + "logjacobian.nii.gz" ):
-                                if verbose:
-                                    print('start t1 registration')
-                                ex_path = os.path.expanduser( "~/.antspyt1w/" )
-                                templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-                                template = mm_read( templatefn )
-                                template = ants.resample_image( template, [1,1,1], use_voxels=False )
-                                t1reg = ants.registration( template, hier['brain_n4_dnz'],
-                                    "antsRegistrationSyNQuickRepro[s]", outprefix = regout )
-                                myjac = ants.create_jacobian_determinant_image( template,
-                                    t1reg['fwdtransforms'][0], do_log=True, geom=True )
-                                ants.image_write( myjac, regout + "logjacobian.nii.gz" )
-                                if visualize:
-                                    ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
-                                    ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
-                            if not exists( mymm + mysep + "kk_norm.nii.gz" ):
+                    nmlist = []
+                    for zz in myimgsr2:
+                        nmlist.append( mm_read( zz ) )
+                srmodel_NM_mdl = None
+                if srmodel_NM:
+                    bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
+                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                    if exists( mdlfn ):
+                        if verbose:
+                            print(mdlfn)
+                        srmodel_NM_mdl = tf.keras.models.load_model( mdlfn, compile=False  )
+                    else:
+                        print( mdlfn + " does not exist - wont use SR")
+                if not testloop:
+                    tabPro, normPro = mm( t1, hier,
+                            nm_image_list = nmlist,
+                            srmodel=srmodel_NM_mdl,
+                            do_tractography=False,
+                            do_kk=False,
+                            do_normalization=True,
+                            verbose=True )
+                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                    nmpro = tabPro['NM']
+                    mysl = range( nmpro['NM_avg'].shape[2] )
+                    if visualize:
+                        ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+"NMavg.png" )
+                        mysl = range( nmpro['NM_avg_cropped'].shape[2] )
+                        ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+"NMavgcrop.png" )
+                        ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+"NMavgcropt1.png" )
+                        ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+"NMavgcroplabels.png" )
+            else :
+                if True:
+                    dowrite=False
+                    if len( myimgsr ) > 0 :
+                        myimg = myimgsr[0]
+                        subjectpropath = os.path.dirname( myimg )
+                        subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
+                        mysplit = subjectpropath.split("/")
+                        mysplitCount = len( mysplit )
+                        project = mysplit[mysplitCount-5]
+                        date = mysplit[mysplitCount-4]
+                        subject = mysplit[mysplitCount-3]
+                        mymod = mysplit[mysplitCount-2] # FIXME system dependent
+                        uid = mysplit[mysplitCount-1] # unique image id
+                        os.makedirs( subjectpropath, exist_ok=True  )
+                        identifier = mysep.join([project, date, subject, mymod, uid]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
+                        mymm = subjectpropath + "/" + identifier
+                        if verbose:
+                            print("Modality specific processing: " + mymod )
+                            print( mymm )
+                        if verbose:
+                            print(subjectpropath)
+                            print(identifier)
+                            print( myimg )
+                        if not testloop:
+                            img = mm_read( myimg )
+                            ishapelen = len( img.shape )
+                            if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
+                                regout = mymm + mysep + "syn"
+                                if not exists( regout + "logjacobian.nii.gz" ):
+                                    if verbose:
+                                        print('start t1 registration')
+                                    ex_path = os.path.expanduser( "~/.antspyt1w/" )
+                                    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+                                    template = mm_read( templatefn )
+                                    template = ants.resample_image( template, [1,1,1], use_voxels=False )
+                                    t1reg = ants.registration( template, hier['brain_n4_dnz'],
+                                        "antsRegistrationSyNQuickRepro[s]", outprefix = regout )
+                                    myjac = ants.create_jacobian_determinant_image( template,
+                                        t1reg['fwdtransforms'][0], do_log=True, geom=True )
+                                    ants.image_write( myjac, regout + "logjacobian.nii.gz" )
+                                    if visualize:
+                                        ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
+                                        ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
+                                if not exists( mymm + mysep + "kk_norm.nii.gz" ):
+                                    dowrite=True
+                                    if verbose:
+                                        print('start kk')
+                                    tabPro, normPro = mm( t1, hier,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=True,
+                                        do_normalization=True,
+                                        verbose=True )
+                                    if visualize:
+                                        ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
+                                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
+                            if mymod == 'T2Flair' and ishapelen == 3:
                                 dowrite=True
-                                if verbose:
-                                    print('start kk')
                                 tabPro, normPro = mm( t1, hier,
+                                    flair_image = img,
                                     srmodel=None,
                                     do_tractography=False,
-                                    do_kk=True,
+                                    do_kk=False,
                                     do_normalization=True,
                                     verbose=True )
                                 if visualize:
-                                    ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
-                                    ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
-                        if mymod == 'T2Flair' and ishapelen == 3:
-                            dowrite=True
-                            tabPro, normPro = mm( t1, hier,
-                                flair_image = img,
-                                srmodel=None,
-                                do_tractography=False,
-                                do_kk=False,
-                                do_normalization=True,
-                                verbose=True )
-                            if visualize:
-                                ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+"flair.png" )
-                                ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+"flairWMH.png" )
-                        if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
-                            dowrite=True
-                            tabPro, normPro = mm( t1, hier,
-                                rsf_image=img,
-                                srmodel=None,
-                                do_tractography=False,
-                                do_kk=False,
-                                do_normalization=True,
-                                verbose=True )
-                            if tabPro['rsf'] is not None and visualize:
-                                ants.plot( tabPro['rsf']['meanBold'],
-                                    axis=2, nslices=21, ncol=7, crop=True, title='meanBOLD', filename=mymm+"meanBOLD.png" )
-                                ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
-                                    axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+"boldALFF.png" )
-                                ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
-                                    axis=2, nslices=21, ncol=7, crop=True, title='fALFF', filename=mymm+"boldfALFF.png" )
-                                ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                                    axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
-                                ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                    axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
-                        if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
-                            dowrite=True
-                            bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
-                            bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
-                            srmodel_DTI_mdl=None
-                            if srmodel_DTI:
-                                temp = ants.get_spacing(img)
-                                dtspc=[temp[0],temp[1],temp[2]]
-                                bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
-                                mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
-                                if exists( mdlfn ):
-                                    if verbose:
-                                        print(mdlfn)
-                                    srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
-                                else:
-                                    print(mdlfn + " does not exist - wont use SR")
-                            tabPro, normPro = mm( t1, hier,
-                                dw_image=img,
-                                bvals = bvalfn,
-                                bvecs = bvecfn,
-                                srmodel=srmodel_DTI_mdl,
-                                do_tractography=realrun,
-                                do_kk=False,
-                                do_normalization=True,
-                                verbose=True )
-                            mydti = tabPro['DTI']
-                            if visualize:
-                                ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction', filename=mymm+"FAinit.png"  )
-                                ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+"FAbetter.png"  )
-                                ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU', filename=mymm+"FAJHU.png"  )
-                                ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD', filename=mymm+"MD.png"  )
-                        if dowrite:
-                            write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
-                            for mykey in normPro.keys():
-                                if normPro[mykey] is not None:
-                                    if visualize:
-                                        ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mykey+".png"   )
+                                    ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+"flair.png" )
+                                    ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+"flairWMH.png" )
+                            if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    rsf_image=img,
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=True,
+                                    verbose=True )
+                                if tabPro['rsf'] is not None and visualize:
+                                    ants.plot( tabPro['rsf']['meanBold'],
+                                        axis=2, nslices=21, ncol=7, crop=True, title='meanBOLD', filename=mymm+"meanBOLD.png" )
+                                    ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
+                                        axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+"boldALFF.png" )
+                                    ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
+                                        axis=2, nslices=21, ncol=7, crop=True, title='fALFF', filename=mymm+"boldfALFF.png" )
+                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                                        axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
+                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
+                                        axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
+                            if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
+                                dowrite=True
+                                bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
+                                bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
+                                srmodel_DTI_mdl=None
+                                if srmodel_DTI:
+                                    temp = ants.get_spacing(img)
+                                    dtspc=[temp[0],temp[1],temp[2]]
+                                    bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
+                                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                                    if exists( mdlfn ):
+                                        if verbose:
+                                            print(mdlfn)
+                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                    else:
+                                        print(mdlfn + " does not exist - wont use SR")
+                                tabPro, normPro = mm( t1, hier,
+                                    dw_image=img,
+                                    bvals = bvalfn,
+                                    bvecs = bvecfn,
+                                    srmodel=srmodel_DTI_mdl,
+                                    do_tractography=realrun,
+                                    do_kk=False,
+                                    do_normalization=True,
+                                    verbose=True )
+                                mydti = tabPro['DTI']
+                                if visualize:
+                                    ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction', filename=mymm+"FAinit.png"  )
+                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+"FAbetter.png"  )
+                                    ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU', filename=mymm+"FAJHU.png"  )
+                                    ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD', filename=mymm+"MD.png"  )
+                            if dowrite:
+                                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                                for mykey in normPro.keys():
+                                    if normPro[mykey] is not None:
+                                        if visualize:
+                                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mykey+".png"   )
 
 def spec_taper(x, p=0.1):
     from scipy import stats, signal, fft
