@@ -2897,7 +2897,7 @@ def mm_nrg(
     # other modalities (beyond T1) are treated individually
     if verbose:
         print(  " we have : " + str(len(myimgs)) + " modalities.")
-    overmodlist = [ "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL","NM2DMT","T1w", "T2Flair"]
+    overmodlist = ["NM2DMT","T2Flair", "T1w", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
     for overmod in overmodlist:
         mod_search_path = os.path.join(subjectrootpath, overmod, "*", "*nii.gz")
         if verbose:
@@ -2908,9 +2908,9 @@ def mm_nrg(
             dowrite=False
             if verbose:
                 print( 'overmod is : ' + overmodx )
-                print( 'xx is : ' + myimgsr[0] )
+                print( 'example image name is : ' + myimgsr[0] )
             if overmodx == 'NM2DMT':
-                myimgsr2 = glob.glob( xx+"/*/*nii.gz" )
+                myimgsr2 = myimgsr
                 myimgsr2.sort()
                 is4d = False
                 temp = ants.image_read( myimgsr2[0] )
@@ -2918,19 +2918,19 @@ def mm_nrg(
                     is4d = True
                 if len( myimgsr2 ) == 1 and not is4d: # check dimension
                     myimgsr2 = myimgsr2 + myimgsr2
-                subjectpropath = os.path.dirname( xx )
-                subjectpropath = re.sub( sourcedatafoldername, processDir, x )
+                subjectpropath = os.path.dirname( myimgsr2[0] )
+                subjectpropath = re.sub( sourcedatafoldername, processDir,subjectpropath )
                 if verbose:
-                    print( myimgsr2 )
                     print( "subjectpropath " + subjectpropath )
                 mysplit = subjectpropath.split( "/" )
                 os.makedirs( subjectpropath, exist_ok=True  )
                 mysplitCount = len( mysplit )
-                project = mysplit[mysplitCount-4]
-                subject = mysplit[mysplitCount-3]
-                date = mysplit[mysplitCount-2]
-                modality = "NM2DMT"
-                identifier = mysep.join([project, subject, date, modality]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mysplit[mysplitCount-2] + mysep + 'NM2DMT'
+                project = mysplit[mysplitCount-5]
+                subject = mysplit[mysplitCount-4]
+                date = mysplit[mysplitCount-3]
+                modality = mysplit[mysplitCount-2]
+                uider = mysplit[mysplitCount-1]
+                identifier = mysep.join([project, subject, date, modality])
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print( "NM " + mymm )
