@@ -2209,7 +2209,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   nuisance = np.c_[ nuisance, gmsignal ]
   gmmat = ants.regress_components( gmmat, nuisance )
 
-  myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1], nuisance=nuisance )
+  myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1] ) #  nuisance=nuisance )
 
   networks = powers_areal_mni_itk['SystemName'].unique()
 
@@ -2898,7 +2898,7 @@ def mm_nrg(
     # other modalities (beyond T1) are treated individually
     for xnum in range( len( myimgs ) ):
     # for xnum in [2]:
-        if verbose:
+        if verbose and xnum == 0:
             print( "we have : " + str(len(myimgs)) + " modalities.")
         dowrite=False
         x = myimgs[xnum]
