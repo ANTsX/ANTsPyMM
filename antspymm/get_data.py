@@ -2362,7 +2362,7 @@ def mm(
     srmodel=None,
     do_tractography = False,
     do_kk = False,
-    do_normalization = True,
+    do_normalization = None,
     target_range = [0,1],
     test_run = False,
     verbose = False ):
@@ -2397,7 +2397,7 @@ def mm(
 
     do_kk : boolean to control whether we compute kelly kapowski thickness image (slow)
 
-    do_normalization : boolean
+    do_normalization : template transformation if available
 
     target_range : 2-element tuple
         a tuple or array defining the (min, max) of the input image
@@ -2575,12 +2575,13 @@ def mm(
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
     #################################################################
-    if do_normalization:
+    if do_normalization is not None:
         if verbose:
             print('normalization')
         # might reconsider this template space - cropped and/or higher res?
         template = ants.resample_image( template, [1,1,1], use_voxels=False )
-        t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
+        # t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
+        t1reg = do_normalization
         if do_kk:
             normalization_dict['kk_norm'] = ants.apply_transforms( template, output_dict['kk']['thickness_image'], t1reg['fwdtransforms'])
         if dw_image is not None:
@@ -2905,7 +2906,9 @@ def mm_nrg(
     nimages = len(myimgsInput)
     if verbose:
         print(  " we have : " + str(nimages) + " modalities.")
-    overmodlist = ["NM2DMT","T2Flair", "T1w", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
+    overmodlist = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
+    # overmodlist = ["T1w","rsfMRI_RL"]
+    templateTx = None
     for overmod in overmodlist:
         counter=counter+1
         if verbose:
@@ -2970,7 +2973,7 @@ def mm_nrg(
                             srmodel=srmodel_NM_mdl,
                             do_tractography=False,
                             do_kk=False,
-                            do_normalization=True,
+                            do_normalization=templateTx,
                             test_run=test_run,
                             verbose=True )
                     if not test_run:
@@ -3027,6 +3030,7 @@ def mm_nrg(
                                     if visualize:
                                         ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
                                         ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
+                                templateTx = {'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat']  }
                                 if not exists( mymm + mysep + "kk_norm.nii.gz" ):
                                     dowrite=True
                                     if verbose:
@@ -3035,7 +3039,7 @@ def mm_nrg(
                                         srmodel=None,
                                         do_tractography=False,
                                         do_kk=True,
-                                        do_normalization=True,
+                                        do_normalization=templateTx,
                                         test_run=test_run,
                                         verbose=True )
                                     if visualize:
@@ -3048,7 +3052,7 @@ def mm_nrg(
                                     srmodel=None,
                                     do_tractography=False,
                                     do_kk=False,
-                                    do_normalization=True,
+                                    do_normalization=templateTx,
                                     test_run=test_run,
                                     verbose=True )
                                 if visualize:
@@ -3061,7 +3065,7 @@ def mm_nrg(
                                     srmodel=None,
                                     do_tractography=False,
                                     do_kk=False,
-                                    do_normalization=True,
+                                    do_normalization=templateTx,
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
@@ -3098,7 +3102,7 @@ def mm_nrg(
                                     srmodel=srmodel_DTI_mdl,
                                     do_tractography=not test_run,
                                     do_kk=False,
-                                    do_normalization=True,
+                                    do_normalization=templateTx,
                                     test_run=test_run,
                                     verbose=True )
                                 mydti = tabPro['DTI']
