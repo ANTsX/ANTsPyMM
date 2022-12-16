@@ -3113,6 +3113,11 @@ def mm_nrg(
                                     if normPro[mykey] is not None:
                                         if visualize:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
+        if verbose:
+            print("done with" + overmod )
+    if verbose:
+        print("mm_nrg complete.")
+    return
 
 def spec_taper(x, p=0.1):
     from scipy import stats, signal, fft
