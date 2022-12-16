@@ -2364,6 +2364,7 @@ def mm(
     do_kk = False,
     do_normalization = True,
     target_range = [0,1],
+    test_run = False,
     verbose = False ):
     """
     Multiple modality processing and normalization
@@ -2462,6 +2463,9 @@ def mm(
         'Subcortical_norm' : None,
         'DorsalAttention_norm' : None
     }
+    if test_run:
+        return output_dict, normalization_dict
+
     if do_kk:
         if verbose:
             print('kk')
@@ -2801,6 +2805,7 @@ def mm_nrg(
     captured in a ipynb / html file.
 
     """
+    counter=0
     import glob as glob
     from os.path import exists
     ex_path = os.path.expanduser( "~/.antspyt1w/" )
@@ -2813,14 +2818,16 @@ def mm_nrg(
     temp = sourcedir.split( "/" )
     splitCount = len( temp )
     template = mm_read( templatefn ) # Read in template
-    realrun = True
+    test_run = False
+    if test_run:
+        visualize=False
     subjectrootpath = os.path.join(sourcedir,sid, dtid)
     if verbose:
         print("subjectrootpath: "+ subjectrootpath )
-    myimgs = glob.glob( subjectrootpath+"/*" )
-    myimgs.sort( )
+    myimgsInput = glob.glob( subjectrootpath+"/*" )
+    myimgsInput.sort( )
     if verbose:
-        print( myimgs )
+        print( myimgsInput )
     # hierarchical
     # NOTE: if there are multiple T1s for this time point, should take
     # the one with the highest resnetGrade
@@ -2895,10 +2902,17 @@ def mm_nrg(
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
+    nimages = len(myimgsInput)
     if verbose:
-        print(  " we have : " + str(len(myimgs)) + " modalities.")
+        print(  " we have : " + str(nimages) + " modalities.")
     overmodlist = ["NM2DMT","T2Flair", "T1w", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
     for overmod in overmodlist:
+        counter=counter+1
+        if verbose:
+            print("This is a count: " + str(counter))
+        if counter > (len(overmodlist)+1):
+            print("This is weird. " + str(counter))
+            return
         mod_search_path = os.path.join(subjectrootpath, overmod, "*", "*nii.gz")
         if verbose:
             print(f"modality search path: {mod_search_path}")
@@ -2957,10 +2971,12 @@ def mm_nrg(
                             do_tractography=False,
                             do_kk=False,
                             do_normalization=True,
+                            test_run=test_run,
                             verbose=True )
-                    write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
-                    nmpro = tabPro['NM']
-                    mysl = range( nmpro['NM_avg'].shape[2] )
+                    if not test_run:
+                        write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                        nmpro = tabPro['NM']
+                        mysl = range( nmpro['NM_avg'].shape[2] )
                     if visualize:
                         ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+mysep+"NMavg.png" )
                         mysl = range( nmpro['NM_avg_cropped'].shape[2] )
@@ -3020,6 +3036,7 @@ def mm_nrg(
                                         do_tractography=False,
                                         do_kk=True,
                                         do_normalization=True,
+                                        test_run=test_run,
                                         verbose=True )
                                     if visualize:
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
@@ -3032,6 +3049,7 @@ def mm_nrg(
                                     do_tractography=False,
                                     do_kk=False,
                                     do_normalization=True,
+                                    test_run=test_run,
                                     verbose=True )
                                 if visualize:
                                     ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
@@ -3044,6 +3062,7 @@ def mm_nrg(
                                     do_tractography=False,
                                     do_kk=False,
                                     do_normalization=True,
+                                    test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
                                     ants.plot( tabPro['rsf']['meanBold'],
@@ -3077,9 +3096,10 @@ def mm_nrg(
                                     bvals = bvalfn,
                                     bvecs = bvecfn,
                                     srmodel=srmodel_DTI_mdl,
-                                    do_tractography=realrun,
+                                    do_tractography=not test_run,
                                     do_kk=False,
                                     do_normalization=True,
+                                    test_run=test_run,
                                     verbose=True )
                                 mydti = tabPro['DTI']
                                 if visualize:
