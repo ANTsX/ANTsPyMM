@@ -2913,12 +2913,11 @@ def mm_nrg(
                 myimgsr2 = glob.glob( xx+"/*/*nii.gz" )
                 myimgsr2.sort()
                 is4d = False
-                if len( myimgsr2 ) == 1: # check dimension
-                    temp = ants.image_read( myimgsr2[0] )
-                    if temp.dimension == 4:
-                        is4d = True
-                    else:
-                        myimgsr2 = myimgsr2 + myimgsr2
+                temp = ants.image_read( myimgsr2[0] )
+                if temp.dimension == 4:
+                    is4d = True
+                if len( myimgsr2 ) == 1 and not is4d: # check dimension
+                    myimgsr2 = myimgsr2 + myimgsr2
                 subjectpropath = os.path.dirname( xx )
                 subjectpropath = re.sub( sourcedatafoldername, processDir, x )
                 if verbose:
@@ -2936,7 +2935,7 @@ def mm_nrg(
                 if verbose:
                     print( "NM " + mymm )
                 if is4d:
-                    nmlist = ants.ndimage_to_list( mm_read( zz ) )
+                    nmlist = ants.ndimage_to_list( mm_read( myimgsr2[0] ) )
                 else:
                     nmlist = []
                     for zz in myimgsr2:
