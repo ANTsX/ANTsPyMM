@@ -2963,11 +2963,11 @@ def mm_nrg(
                     nmpro = tabPro['NM']
                     mysl = range( nmpro['NM_avg'].shape[2] )
                     if visualize:
-                        ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+"NMavg.png" )
+                        ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+mysep+"NMavg.png" )
                         mysl = range( nmpro['NM_avg_cropped'].shape[2] )
-                        ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+"NMavgcrop.png" )
-                        ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+"NMavgcropt1.png" )
-                        ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+"NMavgcroplabels.png" )
+                        ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+mysep+"NMavgcrop.png" )
+                        ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
+                        ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
             else :
                 if True:
                     dowrite=False
@@ -3023,8 +3023,8 @@ def mm_nrg(
                                         do_normalization=True,
                                         verbose=True )
                                     if visualize:
-                                        ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+"brainextraction.png" )
-                                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+"kkthickness.png" )
+                                        ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=21, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
+                                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=21, ncol=7, crop=True, title='kk', filename=mymm+mysep+"kkthickness.png" )
                             if mymod == 'T2Flair' and ishapelen == 3:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
@@ -3035,8 +3035,8 @@ def mm_nrg(
                                     do_normalization=True,
                                     verbose=True )
                                 if visualize:
-                                    ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+"flair.png" )
-                                    ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+"flairWMH.png" )
+                                    ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
+                                    ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
@@ -3048,15 +3048,15 @@ def mm_nrg(
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
                                     ants.plot( tabPro['rsf']['meanBold'],
-                                        axis=2, nslices=21, ncol=7, crop=True, title='meanBOLD', filename=mymm+"meanBOLD.png" )
+                                        axis=2, nslices=21, ncol=7, crop=True, title='meanBOLD', filename=mymm+mysep+"meanBOLD.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
-                                        axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+"boldALFF.png" )
+                                        axis=2, nslices=21, ncol=7, crop=True, title='ALFF', filename=mymm+mysep+"boldALFF.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
-                                        axis=2, nslices=21, ncol=7, crop=True, title='fALFF', filename=mymm+"boldfALFF.png" )
+                                        axis=2, nslices=21, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                                        axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+"boldDefaultMode.png" )
+                                        axis=2, nslices=21, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                        axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+"boldFrontoparietalTaskControl.png"  )
+                                        axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 dowrite=True
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
@@ -3084,16 +3084,16 @@ def mm_nrg(
                                     verbose=True )
                                 mydti = tabPro['DTI']
                                 if visualize:
-                                    ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction', filename=mymm+"FAinit.png"  )
-                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+"FAbetter.png"  )
-                                    ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU', filename=mymm+"FAJHU.png"  )
-                                    ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD', filename=mymm+"MD.png"  )
+                                    ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=21, ncol=7, crop=True, title='FA pre correction', filename=mymm+mysep+"FAinit.png"  )
+                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=21, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
+                                    ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=21, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
+                                    ants.plot( mydti['recon_md'],  axis=2, nslices=21, ncol=7, crop=True, title='MD', filename=mymm+mysep+"MD.png"  )
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
                                     if normPro[mykey] is not None:
                                         if visualize:
-                                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mykey+".png"   )
+                                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
 
 def spec_taper(x, p=0.1):
     from scipy import stats, signal, fft
