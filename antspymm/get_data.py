@@ -365,16 +365,20 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'highermeans':higherindices }
 
 def t1_based_dwi_brain_extraction(
+    t1w_head,
     t1w,
     dwi,
     b0_idx = None,
-    transform='Rigid'
+    transform='Rigid',
+    verbose=False
 ):
     """
     Map a t1-based brain extraction to b0 and return a mask and average b0
 
     Arguments
     ---------
+    t1w_head : an antsImage of the hole head
+
     t1w : an antsImage probably but not necessarily T1-weighted
 
     dwi : an antsImage holding B0 and DWI
@@ -405,7 +409,14 @@ def t1_based_dwi_brain_extraction(
     else:
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
     b0_avg = ants.iMath(b0_avg,"Normalize")
-    reg = ants.registration( b0_avg, t1w_use, transform, syn_metric='mattes', total_sigma=3.0, verbose=False )
+    reg = tra_initializer( b0_avg, t1w, n_simulations=12, verbose=verbose )
+#    reg = ants.registration( b0_avg, t1w, 
+#        'SyNOnly',
+#        syn_metric='CC', 
+#        syn_sampling=2,
+#        total_sigma=0.0, 
+#        initial_transform=rig0['fwdtransforms'][0],
+#        verbose=False )
     outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
     return  {
     'b0_avg':b0_avg,
@@ -2473,11 +2484,22 @@ def mm(
 ################################## do the dti .....
     if dw_image is not None:
         if verbose:
-            print('dti')
-        dtibxt_data = t1_based_dwi_brain_extraction( hier['brain_n4_dnz'], dw_image, transform='Rigid' )
+            print('dti-x')
+        t1_image_norm = ants.iMath( t1_image, "Normalize" )
+        bmask = ants.threshold_image( hier['brain_n4_dnz'], 0.01, 1e9 ).iMath("MD",20)
+        t1_image_norm = t1_image_norm * bmask
+        temp = 1.0 - t1_image_norm.numpy()
+        temp = ants.from_numpy( temp )
+        temp = ants.copy_image_info( t1_image_norm, temp )
+        t1_image_norm = (  temp ) * bmask
+        # ants.image_write( t1_image_norm, '/tmp/temp.nii.gz' )
+        dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'], 
+            dw_image, transform='SyN', verbose=verbose )
         cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
         dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
+        # ants.image_write( dtibxt_data['b0_avg'], '/tmp/temp2.nii.gz' )
+        # ants.image_write( dtibxt_data['b0_mask'], '/tmp/temp3.nii.gz' )
         padder = [4,4,4]
         dtibxt_data['b0_mask'] = ants.pad_image( dtibxt_data['b0_mask'], pad_width=padder )
         dtibxt_data['b0_avg'] = ants.pad_image( dtibxt_data['b0_avg'], pad_width=padder )
