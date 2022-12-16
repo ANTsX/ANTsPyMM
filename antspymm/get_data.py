@@ -410,11 +410,11 @@ def t1_based_dwi_brain_extraction(
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
     b0_avg = ants.iMath(b0_avg,"Normalize")
     reg = tra_initializer( b0_avg, t1w, n_simulations=12, verbose=verbose )
-#    reg = ants.registration( b0_avg, t1w, 
+#    reg = ants.registration( b0_avg, t1w,
 #        'SyNOnly',
-#        syn_metric='CC', 
+#        syn_metric='CC',
 #        syn_sampling=2,
-#        total_sigma=0.0, 
+#        total_sigma=0.0,
 #        initial_transform=rig0['fwdtransforms'][0],
 #        verbose=False )
     outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
@@ -2493,7 +2493,7 @@ def mm(
         temp = ants.copy_image_info( t1_image_norm, temp )
         t1_image_norm = (  temp ) * bmask
         # ants.image_write( t1_image_norm, '/tmp/temp.nii.gz' )
-        dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'], 
+        dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'],
             dw_image, transform='SyN', verbose=verbose )
         cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
@@ -3059,8 +3059,8 @@ def mm_nrg(
                                         axis=2, nslices=21, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 dowrite=True
-                                bvalfn = re.sub( '.nii.gz', '.bval' , myimg[0] )
-                                bvecfn = re.sub( '.nii.gz', '.bvec' , myimg[0] )
+                                bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
+                                bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
                                 srmodel_DTI_mdl=None
                                 if srmodel_DTI:
                                     temp = ants.get_spacing(img)
