@@ -1852,7 +1852,6 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
   """
   import numpy as np
   import math
-  probability_mask = antspynet.sysu_media_wmh_segmentation(flair)
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
@@ -1869,15 +1868,17 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
         dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
         wmseg_mask = wmseg_mask + ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
         wmseg_mask = ants.threshold_image( wmseg_mask, 1, 2 )
-
+  ##############################################################################
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
+  flair_n4 = ants.n4_bias_field_correction( flair, mask=wmseg_2_flair )
+  flair_n4 = ants.iMath( flair_n4, "Normalize" )
+  probability_mask = antspynet.sysu_media_wmh_segmentation( flair_n4 )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
   wmh_sum = label1['Mass'].values[0]
-
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
