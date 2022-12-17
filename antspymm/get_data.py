@@ -1162,14 +1162,14 @@ def dwi_deterministic_tracking(
         if verbose:
             print("begin peaks",flush=True)
         mynump=1
-        if os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"):
-            mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
-        current_openblas = os.environ.get('OPENBLAS_NUM_THREADS', '')
-        current_mkl = os.environ.get('MKL_NUM_THREADS', '')
-        os.environ['DIPY_OPENBLAS_NUM_THREADS'] = current_openblas
-        os.environ['DIPY_MKL_NUM_THREADS'] = current_mkl
-        os.environ['OPENBLAS_NUM_THREADS'] = '1'
-        os.environ['MKL_NUM_THREADS'] = '1'
+        # if os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"):
+        #    mynump = os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS']
+        # current_openblas = os.environ.get('OPENBLAS_NUM_THREADS', '')
+        # current_mkl = os.environ.get('MKL_NUM_THREADS', '')
+        # os.environ['DIPY_OPENBLAS_NUM_THREADS'] = current_openblas
+        # os.environ['DIPY_MKL_NUM_THREADS'] = current_mkl
+        # os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        # os.environ['MKL_NUM_THREADS'] = '1'
         peak_indices = peaks_from_model(
             model=dti_model,
             data=dwi_data,
@@ -1182,16 +1182,17 @@ def dwi_deterministic_tracking(
             parallel=int(mynump) > 1,
             num_processes=int(mynump)
             )
-        if 'DIPY_OPENBLAS_NUM_THREADS' in os.environ:
-            os.environ['OPENBLAS_NUM_THREADS'] = \
-                os.environ.pop('DIPY_OPENBLAS_NUM_THREADS', '')
-            if os.environ['OPENBLAS_NUM_THREADS'] in ['', None]:
-                os.environ.pop('OPENBLAS_NUM_THREADS', '')
-        if 'DIPY_MKL_NUM_THREADS' in os.environ:
-            os.environ['MKL_NUM_THREADS'] = \
-                os.environ.pop('DIPY_MKL_NUM_THREADS', '')
-            if os.environ['MKL_NUM_THREADS'] in ['', None]:
-                os.environ.pop('MKL_NUM_THREADS', '')
+        if False:
+            if 'DIPY_OPENBLAS_NUM_THREADS' in os.environ:
+                os.environ['OPENBLAS_NUM_THREADS'] = \
+                    os.environ.pop('DIPY_OPENBLAS_NUM_THREADS', '')
+                if os.environ['OPENBLAS_NUM_THREADS'] in ['', None]:
+                    os.environ.pop('OPENBLAS_NUM_THREADS', '')
+            if 'DIPY_MKL_NUM_THREADS' in os.environ:
+                os.environ['MKL_NUM_THREADS'] = \
+                    os.environ.pop('DIPY_MKL_NUM_THREADS', '')
+                if os.environ['MKL_NUM_THREADS'] in ['', None]:
+                    os.environ.pop('MKL_NUM_THREADS', '')
 
     if label_image is None or seed_labels is None:
         seed_mask = fa.numpy().copy()
