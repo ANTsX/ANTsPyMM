@@ -2906,27 +2906,27 @@ def mm_nrg(
     nimages = len(myimgsInput)
     if verbose:
         print(  " we have : " + str(nimages) + " modalities.")
-    overmodlist = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
-    # overmodlist = ["T1w","rsfMRI_RL"]
+    overmodXlist = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
+    # overmodXlist = ["T1w", "DTI_RL"] # for testing
     templateTx = None
-    for overmod in overmodlist:
+    for overmodX in overmodXlist:
         counter=counter+1
         if verbose:
             print("This is a count: " + str(counter))
-        if counter > (len(overmodlist)+1):
+        if counter > (len(overmodXlist)+1):
             print("This is weird. " + str(counter))
             return
-        mod_search_path = os.path.join(subjectrootpath, overmod, "*", "*nii.gz")
+        mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
         if verbose:
             print(f"modality search path: {mod_search_path}")
         myimgsr = glob.glob(mod_search_path)
         if len(myimgsr) > 0:
-            overmodx = str(overmod)
+            overmodXx = str(overmodX)
             dowrite=False
             if verbose:
-                print( 'overmod is : ' + overmodx )
+                print( 'overmodX is : ' + overmodXx )
                 print( 'example image name is : ' + myimgsr[0] )
-            if overmodx == 'NM2DMT':
+            if overmodXx == 'NM2DMT':
                 myimgsr2 = myimgsr
                 myimgsr2.sort()
                 is4d = False
@@ -3117,8 +3117,10 @@ def mm_nrg(
                                     if normPro[mykey] is not None:
                                         if visualize:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
+        if overmodX == overmodXlist[ len( overmodXlist ) - 1 ]:
+            return
         if verbose:
-            print("done with" + overmod )
+            print("done with " + overmodX )
     if verbose:
         print("mm_nrg complete.")
     return
