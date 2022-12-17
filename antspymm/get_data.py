@@ -75,7 +75,8 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
         df['sid'].iloc[k]=splitter[1]
         df['visitdate'].iloc[k]=splitter[2]
         df['modality'].iloc[k]=splitter[3]
-        df['uid'].iloc[k]=splitter[4]
+        temp = os.path.splitext(splitter[4])[0]
+        df['uid'].iloc[k]=os.path.splitext(temp)[0]
     return df
 
 
