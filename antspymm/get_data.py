@@ -150,7 +150,7 @@ def get_data( name=None, force_download=False, version=9, target_extension='.csv
     return datapath
 
 
-def get_models( version=2, force_download=True ):
+def get_models( version=3, force_download=True ):
     """
     Get ANTsPyMM data models
 
