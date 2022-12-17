@@ -2987,7 +2987,7 @@ def mm_nrg(
                 date = mysplit[mysplitCount-3]
                 modality = mysplit[mysplitCount-2]
                 uider = mysplit[mysplitCount-1]
-                identifier = mysep.join([project, subject, date, modality])
+                identifier = mysep.join([project, subject, date, modality, iid ])
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print( "NM " + mymm )
@@ -3041,7 +3041,10 @@ def mm_nrg(
                         mymod = mysplit[mysplitCount-2] # FIXME system dependent
                         uid = mysplit[mysplitCount-1] # unique image id
                         os.makedirs( subjectpropath, exist_ok=True  )
-                        identifier = mysep.join([project, date, subject, mymod, uid]) #mysplit[mysplitCount-4] + mysep + mysplit[mysplitCount-3] + mysep + mymod + mysep + uid
+                        if mymod == 'T1w':
+                            identifier = mysep.join([project, date, subject, mymod, uid])
+                        else:  # add the T1 unique id since that drives a lot of the analysis
+                            identifier = mysep.join([project, date, subject, mymod, uid, iid])
                         mymm = subjectpropath + "/" + identifier
                         if verbose:
                             print("Modality specific processing: " + mymod )
