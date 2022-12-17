@@ -19,6 +19,7 @@ from operator import mul
 from scipy.sparse.linalg import svds
 from scipy.stats import pearsonr
 import re
+import datetime as dt
 
 from dipy.core.histeq import histeq
 import dipy.reconst.dti as dti
@@ -38,8 +39,45 @@ from multiprocessing import Pool
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def mm_read( x ):
+def mm_read( x, modality='' ):
+    """
+    read an image from a filename - same as ants.image_read (for now)
+    """
     return ants.image_read( x, reorient=False )
+
+def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
+    """
+    convert a list of files in nrg format to a dataframe
+
+    Arguments
+    ---------
+    filename_list : globbed list of files
+
+    myseparator : string separator between nrg parts
+
+    Returns
+    -------
+
+    df : pandas data frame
+
+    """
+    def getmtime(x):
+        x= dt.datetime.fromtimestamp(os.path.getmtime(x)).strftime("%Y-%m-%d %H:%M:%d")
+        return x
+    df=pd.DataFrame(columns=['filename','file_last_mod_t','else','sid','visitdate','modality','uid'])
+    df.set_index('filename')
+    df['filename'] = pd.Series([file for file in filename_list ])
+    # I applied a time modified file to df['file_last_mod_t'] by getmtime function
+    df['file_last_mod_t'] = df['filename'].apply(lambda x: getmtime(x))
+    for k in range(df.shape[0]):
+        locfn=df['filename'].iloc[k]
+        splitter=os.path.basename(locfn).split( myseparator )
+        df['sid'].iloc[k]=splitter[1]
+        df['visitdate'].iloc[k]=splitter[2]
+        df['modality'].iloc[k]=splitter[3]
+        df['uid'].iloc[k]=splitter[4]
+    return df
+
 
 def get_data( name=None, force_download=False, version=9, target_extension='.csv' ):
     """
