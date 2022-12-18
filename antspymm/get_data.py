@@ -2033,13 +2033,6 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
-  ants.image_write( slab2t1B, '/tmp/slab2t1B.nii.gz' )
-  ants.image_write( slab2t1, '/tmp/slab2t1.nii.gz' )
-  ants.image_write( nmavg2t1c, '/tmp/nmavg2t1c.nii.gz' )
-  ants.image_write( nm_avg, '/tmp/nm_avg.nii.gz' )
-  ants.image_write( t1c, '/tmp/t1c.nii.gz' )
-  ants.image_write( t1_head, '/tmp/t1_head.nii.gz' )
-  ants.image_write( t1, '/tmp/t1.nii.gz' )
   slabreg = tra_initializer( nm_avg, t1c, verbose=verbose )
   if False:
       slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
@@ -2134,6 +2127,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   rravg = nm_avg_cropped[ rr_mask == 1].mean()
   snstd = nm_avg_cropped[ sn_mask == 1].std()
   rrstd = nm_avg_cropped[ rr_mask == 1].std()
+  snvol = np.prod( ants.get_spacing(sn_mask) ) * sn_mask.sum()
 
   return{
       'NM_avg' : nm_avg,
@@ -2148,6 +2142,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_avg_signaltonoise' : nmavgsnr,
       'NM_avg_substantianigra' : snavg,
       'NM_std_substantianigra' : snstd,
+      'NM_volume_substantianigra' : snvol,
       'NM_avg_refregion' : rravg,
       'NM_std_refregion' : rrstd
        }
@@ -2733,6 +2728,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_avg_signaltonoise'] = mm['NM']['NM_avg_signaltonoise']
         mm_wide['NM_avg_substantianigra'] = mm['NM']['NM_avg_substantianigra']
         mm_wide['NM_std_substantianigra'] = mm['NM']['NM_std_substantianigra']
+        mm_wide['NM_volume_substantianigra'] = mm['NM']['NM_volume_substantianigra']
         mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
         mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
     if mm['flair'] is not None:
