@@ -2902,7 +2902,7 @@ def mm_nrg(
     else:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-    if srmodel_T1 :
+    if srmodel_T1 is not False :
         hierfnSR = re.sub( sourcedatafoldername, processDir, t1fn)
         hierfnSR = re.sub( "T1w", "T1wHierarchicalSR", hierfnSR)
         hierfnSR = re.sub( ".nii.gz", "", hierfnSR)
@@ -2919,6 +2919,8 @@ def mm_nrg(
             # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
             bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality='T1' )
             mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_2chan_featvggL6_postseg_best_mdl.h5"
+            if isinstance( srmodel_T1, str ):
+                mdlfn = os.path.join( ex_pathmm, srmodel_T1 )
             if verbose:
                 print( mdlfn )
             if exists( mdlfn ):
@@ -2999,9 +3001,11 @@ def mm_nrg(
                     for zz in myimgsr2:
                         nmlist.append( mm_read( zz ) )
                 srmodel_NM_mdl = None
-                if srmodel_NM:
+                if srmodel_NM is not False:
                     bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
                     mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                    if isinstance( srmodel_NM, str ):
+                        mdlfn = os.path.join( ex_pathmm, srmodel_NM )
                     if exists( mdlfn ):
                         if verbose:
                             print(mdlfn)
@@ -3128,11 +3132,13 @@ def mm_nrg(
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
                                 srmodel_DTI_mdl=None
-                                if srmodel_DTI:
+                                if srmodel_DTI is not False:
                                     temp = ants.get_spacing(img)
                                     dtspc=[temp[0],temp[1],temp[2]]
                                     bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
                                     mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                                    if isinstance( srmodel_DTI, str ):
+                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
                                     if exists( mdlfn ):
                                         if verbose:
                                             print(mdlfn)
