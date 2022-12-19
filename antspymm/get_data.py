@@ -301,7 +301,8 @@ def super_res_mcimage( image,
     truncation :  quantiles at which we truncate intensities to limit impact of outliers e.g. [0.005,0.995]
 
     poly_order : if not None, will fit a global regression model to map
-        intensity back to original histogram space
+        intensity back to original histogram space; if 'hist' will match
+        by histogram matching - ants.histogram_match_image
 
     target_range : 2-element tuple
         a tuple or array defining the (min, max) of the input image
@@ -335,7 +336,10 @@ def super_res_mcimage( image,
             target_range = target_range )
         if poly_order is not None:
             bilin = ants.resample_image_to_target( temp, mysr )
-            mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
+            if poly_order == 'hist':
+                mysr = ants.histogram_match_image( mysr, bilin )
+            else:
+                mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
         if isotropic:
             mysr = down2iso( mysr )
         if k == 0:
@@ -3545,11 +3549,12 @@ def bind_wide_mm_csvs( mm_wide_csvs,
         temp = mm_wide_csvs[k]
         mypartsf = temp.split("T1wHierarchical")
         myparts = mypartsf[0]
+        t1iid = str(mypartsf[1].split("/")[1])
         # Loop through nrg_modality_list and add csv file data to startdf if it exists
         for j in range(len(nrg_modality_list)):
-            # if verbose:
-            #    print(str(j)+ myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
-            fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
+            fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*" + t1iid + "*wide.csv")
+            if verbose == 2:
+                print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
             if len(fnsnm) == 1:
                 try:
                     dd = pd.read_csv(str(fnsnm[0]))
@@ -3578,8 +3583,8 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                         newcolnames = dd.index.to_list()
                         newcolnames.pop()
                         if len(newcolnames) != ddnum.shape[1]:
-                            return( dd )
-                            print("Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
+                            print("Cannot Merge : ", tagger, " Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
+                            dd = pd.DataFrame()
                         dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
                     else:
                         dd.columns=tagger + dd.columns
