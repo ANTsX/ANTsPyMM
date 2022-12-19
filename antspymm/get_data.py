@@ -36,6 +36,7 @@ import siq
 import tensorflow as tf
 
 from multiprocessing import Pool
+import glob as glob
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
@@ -3513,56 +3514,76 @@ def down2iso( x, interpolation='linear', takemin=False ):
     return xs
 
 
-def bind_wide_mm_csvs( mm_wide_csvs, nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"] ) :
-"""
-Parameters:
-mm_wide_csvs (list): a list of file names
-nrg_modality_list (list): a list of column names
+def bind_wide_mm_csvs( mm_wide_csvs,
+    nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
+    verbose = False ) :
+    """
+    Parameters:
+    mm_wide_csvs (list): a list of file names of the type *T1wHierarchical*sv
+    nrg_modality_list (list): a list of column names
+    verbose: boolean
 
-Returns:
-dataframe
-"""
-# Return early if no files found
-if not mm_wide_csvs:
-    print("No files found with specified pattern")
-    return
-
-for k in range(len(mm_wide_csvs)):
-    # Read first csv file and store column names
-    try:
-        startdf = pd.read_csv(mm_wide_csvs[k])
-    except:
-        print(f"Error reading {mm_wide_csvs[k]}")
-        continue
-    rootcolnames = startdf.columns
-    # Split file name and store first part
-    temp = mm_wide_csvs[k]
-    mypartsf = temp.split("T1wHierarchical")
-    myparts = mypartsf[0]
-    # Loop through admissiblemods and add csv file data to startdf if it exists
-    for j in range(len(admissiblemods)):
-        fnsnm = glob.glob(myparts+"/"+admissiblemods[j]+"/*/*wide.csv")
-        if len(fnsnm) == 1:
-            try:
-                dd = pd.read_csv(fnsnm)
-            except:
-                print(f"Error reading {fnsnm[0]}")
-                continue
-            # Drop cnxcount columns
-            cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
-            if len(cnxcoutnames) > 0:
-                dd = dd.drop(columns=cnxcoutnames)
-            # Drop columns that appear in both dd and startdf
-            inames = set(rootcolnames).intersection(set(dd.columns))
-            dd = dd.drop(columns=inames)
-            tagger = admissiblemods[j]+"_"
-            if dd.shape[0] > 0:
-                # Remove inner and outer rows if they exist
-                if dd.shape[0] == 2:
-                    dd = dd.iloc[1]
-                    grepinner = [i for i, val in enumerate(dd.iloc[0]) if "inner" in val or "outer" in val]
-                    if len(grepinner) > 0:
-                        dd = dd.drop(dd.columns[grepinner])
-                # Rename columns and add to startdf
-                dd = pd.DataFrame(columns=['tagger' + col for col in dd.columns])
-    startdf = pd.concat([startdf, dd], axis=1)
+    Returns:
+    dataframe
+    """
+    # Return early if no files found
+    if not mm_wide_csvs:
+        print("No files found with specified pattern")
+        return
+    alldf=pd.DataFrame()
+    for k in range(len(mm_wide_csvs)):
+        if verbose:
+            print(str(k)+ " of " + str(len(mm_wide_csvs)))
+        # Read first csv file and store column names
+        try:
+            startdf = pd.read_csv(mm_wide_csvs[k])
+        except:
+            print(f"Error reading {mm_wide_csvs[k]}")
+            continue
+        rootcolnames = startdf.columns
+        # Split file name and store first part
+        temp = mm_wide_csvs[k]
+        mypartsf = temp.split("T1wHierarchical")
+        myparts = mypartsf[0]
+        # Loop through nrg_modality_list and add csv file data to startdf if it exists
+        for j in range(len(nrg_modality_list)):
+            # if verbose:
+            #    print(str(j)+ myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
+            fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
+            print(str(j) + "  "+ nrg_modality_list[j])
+            if len(fnsnm) == 1:
+                try:
+                    dd = pd.read_csv(str(fnsnm[0]))
+                except:
+                    print(f"Error reading {fnsnm[0]}")
+                    continue
+                # Drop cnxcount columns
+                cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
+                if len(cnxcoutnames) > 0:
+                    dd = dd.drop(columns=cnxcoutnames)
+                # Drop columns that appear in both dd and startdf
+                inames = set(rootcolnames).intersection(set(dd.columns))
+                dd = dd.drop(columns=inames)
+                tagger = nrg_modality_list[j]+"_"
+                if dd.shape[0] > 0:
+                    # Remove inner and outer rows if they exist
+                    if dd.shape[0] == 2:
+                        dd = dd.iloc[1]
+                        grepinner = [i for i, val in enumerate(dd.iloc[0]) if "inner" in val or "outer" in val]
+                        if len(grepinner) > 0:
+                            dd = dd.drop(dd.columns[grepinner])
+                        # Rename columns and add to startdf
+                        ddnum = dd.to_numpy()
+                        ddnum = np.delete( ddnum, 0 )
+                        ddnum = ddnum.reshape([1,ddnum.shape[0]])
+                        newcolnames = dd.index.to_list()
+                        newcolnames.pop()
+                        if len(newcolnames) != ddnum.shape[1]:
+                            return( dd )
+                            print("Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
+                        dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
+                    else:
+                        dd.columns=tagger + dd.columns
+                    startdf = pd.concat([startdf, dd], axis=1)
+        alldf = pd.concat([alldf, startdf], axis=0)
+        return alldf
