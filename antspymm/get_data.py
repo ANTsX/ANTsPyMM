@@ -2144,7 +2144,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_std_substantianigra' : snstd,
       'NM_volume_substantianigra' : snvol,
       'NM_avg_refregion' : rravg,
-      'NM_std_refregion' : rrstd
+      'NM_std_refregion' : rrstd,
+      'NM_count': len( list_nm_images )
        }
 
 def resting_state_fmri_networks( fmri, t1, t1segmentation,
@@ -2731,6 +2732,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_volume_substantianigra'] = mm['NM']['NM_volume_substantianigra']
         mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
         mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
+        mm_wide['NM_count'] = mm['NM']['NM_count']
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
         ants.image_write( mm['flair']['WMH_probability_map'], myop )
@@ -2954,6 +2956,8 @@ def mm_nrg(
             print("This is weird. " + str(counter))
             return
         mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+        if overmodX == 'T1w':
+            mod_search_path = os.path.join(subjectrootpath, overmodX, "*", iid, "*nii.gz")
         if verbose:
             print(f"modality search path: {mod_search_path}")
         myimgsr = glob.glob(mod_search_path)
