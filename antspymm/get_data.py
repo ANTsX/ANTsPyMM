@@ -3550,7 +3550,6 @@ def bind_wide_mm_csvs( mm_wide_csvs,
             # if verbose:
             #    print(str(j)+ myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
             fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*wide.csv")
-            print(str(j) + "  "+ nrg_modality_list[j])
             if len(fnsnm) == 1:
                 try:
                     dd = pd.read_csv(str(fnsnm[0]))
@@ -3586,4 +3585,4 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                         dd.columns=tagger + dd.columns
                     startdf = pd.concat([startdf, dd], axis=1)
         alldf = pd.concat([alldf, startdf], axis=0)
-        return alldf
+    return alldf
