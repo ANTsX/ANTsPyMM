@@ -2779,6 +2779,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
+    nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
     verbose = True
 ):
     """
@@ -2828,13 +2829,15 @@ def mm_nrg(
 
     mysep : define a character separator for filename components
 
-    srmodel_T1 : False (default) - will add a great deal of time
+    srmodel_T1 : False (default) - will add a great deal of time - or h5 filename, 2 chan
 
-    srmodel_NM : False (default) - will add a great deal of time
+    srmodel_NM : False (default) - will add a great deal of time - or h5 filename, 1 chan
 
-    srmodel_DTI : False (default) - will add a great deal of time
+    srmodel_DTI : False (default) - will add a great deal of time - or h5 filename, 1 chan
 
     visualize : True - will plot some results to png
+
+    nrg_modality_list : list of permissible modalities - always include [T1w] as base
 
     verbose : boolean
 
@@ -2947,14 +2950,12 @@ def mm_nrg(
     nimages = len(myimgsInput)
     if verbose:
         print(  " we have : " + str(nimages) + " modalities.")
-    overmodXlist = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"]
-    # overmodXlist = ["T1w", "DTI_RL"] # for testing
     templateTx = None
-    for overmodX in overmodXlist:
+    for overmodX in nrg_modality_list:
         counter=counter+1
         if verbose:
             print("This is a count: " + str(counter))
-        if counter > (len(overmodXlist)+1):
+        if counter > (len(nrg_modality_list)+1):
             print("This is weird. " + str(counter))
             return
         mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
@@ -3167,7 +3168,7 @@ def mm_nrg(
                                     if normPro[mykey] is not None:
                                         if visualize:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
-        if overmodX == overmodXlist[ len( overmodXlist ) - 1 ]:
+        if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
             return
         if verbose:
             print("done with " + overmodX )
