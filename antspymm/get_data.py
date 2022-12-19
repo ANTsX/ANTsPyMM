@@ -3511,3 +3511,58 @@ def down2iso( x, interpolation='linear', takemin=False ):
     else:
         xs = ants.resample_image( x, newspc, interp_type=1)
     return xs
+
+
+def bind_wide_mm_csvs( mm_wide_csvs, nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"] ) :
+"""
+Parameters:
+mm_wide_csvs (list): a list of file names
+nrg_modality_list (list): a list of column names
+
+Returns:
+dataframe
+"""
+# Return early if no files found
+if not mm_wide_csvs:
+    print("No files found with specified pattern")
+    return
+
+for k in range(len(mm_wide_csvs)):
+    # Read first csv file and store column names
+    try:
+        startdf = pd.read_csv(mm_wide_csvs[k])
+    except:
+        print(f"Error reading {mm_wide_csvs[k]}")
+        continue
+    rootcolnames = startdf.columns
+    # Split file name and store first part
+    temp = mm_wide_csvs[k]
+    mypartsf = temp.split("T1wHierarchical")
+    myparts = mypartsf[0]
+    # Loop through admissiblemods and add csv file data to startdf if it exists
+    for j in range(len(admissiblemods)):
+        fnsnm = glob.glob(myparts+"/"+admissiblemods[j]+"/*/*wide.csv")
+        if len(fnsnm) == 1:
+            try:
+                dd = pd.read_csv(fnsnm)
+            except:
+                print(f"Error reading {fnsnm[0]}")
+                continue
+            # Drop cnxcount columns
+            cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
+            if len(cnxcoutnames) > 0:
+                dd = dd.drop(columns=cnxcoutnames)
+            # Drop columns that appear in both dd and startdf
+            inames = set(rootcolnames).intersection(set(dd.columns))
+            dd = dd.drop(columns=inames)
+            tagger = admissiblemods[j]+"_"
+            if dd.shape[0] > 0:
+                # Remove inner and outer rows if they exist
+                if dd.shape[0] == 2:
+                    dd = dd.iloc[1]
+                    grepinner = [i for i, val in enumerate(dd.iloc[0]) if "inner" in val or "outer" in val]
+                    if len(grepinner) > 0:
+                        dd = dd.drop(dd.columns[grepinner])
+                # Rename columns and add to startdf
+                dd = pd.DataFrame(columns=['tagger' + col for col in dd.columns])
+    startdf = pd.concat([startdf, dd], axis=1)
