@@ -23,8 +23,7 @@ streamlines = select_random_set_of_streamlines(trk.streamlines, 10000)
 
 from fury import actor, colormap
 from dipy.tracking import utils
-from utils.visualization_utils import generate_anatomical_volume_figure
-from utils.visualization_utils import generate_anatomical_volume_figure
+# from utils.visualization_utils import generate_anatomical_volume_figure
 streamlines_actor = actor.line(streamlines, colormap.line_colors(streamlines))
 
 from dipy.viz import window, actor, colormap, has_fury
