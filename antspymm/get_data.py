@@ -285,7 +285,7 @@ def dewarp_imageset( image_list, initial_template=None,
 def super_res_mcimage( image,
     srmodel,
     truncation=[0.0001,0.995],
-    poly_order=None,
+    poly_order='hist',
     target_range=[0,1],
     isotropic = False,
     verbose=False ):
@@ -891,11 +891,12 @@ def joint_dti_recon(
         if img_RL is not None:
             if verbose:
                 print("convert img_RL_dwp to img_RL_dwp_SR")
-                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, isotropic=True, verbose=verbose )
+                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, isotropic=True,
+                    verbose=verbose )
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
-        img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, isotropic=True, verbose=verbose )
-
+        img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, isotropic=True,
+            verbose=verbose )
     if verbose:
         print("recon after distortion correction", flush=True)
 
@@ -1939,6 +1940,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     denoise=1,
     srmodel=None,
     target_range=[0,1],
+    poly_order='hist',
     verbose=False ) :
 
   """
@@ -1972,6 +1974,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
         (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
         intensity. This range should match the mapping used in the training
         of the network.
+
+  poly_order : if not None, will fit a global regression model to map
+      intensity back to original histogram space; if 'hist' will match
+      by histogram matching - ants.histogram_match_image
 
   verbose : boolean
 
@@ -2073,8 +2079,16 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
           if verbose:
               print( " do sr " + str(k) )
               print( crop_nm_list[k] )
-          crop_nm_list[k] = antspynet.apply_super_resolution_model_to_image(
-                crop_nm_list[k], srmodel, target_range=target_range, regression_order=None )
+          temp = antspynet.apply_super_resolution_model_to_image(
+                crop_nm_list[k], srmodel, target_range=target_range,
+                regression_order=None )
+          if poly_order is not None:
+              bilin = ants.resample_image_to_target( crop_nm_list[k], mysr )
+              if poly_order == 'hist':
+                  temp = ants.histogram_match_image( temp, bilin )
+              else:
+                  temp = antspynet.regression_match_image( temp, bilin, poly_order = poly_order )
+          crop_nm_list[k] = temp
 
   nm_avg_cropped = crop_nm_list[0]*0.0
   if verbose:
