@@ -3572,6 +3572,10 @@ def bind_wide_mm_csvs( mm_wide_csvs,
         except:
             print(f"Error reading {mm_wide_csvs[k]}")
             continue
+        temp = os.path.basename(mm_wide_csvs[k])
+        temp = os.path.splitext(temp)[0]
+        startdf.pop( "u_hier_id.1" )
+        startdf.at[0,'u_hier_id']=str(temp)
         rootcolnames = startdf.columns
         # Split file name and store first part
         temp = mm_wide_csvs[k]
@@ -3590,6 +3594,8 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                 except:
                     print(f"Error reading {fnsnm[which_repeat]}")
                     continue
+                tempX = os.path.basename(fnsnm[which_repeat])
+                tempX = os.path.splitext(tempX)[0]
                 # Drop cnxcount columns
                 cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
                 if len(cnxcoutnames) > 0:
@@ -3617,6 +3623,7 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                         dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
                     else:
                         dd.columns=tagger + dd.columns
+                    dd.insert(0,'MM.ID_'+nrg_modality_list[j],re.sub( "-mmwide", "", tempX))
                     startdf = pd.concat([startdf, dd], axis=1)
         alldf = pd.concat([alldf, startdf], axis=0)
     return alldf
