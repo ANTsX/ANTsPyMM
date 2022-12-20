@@ -2320,7 +2320,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     else:
         anatname='Unk'
     fname='falffPoint'+str(k)+anatname
-    aname='alffMeanPoint'+str(k)+anatname
+    aname='alffPoint'+str(k)+anatname
     outdict[fname]=(outdict['falff'][ptImg==k]).mean()
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
 
