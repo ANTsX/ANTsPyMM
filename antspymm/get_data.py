@@ -2083,7 +2083,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
                 crop_nm_list[k], srmodel, target_range=target_range,
                 regression_order=None )
           if poly_order is not None:
-              bilin = ants.resample_image_to_target( crop_nm_list[k], mysr )
+              bilin = ants.resample_image_to_target( crop_nm_list[k], temp )
               if poly_order == 'hist':
                   temp = ants.histogram_match_image( temp, bilin )
               else:
