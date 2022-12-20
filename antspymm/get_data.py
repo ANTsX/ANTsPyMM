@@ -3584,7 +3584,7 @@ def bind_wide_mm_csvs( mm_wide_csvs,
             fnsnm.sort()
             if verbose == 2:
                 print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
-            if len(fnsnm) > 0 and ( len(fnsnm) > (which_repeat-1) ):
+            if len(fnsnm) > 0 and ( len(fnsnm) >= (which_repeat+1) ):
                 try:
                     dd = pd.read_csv(str(fnsnm[which_repeat]))
                 except:
