@@ -2905,7 +2905,8 @@ def mm_nrg(
         print(f"t1 search path: {t1_search_path}")
     t1fn = glob.glob(t1_search_path)
     t1fn.sort()
-    t1 = mm_read( t1fn[0] )
+    t1fn = t1fn[0]
+    t1 = mm_read( t1fn )
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
     hierfn = re.sub( ".nii.gz", "", hierfn)
