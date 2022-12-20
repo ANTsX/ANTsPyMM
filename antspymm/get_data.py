@@ -1837,7 +1837,7 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 24 ) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 16, strict=True ) :
 
   """
   Outputs the WMH probability mask and a summary single measurement
@@ -1855,9 +1855,11 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 24 ) :
 
   mmfromconvexhull : float
     restrict WMH to regions that are WM or mmfromconvexhull mm away from the
-    convex hull of the cerebrum.   we choose a default value of 24 based on
+    convex hull of the cerebrum.   we choose a default value based on
     Figure 4 from:
     https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6240579/pdf/fnagi-10-00339.pdf
+
+  strict: boolean - if True, only use convex hull distance
 
   Returns
   ---------
@@ -1883,7 +1885,10 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 24 ) :
         convexhull = ants.morphology( convexhull, "close", nmorph )
         dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
         wmseg_mask = wmseg_mask + ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
-        wmseg_mask = ants.threshold_image( wmseg_mask, 1, 2 )
+        if strict:
+            wmseg_mask = ants.threshold_image( wmseg_mask, 2, 2 )
+        else:
+            wmseg_mask = ants.threshold_image( wmseg_mask, 1, 2 )
   ##############################################################################
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
     transformlist = t1_2_flair_reg['fwdtransforms'],
