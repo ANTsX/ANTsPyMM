@@ -2873,6 +2873,7 @@ def mm_nrg(
     captured in a ipynb / html file.
 
     """
+    testloop = False
     counter=0
     import glob as glob
     from os.path import exists
@@ -2913,7 +2914,7 @@ def mm_nrg(
         print( hierfntest )
     hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
     hier = None
-    if not hierexists:
+    if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
         if verbose:
             print( subjectpropath )
@@ -2927,7 +2928,7 @@ def mm_nrg(
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
-    else:
+    elif not testloop:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
     if srmodel_T1 is not False :
@@ -2963,12 +2964,12 @@ def mm_nrg(
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
-    else:
+    elif not testloop:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-    t1imgbrn = hier['brain_n4_dnz']
-    t1atropos = hier['dkt_parc']['tissue_segmentation']
-    testloop = False
+    if not testloop:
+        t1imgbrn = hier['brain_n4_dnz']
+        t1atropos = hier['dkt_parc']['tissue_segmentation']
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
@@ -2978,8 +2979,6 @@ def mm_nrg(
     templateTx = None
     for overmodX in nrg_modality_list:
         counter=counter+1
-        if verbose:
-            print("This is a count: " + str(counter))
         if counter > (len(nrg_modality_list)+1):
             print("This is weird. " + str(counter))
             return
@@ -3016,7 +3015,8 @@ def mm_nrg(
                 date = mysplit[mysplitCount-3]
                 modality = mysplit[mysplitCount-2]
                 uider = mysplit[mysplitCount-1]
-                identifier = mysep.join([project, subject, date, modality, iid ])
+                identifier = mysep.join([project, subject, date, modality ])
+                identifier = identifier + "_" + iid
                 mymm = subjectpropath + "/" + identifier
                 if verbose:
                     print( "NM " + mymm )
@@ -3058,10 +3058,10 @@ def mm_nrg(
                         ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
                         ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
             else :
-                if True:
+                for myimgcount in range( len( myimgsr ) ):
                     dowrite=False
                     if len( myimgsr ) > 0 :
-                        myimg = myimgsr[0]
+                        myimg = myimgsr[myimgcount]
                         subjectpropath = os.path.dirname( myimg )
                         subjectpropath = re.sub( sourcedatafoldername, processDir, subjectpropath )
                         mysplit = subjectpropath.split("/")
@@ -3075,7 +3075,8 @@ def mm_nrg(
                         if mymod == 'T1w':
                             identifier = mysep.join([project, date, subject, mymod, uid])
                         else:  # add the T1 unique id since that drives a lot of the analysis
-                            identifier = mysep.join([project, date, subject, mymod, uid, iid])
+                            identifier = mysep.join([project, date, subject, mymod, uid ])
+                            identifier = identifier + "_" + iid
                         mymm = subjectpropath + "/" + identifier
                         if verbose:
                             print("Modality specific processing: " + mymod )
