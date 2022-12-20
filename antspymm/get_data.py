@@ -2903,8 +2903,9 @@ def mm_nrg(
     t1_search_path = os.path.join(subjectrootpath, "T1w", iid, "*nii.gz")
     if verbose:
         print(f"t1 search path: {t1_search_path}")
-    t1fn = glob.glob(t1_search_path)[0]
-    t1 = mm_read( t1fn )
+    t1fn = glob.glob(t1_search_path)
+    t1fn.sort()
+    t1 = mm_read( t1fn[0] )
     hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
     hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
     hierfn = re.sub( ".nii.gz", "", hierfn)
@@ -2988,6 +2989,7 @@ def mm_nrg(
         if verbose:
             print(f"modality search path: {mod_search_path}")
         myimgsr = glob.glob(mod_search_path)
+        myimgsr.sort()
         if len(myimgsr) > 0:
             overmodXx = str(overmodX)
             dowrite=False
@@ -3541,17 +3543,21 @@ def down2iso( x, interpolation='linear', takemin=False ):
 
 def bind_wide_mm_csvs( mm_wide_csvs,
     nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
+    which_repeat = 0,
     verbose = False ) :
     """
     Parameters:
     mm_wide_csvs (list): a list of file names of the type *T1wHierarchical*sv
     nrg_modality_list (list): a list of column names
+    which_repeat : which instance of the modality should we concatenate; set to
+        greater than 0 if there is more than one instance
     verbose: boolean
 
     Returns:
     dataframe
     """
     # Return early if no files found
+    mm_wide_csvs.sort()
     if not mm_wide_csvs:
         print("No files found with specified pattern")
         return
@@ -3574,13 +3580,14 @@ def bind_wide_mm_csvs( mm_wide_csvs,
         # Loop through nrg_modality_list and add csv file data to startdf if it exists
         for j in range(len(nrg_modality_list)):
             fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*" + t1iid + "*wide.csv")
+            fnsnm.sort()
             if verbose == 2:
                 print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
-            if len(fnsnm) == 1:
+            if len(fnsnm) > 0 and ( len(fnsnm) > (which_repeat-1) ):
                 try:
-                    dd = pd.read_csv(str(fnsnm[0]))
+                    dd = pd.read_csv(str(fnsnm[which_repeat]))
                 except:
-                    print(f"Error reading {fnsnm[0]}")
+                    print(f"Error reading {fnsnm[which_repeat]}")
                     continue
                 # Drop cnxcount columns
                 cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
