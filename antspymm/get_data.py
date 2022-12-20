@@ -2984,7 +2984,7 @@ def mm_nrg(
             return
         mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
         if overmodX == 'T1w':
-            mod_search_path = os.path.join(subjectrootpath, overmodX, "*", iid, "*nii.gz")
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
         if verbose:
             print(f"modality search path: {mod_search_path}")
         myimgsr = glob.glob(mod_search_path)
