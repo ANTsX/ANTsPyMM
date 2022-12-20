@@ -1837,7 +1837,7 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 24 ) :
 
   """
   Outputs the WMH probability mask and a summary single measurement
@@ -1855,7 +1855,9 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
 
   mmfromconvexhull : float
     restrict WMH to regions that are WM or mmfromconvexhull mm away from the
-    convex hull of the cerebrum
+    convex hull of the cerebrum.   we choose a default value of 24 based on
+    Figure 4 from:
+    https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6240579/pdf/fnagi-10-00339.pdf
 
   Returns
   ---------
@@ -1864,7 +1866,9 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 12 ) :
   """
   import numpy as np
   import math
-  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+  # t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+  t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=16,
+    max_rotation=30, transform=['rigid'], verbose=False )
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
   if mmfromconvexhull > 0:
