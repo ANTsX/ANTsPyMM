@@ -1873,6 +1873,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 16, strict=True ) :
     max_rotation=30, transform=['rigid'], verbose=False )
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
+  wmseg_mask_use = ants.image_clone( wmseg_mask )
   if mmfromconvexhull > 0:
         convexhull = ants.threshold_image( t1seg, 1, 4 )
         spc2vox = np.prod( ants.get_spacing( t1seg ) )
@@ -1886,14 +1887,14 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 16, strict=True ) :
         dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
         wmseg_mask = wmseg_mask + ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
         if strict:
-            wmseg_mask = ants.threshold_image( wmseg_mask, 2, 2 )
+            wmseg_mask_use = ants.threshold_image( wmseg_mask, 2, 2 )
         else:
-            wmseg_mask = ants.threshold_image( wmseg_mask, 1, 2 )
+            wmseg_mask_use = ants.threshold_image( wmseg_mask, 1, 2 )
   ##############################################################################
-  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask,
+  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
-  flair_n4 = ants.n4_bias_field_correction( flair, mask=wmseg_2_flair )
+  flair_n4 = ants.n3_bias_field_correction( flair )
   flair_n4 = ants.iMath( flair_n4, "Normalize" )
   probability_mask = antspynet.sysu_media_wmh_segmentation( flair_n4 )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
