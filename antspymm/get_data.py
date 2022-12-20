@@ -3594,6 +3594,10 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                 except:
                     print(f"Error reading {fnsnm[which_repeat]}")
                     continue
+                if "u_hier_id.1" in dd.columns:
+                    dd.pop( "u_hier_id.1" )
+                if "u_hier_id" in dd.columns:
+                    dd.pop( "u_hier_id" )
                 tempX = os.path.basename(fnsnm[which_repeat])
                 tempX = os.path.splitext(tempX)[0]
                 # Drop cnxcount columns
@@ -3608,9 +3612,6 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                     # Remove inner and outer rows if they exist
                     if dd.shape[0] == 2:
                         dd = dd.iloc[1]
-                        grepinner = [i for i, val in enumerate(dd.iloc[0]) if "inner" in val or "outer" in val]
-                        if len(grepinner) > 0:
-                            dd = dd.drop(dd.columns[grepinner])
                         # Rename columns and add to startdf
                         ddnum = dd.to_numpy()
                         ddnum = np.delete( ddnum, 0 )
@@ -3624,6 +3625,10 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                     else:
                         dd.columns=tagger + dd.columns
                     dd.insert(0,'MM.ID_'+nrg_modality_list[j],re.sub( "-mmwide", "", tempX))
+                    for myexc in ["inner","outer","A"]:
+                        # if (dd == myexc).any().sum() > 0:
+                        #    print( myexc + " " + 'MM.ID_'+nrg_modality_list[j] )
+                        dd=dd.drop(columns=dd.columns[(dd == myexc).any()])
                     startdf = pd.concat([startdf, dd], axis=1)
         alldf = pd.concat([alldf, startdf], axis=0)
     return alldf
