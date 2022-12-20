@@ -946,7 +946,7 @@ def joint_dti_recon(
             col_names = ['Mean'] )
 
     df_MD_JHU_ORRL = antspyt1w.map_intensity_to_dataframe(
-        'FA_JHU_labels_edited',
+        'MD_JHU_labels_edited',
         reconMD,
         OR_FA_jhulabels)
     df_MD_JHU_ORRL_bfwide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
