@@ -659,12 +659,19 @@ def dipy_dti_recon(
     RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
     RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
     RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
-    famask = antspynet.brain_extraction( FA, 'fa' ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
+    # famask = antspynet.brain_extraction( FA, 'fa' ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
+
+    # change the brain mask based on high FA values
+    famask = ants.image_clone( mask )
+    famask = famask * ants.threshold_image( FA, 0.01, 0.75 )
+    famask = ants.iMath( famask, "FillHoles" )
+    mask = ants.image_clone( famask )
+
     return {
         'tensormodel' : tenfit,
-        'MD' : MD1,
-        'FA' : FA,
-        'RGB' : ants.merge_channels( [RGB0,RGB1,RGB2] ),
+        'MD' : MD1 * mask,
+        'FA' : FA * mask,
+        'RGB' : ants.merge_channels( [RGB0* mask,RGB1* mask,RGB2* mask] ),
         'motion_corrected' : motion_corrected,
         'motion_corrected_masked' : maskedimage,
         'framewise_displacement' : FD,
@@ -802,7 +809,6 @@ def joint_dti_recon(
             mask_dilation=mymd, verbose=verbose )
     bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
-
     OR_LRFA = recon_LR['FA']
 
     if verbose:
