@@ -2640,7 +2640,7 @@ def mm(
     if flair_image is not None:
         if verbose:
             print('flair')
-        output_dict['flair'] = wmh( flair_image, t1_image, t1atropos, mmfromconvexhull=12 )
+        output_dict['flair'] = wmh( flair_image, t1_image, ants.threshold_image( t1atropos, 1, 4 ) * 3 )
     #################################################################
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
