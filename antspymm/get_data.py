@@ -1837,7 +1837,7 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True, probability_mask=None ) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 6.0, strict=True, probability_mask=None ) :
   """
   Outputs the WMH probability mask and a summary single measurement
 
@@ -1961,7 +1961,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     srmodel=None,
     target_range=[0,1],
     poly_order='hist',
-    normalize_nm = True,
+    normalize_nm = False,
     verbose=False ) :
 
   """
@@ -2000,7 +2000,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       intensity back to original histogram space; if 'hist' will match
       by histogram matching - ants.histogram_match_image
 
-  normalize_nm : boolean
+  normalize_nm : boolean - WIP not validated
 
   verbose : boolean
 
@@ -2144,10 +2144,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   if miUpdate < miOrig :
       slabreg = slabregUpdated
 
-  normalizer = 1.0
   if normalize_nm:
-      normalizer = nm_avg_cropped.mean()
-      nm_avg_cropped = nm_avg_cropped / normalizer
+      nm_avg_cropped = ants.iMath( nm_avg_cropped, "Normalize" )
+      nm_avg_cropped = ants.iMath( nm_avg_cropped, "TruncateIntensity",0.05,0.95)
+      nm_avg_cropped = ants.iMath( nm_avg_cropped, "Normalize" )
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -2192,6 +2192,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_volume_substantianigra' : snvol,
       'NM_avg_refregion' : rravg,
       'NM_std_refregion' : rrstd,
+      'NM_min' : nm_avg_cropped.min(),
+      'NM_max' : nm_avg_cropped.max(),
+      'NM_q0pt05' : np.quantile( nm_avg_cropped.numpy(), 0.05 ),
+      'NM_q0pt95' : np.quantile( nm_avg_cropped.numpy(), 0.95 ),
       'NM_count': len( list_nm_images )
        }
 
@@ -2780,6 +2784,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
         mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
         mm_wide['NM_count'] = mm['NM']['NM_count']
+        mm_wide['NM_min'] = mm['NM']['NM_min']
+        mm_wide['NM_max'] = mm['NM']['NM_max']
+        mm_wide['NM_q0pt05'] = mm['NM']['NM_q0pt05']
+        mm_wide['NM_q0pt95'] = mm['NM']['NM_q0pt95']
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
         ants.image_write( mm['flair']['WMH_probability_map'], myop )
