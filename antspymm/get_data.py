@@ -1894,9 +1894,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 16, strict=True ) :
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
-  flair_n4 = ants.n3_bias_field_correction( flair )
-  flair_n4 = ants.iMath( flair_n4, "Normalize" )
-  probability_mask = antspynet.sysu_media_wmh_segmentation( flair_n4 )
+  probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
