@@ -2056,7 +2056,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     if verbose:
         print(str(k) + " of " + str(len( list_nm_images ) ) )
     current_image = ants.registration( list_nm_images[k], nm_avg,
-        type_of_transform = 'Rigid' )
+        type_of_transform = 'BOLDRigid' )
     txlist.append( current_image['fwdtransforms'][0] )
     current_image = current_image['warpedfixout']
     nm_avg_new = nm_avg_new + current_image / len( list_nm_images )
@@ -2068,14 +2068,6 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
   slabreg = tra_initializer( nm_avg, t1c, verbose=verbose )
-  if False:
-      slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
-      miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-            ants.iMath(slabreg0['warpedmovout'],"Normalize") )
-      miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-            ants.iMath(slabreg1['warpedmovout'],"Normalize") )
-      if miT1 < miNM:
-        slabreg = slabregT1
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -2118,21 +2110,23 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       print( "cropped average" )
       print( nm_avg_cropped )
   for k in range(len( crop_nm_list )):
-      nm_avg_cropped = nm_avg_cropped + ants.apply_transforms( nm_avg_cropped,
-        crop_nm_list[k], txlist[k] ) / len( crop_nm_list )
-  for loop in range( 3 ):
-      nm_avg_cropped_new = nm_avg_cropped * 0.0
-      for k in range(len( crop_nm_list )):
-            myreg = ants.registration(
-                ants.iMath(nm_avg_cropped,"Normalize"),
-                ants.iMath(crop_nm_list[k],"Normalize"),
-                'antsRegistrationSyNRepro[r]' )
-            warpednext = ants.apply_transforms(
-                nm_avg_cropped_new,
-                crop_nm_list[k],
-                myreg['fwdtransforms'] )
-            nm_avg_cropped_new = nm_avg_cropped_new + warpednext
-      nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
+      nm_avg_cropped = nm_avg_cropped + ants.resample_image_to_target(
+        crop_nm_list[k], nm_avg_cropped )
+  nm_avg_cropped = ants.iMath(nm_avg_cropped,"Normalize")
+  if True:
+      for loop in range( 2 ):  # cheap template construction
+          nm_avg_cropped_new = nm_avg_cropped * 0.0
+          for k in range(len( crop_nm_list )):
+                myreg = ants.registration(
+                    nm_avg_cropped,
+                    ants.iMath(crop_nm_list[k],"Normalize"),
+                    'BOLDRigid' )
+                warpednext = ants.apply_transforms(
+                    nm_avg_cropped_new,
+                    crop_nm_list[k],
+                    myreg['fwdtransforms'] )
+                nm_avg_cropped_new = nm_avg_cropped_new + warpednext
+          nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
   slabregUpdated = tra_initializer( nm_avg_cropped, t1c, verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg['fwdtransforms'] )
