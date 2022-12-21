@@ -1869,7 +1869,7 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 16, strict=True ) :
   import numpy as np
   import math
   # t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
-  t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=16,
+  t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4,
     max_rotation=30, transform=['rigid'], verbose=False )
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
@@ -1939,7 +1939,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                     mymi = math.inf
                     temp = reg['warpedmovout']
                     myvar = temp.numpy().var()
-                    print( str(k) + " : " + regtx  + " : " + mytx + " _var_ " + str( myvar ) )
+                    if verbose:
+                        print( str(k) + " : " + regtx  + " : " + mytx + " _var_ " + str( myvar ) )
                     if myvar > 0 :
                         mymi = ants.image_mutual_information( fixed, temp )
                         if mymi < bestmi:
