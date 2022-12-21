@@ -1837,7 +1837,7 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True, probability_mask=None ) :
   """
   Outputs the WMH probability mask and a summary single measurement
 
@@ -1860,6 +1860,9 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
 
   strict: boolean - if True, only use convex hull distance
 
+  probability_mask : None - use to compute wmh just once - then this function
+        just does refinement and summary
+
   Returns
   ---------
   WMH probability map and a summary single measurement which is the sum of the WMH map
@@ -1867,12 +1870,14 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
   """
   import numpy as np
   import math
-  # t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
-  t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4,
-    max_rotation=5, transform=['rigid'], verbose=False )
+  if probability_mask is None:
+      probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
+  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+  # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
   wmseg_mask_use = ants.image_clone( wmseg_mask )
+  distmask = None
   if mmfromconvexhull > 0:
         convexhull = ants.threshold_image( t1seg, 1, 4 )
         spc2vox = np.prod( ants.get_spacing( t1seg ) )
@@ -1882,9 +1887,10 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
             voxdist = voxdist + myspc[k] * myspc[k]
         voxdist = math.sqrt( voxdist )
         nmorph = round( 2.0 / voxdist )
-        convexhull = ants.morphology( convexhull, "close", nmorph )
+        convexhull = ants.morphology( convexhull, "close", nmorph ).iMath("FillHoles")
         dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
-        wmseg_mask = wmseg_mask + ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
+        distmask = ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
+        wmseg_mask = wmseg_mask + distmask
         if strict:
             wmseg_mask_use = ants.threshold_image( wmseg_mask, 2, 2 )
         else:
@@ -1893,7 +1899,6 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
-  probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
@@ -1901,7 +1906,8 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 8.0, strict=True ) :
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
-      'wmh_mass': wmh_sum }
+      'wmh_mass': wmh_sum,
+      'convexhull_mask': distmask }
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
@@ -1955,6 +1961,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     srmodel=None,
     target_range=[0,1],
     poly_order='hist',
+    normalize_nm = True,
     verbose=False ) :
 
   """
@@ -1992,6 +1999,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   poly_order : if not None, will fit a global regression model to map
       intensity back to original histogram space; if 'hist' will match
       by histogram matching - ants.histogram_match_image
+
+  normalize_nm : boolean
 
   verbose : boolean
 
@@ -2134,6 +2143,11 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     ants.iMath(nm_avg_cropped,"Normalize"), ants.iMath(tempOrig,"Normalize") )
   if miUpdate < miOrig :
       slabreg = slabregUpdated
+
+  normalizer = 1.0
+  if normalize_nm:
+      normalizer = nm_avg_cropped.mean()
+      nm_avg_cropped = nm_avg_cropped / normalizer
 
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
