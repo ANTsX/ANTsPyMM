@@ -1957,7 +1957,7 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
-    denoise=1,
+    denoise=None,
     srmodel=None,
     target_range=[0,1],
     poly_order='hist',
@@ -2126,7 +2126,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             myreg = ants.registration(
                 ants.iMath(nm_avg_cropped,"Normalize"),
                 ants.iMath(crop_nm_list[k],"Normalize"),
-                'antsRegistrationSyNRepro[r]' )
+                'BOLDRigid' )
             warpednext = ants.apply_transforms(
                 nm_avg_cropped_new,
                 crop_nm_list[k],
@@ -2152,6 +2152,15 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   labels2nm = ants.apply_transforms( nm_avg_cropped, t1lab,
         slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
 
+  # fix the reference region - keep top two parts
+  def get_biggest_part( x, labeln ):
+      temp33 = ants.threshold_image( x, labeln, labeln ).iMath("GetLargestComponent")
+      x[ x == labeln] = 0
+      x[ temp33 == 1 ] = labeln
+
+  get_biggest_part( labels2nm, 33 )
+  get_biggest_part( labels2nm, 34 )
+
   if verbose:
       print( "map summary measurements to wide format" )
   nmdf = antspyt1w.map_intensity_to_dataframe(
@@ -2176,6 +2185,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   rrstd = nm_avg_cropped[ rr_mask == 1].std()
   snvol = np.prod( ants.get_spacing(sn_mask) ) * sn_mask.sum()
 
+  # get the mean voxel position of the SN
+  sn_z = ants.transform_physical_point_to_index( sn_mask, ants.get_center_of_mass(sn_mask ))[2]
+  sn_z = sn_z/sn_mask.shape[2] # around 0.5 would be nice
+
   return{
       'NM_avg' : nm_avg,
       'NM_avg_cropped' : nm_avg_cropped,
@@ -2195,7 +2208,10 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_min' : nm_avg_cropped.min(),
       'NM_max' : nm_avg_cropped.max(),
       'NM_q0pt05' : np.quantile( nm_avg_cropped.numpy(), 0.05 ),
+      'NM_q0pt10' : np.quantile( nm_avg_cropped.numpy(), 0.10 ),
+      'NM_q0pt90' : np.quantile( nm_avg_cropped.numpy(), 0.90 ),
       'NM_q0pt95' : np.quantile( nm_avg_cropped.numpy(), 0.95 ),
+      'NM_substantianigra_z_coordinate' : sn_z,
       'NM_count': len( list_nm_images )
        }
 
@@ -2787,7 +2803,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_min'] = mm['NM']['NM_min']
         mm_wide['NM_max'] = mm['NM']['NM_max']
         mm_wide['NM_q0pt05'] = mm['NM']['NM_q0pt05']
+        mm_wide['NM_q0pt10'] = mm['NM']['NM_q0pt10']
+        mm_wide['NM_q0pt90'] = mm['NM']['NM_q0pt90']
         mm_wide['NM_q0pt95'] = mm['NM']['NM_q0pt95']
+        mm_wide['NM_substantianigra_z_coordinate'] = mm['NM']['NM_substantianigra_z_coordinate']
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
         ants.image_write( mm['flair']['WMH_probability_map'], myop )
