@@ -2186,8 +2186,11 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   snvol = np.prod( ants.get_spacing(sn_mask) ) * sn_mask.sum()
 
   # get the mean voxel position of the SN
-  sn_z = ants.transform_physical_point_to_index( sn_mask, ants.get_center_of_mass(sn_mask ))[2]
-  sn_z = sn_z/sn_mask.shape[2] # around 0.5 would be nice
+  if snvol > 0:
+      sn_z = ants.transform_physical_point_to_index( sn_mask, ants.get_center_of_mass(sn_mask ))[2]
+      sn_z = sn_z/sn_mask.shape[2] # around 0.5 would be nice
+  else:
+      sn_z = math.nan
 
   return{
       'NM_avg' : nm_avg,
