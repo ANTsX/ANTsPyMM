@@ -2210,6 +2210,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_std_refregion' : rrstd,
       'NM_min' : nm_avg_cropped.min(),
       'NM_max' : nm_avg_cropped.max(),
+      'NM_mean' : nm_avg_cropped.numpy().mean(),
+      'NM_sd' : math.sqrt( nm_avg_cropped.numpy().mean() ),
       'NM_q0pt05' : np.quantile( nm_avg_cropped.numpy(), 0.05 ),
       'NM_q0pt10' : np.quantile( nm_avg_cropped.numpy(), 0.10 ),
       'NM_q0pt90' : np.quantile( nm_avg_cropped.numpy(), 0.90 ),
@@ -2805,6 +2807,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_count'] = mm['NM']['NM_count']
         mm_wide['NM_min'] = mm['NM']['NM_min']
         mm_wide['NM_max'] = mm['NM']['NM_max']
+        mm_wide['NM_mean'] = mm['NM']['NM_mean']
+        mm_wide['NM_sd'] = mm['NM']['NM_sd']
         mm_wide['NM_q0pt05'] = mm['NM']['NM_q0pt05']
         mm_wide['NM_q0pt10'] = mm['NM']['NM_q0pt10']
         mm_wide['NM_q0pt90'] = mm['NM']['NM_q0pt90']
