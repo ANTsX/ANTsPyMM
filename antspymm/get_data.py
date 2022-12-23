@@ -2697,8 +2697,8 @@ def mm(
         if ( exists( priorfn ) ):
             wmhprior = ants.image_read( priorfn )
             wmhprior = ants.apply_transforms( t1_image, wmhprior, do_normalization['invtransforms'] )
-        output_dict['flair'] = wmh( flair_image, t1_image, t1atropos,
-            prior_probability=wmhprior )
+        output_dict['flair'] = boot_wmh( flair_image, t1_image, t1atropos,
+            prior_probability=wmhprior, verbose=verbose )
     #################################################################
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
@@ -2835,7 +2835,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_substantianigra_z_coordinate'] = mm['NM']['NM_substantianigra_z_coordinate']
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
-        ants.image_write( mm['flair']['WMH_probability_map'], myop )
+        if mm['flair']['WMH_probability_map'] is not None:
+            ants.image_write( mm['flair']['WMH_probability_map'], myop )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
     if mm['rsf'] is not None:
@@ -3719,3 +3720,38 @@ def bind_wide_mm_csvs( mm_wide_csvs,
                     startdf = pd.concat([startdf, dd], axis=1)
         alldf = pd.concat([alldf, startdf], axis=0)
     return alldf
+
+
+def augment_image( x,  max_rot=10, nzsd=1 ):
+    rRotGenerator = ants.contrib.RandomRotate3D( ( max_rot*(-1.0), max_rot ), reference=x )
+    tx = rRotGenerator.transform()
+    itx = ants.invert_ants_transform(tx)
+    y = ants.apply_ants_transform_to_image( tx, x, x, interpolation='linear')
+    y = ants.add_noise_to_image( y,'additivegaussian', [0,nzsd] )
+    return y, tx, itx
+
+def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
+        probability_mask=None, prior_probability=None, n_simulations=16,
+        verbose=False ) :
+    if verbose:
+        print("augmented flair")
+    wmh_sum_aug = 0
+    wmh_sum_prior_aug = 0
+    augprob = flair * 0.0
+    for n in range(n_simulations):
+        augflair, tx, itx = augment_image( flair, 5 )
+        locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
+            strict=strict, probability_mask=None, prior_probability=prior_probability )
+        if verbose:
+            print( "flair sim: " + str(n) + " : " + str( locwmh['wmh_mass_prior'] ) )
+        wmh_sum_aug = wmh_sum_aug + locwmh['wmh_mass']
+        wmh_sum_prior_aug = wmh_sum_prior_aug + locwmh['wmh_mass_prior']
+        temp = locwmh['WMH_probability_map']
+        augprob = augprob + ants.apply_ants_transform_to_image( itx, temp, flair, interpolation='linear')
+    augprob = augprob * (1.0/float( n_simulations ))
+    wmh_sum_aug = wmh_sum_aug / float( n_simulations )
+    wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
+    return{
+      'WMH_probability_map' : augprob,
+      'wmh_mass': wmh_sum_aug,
+      'wmh_mass_prior': wmh_sum_prior_aug  }
