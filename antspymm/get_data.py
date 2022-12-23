@@ -81,7 +81,7 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
     return df
 
 
-def get_data( name=None, force_download=False, version=9, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=10, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
@@ -1837,7 +1837,8 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 6.0, strict=True, probability_mask=None ) :
+def wmh( flair, t1, t1seg, mmfromconvexhull = 3.0, strict=True,
+    probability_mask=None, prior_probability=None ) :
   """
   Outputs the WMH probability mask and a summary single measurement
 
@@ -1863,6 +1864,8 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 6.0, strict=True, probability_mask
   probability_mask : None - use to compute wmh just once - then this function
         just does refinement and summary
 
+  prior_probability : optional prior probability image in space of the input t1
+
   Returns
   ---------
   WMH probability map and a summary single measurement which is the sum of the WMH map
@@ -1874,6 +1877,9 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 6.0, strict=True, probability_mask
       probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
+  if prior_probability is not None:
+      prior_probability_flair = ants.apply_transforms( flair, prior_probability,
+        t1_2_flair_reg['fwdtransforms'] )
   wmseg_mask = ants.threshold_image( t1seg,
     low_thresh = 3, high_thresh = 3).iMath("FillHoles")
   wmseg_mask_use = ants.image_clone( wmseg_mask )
@@ -1903,10 +1909,17 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 6.0, strict=True, probability_mask
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
   wmh_sum = label1['Mass'].values[0]
+  wmh_sum_prior = math.nan
+  probability_mask_posterior = None
+  if prior_probability_flair is not None:
+      probability_mask_posterior = prior_probability_flair * probability_mask # use prior
+      wmh_sum_prior = np.prod( ants.get_spacing(flair) ) * probability_mask_posterior.sum()
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
+      'WMH_posterior_probability_map' : probability_mask_posterior,
       'wmh_mass': wmh_sum,
+      'wmh_mass_prior': wmh_sum_prior,
       'convexhull_mask': distmask }
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
@@ -2679,7 +2692,13 @@ def mm(
     if flair_image is not None:
         if verbose:
             print('flair')
-        output_dict['flair'] = wmh( flair_image, t1_image, t1atropos )
+        wmhprior = None
+        priorfn = ex_path_mm + 'CIT168_wmhprior_700um_pad_adni.nii.gz'
+        if ( exists( priorfn ) ):
+            wmhprior = ants.image_read( priorfn )
+            wmhprior = ants.apply_transforms( t1_image, wmhprior, do_normalization['invtransforms'] )
+        output_dict['flair'] = wmh( flair_image, t1_image, t1atropos,
+            prior_probability=wmhprior )
     #################################################################
     ### NOTES: deforming to a common space and writing out images ###
     ### images we want come from: DTI, NM, rsf, thickness ###########
@@ -2818,6 +2837,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         myop = output_prefix + separator + 'wmh.nii.gz'
         ants.image_write( mm['flair']['WMH_probability_map'], myop )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
+        mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
     if mm['rsf'] is not None:
         mynets = list([ 'meanBold', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
         rsfpro = mm['rsf']
@@ -2929,6 +2949,8 @@ def mm_nrg(
     captured in a ipynb / html file.
 
     """
+    if nrg_modality_list[0] != 'T1w':
+        nrg_modality_list.insert(0, "T1w" )
     testloop = False
     counter=0
     import glob as glob
@@ -2963,11 +2985,21 @@ def mm_nrg(
     t1fn.sort()
     t1fn = t1fn[0]
     t1 = mm_read( t1fn )
-    hierfn = re.sub( sourcedatafoldername, processDir, t1fn)
-    hierfn = re.sub( "T1w", "T1wHierarchical", hierfn)
-    hierfn = re.sub( ".nii.gz", "", hierfn)
+    hierfn0 = re.sub( sourcedatafoldername, processDir, t1fn)
+    hierfn0 = re.sub( ".nii.gz", "", hierfn0)
+    hierfn = re.sub( "T1w", "T1wHierarchical", hierfn0)
     hierfn = hierfn + mysep
     hierfntest = hierfn + 'snseg.csv'
+    regout = hierfn0 + mysep + "syn"
+    templateTx = {
+        'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat'],
+        'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
+    if verbose:
+        print( "REGISTRATION EXISTENCE: " +
+            str(exists( templateTx['fwdtransforms'][0])) + " " +
+            str(exists( templateTx['fwdtransforms'][1])) + " " +
+            str(exists( templateTx['invtransforms'][0])) + " " +
+            str(exists( templateTx['invtransforms'][1])) )
     if verbose:
         print( hierfntest )
     hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
@@ -3034,7 +3066,6 @@ def mm_nrg(
     nimages = len(myimgsInput)
     if verbose:
         print(  " we have : " + str(nimages) + " modalities.")
-    templateTx = None
     for overmodX in nrg_modality_list:
         counter=counter+1
         if counter > (len(nrg_modality_list)+1):
@@ -3148,7 +3179,6 @@ def mm_nrg(
                             img = mm_read( myimg )
                             ishapelen = len( img.shape )
                             if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
-                                regout = mymm + mysep + "syn"
                                 if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
                                     if verbose:
                                         print('start t1 registration')
@@ -3164,7 +3194,6 @@ def mm_nrg(
                                     if visualize:
                                         ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
                                         ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
-                                templateTx = {'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat']  }
                                 if not exists( mymm + mysep + "kk_norm.nii.gz" ):
                                     dowrite=True
                                     if verbose:
@@ -3192,6 +3221,8 @@ def mm_nrg(
                                 if visualize:
                                     ants.plot( img,   axis=2, nslices=21, ncol=7, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
                                     ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
+                                    if tabPro['flair']['WMH_posterior_probability_map'] is not None:
+                                        ants.plot( img, tabPro['flair']['WMH_posterior_probability_map'],  axis=2, nslices=21, ncol=7, crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png" )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
