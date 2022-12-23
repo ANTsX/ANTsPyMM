@@ -3753,5 +3753,6 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
     wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
     return{
       'WMH_probability_map' : augprob,
+      'WMH_posterior_probability_map' : None,
       'wmh_mass': wmh_sum_aug,
       'wmh_mass_prior': wmh_sum_prior_aug  }
