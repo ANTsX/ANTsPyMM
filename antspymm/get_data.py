@@ -3806,4 +3806,4 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
         results = []
         for future in futures.as_completed(to_do):
             alldf=pd.concat(  [alldf, future.result()], axis=0 )
-            print( alldf.shape )
+    return alldf
