@@ -3784,7 +3784,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
 
 
 
-def threaded_bind_wide_mm_csvs( fn_list, n_workers ):
+def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
     from concurrent.futures import as_completed
     from concurrent import futures
     import concurrent.futures
@@ -3795,7 +3795,7 @@ def threaded_bind_wide_mm_csvs( fn_list, n_workers ):
             si = (d+1)*(i if i < r else r) + d*(0 if i < r else i - r)
             yield l[si:si+(d+1 if i < r else d)]
     import numpy as np
-    newx = list( chunks( xx, n_workers ) )
+    newx = list( chunks( t1wide_list, n_workers ) )
     import pandas as pd
     alldf = pd.DataFrame()
     with futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
