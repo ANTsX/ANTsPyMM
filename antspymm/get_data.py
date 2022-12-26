@@ -1838,7 +1838,7 @@ def hierarchical_modality_summary(
 
 
 def wmh( flair, t1, t1seg, mmfromconvexhull = 3.0, strict=True,
-    probability_mask=None, prior_probability=None ) :
+    probability_mask=None, prior_probability=None, verbose=False ) :
   """
   Outputs the WMH probability mask and a summary single measurement
 
@@ -2881,7 +2881,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
+    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL", "T2Flair" ],
     verbose = True
 ):
     """
@@ -2950,6 +2950,8 @@ def mm_nrg(
     captured in a ipynb / html file.
 
     """
+    def makewideout( x, separator = '-' ):
+        return x + separator + 'mmwide.csv'
     if nrg_modality_list[0] != 'T1w':
         nrg_modality_list.insert(0, "T1w" )
     testloop = False
@@ -3109,8 +3111,13 @@ def mm_nrg(
                 identifier = mysep.join([project, subject, date, modality ])
                 identifier = identifier + "_" + iid
                 mymm = subjectpropath + "/" + identifier
-                if verbose:
-                    print( "NM " + mymm )
+                mymmout = makewideout( mymm )
+                if verbose and not exists( mymmout ):
+                    print( "NM " + mymm  + ' execution ')
+                elif verbose and exists( mymmout ) :
+                    print( "NM " + mymm + ' complete ' )
+                if exists( mymmout ):
+                    continue
                 if is4d:
                     nmlist = ants.ndimage_to_list( mm_read( myimgsr2[0] ) )
                 else:
@@ -3169,9 +3176,14 @@ def mm_nrg(
                             identifier = mysep.join([project, date, subject, mymod, uid ])
                             identifier = identifier + "_" + iid
                         mymm = subjectpropath + "/" + identifier
-                        if verbose:
-                            print("Modality specific processing: " + mymod )
+                        mymmout = makewideout( mymm )
+                        if verbose and not exists( mymmout ):
+                            print("Modality specific processing: " + mymod + " execution " )
                             print( mymm )
+                        elif verbose and exists( mymmout ) :
+                            print("Modality specific processing: " + mymod + " complete " )
+                        if exists( mymmout ) :
+                            continue
                         if verbose:
                             print(subjectpropath)
                             print(identifier)
