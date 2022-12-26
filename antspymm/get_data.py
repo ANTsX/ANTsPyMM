@@ -3644,14 +3644,14 @@ def down2iso( x, interpolation='linear', takemin=False ):
 
 def bind_wide_mm_csvs( mm_wide_csvs,
     nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
-    which_repeat = 0,
-    verbose = False ) :
+    cnx = True,
+    max_repeats = 2,
+    verbose = 0 ) :
     """
     Parameters:
     mm_wide_csvs (list): a list of file names of the type *T1wHierarchical*sv
     nrg_modality_list (list): a list of column names
-    which_repeat : which instance of the modality should we concatenate; set to
-        greater than 0 if there is more than one instance
+    max_repeats : max number of repeats
     verbose: boolean
 
     Returns:
@@ -3663,74 +3663,76 @@ def bind_wide_mm_csvs( mm_wide_csvs,
         print("No files found with specified pattern")
         return
     alldf=pd.DataFrame()
-    for k in range(len(mm_wide_csvs)):
-        if verbose:
-            print(str(k)+ " of " + str(len(mm_wide_csvs)))
-        # Read first csv file and store column names
-        try:
-            startdf = pd.read_csv(mm_wide_csvs[k])
-        except:
-            print(f"Error reading {mm_wide_csvs[k]}")
-            continue
-        temp = os.path.basename(mm_wide_csvs[k])
-        temp = os.path.splitext(temp)[0]
-        startdf.pop( "u_hier_id.1" )
-        startdf.at[0,'u_hier_id']=str(temp)
-        rootcolnames = startdf.columns
-        # Split file name and store first part
-        temp = mm_wide_csvs[k]
-        mypartsf = temp.split("T1wHierarchical")
-        myparts = mypartsf[0]
-        t1iid = str(mypartsf[1].split("/")[1])
-        # Loop through nrg_modality_list and add csv file data to startdf if it exists
-        for j in range(len(nrg_modality_list)):
-            fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*" + t1iid + "*wide.csv")
-            fnsnm.sort()
-            if verbose == 2:
-                print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
-            if len(fnsnm) > 0 and ( len(fnsnm) >= (which_repeat+1) ):
-                try:
-                    dd = pd.read_csv(str(fnsnm[which_repeat]))
-                except:
-                    print(f"Error reading {fnsnm[which_repeat]}")
-                    continue
-                if "u_hier_id.1" in dd.columns:
-                    dd.pop( "u_hier_id.1" )
-                if "u_hier_id" in dd.columns:
-                    dd.pop( "u_hier_id" )
-                tempX = os.path.basename(fnsnm[which_repeat])
-                tempX = os.path.splitext(tempX)[0]
-                # Drop cnxcount columns
-                cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
-                if len(cnxcoutnames) > 0:
-                    dd = dd.drop(columns=cnxcoutnames)
-                # Drop columns that appear in both dd and startdf
-                inames = set(rootcolnames).intersection(set(dd.columns))
-                dd = dd.drop(columns=inames)
-                tagger = nrg_modality_list[j]+"_"
-                if dd.shape[0] > 0:
-                    # Remove inner and outer rows if they exist
-                    if dd.shape[0] == 2:
-                        dd = dd.iloc[1]
-                        # Rename columns and add to startdf
-                        ddnum = dd.to_numpy()
-                        ddnum = np.delete( ddnum, 0 )
-                        ddnum = ddnum.reshape([1,ddnum.shape[0]])
-                        newcolnames = dd.index.to_list()
-                        newcolnames.pop()
-                        if len(newcolnames) != ddnum.shape[1]:
-                            print("Cannot Merge : ", tagger, " Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
-                            dd = pd.DataFrame()
-                        dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
-                    else:
-                        dd.columns=tagger + dd.columns
-                    dd.insert(0,'MM.ID_'+nrg_modality_list[j],re.sub( "-mmwide", "", tempX))
-                    for myexc in ["inner","outer","A"]:
-                        # if (dd == myexc).any().sum() > 0:
-                        #    print( myexc + " " + 'MM.ID_'+nrg_modality_list[j] )
-                        dd=dd.drop(columns=dd.columns[(dd == myexc).any()])
-                    startdf = pd.concat([startdf, dd], axis=1)
-        alldf = pd.concat([alldf, startdf], axis=0)
+    for which_repeat in range( max_repeats ):
+        for k in range(len(mm_wide_csvs)):
+            if verbose:
+                print(str(k)+ " of " + str(len(mm_wide_csvs))) + " for " + str( max_repeats ) + " repeats "
+            # Read first csv file and store column names
+            try:
+                startdf = pd.read_csv(mm_wide_csvs[k])
+            except:
+                print(f"Error reading {mm_wide_csvs[k]}")
+                continue
+            temp = os.path.basename(mm_wide_csvs[k])
+            temp = os.path.splitext(temp)[0]
+            startdf.pop( "u_hier_id.1" )
+            startdf.at[0,'u_hier_id']=str(temp)
+            rootcolnames = startdf.columns
+            # Split file name and store first part
+            temp = mm_wide_csvs[k]
+            mypartsf = temp.split("T1wHierarchical")
+            myparts = mypartsf[0]
+            t1iid = str(mypartsf[1].split("/")[1])
+            # Loop through nrg_modality_list and add csv file data to startdf if it exists
+            for j in range(len(nrg_modality_list)):
+                fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*" + t1iid + "*wide.csv")
+                fnsnm.sort()
+                if verbose == 2:
+                    print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
+                if len(fnsnm) > 0 and ( len(fnsnm) >= (which_repeat+1) ):
+                    try:
+                        dd = pd.read_csv(str(fnsnm[which_repeat]))
+                    except:
+                        print(f"Error reading {fnsnm[which_repeat]}")
+                        continue
+                    if "u_hier_id.1" in dd.columns:
+                        dd.pop( "u_hier_id.1" )
+                    if "u_hier_id" in dd.columns:
+                        dd.pop( "u_hier_id" )
+                    tempX = os.path.basename(fnsnm[which_repeat])
+                    tempX = os.path.splitext(tempX)[0]
+                    if not cnx:
+                        # Drop cnxcount columns
+                        cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
+                        if len(cnxcoutnames) > 0 :
+                            dd = dd.drop(columns=cnxcoutnames)
+                    # Drop columns that appear in both dd and startdf
+                    inames = set(rootcolnames).intersection(set(dd.columns))
+                    dd = dd.drop(columns=inames)
+                    tagger = nrg_modality_list[j]+"_"
+                    if dd.shape[0] > 0:
+                        # Remove inner and outer rows if they exist
+                        if dd.shape[0] == 2:
+                            dd = dd.iloc[1]
+                            # Rename columns and add to startdf
+                            ddnum = dd.to_numpy()
+                            ddnum = np.delete( ddnum, 0 )
+                            ddnum = ddnum.reshape([1,ddnum.shape[0]])
+                            newcolnames = dd.index.to_list()
+                            newcolnames.pop()
+                            if len(newcolnames) != ddnum.shape[1]:
+                                print("Cannot Merge : ", tagger, " Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
+                                dd = pd.DataFrame()
+                            dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
+                        else:
+                            dd.columns=tagger + dd.columns
+                        dd.insert(0,'MM.ID_'+nrg_modality_list[j],re.sub( "-mmwide", "", tempX))
+                        for myexc in ["inner","outer","A"]:
+                            if (dd == myexc).any().sum() > 0 and verbose == 2 :
+                                print( myexc + " " + 'MM.ID_'+nrg_modality_list[j] )
+                            dd=dd.drop(columns=dd.columns[(dd == myexc).any()])
+                        startdf = pd.concat([startdf, dd], axis=1)
+            alldf = pd.concat([alldf, startdf], axis=0)
     return alldf
 
 
@@ -3778,3 +3780,30 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
       'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
       'wmh_mass_prior': wmh_sum_prior_aug  }
+
+
+
+
+def threaded_bind_wide_mm_csvs( fn_list, n_workers )
+    from concurrent.futures import as_completed
+    from concurrent import futures
+    import concurrent.futures
+    def chunks(l, n):
+        """Yield n number of sequential chunks from l."""
+        d, r = divmod(len(l), n)
+        for i in range(n):
+            si = (d+1)*(i if i < r else r) + d*(0 if i < r else i - r)
+            yield l[si:si+(d+1 if i < r else d)]
+    import numpy as np
+    newx = list( chunks( xx, n_workers ) )
+    import pandas as pd
+    alldf = pd.DataFrame()
+    with futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
+        to_do = []
+        for group in range(len(newx)) :
+            future = executor.submit(bind_wide_mm_csvs, newx[group] )
+            to_do.append(future)
+        results = []
+        for future in futures.as_completed(to_do):
+            alldf=pd.concat(  [alldf, future.result()], axis=0 )
+            print( alldf.shape )
