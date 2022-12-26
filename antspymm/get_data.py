@@ -3784,7 +3784,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
 
 
 
-def threaded_bind_wide_mm_csvs( fn_list, n_workers )
+def threaded_bind_wide_mm_csvs( fn_list, n_workers ):
     from concurrent.futures import as_completed
     from concurrent import futures
     import concurrent.futures
