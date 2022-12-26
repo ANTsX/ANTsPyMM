@@ -2694,8 +2694,6 @@ def mm(
             print('flair')
         wmhprior = None
         priorfn = ex_path_mm + 'CIT168_wmhprior_700um_pad_adni.nii.gz'
-        if verbose:
-            print("flair prior exists? : " + str( exists( priorfn ) + " " + priorfn  ) )
         if ( exists( priorfn ) ):
             wmhprior = ants.image_read( priorfn )
             wmhprior = ants.apply_transforms( t1_image, wmhprior, do_normalization['invtransforms'] )
