@@ -2694,6 +2694,8 @@ def mm(
             print('flair')
         wmhprior = None
         priorfn = ex_path_mm + 'CIT168_wmhprior_700um_pad_adni.nii.gz'
+        if verbose:
+            print("flair prior exists? : " + str( exists( priorfn ) + " " + priorfn  ) )
         if ( exists( priorfn ) ):
             wmhprior = ants.image_read( priorfn )
             wmhprior = ants.apply_transforms( t1_image, wmhprior, do_normalization['invtransforms'] )
@@ -3745,11 +3747,16 @@ def augment_image( x,  max_rot=10, nzsd=1 ):
 def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
         probability_mask=None, prior_probability=None, n_simulations=16,
         verbose=False ) :
-    if verbose:
+    if verbose and prior_probability is None:
         print("augmented flair")
+    if verbose and prior_probability is not None:
+        print("augmented flair with prior")
     wmh_sum_aug = 0
     wmh_sum_prior_aug = 0
     augprob = flair * 0.0
+    augprob_prior = None
+    if prior_probability is not None:
+        augprob_prior = flair * 0.0
     for n in range(n_simulations):
         augflair, tx, itx = augment_image( flair, 5 )
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
@@ -3760,11 +3767,16 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
         wmh_sum_prior_aug = wmh_sum_prior_aug + locwmh['wmh_mass_prior']
         temp = locwmh['WMH_probability_map']
         augprob = augprob + ants.apply_ants_transform_to_image( itx, temp, flair, interpolation='linear')
+        if prior_probability is not None:
+            temp = locwmh['WMH_posterior_probability_map']
+            augprob_prior = augprob_prior + ants.apply_ants_transform_to_image( itx, temp, flair, interpolation='linear')
     augprob = augprob * (1.0/float( n_simulations ))
+    if prior_probability is not None:
+        augprob_prior = augprob_prior * (1.0/float( n_simulations ))
     wmh_sum_aug = wmh_sum_aug / float( n_simulations )
     wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
     return{
       'WMH_probability_map' : augprob,
-      'WMH_posterior_probability_map' : None,
+      'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
       'wmh_mass_prior': wmh_sum_prior_aug  }
