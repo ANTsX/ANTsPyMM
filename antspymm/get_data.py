@@ -3983,6 +3983,9 @@ def average_mm_df( jmm_in, verbose=False ):
                 id2=temp[fl_id].iloc[1]
                 v1=tempVec.iloc[0][1:].astype(float).to_numpy()
                 v2=tempVec.iloc[1][1:].astype(float).to_numpy()
+                if len(v2) > 25:
+                    v1=v1[0:25]
+                    v2=v2[0:25]
                 mycorr = np.corrcoef( v1, v2 )[0,1]
                 # mycorr=temparr[np.triu_indices_from(temparr, k=1)].mean()
                 myerr=np.sqrt(np.mean((v1 - v2)**2))
