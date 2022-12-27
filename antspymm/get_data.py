@@ -3906,7 +3906,7 @@ def average_mm_df( jmm_in, verbose=False ):
                     jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     if verbose:
         print("do rsfMRI")
@@ -3939,15 +3939,22 @@ def average_mm_df( jmm_in, verbose=False ):
                     jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
-    jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
+    # first task - sort by u_hier_id
+    jmm = jmm.sort_values( "u_hier_id" )
+    # get rid of junk columns
+    badnames = get_names_from_data_frame( ['Unnamed'], jmm )
+    jmm=jmm.drop(badnames, axis=1)
+    jmm=jmm.set_index("u_hier_id",drop=False)
+    # 2nd - get rid of duplicated u_hier_id
+    jmmUniq = jmm.drop_duplicates( subset="u_hier_id" ) # fast and easy
+    # for each modality, count which ids have more than one
     mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
     for mod_name in mod_names:
-        fl_names = antspymm.get_names_from_data_frame([mod_name], jmm, exclusions=['Unnamed'])
+        fl_names = get_names_from_data_frame([mod_name], jmm,
+            exclusions=['Unnamed',"DTI_LR","DTI_RL","rsfMRI_RL","rsfMRI_LR"])
         if len( fl_names ) > 1:
-            df = pd.DataFrame( columns=fl_names, index=range(jmmUniq.shape[0] ) )
-            jmmUniq = pd.concat( [jmmUniq, df ], axis=1 )
             if verbose:
                 print(mod_name)
                 print(fl_names)
@@ -3955,36 +3962,35 @@ def average_mm_df( jmm_in, verbose=False ):
             n_names = len(fl_names)
             locvec = jmm[fl_names[n_names-1]].astype(float)
             boolvec=~pd.isna(locvec)
-            my_tbl = Counter(jmm['u_hier_id'][boolvec])
+            jmmsub = jmm[boolvec][ ['u_hier_id']+fl_names]
+            my_tbl = Counter(jmmsub['u_hier_id'])
             gtoavg = [name for name in my_tbl.keys() if my_tbl[name] == 1]
+            gtoavgG1 = [name for name in my_tbl.keys() if my_tbl[name] > 1]
             if verbose:
                 print("Join 1")
+            jmmsub1 = jmmsub.loc[jmmsub['u_hier_id'].isin(gtoavg)][['u_hier_id']+fl_names]
             for u in gtoavg:
-                ww = jmm['u_hier_id'] == u
-                ww2 = jmmUniq['u_hier_id'] == u
-                jmmUniq[ww2][fl_names[0]] = mod_name
-                jmmUniq[ww2][fl_names[1:]] = jmm[ww][fl_names[1:]]
-            gtoavg = [name for name in my_tbl.keys() if my_tbl[name] > 1]
-            if verbose:
+                jmmUniq.loc[u][fl_names[1:]] = jmmsub1.loc[u][fl_names[1:]]
+            if verbose and len(gtoavgG1) > 1:
                 print("Join >1")
-            for u in gtoavg:
-                ww = jmm['u_hier_id'] == u
-                ww2 = jmmUniq['u_hier_id'] == u
-                temp = jmm[ ['u_hier_id']+fl_names ][ww]
+            jmmsubG1 = jmmsub.loc[jmmsub['u_hier_id'].isin(gtoavgG1)][['u_hier_id']+fl_names]
+            for u in gtoavgG1:
+                temp = jmmsubG1.loc[u][ ['u_hier_id']+fl_names ]
+                dropnames = get_names_from_data_frame( ['MM.ID'], temp )
+                tempVec = temp.drop(columns=dropnames)
                 joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
-                id1=temp['u_hier_id'].iloc[0]
-                id2=temp['u_hier_id'].iloc[1]
-                v1=temp.iloc[0][2:].astype(float).to_numpy()
-                v2=temp.iloc[1][2:].astype(float).to_numpy()
+                id1=temp[fl_id].iloc[0]
+                id2=temp[fl_id].iloc[1]
+                v1=tempVec.iloc[0][1:].astype(float).to_numpy()
+                v2=tempVec.iloc[1][1:].astype(float).to_numpy()
                 mycorr = np.corrcoef( v1, v2 )[0,1]
                 # mycorr=temparr[np.triu_indices_from(temparr, k=1)].mean()
                 myerr=np.sqrt(np.mean((v1 - v2)**2))
                 joinDiagnosticsLoc.iloc[0] = [id1,id2,mod_name,'rowavg',mycorr,myerr]
                 if verbose:
                     print( joinDiagnosticsLoc )
-                jmmUniq[ww2][fl_names[0]] = mod_name
-                temp = jmm[ww][fl_names[1:]].astype(float)
-                jmmUniq[ww2][fl_names[1:]] = temp.mean(axis=0)
-                jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                temp = jmmsubG1.loc[u][fl_names[1:]].astype(float)
+                jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
+                joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
-    return jmmUniq, jmm, jointDiagnosics
+    return jmmUniq, jmm, jointDiagnostics
