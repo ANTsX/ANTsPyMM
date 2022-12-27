@@ -3845,18 +3845,18 @@ def average_mm_df( jmm_in, verbose=False ):
         jmm_in = jmm_in.replace(r'^\s*$', np.nan, regex=True)
 
     # repeat averaged samples (left) and L/R averaged (right)
-    mymmU, mymmA = antspymm.average_mm_df( jmm_in, verbose=True )
+    jmrowavg, jmmcolavg, diagnostics = antspymm.average_mm_df( jmm_in, verbose=True )
     """
 
     jmm = jmm_in.copy()
+    dxcols=['subjectid1','subjectid2','modalityid','joinid','correlation','distance']
+    joinDiagnostics = pd.DataFrame( columns = dxcols )
 
     def rob(x, y=0.99):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
         return x
 
     jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
-    jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
-
     if verbose:
         print("do DTI")
     # here - we first have to average within each row
@@ -3874,15 +3874,15 @@ def average_mm_df( jmm_in, verbose=False ):
         v3 = jmm.loc[k, dt2[1:]].astype(float)
         checkcol = dt0[5]
         if not np.isnan(v1[checkcol]):
-            if v1[checkcol] < 0.15:
+            if v1[checkcol] < 0.25:
                 v1.replace(np.nan, inplace=True)
         checkcol = dt1[5]
         if not np.isnan(v2[checkcol]):
-            if v2[checkcol] < 0.15:
+            if v2[checkcol] < 0.25:
                 v2.replace(np.nan, inplace=True)
         checkcol = dt2[5]
         if not np.isnan(v3[checkcol]):
-            if v3[checkcol] < 0.15:
+            if v3[checkcol] < 0.25:
                 v3.replace(np.nan, inplace=True)
         vvec = [v1[0], v2[0], v3[0]]
         if any(~np.isnan(vvec)):
@@ -3899,8 +3899,14 @@ def average_mm_df( jmm_in, verbose=False ):
                 if mynna[0] == 0:
                     jmm.loc[k, dt0[1:]] = v1
                 else:
-                    jmm.loc[k, dt0[1:]] = v2*0.5 + v3*0.5
-
+                    joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
+                    mycorr = np.corrcoef( v2[0:25].values, v3[0:25].values )[0,1]
+                    myerr=np.sqrt(np.mean((v2[0:25].values - v3[0:25].values)**2))
+                    joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'DTI','colavg',mycorr,myerr]
+                    jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
+                    if verbose:
+                        print( joinDiagnosticsLoc )
+                    jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     if verbose:
         print("do rsfMRI")
@@ -3914,7 +3920,6 @@ def average_mm_df( jmm_in, verbose=False ):
             if not pd.isna(jmm[dt0[1]][i]) or not pd.isna(jmm[dt1[1]][i]) :
                 wrows.append(i)
         for k in wrows:
-            print(k)
             v1 = jmm.loc[k, dt0[1:]].astype(float)
             v2 = jmm.loc[k, dt1[1:]].astype(float)
             vvec = [v1[0], v2[0]]
@@ -3927,7 +3932,14 @@ def average_mm_df( jmm_in, verbose=False ):
                     if mynna[0] == 1:
                         jmm.loc[k, dt0[1:]] = v2
                 elif len(mynna) > 1:
-                    jmm.loc[k, dt0[1:]] = v1*0.5 + v2*0.5
+                    joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
+                    mycorr = np.corrcoef( v1[0:25].values, v2[0:25].values )[0,1]
+                    myerr=np.sqrt(np.mean((v1[0:25].values - v2[0:25].values)**2))
+                    joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
+                    jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
+                    if verbose:
+                        print( joinDiagnosticsLoc )
+                    jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
     mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
@@ -3945,16 +3957,34 @@ def average_mm_df( jmm_in, verbose=False ):
             boolvec=~pd.isna(locvec)
             my_tbl = Counter(jmm['u_hier_id'][boolvec])
             gtoavg = [name for name in my_tbl.keys() if my_tbl[name] == 1]
+            if verbose:
+                print("Join 1")
             for u in gtoavg:
                 ww = jmm['u_hier_id'] == u
                 ww2 = jmmUniq['u_hier_id'] == u
                 jmmUniq[ww2][fl_names[0]] = mod_name
                 jmmUniq[ww2][fl_names[1:]] = jmm[ww][fl_names[1:]]
             gtoavg = [name for name in my_tbl.keys() if my_tbl[name] > 1]
+            if verbose:
+                print("Join >1")
             for u in gtoavg:
                 ww = jmm['u_hier_id'] == u
                 ww2 = jmmUniq['u_hier_id'] == u
+                temp = jmm[ ['u_hier_id']+fl_names ][ww]
+                joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
+                id1=temp['u_hier_id'].iloc[0]
+                id2=temp['u_hier_id'].iloc[1]
+                v1=temp.iloc[0][2:].astype(float).to_numpy()
+                v2=temp.iloc[1][2:].astype(float).to_numpy()
+                mycorr = np.corrcoef( v1, v2 )[0,1]
+                # mycorr=temparr[np.triu_indices_from(temparr, k=1)].mean()
+                myerr=np.sqrt(np.mean((v1 - v2)**2))
+                joinDiagnosticsLoc.iloc[0] = [id1,id2,mod_name,'rowavg',mycorr,myerr]
+                if verbose:
+                    print( joinDiagnosticsLoc )
                 jmmUniq[ww2][fl_names[0]] = mod_name
-                jmmUniq[ww2][fl_names[1:]] = jmm[ww][fl_names[1:]].astype(float).mean(axis=0)
+                temp = jmm[ww][fl_names[1:]].astype(float)
+                jmmUniq[ww2][fl_names[1:]] = temp.mean(axis=0)
+                jointDiagnosics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
-    return jmmUniq, jmm
+    return jmmUniq, jmm, jointDiagnosics
