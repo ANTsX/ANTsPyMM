@@ -3811,6 +3811,16 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
 
 
 def average_mm_df( jmm, verbose=False ):
+    """
+    try:
+        jmm
+    except NameError:
+        jmm = pd.read_csv("joined_mm_or.csv", low_memory=False, dtype='unicode')
+        jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
+
+    mymm = antspymm.average_mm_df( jmm, verbose=True )
+    """
+
     def rob(x, y=0.99):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
         return x
