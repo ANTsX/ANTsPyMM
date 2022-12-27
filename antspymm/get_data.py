@@ -20,6 +20,8 @@ from scipy.sparse.linalg import svds
 from scipy.stats import pearsonr
 import re
 import datetime as dt
+from collections import Counter
+
 
 from dipy.core.histeq import histeq
 import dipy.reconst.dti as dti
@@ -3839,10 +3841,11 @@ def average_mm_df( jmm_in, verbose=False ):
     try:
         jmm
     except NameError:
-        jmm = pd.read_csv("joined_mm_or.csv", low_memory=False, dtype='unicode')
-        jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
+        jmm_in = pd.read_csv("joined_mm_or.csv", low_memory=False, dtype='unicode')
+        jmm_in = jmm_in.replace(r'^\s*$', np.nan, regex=True)
 
-    mymm = antspymm.average_mm_df( jmm, verbose=True )
+    # repeat averaged samples (left) and L/R averaged (right)
+    mymmU, mymmA = antspymm.average_mm_df( jmm_in, verbose=True )
     """
 
     jmm = jmm_in.copy()
@@ -3857,101 +3860,101 @@ def average_mm_df( jmm_in, verbose=False ):
     if verbose:
         print("do DTI")
     # here - we first have to average within each row
-    dt0 = get_names_from_data_frame(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
-    dt1 = get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
-    dt2 = get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
+    dt0 = antspymm.get_names_from_data_frame(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
+    dt1 = antspymm.get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
+    dt2 = antspymm.get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
     wrows = []
-    for i in range(len(jmm[:, dt0[0]])):
-        if not pd.isna(jmm[i, dt0[0]]):
+    for i in range(jmm.shape[0]):
+        if not pd.isna(jmm[dt0[1]][i]) or not pd.isna(jmm[dt1[1]][i]) or not pd.isna(jmm[dt2[1]][i]):
             wrows.append(i)
-    for i in range(len(jmm[:, dt1[0]])):
-        if not pd.isna(jmm[i, dt1[0]]):
-            wrows.append(i)
-    for i in range(len(jmm[:, dt2[0]])):
-        if not pd.isna(jmm[i, dt2[0]]):
-            wrows.append(i)
-    for k in sorted(set(wrows)):
-        print(k)
-        v1 = jmm.loc[k, dt0]
-        v2 = jmm.loc[k, dt1]
-        v3 = jmm.loc[k, dt2]
-        if not np.isnan(v1['DTI_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm']):
-            if v1['DTI_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm'] < 0.25:
+    for k in wrows:
+        v1 = jmm.loc[k, dt0[1:]].astype(float)
+        v2 = jmm.loc[k, dt1[1:]].astype(float)
+        v3 = jmm.loc[k, dt2[1:]].astype(float)
+        checkcol = dt0[5]
+        if not np.isnan(v1[checkcol]):
+            if v1[checkcol] < 0.15:
                 v1.replace(np.nan, inplace=True)
-        if not np.isnan(v2['DTI_LR_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm']):
-            if v2['DTI_LR_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm'] < 0.25:
+        checkcol = dt1[5]
+        if not np.isnan(v2[checkcol]):
+            if v2[checkcol] < 0.15:
                 v2.replace(np.nan, inplace=True)
-        if not np.isnan(v3['DTI_RL_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm']):
-            if v3['DTI_RL_mean_fa.genu_of_corpus_callosum.jhu_icbm_labels_1mm'] < 0.25:
+        checkcol = dt2[5]
+        if not np.isnan(v3[checkcol]):
+            if v3[checkcol] < 0.15:
                 v3.replace(np.nan, inplace=True)
         vvec = [v1[0], v2[0], v3[0]]
         if any(~np.isnan(vvec)):
             mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
+            jmm.loc[k, dt0[0]] = 'DTI'
             if len(mynna) == 1:
                 if mynna[0] == 0:
-                    jmm.loc[k, dt0] = v1
+                    jmm.loc[k, dt0[1:]] = v1
                 if mynna[0] == 1:
-                    jmm.loc[k, dt0] = v2
+                    jmm.loc[k, dt0[1:]] = v2
                 if mynna[0] == 2:
-                    jmm.loc[k, dt0] = v3
+                    jmm.loc[k, dt0[1:]] = v3
             elif len(mynna) > 1:
                 if mynna[0] == 0:
-                    jmm.loc[k, dt0] = v1
+                    jmm.loc[k, dt0[1:]] = v1
                 else:
-                    jmm.loc[k, dt0] = v2
-                    jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
+                    jmm.loc[k, dt0[1:]] = v2*0.5 + v3*0.5
 
 
     if verbose:
         print("do rsfMRI")
     # here - we first have to average within each row
-    dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
-    dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
-    flid = dt0[0]
-    wrows = []
-    for i in range(len(jmm[:, dt0[0]])):
-        if not pd.isna(jmm[i, dt0[0]]):
-            wrows.append(i)
-    for i in range(len(jmm[:, dt1[0]])):
-        if not pd.isna(jmm[i, dt1[0]]):
-            wrows.append(i)
-    for k in sorted(set(wrows)):
-        print(k)
-        v1 = jmm.loc[k, dt0]
-        v2 = jmm.loc[k, dt1]
-        vvec = [v1[0], v2[0]]
-        if any(~np.isnan(vvec)):
-            mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
-            if len(mynna) == 1:
-                if mynna[0] == 0:
-                    jmm.loc[k, dt0] = v1
-                if mynna[0] == 1:
-                    jmm.loc[k, dt0] = v2
-            elif len(mynna) > 1:
-                jmm.loc[k, dt0] = v2
-                jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
+    dt0 = antspymm.get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
+    dt1 = antspymm.get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
+    if len( dt0 ) > 0 and len( dt1 ) > 0:
+        flid = dt0[0]
+        wrows = []
+        for i in range(jmm.shape[0]):
+            if not pd.isna(jmm[dt0[1]][i]) or not pd.isna(jmm[dt1[1]][i]) :
+                wrows.append(i)
+        for k in wrows:
+            print(k)
+            v1 = jmm.loc[k, dt0[1:]].astype(float)
+            v2 = jmm.loc[k, dt1[1:]].astype(float)
+            vvec = [v1[0], v2[0]]
+            if any(~np.isnan(vvec)):
+                mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
+                jmm.loc[k, dt0[0]] = 'rsfMRI'
+                if len(mynna) == 1:
+                    if mynna[0] == 0:
+                        jmm.loc[k, dt0[1:]] = v1
+                    if mynna[0] == 1:
+                        jmm.loc[k, dt0[1:]] = v2
+                elif len(mynna) > 1:
+                    jmm.loc[k, dt0[1:]] = v1*0.5 + v2*0.5
 
+    jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
     mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
     for mod_name in mod_names:
-        fl_names = get_names_from_data_frame([mod_name], jmm, exclusions=['Unnamed'])
-        if verbose:
-            print(mod_name)
-            print(fl_names)
-        fl_id = fl_names[0]
-        n_names = len(fl_names)
-        my_tbl = pd.crosstab(jmm[~pd.isna(jmm[fl_names[n_names-1]]), 'u_hier_id'])
-        gtoavg = [name for name in my_tbl.index if my_tbl[name] == 1]
-        for u in gtoavg:
-            ww = jmm['u_hier_id'] == u
-            ww2 = jmmUniq['u_hier_id'] == u
-            jmmUniq[ww2][fl_names[0]] = jmm[ww[0]][fl_names[0]]
-            jmmUniq[ww2][fl_names[-1]] = jmm[ww][fl_names[-1]]
-        gtoavg = [name for name in my_tbl.index if my_tbl[name] > 1]
-        for u in gtoavg:
-            ww = jmm['u_hier_id'] == u
-            ww2 = jmmUniq['u_hier_id'] == u
-            jmmUniq[ww2][fl_names[0]] = jmm[ww[0]][fl_names[0]]
-            jmmUniq[ww2][fl_names[-1]] = jmm[ww][fl_names[-1]].mean()
+        fl_names = antspymm.get_names_from_data_frame([mod_name], jmm, exclusions=['Unnamed'])
+        if len( fl_names ) > 1:
+            df = pd.DataFrame( columns=fl_names, index=range(jmmUniq.shape[0] ) )
+            jmmUniq = pd.concat( [jmmUniq, df ], axis=1 )
+            if verbose:
+                print(mod_name)
+                print(fl_names)
+            fl_id = fl_names[0]
+            n_names = len(fl_names)
+            locvec = jmm[fl_names[n_names-1]].astype(float)
+            boolvec=~pd.isna(locvec)
+            my_tbl = Counter(jmm['u_hier_id'][boolvec])
+            gtoavg = [name for name in my_tbl.keys() if my_tbl[name] == 1]
+            for u in gtoavg:
+                ww = jmm['u_hier_id'] == u
+                ww2 = jmmUniq['u_hier_id'] == u
+                jmmUniq[ww2][fl_names[0]] = mod_name
+                jmmUniq[ww2][fl_names[1:]] = jmm[ww][fl_names[1:]]
+            gtoavg = [name for name in my_tbl.keys() if my_tbl[name] > 1]
+            for u in gtoavg:
+                ww = jmm['u_hier_id'] == u
+                ww2 = jmmUniq['u_hier_id'] == u
+                jmmUniq[ww2][fl_names[0]] = mod_name
+                jmmUniq[ww2][fl_names[1:]] = jmm[ww][fl_names[1:]].astype(float).mean(axis=0)
 
     return jmmUniq, jmm
