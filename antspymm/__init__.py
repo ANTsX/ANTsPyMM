@@ -40,3 +40,4 @@ from .get_data import bind_wide_mm_csvs
 from .get_data import augment_image
 from .get_data import boot_wmh
 from .get_data import threaded_bind_wide_mm_csvs
+from .get_data import average_mm_df
