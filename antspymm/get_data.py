@@ -3809,6 +3809,30 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
     return alldf
 
 
+def get_names_from_data_frame(x, demogIn, exclusions=None):
+    def get_unique( qq ):
+        unique = []
+        for number in qq:
+            if number in unique:
+                continue
+            else:
+                unique.append(number)
+        return unique
+    outnames = list(demogIn.columns[demogIn.columns.str.contains(x[0])])
+    if len(x) > 1:
+        for y in x[1:]:
+            temp = list(demogIn.columns[demogIn.columns.str.contains(y)])
+            outnames.append( temp )
+    outnames = get_unique( outnames )
+    if exclusions is not None:
+        toexclude = [name for name in outnames if exclusions[0] in name ]
+        if len(exclusions) > 1:
+            for zz in exclusions[1:]:
+                toexclude.extend([name for name in outnames if zz in name ])
+        if len(toexclude) > 0:
+            outnames = [name for name in outnames if name not in toexclude]
+    return outnames
+
 
 def average_mm_df( jmm, verbose=False ):
     """
@@ -3825,41 +3849,16 @@ def average_mm_df( jmm, verbose=False ):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
         return x
 
-    def getcnames(x, demogIn, exclusions=None):
-        def get_unique( qq ):
-            unique = []
-            for number in qq:
-                if number in unique:
-                    continue
-                else:
-                    unique.append(number)
-            return unique
-        outnames = list(demogIn.columns[demogIn.columns.str.contains(x[0])])
-        if len(x) > 1:
-            for y in x[1:]:
-                temp = list(demogIn.columns[demogIn.columns.str.contains(y)])
-                outnames.append( temp )
-        outnames = get_unique( outnames )
-        if exclusions is not None:
-            toexclude = [name for name in outnames if exclusions[0] in name ]
-            if len(exclusions) > 1:
-                for zz in exclusions[1:]:
-                    toexclude.extend([name for name in outnames if zz in name ])
-            if len(toexclude) > 0:
-                outnames = [name for name in outnames if name not in toexclude]
-        return outnames
-
     jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
     jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
 
     if verbose:
         print("do DTI")
     # here - we first have to average within each row
-    dt0 = getcnames(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
-    dt1 = getcnames(["DTI_LR"], jmm, exclusions=["Unnamed"])
-    dt2 = getcnames( ["DTI_RL"], jmm, exclusions=["Unnamed"])
+    dt0 = get_names_from_data_frame(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
+    dt1 = get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
+    dt2 = get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
-    nnames = len(flnames)
     jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
     wrows = []
     for k in sorted(set(wrows)):
@@ -3897,19 +3896,16 @@ def average_mm_df( jmm, verbose=False ):
     if verbose:
         print("do rsfMRI")
     # here - we first have to average within each row
-    dt0 = getcnames(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
-    dt1 = getcnames(["rsfMRI_LR"], jmm, exclusions=["Unnamed"])
-    dt2 = getcnames(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
+    dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
+    dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
-    nnames = len(flnames)
     jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
     wrows = []
     for k in sorted(set(wrows)):
         print(k)
         v1 = jmm.loc[k, dt0]
         v2 = jmm.loc[k, dt1]
-        v3 = jmm.loc[k, dt2]
-        vvec = [v1[0], v2[0], v3[0]]
+        vvec = [v1[0], v2[0]]
         if any(~np.isnan(vvec)):
             mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
             if len(mynna) == 1:
@@ -3917,21 +3913,16 @@ def average_mm_df( jmm, verbose=False ):
                     jmm.loc[k, dt0] = v1
                 if mynna[0] == 1:
                     jmm.loc[k, dt0] = v2
-                if mynna[0] == 2:
-                    jmm.loc[k, dt0] = v3
             elif len(mynna) > 1:
-                if mynna[0] == 0:
-                    jmm.loc[k, dt0] = v1
-                else:
-                    jmm.loc[k, dt0] = v2
-                    jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
-
+                jmm.loc[k, dt0] = v2
+                jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
 
     mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
     for mod_name in mod_names:
-        fl_names = getcnames(mod_name, jmm, exclusions='Unnamed')
-        print(mod_name)
-        print(fl_names)
+        fl_names = get_names_from_data_frame([mod_name], jmm, exclusions=['Unnamed'])
+        if verbose:
+            print(mod_name)
+            print(fl_names)
         fl_id = fl_names[0]
         n_names = len(fl_names)
         my_tbl = pd.crosstab(jmm[~pd.isna(jmm[fl_names[n_names-1]]), 'u_hier_id'])
