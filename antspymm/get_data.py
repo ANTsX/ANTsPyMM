@@ -3851,7 +3851,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
     jmm = jmm_in.copy()
     dxcols=['subjectid1','subjectid2','modalityid','joinid','correlation','distance']
     joinDiagnostics = pd.DataFrame( columns = dxcols )
-
+    nanList=[math.nan]
     def rob(x, y=0.99):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
         return x
@@ -3905,8 +3905,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'DTI','colavg',mycorr,myerr]
                     if mycorr > corr_thresh:
                         jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
-#                    else: #
-#                        jmm.loc[k, dt0[1:]] =
+                    else: #
+                        jmm.loc[k, dt0[1:]] = nanList * len( dt0[1:] )
                     if verbose:
                         print( joinDiagnosticsLoc )
                     jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
@@ -3947,6 +3947,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
                     if mycorr > corr_thresh:
                         jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
+                    else:
+                        jmm.loc[k, dt0[1:]] = nanList * len(v1)
                     if verbose:
                         print( joinDiagnosticsLoc )
                     jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
@@ -4005,6 +4007,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                 temp = jmmsubG1.loc[u][fl_names[1:]].astype(float)
                 if mycorr > corr_thresh:
                     jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
+                else:
+                    jmmUniq.loc[u][fl_names[1:]] = nanList * temp.shape[1]
                 joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     return jmmUniq, jmm, jointDiagnostics
