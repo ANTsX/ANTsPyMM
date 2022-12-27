@@ -3834,7 +3834,7 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
     return outnames
 
 
-def average_mm_df( jmm, verbose=False ):
+def average_mm_df( jmm_in, verbose=False ):
     """
     try:
         jmm
@@ -3844,6 +3844,8 @@ def average_mm_df( jmm, verbose=False ):
 
     mymm = antspymm.average_mm_df( jmm, verbose=True )
     """
+
+    jmm = jmm_in.copy()
 
     def rob(x, y=0.99):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
@@ -3859,8 +3861,16 @@ def average_mm_df( jmm, verbose=False ):
     dt1 = get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
     dt2 = get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
-    jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
     wrows = []
+    for i in range(len(jmm[:, dt0[0]])):
+        if not pd.isna(jmm[i, dt0[0]]):
+            wrows.append(i)
+    for i in range(len(jmm[:, dt1[0]])):
+        if not pd.isna(jmm[i, dt1[0]]):
+            wrows.append(i)
+    for i in range(len(jmm[:, dt2[0]])):
+        if not pd.isna(jmm[i, dt2[0]]):
+            wrows.append(i)
     for k in sorted(set(wrows)):
         print(k)
         v1 = jmm.loc[k, dt0]
@@ -3899,8 +3909,13 @@ def average_mm_df( jmm, verbose=False ):
     dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
     dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
-    jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
     wrows = []
+    for i in range(len(jmm[:, dt0[0]])):
+        if not pd.isna(jmm[i, dt0[0]]):
+            wrows.append(i)
+    for i in range(len(jmm[:, dt1[0]])):
+        if not pd.isna(jmm[i, dt1[0]]):
+            wrows.append(i)
     for k in sorted(set(wrows)):
         print(k)
         v1 = jmm.loc[k, dt0]
@@ -3938,4 +3953,5 @@ def average_mm_df( jmm, verbose=False ):
             ww2 = jmmUniq['u_hier_id'] == u
             jmmUniq[ww2][fl_names[0]] = jmm[ww[0]][fl_names[0]]
             jmmUniq[ww2][fl_names[-1]] = jmm[ww][fl_names[-1]].mean()
-    return jmmUniq
+
+    return jmmUniq, jmm
