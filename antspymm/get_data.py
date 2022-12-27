@@ -3836,7 +3836,7 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
     return outnames
 
 
-def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
+def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
     """
     try:
         jmm
@@ -3903,7 +3903,10 @@ def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
                     mycorr = np.corrcoef( v2[0:diagnostic_n].values, v3[0:diagnostic_n].values )[0,1]
                     myerr=np.sqrt(np.mean((v2[0:diagnostic_n].values - v3[0:diagnostic_n].values)**2))
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'DTI','colavg',mycorr,myerr]
-                    jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
+                    if mycorr > corr_thresh:
+                        jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
+#                    else: #
+#                        jmm.loc[k, dt0[1:]] =
                     if verbose:
                         print( joinDiagnosticsLoc )
                     jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
@@ -3939,10 +3942,11 @@ def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
                         v1dx=v1
                         v2dx=v2
                     joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
-                    mycorr = np.corrcoef( v1dx.values, v1dx.values )[0,1]
-                    myerr=np.sqrt(np.mean((v1dx.values - v1dx.values)**2))
+                    mycorr = np.corrcoef( v1dx.values, v2dx.values )[0,1]
+                    myerr=np.sqrt(np.mean((v1dx.values - v2dx.values)**2))
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
-                    jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
+                    if mycorr > corr_thresh:
+                        jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
                     if verbose:
                         print( joinDiagnosticsLoc )
                     jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
@@ -3999,7 +4003,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
                 if verbose:
                     print( joinDiagnosticsLoc )
                 temp = jmmsubG1.loc[u][fl_names[1:]].astype(float)
-                jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
+                if mycorr > corr_thresh:
+                    jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
                 joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     return jmmUniq, jmm, jointDiagnostics
