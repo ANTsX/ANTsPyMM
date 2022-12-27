@@ -3810,39 +3810,44 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
 
 
 
-def average_mm_df( jmm ):
+def average_mm_df( jmm, verbose=False ):
     def rob(x, y=0.99):
         x[x > np.quantile(x, y, nan_policy="omit")] = np.nan
         return x
 
     def getcnames(x, demogIn, exclusions=None):
+        def get_unique( qq ):
+            unique = []
+            for number in qq:
+                if number in unique:
+                    continue
+                else:
+                    unique.append(number)
+            return unique
         outnames = list(demogIn.columns[demogIn.columns.str.contains(x[0])])
         if len(x) > 1:
             for y in x[1:]:
-                outnames = [name for name in outnames if name.contains(y)]
+                temp = list(demogIn.columns[demogIn.columns.str.contains(y)])
+                outnames.append( temp )
+        outnames = get_unique( outnames )
         if exclusions is not None:
-            toexclude = [name for name in outnames if name.contains(exclusions[0])]
+            toexclude = [name for name in outnames if exclusions[0] in name ]
             if len(exclusions) > 1:
                 for zz in exclusions[1:]:
-                    toexclude.extend([name for name in outnames if name.contains(zz)])
+                    toexclude.extend([name for name in outnames if zz in name ])
             if len(toexclude) > 0:
                 outnames = [name for name in outnames if name not in toexclude]
         return outnames
 
-    try:
-        jmm
-    except NameError:
-        jmm = pd.read_csv("joined_mm_or.csv")
-
     jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
     jmmUniq = pd.DataFrame({"u_hier_id": sorted(jmm["u_hier_id"].unique())})
 
-    # do DTI
-    print("do DTI")
+    if verbose:
+        print("do DTI")
     # here - we first have to average within each row
-    dt0 = getcnames("DTI", jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
-    dt1 = getcnames("DTI_LR", jmm, exclusions=["Unnamed"])
-    dt2 = getcnames("DTI_RL", jmm, exclusions=["Unnamed"])
+    dt0 = getcnames(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
+    dt1 = getcnames(["DTI_LR"], jmm, exclusions=["Unnamed"])
+    dt2 = getcnames( ["DTI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
     nnames = len(flnames)
     jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
@@ -3879,12 +3884,12 @@ def average_mm_df( jmm ):
                     jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
 
 
-
-    print("do rsfMRI")
+    if verbose:
+        print("do rsfMRI")
     # here - we first have to average within each row
-    dt0 = getcnames("rsfMRI", jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
-    dt1 = getcnames("rsfMRI_LR", jmm, exclusions=["Unnamed"])
-    dt2 = getcnames("rsfMRI_RL", jmm, exclusions=["Unnamed"])
+    dt0 = getcnames(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
+    dt1 = getcnames(["rsfMRI_LR"], jmm, exclusions=["Unnamed"])
+    dt2 = getcnames(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
     nnames = len(flnames)
     jmmTemp = pd.DataFrame({"u_hier_id": jmm['u_hier_id']})
@@ -3912,7 +3917,7 @@ def average_mm_df( jmm ):
                     jmm[k][dt0[-1]] = v2[-1]*0.5 + v3[-1]*0.5
 
 
-    mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'rsfMRI_RL', 'rsfMRI_LR', 'DTI']
+    mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
     for mod_name in mod_names:
         fl_names = getcnames(mod_name, jmm, exclusions='Unnamed')
         print(mod_name)
