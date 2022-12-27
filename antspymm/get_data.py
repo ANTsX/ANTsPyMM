@@ -3860,9 +3860,9 @@ def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
     if verbose:
         print("do DTI")
     # here - we first have to average within each row
-    dt0 = antspymm.get_names_from_data_frame(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
-    dt1 = antspymm.get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
-    dt2 = antspymm.get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
+    dt0 = get_names_from_data_frame(["DTI"], jmm, exclusions=["Unnamed", "DTI_LR", "DTI_RL"])
+    dt1 = get_names_from_data_frame(["DTI_LR"], jmm, exclusions=["Unnamed"])
+    dt2 = get_names_from_data_frame( ["DTI_RL"], jmm, exclusions=["Unnamed"])
     flid = dt0[0]
     wrows = []
     for i in range(jmm.shape[0]):
@@ -3911,8 +3911,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
     if verbose:
         print("do rsfMRI")
     # here - we first have to average within each row
-    dt0 = antspymm.get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
-    dt1 = antspymm.get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
+    dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
+    dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
     if len( dt0 ) > 0 and len( dt1 ) > 0:
         flid = dt0[0]
         wrows = []
