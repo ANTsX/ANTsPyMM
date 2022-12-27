@@ -3926,12 +3926,16 @@ def average_mm_df( jmm, verbose=False ):
         fl_id = fl_names[0]
         n_names = len(fl_names)
         my_tbl = pd.crosstab(jmm[~pd.isna(jmm[fl_names[n_names-1]]), 'u_hier_id'])
+        gtoavg = [name for name in my_tbl.index if my_tbl[name] == 1]
+        for u in gtoavg:
+            ww = jmm['u_hier_id'] == u
+            ww2 = jmmUniq['u_hier_id'] == u
+            jmmUniq[ww2][fl_names[0]] = jmm[ww[0]][fl_names[0]]
+            jmmUniq[ww2][fl_names[-1]] = jmm[ww][fl_names[-1]]
         gtoavg = [name for name in my_tbl.index if my_tbl[name] > 1]
         for u in gtoavg:
             ww = jmm['u_hier_id'] == u
             ww2 = jmmUniq['u_hier_id'] == u
             jmmUniq[ww2][fl_names[0]] = jmm[ww[0]][fl_names[0]]
             jmmUniq[ww2][fl_names[-1]] = jmm[ww][fl_names[-1]].mean()
-            print("\n")
-
     return jmmUniq
