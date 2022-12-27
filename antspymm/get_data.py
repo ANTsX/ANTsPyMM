@@ -3836,7 +3836,7 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
     return outnames
 
 
-def average_mm_df( jmm_in, verbose=False ):
+def average_mm_df( jmm_in, diagnostic_n=25, verbose=False ):
     """
     try:
         jmm
@@ -3900,8 +3900,8 @@ def average_mm_df( jmm_in, verbose=False ):
                     jmm.loc[k, dt0[1:]] = v1
                 else:
                     joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
-                    mycorr = np.corrcoef( v2[0:25].values, v3[0:25].values )[0,1]
-                    myerr=np.sqrt(np.mean((v2[0:25].values - v3[0:25].values)**2))
+                    mycorr = np.corrcoef( v2[0:diagnostic_n].values, v3[0:diagnostic_n].values )[0,1]
+                    myerr=np.sqrt(np.mean((v2[0:diagnostic_n].values - v3[0:diagnostic_n].values)**2))
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'DTI','colavg',mycorr,myerr]
                     jmm.loc[k, dt0[1:]] = v2.values*0.5 + v3.values*0.5
                     if verbose:
@@ -3932,9 +3932,15 @@ def average_mm_df( jmm_in, verbose=False ):
                     if mynna[0] == 1:
                         jmm.loc[k, dt0[1:]] = v2
                 elif len(mynna) > 1:
+                    if len(v2) > diagnostic_n:
+                        v1dx=v1[0:diagnostic_n]
+                        v2dx=v2[0:diagnostic_n]
+                    else :
+                        v1dx=v1
+                        v2dx=v2
                     joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
-                    mycorr = np.corrcoef( v1[0:25].values, v2[0:25].values )[0,1]
-                    myerr=np.sqrt(np.mean((v1[0:25].values - v2[0:25].values)**2))
+                    mycorr = np.corrcoef( v1dx.values, v1dx.values )[0,1]
+                    myerr=np.sqrt(np.mean((v1dx.values - v1dx.values)**2))
                     joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
                     jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
                     if verbose:
@@ -3983,9 +3989,9 @@ def average_mm_df( jmm_in, verbose=False ):
                 id2=temp[fl_id].iloc[1]
                 v1=tempVec.iloc[0][1:].astype(float).to_numpy()
                 v2=tempVec.iloc[1][1:].astype(float).to_numpy()
-                if len(v2) > 25:
-                    v1=v1[0:25]
-                    v2=v2[0:25]
+                if len(v2) > diagnostic_n:
+                    v1=v1[0:diagnostic_n]
+                    v2=v2[0:diagnostic_n]
                 mycorr = np.corrcoef( v1, v2 )[0,1]
                 # mycorr=temparr[np.triu_indices_from(temparr, k=1)].mean()
                 myerr=np.sqrt(np.mean((v1 - v2)**2))
