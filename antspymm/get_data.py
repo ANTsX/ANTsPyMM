@@ -4010,7 +4010,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                 if verbose:
                     print( joinDiagnosticsLoc )
                 temp = jmmsubG1.loc[u][fl_names[1:]].astype(float)
-                if mycorr > corr_thresh:
+                if mycorr > corr_thresh | len( v1 ) < 10:
                     jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
                 else:
                     jmmUniq.loc[u][fl_names[1:]] = nanList * temp.shape[1]
