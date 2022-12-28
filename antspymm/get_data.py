@@ -4016,4 +4016,4 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                     jmmUniq.loc[u][fl_names[1:]] = nanList * temp.shape[1]
                 joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
-    return jmmUniq, jmm, jointDiagnostics
+    return jmmUniq, jmm, joinDiagnostics
