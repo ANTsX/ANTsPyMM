@@ -3812,6 +3812,12 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
 
 
 def get_names_from_data_frame(x, demogIn, exclusions=None):
+    """
+    data = {'Name':['Tom', 'nick', 'krish', 'jack'], 'Age':[20, 21, 19, 18]}
+    antspymm.get_names_from_data_frame( ['e'], df )
+    antspymm.get_names_from_data_frame( ['a','e'], df )
+    antspymm.get_names_from_data_frame( ['e'], df, exclusions='N' )
+    """
     def get_unique( qq ):
         unique = []
         for number in qq:
@@ -3823,8 +3829,7 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
     outnames = list(demogIn.columns[demogIn.columns.str.contains(x[0])])
     if len(x) > 1:
         for y in x[1:]:
-            temp = list(demogIn.columns[demogIn.columns.str.contains(y)])
-            outnames.append( temp )
+            outnames = [i for i in outnames if y in i]
     outnames = get_unique( outnames )
     if exclusions is not None:
         toexclude = [name for name in outnames if exclusions[0] in name ]
