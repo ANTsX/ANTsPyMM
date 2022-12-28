@@ -3914,7 +3914,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len( dt0[1:] )
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     if verbose:
         print("do rsfMRI")
@@ -3956,7 +3956,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len(v1)
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    jointDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     # first task - sort by u_hier_id
     jmm = jmm.sort_values( "u_hier_id" )
