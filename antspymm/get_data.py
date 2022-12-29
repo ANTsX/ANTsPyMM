@@ -3668,7 +3668,7 @@ def bind_wide_mm_csvs( mm_wide_csvs,
     for which_repeat in range( max_repeats ):
         for k in range(len(mm_wide_csvs)):
             if verbose:
-                print(str(k)+ " of " + str(len(mm_wide_csvs))) + " for " + str( max_repeats ) + " repeats "
+                print(str(k)+ " of " + str(len(mm_wide_csvs)) + " for " + str( max_repeats ) + " repeats ")
             # Read first csv file and store column names
             try:
                 startdf = pd.read_csv(mm_wide_csvs[k])
@@ -3862,6 +3862,49 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
         return x
 
     jmm = jmm.replace(r'^\s*$', np.nan, regex=True)
+
+    if verbose:
+        print("do rsfMRI")
+    # here - we first have to average within each row
+    dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
+    dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
+    if len( dt0 ) > 0 and len( dt1 ) > 0:
+        flid = dt0[0]
+        wrows = []
+        for i in range(jmm.shape[0]):
+            if not pd.isna(jmm[dt0[1]][i]) or not pd.isna(jmm[dt1[1]][i]) :
+                wrows.append(i)
+        for k in wrows:
+            v1 = jmm.iloc[k][dt0[1:]].astype(float)
+            v2 = jmm.iloc[k][dt1[1:]].astype(float)
+            vvec = [v1[0], v2[0]]
+            if any(~np.isnan(vvec)):
+                mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
+                jmm.iloc[k][dt0[0]] = 'rsfMRI'
+                if len(mynna) == 1:
+                    if mynna[0] == 0:
+                        jmm.iloc[k][dt0[1:]] = v1
+                    if mynna[0] == 1:
+                        jmm.iloc[k][dt0[1:]] = v2
+                elif len(mynna) > 1:
+                    if len(v2) > diagnostic_n:
+                        v1dx=v1[0:diagnostic_n]
+                        v2dx=v2[0:diagnostic_n]
+                    else :
+                        v1dx=v1
+                        v2dx=v2
+                    joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
+                    mycorr = np.corrcoef( v1dx.values, v2dx.values )[0,1]
+                    myerr=np.sqrt(np.mean((v1dx.values - v2dx.values)**2))
+                    joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
+                    if mycorr > corr_thresh:
+                        jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
+                    else:
+                        jmm.loc[k, dt0[1:]] = nanList * len(v1)
+                    if verbose:
+                        print( joinDiagnosticsLoc )
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+
     if verbose:
         print("do DTI")
     # here - we first have to average within each row
@@ -3916,47 +3959,6 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         print( joinDiagnosticsLoc )
                     joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
-    if verbose:
-        print("do rsfMRI")
-    # here - we first have to average within each row
-    dt0 = get_names_from_data_frame(["rsfMRI"], jmm, exclusions=["Unnamed", "rsfMRI_LR", "rsfMRI_RL"])
-    dt1 = get_names_from_data_frame(["rsfMRI_RL"], jmm, exclusions=["Unnamed"])
-    if len( dt0 ) > 0 and len( dt1 ) > 0:
-        flid = dt0[0]
-        wrows = []
-        for i in range(jmm.shape[0]):
-            if not pd.isna(jmm[dt0[1]][i]) or not pd.isna(jmm[dt1[1]][i]) :
-                wrows.append(i)
-        for k in wrows:
-            v1 = jmm.loc[k, dt0[1:]].astype(float)
-            v2 = jmm.loc[k, dt1[1:]].astype(float)
-            vvec = [v1[0], v2[0]]
-            if any(~np.isnan(vvec)):
-                mynna = [i for i, x in enumerate(vvec) if ~np.isnan(x)]
-                jmm.loc[k, dt0[0]] = 'rsfMRI'
-                if len(mynna) == 1:
-                    if mynna[0] == 0:
-                        jmm.loc[k, dt0[1:]] = v1
-                    if mynna[0] == 1:
-                        jmm.loc[k, dt0[1:]] = v2
-                elif len(mynna) > 1:
-                    if len(v2) > diagnostic_n:
-                        v1dx=v1[0:diagnostic_n]
-                        v2dx=v2[0:diagnostic_n]
-                    else :
-                        v1dx=v1
-                        v2dx=v2
-                    joinDiagnosticsLoc = pd.DataFrame( columns = dxcols, index=range(1) )
-                    mycorr = np.corrcoef( v1dx.values, v2dx.values )[0,1]
-                    myerr=np.sqrt(np.mean((v1dx.values - v2dx.values)**2))
-                    joinDiagnosticsLoc.iloc[0] = [jmm.loc[k,'u_hier_id'],math.nan,'rsfMRI','colavg',mycorr,myerr]
-                    if mycorr > corr_thresh:
-                        jmm.loc[k, dt0[1:]] = v1.values*0.5 + v2.values*0.5
-                    else:
-                        jmm.loc[k, dt0[1:]] = nanList * len(v1)
-                    if verbose:
-                        print( joinDiagnosticsLoc )
-                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     # first task - sort by u_hier_id
     jmm = jmm.sort_values( "u_hier_id" )
