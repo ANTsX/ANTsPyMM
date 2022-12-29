@@ -3644,98 +3644,120 @@ def down2iso( x, interpolation='linear', takemin=False ):
     return xs
 
 
-def bind_wide_mm_csvs( mm_wide_csvs,
-    nrg_modality_list = ["T1w", "NM2DMT","T2Flair",  "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL"],
-    cnx = True,
-    max_repeats = 2,
-    verbose = 0 ) :
-    """
-    Parameters:
-    mm_wide_csvs (list): a list of file names of the type *T1wHierarchical*sv
-    nrg_modality_list (list): a list of column names
-    max_repeats : max number of repeats
-    verbose: boolean
+def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
+    splitter=os.path.basename(x).split( separator )
+    lensplit = len( splitter )-1
+    temp = os.path.basename(x)
+    temp = os.path.splitext(temp)[0]
+    temp = re.sub(separator+'mmwide','',temp)
+    idcols = ['u_hier_id','sid','visitdate','modality','mmimageuid','t1imageuid']
+    df = pd.DataFrame( columns = idcols, index=range(1) )
+    valstoadd = [temp] + splitter[1:(lensplit-1)]
+    if is_t1:
+        valstoadd = valstoadd + [splitter[(lensplit-1)],splitter[(lensplit-1)]]
+    else:
+        split2=splitter[(lensplit-1)].split( "_" )
+        if len(split2) == 1:
+            split2.append( split2[0] )
+        if len(valstoadd) == 3:
+            valstoadd = valstoadd + [split2[0]] + [math.nan] + [split2[1]]
+        else:
+            valstoadd = valstoadd + [split2[0],split2[1]]
+    if verbose:
+        print( valstoadd )
+    df.iloc[0] = valstoadd
+    if verbose:
+        print( "read xdf: " + x )
+    xdf = pd.read_csv( x )
+    df.reset_index()
+    xdf.reset_index(drop=True)
+    if "Unnamed: 0" in xdf.columns:
+        holder=xdf.pop( "Unnamed: 0" )
+    if "Unnamed: 1" in xdf.columns:
+        holder=xdf.pop( "Unnamed: 1" )
+    if "u_hier_id.1" in xdf.columns:
+        holder=xdf.pop( "u_hier_id.1" )
+    if "u_hier_id" in xdf.columns:
+        holder=xdf.pop( "u_hier_id" )
+    if not is_t1:
+        if 'resnetGrade' in xdf.columns:
+            index_no = xdf.columns.get_loc('resnetGrade')
+            xdf = xdf.drop( xdf.columns[range(index_no+1)] , axis=1)
+    if xdf.shape[0] == 2:
+        xdfcols = xdf.columns
+        xdf = xdf.iloc[1]
+        ddnum = xdf.to_numpy()
+        ddnum = ddnum.reshape([1,ddnum.shape[0]])
+        newcolnames = xdf.index.to_list()
+        if len(newcolnames) != ddnum.shape[1]:
+            print("Cannot Merge : Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
+        else:
+            xdf = pd.DataFrame(ddnum, columns=xdfcols )
+    if xdf.shape[1] == 0:
+        return None
+    if colprefix is not None:
+        xdf.columns=colprefix + xdf.columns
+    return pd.concat( [df,xdf], axis=1 )
 
-    Returns:
-    dataframe
-    """
-    # Return early if no files found
+def assemble_modality_specific_dataframes( hierdfin, nrg_modality, progress=None, verbose=False ):
+    moddersub = re.sub( "[*]","",nrg_modality)
+    nmdf=pd.DataFrame()
+    for k in range( hierdfin.shape[0] ):
+        if progress is not None:
+            if k % progress == 0:
+                progger = str( np.round( k / hierdfin.shape[0] * 100 ) )
+                print( progger, end ="...", flush=True)
+        temp = mm_wide_csvs[k]
+        mypartsf = temp.split("T1wHierarchical")
+        myparts = mypartsf[0]
+        t1iid = str(mypartsf[1].split("/")[1])
+        fnsnm = glob.glob(myparts+"/" + nrg_modality + "/*/*" + t1iid + "*wide.csv")
+        if len( fnsnm ) > 0 :
+            for y in fnsnm:
+                temp=read_mm_csv( y, colprefix=moddersub+'_', is_t1=False, verbose=verbose )
+                if temp is not None:
+                    nmdf=pd.concat( [nmdf, temp], axis=0)
+    return nmdf
+
+def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
     mm_wide_csvs.sort()
     if not mm_wide_csvs:
         print("No files found with specified pattern")
         return
-    alldf=pd.DataFrame()
-    for which_repeat in range( max_repeats ):
-        for k in range(len(mm_wide_csvs)):
-            if verbose:
-                print(str(k)+ " of " + str(len(mm_wide_csvs)) + " for " + str( max_repeats ) + " repeats ")
-            # Read first csv file and store column names
-            try:
-                startdf = pd.read_csv(mm_wide_csvs[k])
-            except:
-                print(f"Error reading {mm_wide_csvs[k]}")
-                continue
-            temp = os.path.basename(mm_wide_csvs[k])
-            temp = os.path.splitext(temp)[0]
-            startdf.pop( "u_hier_id.1" )
-            startdf.at[0,'u_hier_id']=str(temp)
-            rootcolnames = startdf.columns
-            # Split file name and store first part
-            temp = mm_wide_csvs[k]
-            mypartsf = temp.split("T1wHierarchical")
-            myparts = mypartsf[0]
-            t1iid = str(mypartsf[1].split("/")[1])
-            # Loop through nrg_modality_list and add csv file data to startdf if it exists
-            for j in range(len(nrg_modality_list)):
-                fnsnm = glob.glob(myparts+"/"+nrg_modality_list[j]+"/*/*" + t1iid + "*wide.csv")
-                fnsnm.sort()
-                if verbose == 2:
-                    print(str(j)+  " " + nrg_modality_list[j]+ " " + str(len(fnsnm)) )
-                if len(fnsnm) > 0 and ( len(fnsnm) >= (which_repeat+1) ):
-                    try:
-                        dd = pd.read_csv(str(fnsnm[which_repeat]))
-                    except:
-                        print(f"Error reading {fnsnm[which_repeat]}")
-                        continue
-                    if "u_hier_id.1" in dd.columns:
-                        dd.pop( "u_hier_id.1" )
-                    if "u_hier_id" in dd.columns:
-                        dd.pop( "u_hier_id" )
-                    tempX = os.path.basename(fnsnm[which_repeat])
-                    tempX = os.path.splitext(tempX)[0]
-                    if not cnx:
-                        # Drop cnxcount columns
-                        cnxcoutnames = [col for col in dd.columns if "cnxcount" in col]
-                        if len(cnxcoutnames) > 0 :
-                            dd = dd.drop(columns=cnxcoutnames)
-                    # Drop columns that appear in both dd and startdf
-                    inames = set(rootcolnames).intersection(set(dd.columns))
-                    dd = dd.drop(columns=inames)
-                    tagger = nrg_modality_list[j]+"_"
-                    if dd.shape[0] > 0:
-                        # Remove inner and outer rows if they exist
-                        if dd.shape[0] == 2:
-                            dd = dd.iloc[1]
-                            # Rename columns and add to startdf
-                            ddnum = dd.to_numpy()
-                            ddnum = np.delete( ddnum, 0 )
-                            ddnum = ddnum.reshape([1,ddnum.shape[0]])
-                            newcolnames = dd.index.to_list()
-                            newcolnames.pop()
-                            if len(newcolnames) != ddnum.shape[1]:
-                                print("Cannot Merge : ", tagger, " Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
-                                dd = pd.DataFrame()
-                            dd = pd.DataFrame(ddnum, columns=[tagger + col for col in newcolnames])
-                        else:
-                            dd.columns=tagger + dd.columns
-                        dd.insert(0,'MM.ID_'+nrg_modality_list[j],re.sub( "-mmwide", "", tempX))
-                        for myexc in ["inner","outer","A"]:
-                            if (dd == myexc).any().sum() > 0 and verbose == 2 :
-                                print( myexc + " " + 'MM.ID_'+nrg_modality_list[j] )
-                            dd=dd.drop(columns=dd.columns[(dd == myexc).any()])
-                        startdf = pd.concat([startdf, dd], axis=1)
-            alldf = pd.concat([alldf, startdf], axis=0)
-    return alldf
+    # 1. row-bind the t1whier data
+    # 2. same for each other modality
+    # 3. merge the modalities by the keys
+    hierdf = pd.DataFrame()
+    for y in mm_wide_csvs:
+        temp=read_mm_csv( y, colprefix='T1Hier_', is_t1=True )
+        if temp is not None:
+            hierdf=pd.concat( [hierdf, temp], axis=0)
+    if verbose > 0:
+        mypro=50
+    else:
+        mypro=None
+    if verbose > 0:
+        print("thickness")
+    thkdf = assemble_modality_specific_dataframes( hierdf, 'T1w', progress=mypro, verbose=verbose==2)
+    if verbose > 0:
+        print("flair")
+    flairdf = assemble_modality_specific_dataframes( hierdf, 'T2Flair', progress=mypro, verbose=verbose==2)
+    if verbose > 0:
+        print("NM")
+    nmdf = assemble_modality_specific_dataframes( hierdf, 'NM2DMT', progress=mypro, verbose=verbose==2)
+    if verbose > 0:
+        print("rsf")
+    rsfdf = assemble_modality_specific_dataframes( hierdf, 'rsfMRI*', progress=mypro, verbose=verbose==2)
+    if verbose > 0:
+        print("dti")
+    dtidf = assemble_modality_specific_dataframes( hierdf, 'DTI*', progress=mypro, verbose=verbose==2 )
+    hierdfmix = hierdf.copy()
+    hierdfmix=hierdfmix.merge(thkdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_thk"),how='left')
+    hierdfmix=hierdfmix.merge(flairdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_flair"),how='left')
+    hierdfmix=hierdfmix.merge(nmdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_nm"),how='left')
+    hierdfmix=hierdfmix.merge(rsfdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_rsf"),how='left')
+    hierdfmix=hierdfmix.merge(dtidf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_dti"),how='left')
+    return hierdfmix
 
 
 def augment_image( x,  max_rot=10, nzsd=1 ):
