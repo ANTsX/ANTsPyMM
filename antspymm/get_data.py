@@ -3720,6 +3720,14 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
     return nmdf
 
 def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
+    """
+    will convert a list of t1w hierarchical csv filenames to a merged dataframe
+
+    returns a pair of data frames, the left side having all entries and the
+        right side having row averaged entries i.e. unique values for each visit
+
+    return alldata, row_averaged_data
+    """
     mm_wide_csvs.sort()
     if not mm_wide_csvs:
         print("No files found with specified pattern")
@@ -3758,8 +3766,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
     hierdfmix=hierdfmix.merge(rsfdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_rsf"),how='left')
     hierdfmix=hierdfmix.merge(dtidf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_dti"),how='left')
     hierdfmix = hierdfmix.replace(r'^\s*$', np.nan, regex=True)
-    return hierdfmix
-
+    return hierdfmix, hierdfmix.groupby("u_hier_id", as_index=False).mean(numeric_only=True)
 
 def augment_image( x,  max_rot=10, nzsd=1 ):
     rRotGenerator = ants.contrib.RandomRotate3D( ( max_rot*(-1.0), max_rot ), reference=x )
