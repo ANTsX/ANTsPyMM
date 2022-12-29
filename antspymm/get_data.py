@@ -3816,7 +3816,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
 
 
 
-def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
+def threaded_bind_wide_mm_csvs( mm_wide_csvs, n_workers ):
     from concurrent.futures import as_completed
     from concurrent import futures
     import concurrent.futures
@@ -3827,9 +3827,10 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
             si = (d+1)*(i if i < r else r) + d*(0 if i < r else i - r)
             yield l[si:si+(d+1 if i < r else d)]
     import numpy as np
-    newx = list( chunks( t1wide_list, n_workers ) )
+    newx = list( chunks( mm_wide_csvs, n_workers ) )
     import pandas as pd
     alldf = pd.DataFrame()
+    alldfavg = pd.DataFrame()
     with futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
         to_do = []
         for group in range(len(newx)) :
@@ -3837,8 +3838,10 @@ def threaded_bind_wide_mm_csvs( t1wide_list, n_workers ):
             to_do.append(future)
         results = []
         for future in futures.as_completed(to_do):
-            alldf=pd.concat(  [alldf, future.result()], axis=0 )
-    return alldf
+            res = future.result()
+            alldf=pd.concat(  [alldf, res[0] ], axis=0 )
+            alldfavg=pd.concat(  [alldfavg, res[1] ], axis=0 )
+    return alldf, alldfavg
 
 
 def get_names_from_data_frame(x, demogIn, exclusions=None):
