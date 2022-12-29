@@ -3699,7 +3699,7 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
         xdf.columns=colprefix + xdf.columns
     return pd.concat( [df,xdf], axis=1 )
 
-def assemble_modality_specific_dataframes( hierdfin, nrg_modality, progress=None, verbose=False ):
+def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
     moddersub = re.sub( "[*]","",nrg_modality)
     nmdf=pd.DataFrame()
     for k in range( hierdfin.shape[0] ):
@@ -3738,19 +3738,19 @@ def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
         mypro=None
     if verbose > 0:
         print("thickness")
-    thkdf = assemble_modality_specific_dataframes( hierdf, 'T1w', progress=mypro, verbose=verbose==2)
+    thkdf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'T1w', progress=mypro, verbose=verbose==2)
     if verbose > 0:
         print("flair")
-    flairdf = assemble_modality_specific_dataframes( hierdf, 'T2Flair', progress=mypro, verbose=verbose==2)
+    flairdf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'T2Flair', progress=mypro, verbose=verbose==2)
     if verbose > 0:
         print("NM")
-    nmdf = assemble_modality_specific_dataframes( hierdf, 'NM2DMT', progress=mypro, verbose=verbose==2)
+    nmdf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'NM2DMT', progress=mypro, verbose=verbose==2)
     if verbose > 0:
         print("rsf")
-    rsfdf = assemble_modality_specific_dataframes( hierdf, 'rsfMRI*', progress=mypro, verbose=verbose==2)
+    rsfdf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'rsfMRI*', progress=mypro, verbose=verbose==2)
     if verbose > 0:
         print("dti")
-    dtidf = assemble_modality_specific_dataframes( hierdf, 'DTI*', progress=mypro, verbose=verbose==2 )
+    dtidf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'DTI*', progress=mypro, verbose=verbose==2 )
     hierdfmix = hierdf.copy()
     hierdfmix=hierdfmix.merge(thkdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_thk"),how='left')
     hierdfmix=hierdfmix.merge(flairdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_flair"),how='left')
