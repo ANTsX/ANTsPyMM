@@ -3757,6 +3757,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
     hierdfmix=hierdfmix.merge(nmdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_nm"),how='left')
     hierdfmix=hierdfmix.merge(rsfdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_rsf"),how='left')
     hierdfmix=hierdfmix.merge(dtidf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_dti"),how='left')
+    hierdfmix = hierdfmix.replace(r'^\s*$', np.nan, regex=True)
     return hierdfmix
 
 
