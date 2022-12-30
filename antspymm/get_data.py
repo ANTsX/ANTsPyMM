@@ -3719,12 +3719,14 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
                     nmdf=pd.concat( [nmdf, temp], axis=0)
     return nmdf
 
-def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
+def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
     """
     will convert a list of t1w hierarchical csv filenames to a merged dataframe
 
     returns a pair of data frames, the left side having all entries and the
         right side having row averaged entries i.e. unique values for each visit
+
+    set merge to False to return individual dataframes ( for debugging )
 
     return alldata, row_averaged_data
     """
@@ -3759,6 +3761,8 @@ def bind_wide_mm_csvs( mm_wide_csvs, verbose = 0 ) :
     if verbose > 0:
         print("dti")
     dtidf = assemble_modality_specific_dataframes( mm_wide_csvs, hierdf, 'DTI*', progress=mypro, verbose=verbose==2 )
+    if not merge:
+        return hierdf, thkdf, flairdf, nmdf, rsfdf, dtidf
     hierdfmix = hierdf.copy()
     hierdfmix=hierdfmix.merge(thkdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_thk"),how='left')
     hierdfmix=hierdfmix.merge(flairdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_flair"),how='left')
