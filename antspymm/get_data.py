@@ -781,8 +781,6 @@ def joint_dti_recon(
     # RL image
     mymd = 1
     recon_RL = None
-    bval_RL = None
-    bvec_RL = None
 
     if verbose:
         print( img_LR )
