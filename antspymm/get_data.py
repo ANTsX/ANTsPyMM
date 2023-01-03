@@ -664,10 +664,11 @@ def dipy_dti_recon(
     # famask = antspynet.brain_extraction( FA, 'fa' ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
 
     # change the brain mask based on high FA values
+    maskero = ants.iMath( maskm, "ME", 5 )
     famask = ants.image_clone( mask )
     famask = famask * ants.threshold_image( FA, 0.01, 0.75 )
     famask = ants.iMath( famask, "FillHoles" )
-    mask = ants.image_clone( famask )
+    mask = ants.threshold_image( famask + maskero, 1, 2 )
 
     return {
         'tensormodel' : tenfit,
