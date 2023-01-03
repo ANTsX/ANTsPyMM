@@ -3131,6 +3131,7 @@ def mm_nrg(
                     bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
                     mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
                     if isinstance( srmodel_NM, str ):
+                        srmodel_NM = re.sub( "bestup", bestup, srmodel_NM )
                         mdlfn = os.path.join( ex_pathmm, srmodel_NM )
                     if exists( mdlfn ):
                         if verbose:
@@ -3270,6 +3271,7 @@ def mm_nrg(
                                     bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
                                     mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
                                     if isinstance( srmodel_DTI, str ):
+                                        srmodel_DTI = re.sub( "bestup", bestup, srmodel_DTI )
                                         mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
                                     if exists( mdlfn ):
                                         if verbose:
