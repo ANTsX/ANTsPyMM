@@ -19,6 +19,11 @@ id1 = "I1499279_Anon_20210819142214_5"
 id2 = "I1499337_Anon_20210819142214_6"
 img1 = ants.image_read( antspymm.get_data( id1, target_extension=".nii.gz") )
 img2 = ants.image_read( antspymm.get_data( id2, target_extension=".nii.gz") )
+
+bvec = antspymm.get_data( id1, target_extension=".bvec")
+bval = antspymm.get_data( id1, target_extension=".bval")
+dd = antspymm.dipy_dti_recon( img1, bval, bvec, verbose=True )
+exit(0)
 # img1 = ants.image_read( "processed/dwp0sr.nii.gz" )
 # img2 = ants.image_read( "processed/dwp1sr.nii.gz" )
 b0indices = antspymm.segment_timeseries_by_meanvalue( img1 )['highermeans']
