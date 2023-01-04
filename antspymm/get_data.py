@@ -665,9 +665,11 @@ def dipy_dti_recon(
 
     # change the brain mask based on high FA values
     maskero = ants.iMath( mask, "ME", 5 )
+    maskero = ants.morphology( maskero, "close", 2 )
     famask = ants.image_clone( mask )
     famask = famask * ants.threshold_image( FA, 0.01, 0.75 )
     famask = ants.iMath( famask, "FillHoles" )
+    famask = ants.morphology( famask, "close", 2 )
     mask = ants.threshold_image( famask + maskero, 1, 2 )
     edgemask = mask - ants.iMath( mask, "ME", 2 )
     edgemask = ants.threshold_image( FA * edgemask, "Otsu", 3 )
@@ -3240,10 +3242,10 @@ def mm_nrg(
                                     verbose=True )
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
-                                    ants.plot( img,   axis=2, nslices=maxslice, ncol=7, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
-                                    ants.plot( img, tabPro['flair']['WMH_probability_map'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
+                                    ants.plot_ortho( img,   axis=2, nslices=maxslice, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
+                                    ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
-                                        ants.plot( img, tabPro['flair']['WMH_posterior_probability_map'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png" )
+                                        ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png" )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
