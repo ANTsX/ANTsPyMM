@@ -665,12 +665,12 @@ def dipy_dti_recon(
 
     # change the brain mask based on high FA values
     maskero = ants.iMath( mask, "ME", 5 )
-    maskero = ants.morphology( maskero, "close", 2 )
+    maskero = ants.morphology( maskero, "close", 2 ) # good
     famask = ants.image_clone( mask )
     famask = famask * ants.threshold_image( FA, 0.01, 0.75 )
     famask = ants.iMath( famask, "FillHoles" )
-    famask = ants.morphology( famask, "close", 2 )
     mask = ants.threshold_image( famask + maskero, 1, 2 )
+    # next 3 lines of code are helpful
     edgemask = mask - ants.iMath( mask, "ME", 2 )
     edgemask = ants.threshold_image( FA * edgemask, "Otsu", 3 )
     mask[edgemask==3]=0
