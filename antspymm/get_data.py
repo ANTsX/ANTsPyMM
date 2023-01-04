@@ -3242,7 +3242,7 @@ def mm_nrg(
                                     verbose=True )
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
-                                    ants.plot_ortho( img, nslices=maxslice, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
+                                    ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
                                     ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
                                         ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png" )
