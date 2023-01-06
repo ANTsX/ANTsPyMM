@@ -2349,10 +2349,10 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   roiNames = []
   for i in range(nPoints):
     # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
-    netLabel = re.sub( " ", "", powers_areal_mni_itk.loc[i,'SystemName'])
+    netLabel = re.sub( " ", "", pts2bold.loc[i,'SystemName'])
     netLabel = re.sub( "-", "", netLabel )
     netLabel = re.sub( "/", "", netLabel )
-    roiLabel = "ROI" + str(powers_areal_mni_itk.loc[i,'ROI']) + '_' + netLabel
+    roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
     for j in range(nPoints):
         # skip diagonals in this case
