@@ -2348,20 +2348,20 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   roiMat = np.zeros([nPoints, nPoints] )
   roiNames = []
   for i in range(nPoints):
-    # specify name for matrix entries that's easy to link back; e.g., ROI1_InferiorOccipitalGyrus
-    roiLabel="ROI" + str(powers_areal_mni_itk.loc[i,'ROI']) + '_' + re.sub( " ", "", powers_areal_mni_itk.loc[i,'Anatomy'] )
+    # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
+    netLabel = re.sub( " ", "", powers_areal_mni_itk.loc[i,'SystemName'])
+    netLabel = re.sub( "-", "", netLabel )
+    netLabel = re.sub( "/", "", netLabel )
+    roiLabel = "ROI" + str(powers_areal_mni_itk.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
     for j in range(nPoints):
         # skip diagonals in this case
         if i==j:
             roiMat[i,j] = 1.0
         else:
-            # find indices of ROI in df
-            idxRoi1 = np.where( powers_areal_mni_itk['ROI'] == i+1 )[0]
-            idxRoi2 = np.where( powers_areal_mni_itk['ROI'] == j+1 )[0]
             # use indices to make a sphere at x,y,z coordinates and take average within that sphere
-            roi1 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[idxRoi1,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
-            roi2 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[idxRoi2,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
+            roi1 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
+            roi2 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[[j],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
             # calculate simple correlation between the two timeseries
             roiMat[i,j] = pearsonr(roi1, roi2)[0]
 
@@ -2370,14 +2370,14 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outputMat.columns = roiNames
   outputMat['ROIs'] = roiNames
   # add to dictionary and done?
-  outdict['fullCorrMat'] = outputMat
-    
+      
   networks = powers_areal_mni_itk['SystemName'].unique()
 
   outdict = {}
+  outdict['fullCorrMat'] = outputMat  
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
-
+    
   # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                 'Memory Retrieval', 'Ventral Attention', 'Visual',
