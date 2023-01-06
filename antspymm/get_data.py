@@ -2895,6 +2895,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
+        # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
         ofn2 = output_prefix + separator + 'nodescorr.csv'
         rsfpro['fullCorrMat'].to_csv( ofn2 )
     if mm['DTI'] is not None:
