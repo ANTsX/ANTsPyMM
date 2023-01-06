@@ -2896,6 +2896,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
+        ofn2 = output_prefix + separator + 'nodescorr.csv'
+        rsfpro['fullCorrMat'].to_csv( ofn2 )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         if mydti['dtrecon_LR']['framewise_displacement'] is not None:
