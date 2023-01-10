@@ -2336,16 +2336,19 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   gmsignal = gmmat.mean( axis = 1 )
   nuisance = np.c_[ nuisance, gmsignal ]
   gmmat = ants.regress_components( gmmat, nuisance )
+  # turn data following nuisance and gsr back to image format
+  gsrbold = ants.matrix_to_timeseries(simg, gmmat, bmask)
 
   myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1] ) #  nuisance=nuisance )
   
-  # add correlation matrix that captures each node pair
-  # get correlations for all ROIs
-  # could also set this to just the selected networks if need be?
-  nPoints = pts2bold['ROI'].max()
+  outdict = {}
+  outdict['meanBold'] = und
+  outdict['pts2bold'] = pts2bold
     
-  # preallocate correlation matrix and use simple for loops to fill
-  roiMat = np.zeros([nPoints, nPoints] )
+  # add correlation matrix that captures each node pair
+  # some of the spheres overlap so extract separately from each ROI
+  nPoints = pts2bold['ROI'].max()
+  meanROI = np.zeros([300, nPoints])
   roiNames = []
   for i in range(nPoints):
     # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
@@ -2354,30 +2357,19 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     netLabel = re.sub( "/", "", netLabel )
     roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
-    for j in range(nPoints):
-        # skip diagonals in this case
-        if i==j:
-            roiMat[i,j] = 1.0
-        else:
-            # use indices to make a sphere at x,y,z coordinates and take average within that sphere
-            roi1 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
-            roi2 = ants.timeseries_to_matrix( simg, ants.make_points_image(pts2bold.iloc[[j],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )).mean(axis=1)
-            # calculate simple correlation between the two timeseries
-            roiMat[i,j] = pearsonr(roi1, roi2)[0]
-
-  # store output as dataframe
-  outputMat = pd.DataFrame(roiMat)
+    ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    meanROI[:,i] = ants.timeseries_to_matrix( gsrbold, ptImage).mean(axis=1)
+  
+  # get full correlation matrix
+  corMat = np.corrcoef(meanROI, rowvar=False)
+  outputMat = pd.DataFrame(corMat)
   outputMat.columns = roiNames
   outputMat['ROIs'] = roiNames
-  # add to dictionary and done?
-      
-  networks = powers_areal_mni_itk['SystemName'].unique()
-
-  outdict = {}
+  # add to dictionary 
   outdict['fullCorrMat'] = outputMat  
-  outdict['meanBold'] = und
-  outdict['pts2bold'] = pts2bold
     
+  networks = powers_areal_mni_itk['SystemName'].unique()
+ 
   # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                 'Memory Retrieval', 'Ventral Attention', 'Visual',
