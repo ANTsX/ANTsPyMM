@@ -2348,7 +2348,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   # add correlation matrix that captures each node pair
   # some of the spheres overlap so extract separately from each ROI
   nPoints = pts2bold['ROI'].max()
-  meanROI = np.zeros([300, nPoints])
+  nVolumes = simg.shape[3]
+  meanROI = np.zeros([nVolumes, nPoints])
   roiNames = []
   for i in range(nPoints):
     # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
