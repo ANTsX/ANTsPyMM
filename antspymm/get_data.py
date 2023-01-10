@@ -2336,15 +2336,41 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   gmsignal = gmmat.mean( axis = 1 )
   nuisance = np.c_[ nuisance, gmsignal ]
   gmmat = ants.regress_components( gmmat, nuisance )
+  # turn data following nuisance and gsr back to image format
+  gsrbold = ants.matrix_to_timeseries(simg, gmmat, bmask)
 
   myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1] ) #  nuisance=nuisance )
-
-  networks = powers_areal_mni_itk['SystemName'].unique()
-
+  
   outdict = {}
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
-
+    
+  # add correlation matrix that captures each node pair
+  # some of the spheres overlap so extract separately from each ROI
+  nPoints = pts2bold['ROI'].max()
+  nVolumes = simg.shape[3]
+  meanROI = np.zeros([nVolumes, nPoints])
+  roiNames = []
+  for i in range(nPoints):
+    # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
+    netLabel = re.sub( " ", "", pts2bold.loc[i,'SystemName'])
+    netLabel = re.sub( "-", "", netLabel )
+    netLabel = re.sub( "/", "", netLabel )
+    roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
+    roiNames.append( roiLabel )
+    ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    meanROI[:,i] = ants.timeseries_to_matrix( gsrbold, ptImage).mean(axis=1)
+  
+  # get full correlation matrix
+  corMat = np.corrcoef(meanROI, rowvar=False)
+  outputMat = pd.DataFrame(corMat)
+  outputMat.columns = roiNames
+  outputMat['ROIs'] = roiNames
+  # add to dictionary 
+  outdict['fullCorrMat'] = outputMat  
+    
+  networks = powers_areal_mni_itk['SystemName'].unique()
+ 
   # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                 'Memory Retrieval', 'Ventral Attention', 'Visual',
@@ -2862,6 +2888,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
+        # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
+        ofn2 = output_prefix + separator + 'nodescorr.csv'
+        rsfpro['fullCorrMat'].to_csv( ofn2 )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         if mydti['dtrecon_LR']['framewise_displacement'] is not None:
