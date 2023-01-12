@@ -3805,13 +3805,24 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
     if not merge:
         return hierdf, thkdf, flairdf, nmdf, rsfdf, dtidf
     hierdfmix = hierdf.copy()
-    hierdfmix=hierdfmix.merge(thkdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_thk"),how='left')
-    hierdfmix=hierdfmix.merge(flairdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_flair"),how='left')
-    hierdfmix=hierdfmix.merge(nmdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_nm"),how='left')
-    hierdfmix=hierdfmix.merge(rsfdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_rsf"),how='left')
-    hierdfmix=hierdfmix.merge(dtidf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("","_dti"),how='left')
+    modality_df_suffixes = [
+        (thkdf, "_thk"),
+        (flairdf, "_flair"),
+        (nmdf, "_nm"),
+        (rsfdf, "_rsf"),
+        (dtidf, "_dti"),
+    ]
+    for pair in modality_df_suffixes:
+        hierdfmix = merge_mm_dataframe(hierdfmix, pair[0], pair[1]) 
     hierdfmix = hierdfmix.replace(r'^\s*$', np.nan, regex=True)
     return hierdfmix, hierdfmix.groupby("u_hier_id", as_index=False).mean(numeric_only=True)
+
+def merge_mm_dataframe(hierdf, mmdf, mm_suffix):
+    try:
+        hierdf = hierdf.merge(mmdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("",mm_suffix),how='left')
+        return hierdf 
+    except KeyError:
+        return hierdf
 
 def augment_image( x,  max_rot=10, nzsd=1 ):
     rRotGenerator = ants.contrib.RandomRotate3D( ( max_rot*(-1.0), max_rot ), reference=x )
