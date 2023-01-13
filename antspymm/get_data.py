@@ -1843,11 +1843,11 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, 
-    mmfromconvexhull = 3.0, 
+def wmh( flair, t1, t1seg,
+    mmfromconvexhull = 3.0,
     strict=True,
-    probability_mask=None, 
-    prior_probability=None, 
+    probability_mask=None,
+    prior_probability=None,
     model='sysu',
     verbose=False ) :
   """
@@ -1888,6 +1888,7 @@ def wmh( flair, t1, t1seg,
   """
   import numpy as np
   import math
+  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   if probability_mask is None and model == 'sysu':
     if verbose:
         print('sysu')
@@ -1895,9 +1896,9 @@ def wmh( flair, t1, t1seg,
   elif probability_mask is None and model == 'hyper':
     if verbose:
         print('hyper')
-    probability_mask = antspynet.hypermapp3r_segmentation( t1, flair )
-  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+    probability_mask = antspynet.hypermapp3r_segmentation( t1_2_flair_reg['warpedmovout'], flair )
   # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
+  prior_probability_flair = None
   if prior_probability is not None:
       prior_probability_flair = ants.apply_transforms( flair, prior_probability,
         t1_2_flair_reg['fwdtransforms'] )
@@ -2355,11 +2356,11 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   gsrbold = ants.matrix_to_timeseries(simg, gmmat, bmask)
 
   myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1] ) #  nuisance=nuisance )
-  
+
   outdict = {}
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
-    
+
   # add correlation matrix that captures each node pair
   # some of the spheres overlap so extract separately from each ROI
   nPoints = pts2bold['ROI'].max()
@@ -2375,17 +2376,17 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     roiNames.append( roiLabel )
     ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     meanROI[:,i] = ants.timeseries_to_matrix( gsrbold, ptImage).mean(axis=1)
-  
+
   # get full correlation matrix
   corMat = np.corrcoef(meanROI, rowvar=False)
   outputMat = pd.DataFrame(corMat)
   outputMat.columns = roiNames
   outputMat['ROIs'] = roiNames
-  # add to dictionary 
-  outdict['fullCorrMat'] = outputMat  
-    
+  # add to dictionary
+  outdict['fullCorrMat'] = outputMat
+
   networks = powers_areal_mni_itk['SystemName'].unique()
- 
+
   # this is just for human readability - reminds us of which we choose by default
   netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                 'Memory Retrieval', 'Ventral Attention', 'Visual',
@@ -3828,14 +3829,14 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
         (dtidf, "_dti"),
     ]
     for pair in modality_df_suffixes:
-        hierdfmix = merge_mm_dataframe(hierdfmix, pair[0], pair[1]) 
+        hierdfmix = merge_mm_dataframe(hierdfmix, pair[0], pair[1])
     hierdfmix = hierdfmix.replace(r'^\s*$', np.nan, regex=True)
     return hierdfmix, hierdfmix.groupby("u_hier_id", as_index=False).mean(numeric_only=True)
 
 def merge_mm_dataframe(hierdf, mmdf, mm_suffix):
     try:
         hierdf = hierdf.merge(mmdf, on=['sid', 'visitdate', 't1imageuid'], suffixes=("",mm_suffix),how='left')
-        return hierdf 
+        return hierdf
     except KeyError:
         return hierdf
 
