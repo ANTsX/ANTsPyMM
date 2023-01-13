@@ -1843,8 +1843,13 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg, mmfromconvexhull = 3.0, strict=True,
-    probability_mask=None, prior_probability=None, verbose=False ) :
+def wmh( flair, t1, t1seg, 
+    mmfromconvexhull = 3.0, 
+    strict=True,
+    probability_mask=None, 
+    prior_probability=None, 
+    model='sysu',
+    verbose=False ) :
   """
   Outputs the WMH probability mask and a summary single measurement
 
@@ -1872,6 +1877,10 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 3.0, strict=True,
 
   prior_probability : optional prior probability image in space of the input t1
 
+  model : either sysu or hyper
+
+  verbose : boolean
+
   Returns
   ---------
   WMH probability map and a summary single measurement which is the sum of the WMH map
@@ -1879,8 +1888,14 @@ def wmh( flair, t1, t1seg, mmfromconvexhull = 3.0, strict=True,
   """
   import numpy as np
   import math
-  if probability_mask is None:
-      probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
+  if probability_mask is None and model == 'sysu':
+    if verbose:
+        print('sysu')
+    probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
+  elif probability_mask is None and model == 'hyper':
+    if verbose:
+        print('hyper')
+    probability_mask = antspynet.hypermapp3r_segmentation( t1, flair )
   t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
   # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
   if prior_probability is not None:
