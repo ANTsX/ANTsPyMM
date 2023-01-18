@@ -2353,7 +2353,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   nuisance = np.c_[ nuisance, gmsignal ]
   gmmat = ants.regress_components( gmmat, nuisance )
   # turn data following nuisance and gsr back to image format
-  gsrbold = ants.matrix_to_timeseries(simg, gmmat, bmask)
+  gsrbold = ants.matrix_to_timeseries(simg, gmmat, gmseg)
 
   myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1] ) #  nuisance=nuisance )
 
