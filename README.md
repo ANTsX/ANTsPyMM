@@ -18,19 +18,50 @@ or install via `pip install antspymm` **FIXME**
 
 # what this will do
 
-process:
+ANTsPyMM will process several types of brain MRI into tabular form as well as normalized (standard template) space.  The processing includes:
 
-* resting state
+* T1wHier uses hierarchical processing from ANTsPyT1w organized around these measurements
 
-* neuromelanin mid-brain images
+    * CIT168 template 10.1101/211201
 
-* DWI
+    * Desikan Killiany Tourville (DKT) 10.3389/fnins.2012.00171
 
-* flair
+    * basal forebrain (Avants et al HBM 2022 abstract)
 
-* voxel-based cortical thickness
+    * other regions (egMTL) 10.1101/2023.01.17.23284693
 
-into tabular and template-based voxel-wise format.
+    * also produces jacobian data
+
+* rsfMRI: resting state functional MRI
+
+    * uses 10.1016/j.conb.2012.12.009 to estimate network specific correlations
+
+    * f/ALFF 10.1016/j.jneumeth.2008.04.012
+
+* NM2DMT: neuromelanin mid-brain images
+
+    * CIT168 template 10.1101/211201
+
+* DTI: DWI diffusion weighted images organized via:
+
+    * CIT168 template 10.1101/211201
+
+    * JHU atlases 10.1016/j.neuroimage.2008.07.009  10.1016/j.neuroimage.2007.07.053
+
+    * DKT for cortical to cortical tractography estimates based on DiPy
+
+* T2Flair: flair for white matter hyperintensity
+
+    * https://pubmed.ncbi.nlm.nih.gov/30908194/
+    
+    * https://pubmed.ncbi.nlm.nih.gov/30125711/
+
+    * https://pubmed.ncbi.nlm.nih.gov/35088930/
+
+* T1w: voxel-based cortical thickness (DiReCT) 10.1016/j.neuroimage.2008.12.016
+
+Results of these processes are plentiful; processing for a single subject 
+will all modalities will take around 2 hours on an average laptop.
 
 # first time setup
 
@@ -43,6 +74,8 @@ NOTE: `get_data` has a `force_download` option to make sure the latest
 package data is installed.
 
 # example processing
+
+see the latest help but this snippet gives an idea of how one might use the package:
 
 ```python
 import os
