@@ -468,6 +468,25 @@ def t1_based_dwi_brain_extraction(
     'b0_avg':b0_avg,
     'b0_mask':outmsk }
 
+def mc_denoise( x ):
+    """
+    ants denoising for timeseries (4D)
+
+    Arguments
+    ---------
+    x : an antsImage 4D
+
+    Returns
+    -------
+    denoised time series
+
+    """
+    dwpimage = []
+    for myidx in range(x.shape[3]):
+        b0 = ants.slice_image( x, axis=3, idx=myidx)
+        dnzb0 = ants.denoise_image( x, noise_model='Gaussian' )
+        dwpimage.append( dnzb0 )
+    return ants.list_to_ndimage( x, dwpimage )
 
 def dipy_dti_recon(
     image,
@@ -707,6 +726,7 @@ def joint_dti_recon(
     reference_image = None,
     motion_correct = False,
     dewarp_modality = 'FA',
+    denoise=False,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -751,6 +771,8 @@ def joint_dti_recon(
 
     dewarp_modality : string average_dwi, average_b0, MD or FA
 
+    denoise: boolean
+
     verbose : boolean
 
     Returns
@@ -785,8 +807,12 @@ def joint_dti_recon(
         print( img_LR )
 
     img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
+    if denoise:
+        img_LR = mc_denoise( img_LR )
     if img_RL is not None:
         img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
+        if denoise:
+            img_RL = mc_denoise( img_RL )
 
     if verbose:
         print( img_LR )
@@ -831,7 +857,10 @@ def joint_dti_recon(
         t1wtarget = recon_LR[ 'dwi_mask' ] * recon_LR[dewarp_modality]
         t1wrig = ants.registration( t1wtarget, t1w, 'Rigid' )['warpedmovout']
 
+    ts_LR_avg = None
+    ts_RL_avg = None
     if img_RL is not None:
+        print("dewarp with "+dewarp_modality)
         ts_LR_avg = recon_LR[dewarp_modality] # * recon_RL['dwi_mask']
         ts_RL_avg = recon_RL[dewarp_modality] # * recon_RL['dwi_mask']
         if dewarp_modality == 'FA':
@@ -840,9 +869,11 @@ def joint_dti_recon(
             targeter = ts_LR_avg # * recon_RL['dwi_mask']
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
-            initial_template=targeter,
+            initial_template=(ts_LR_avg+ts_RL_avg)*0.5,
             iterations = 5,
-            syn_metric='CC', syn_sampling=2, reg_iterations=[20,100,100,20] )
+            syn_metric='CC',
+            syn_sampling=2,
+            reg_iterations=[20,100,100,20] )
     else:
         synreg = ants.registration(
             t1wrig,
