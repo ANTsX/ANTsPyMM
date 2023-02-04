@@ -720,9 +720,6 @@ def joint_dti_recon(
 
     NOTE: RL images are optional; should pass t1w in this case.
 
-    NOTE: the user may want to perform motion correction externally as this
-    function does not rotate bvectors.
-
     Arguments
     ---------
 
@@ -802,6 +799,8 @@ def joint_dti_recon(
             raise ValueError('not maskInRightSpace ... provided brain mask should be in DWI space;see  ants.get_average_of_timeseries(dwi) to find the right space')
 
     if img_RL is not None :
+        if verbose:
+            print("img_RL recon")
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct, mask_dilation=mymd )
@@ -818,7 +817,7 @@ def joint_dti_recon(
     OR_LRFA = recon_LR['FA']
 
     if verbose:
-        print("JHU initialization ...")
+        print( "JHU initialization ..." )
 
     JHU_atlas_aff = ants.registration(
         OR_LRFA * recon_LR['famask'],
@@ -827,20 +826,18 @@ def joint_dti_recon(
     JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
 
     synreg = None
-    ts_LR_avg = recon_LR[dewarp_modality] * recon_LR['dwi_mask']
-    ts_RL_avg = None
-
     t1wrig = None
     if t1w is not None:
         t1wtarget = recon_LR[ 'dwi_mask' ] * recon_LR[dewarp_modality]
         t1wrig = ants.registration( t1wtarget, t1w, 'Rigid' )['warpedmovout']
 
     if img_RL is not None:
+        ts_LR_avg = recon_LR[dewarp_modality] # * recon_RL['dwi_mask']
+        ts_RL_avg = recon_RL[dewarp_modality] # * recon_RL['dwi_mask']
         if dewarp_modality == 'FA':
             targeter = JHU_atlas_aff
         else:
-            targeter = ts_LR_avg * recon_RL['dwi_mask']
-        ts_RL_avg = recon_RL[dewarp_modality] * recon_RL['dwi_mask'] # ants.get_average_of_timeseries( recon_RL['motion_corrected'] )
+            targeter = ts_LR_avg # * recon_RL['dwi_mask']
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
             initial_template=targeter,
@@ -880,6 +877,8 @@ def joint_dti_recon(
             dwpimage.append( warpedb0 )
         return ants.list_to_ndimage( physSpaceDWI, dwpimage )
 
+    if verbose:
+        print('img_LRdwp')
     img_RLdwp = None
     img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'],
             img_LR,
@@ -889,6 +888,8 @@ def joint_dti_recon(
             motion_correct=motion_correct
             )
     if img_RL is not None:
+        if verbose:
+            print('img_RLdwp')
         img_RLdwp = concat_dewarp( dwp_OR['dewarpedmean'],
             img_RL,
             img_LR, # phys-space != original space
