@@ -869,11 +869,11 @@ def joint_dti_recon(
             targeter = ts_LR_avg # * recon_RL['dwi_mask']
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
-            initial_template=(ts_LR_avg+ts_RL_avg)*0.5,
+            initial_template=ts_LR_avg,
             iterations = 5,
             syn_metric='CC',
             syn_sampling=2,
-            reg_iterations=[20,100,100,20] )
+            reg_iterations=[100,100,100,20] )
     else:
         synreg = ants.registration(
             t1wrig,
