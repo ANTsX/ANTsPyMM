@@ -669,7 +669,7 @@ def dipy_dti_recon(
         print("recon dti.TensorModel done",flush=True)
 
     FA = fractional_anisotropy(tenfit.evals)
-    FA[np.isnan(FA)] = 0
+    FA[np.isnan(FA)] = 1
 
     MD1 = dti.mean_diffusivity(tenfit.evals)
     FA = np.clip(FA, 0, 1)
