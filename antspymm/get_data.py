@@ -484,7 +484,7 @@ def mc_denoise( x ):
     dwpimage = []
     for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
-        dnzb0 = ants.denoise_image( x, noise_model='Gaussian' )
+        dnzb0 = ants.denoise_image( b0, noise_model='Gaussian' )
         dwpimage.append( dnzb0 )
     return ants.list_to_ndimage( x, dwpimage )
 
