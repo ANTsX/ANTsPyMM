@@ -497,6 +497,7 @@ def dipy_dti_recon(
     motion_correct = False,
     mask_dilation = 0,
     average_b0 = None,
+    fit_method='WLS',
     verbose=False ):
     """
     DiPy DTI reconstruction - following their own basic example
@@ -522,6 +523,8 @@ def dipy_dti_recon(
     average_b0 : optional reference average b0; if it is not in the same
         space as the image, we will resample directly to the image space.  This
         could lead to problems if the inputs are really incorrect.
+
+    fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
 
     verbose : boolean
 
@@ -612,14 +615,17 @@ def dipy_dti_recon(
         for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 b0 = ants.iMath( b0,'Normalize' )
-                b0 = ants.iMath( b0,'TruncateIntensity',0.01,0.9)
+                b0 = ants.iMath( b0,'TruncateIntensity',0.01,0.98)
                 maskedimage.append( b0 )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
-        average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.9 )
+        average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.98 )
+        if verbose:
+            print("begin motion corr")
         moco0 = ants.motion_correction(
                 image=maskedimage,
                 fixed=average_b0_trunc,
-                type_of_transform='BOLDRigid' )
+                type_of_transform='SyNBold',
+                total_sigma=1.0 )
         motion_parameters = moco0['motion_parameters']
         FD = moco0['FD']
         maskedimage = []
@@ -662,7 +668,7 @@ def dipy_dti_recon(
     if verbose:
         print("recon dti.TensorModel",flush=True)
 
-    tenmodel = dti.TensorModel(gtab)
+    tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
     tenfit = tenmodel.fit(maskdata)
 
     if verbose:
@@ -687,6 +693,7 @@ def dipy_dti_recon(
     maskero = ants.morphology( maskero, "close", 2 ) # good
     famask = ants.image_clone( mask )
     famask = famask * ants.threshold_image( FA, 0.01, 0.75 )
+    famask = ants.morphology( famask, "close", 2 ) # good
     famask = ants.iMath( famask, "FillHoles" )
     mask = ants.threshold_image( famask + maskero, 1, 2 )
     # next 3 lines of code are helpful
@@ -727,6 +734,7 @@ def joint_dti_recon(
     motion_correct = False,
     dewarp_modality = 'FA',
     denoise=False,
+    fit_method='WLS',
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -772,6 +780,8 @@ def joint_dti_recon(
     dewarp_modality : string average_dwi, average_b0, MD or FA
 
     denoise: boolean
+
+    fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
 
     verbose : boolean
 
@@ -829,7 +839,8 @@ def joint_dti_recon(
             print("img_RL recon")
         recon_RL = dipy_dti_recon( img_RL, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
-            motion_correct=motion_correct, mask_dilation=mymd )
+            motion_correct=motion_correct, mask_dilation=mymd,
+            fit_method=fit_method )
         bval_RL = recon_RL['bvals']
         bvec_RL = recon_RL['bvecs']
         OR_RLFA = recon_RL['FA']
@@ -837,7 +848,7 @@ def joint_dti_recon(
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
             motion_correct=motion_correct,
-            mask_dilation=mymd, verbose=verbose )
+            mask_dilation=mymd, fit_method=fit_method, verbose=verbose )
     bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
     OR_LRFA = recon_LR['FA']
@@ -948,12 +959,12 @@ def joint_dti_recon(
     if img_RL is not None:
         recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
-                motion_correct=False,
+                motion_correct=False, fit_method=fit_method,
                 mask_dilation=0 )
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
-                motion_correct=False,
+                motion_correct=False, fit_method=fit_method,
                 mask_dilation=0, verbose=True )
 
     if verbose:
@@ -1168,6 +1179,7 @@ def dwi_deterministic_tracking(
     seed_density = 1,
     step_size = 0.15,
     peak_indices = None,
+    fit_method='WLS',
     verbose = False ):
     """
 
@@ -1203,6 +1215,8 @@ def dwi_deterministic_tracking(
     peak_indices : pass these in, if they are previously estimated.  otherwise, will
         compute on the fly (slow)
 
+    fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
+
     verbose : boolean
 
     Returns
@@ -1235,7 +1249,7 @@ def dwi_deterministic_tracking(
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
     dwi_data = dwi_img.get_fdata()
     dwi_mask = mask.numpy() == 1
-    dti_model = dti.TensorModel(gtab)
+    dti_model = dti.TensorModel(gtab,fit_method=fit_method)
     if verbose:
         print("begin tracking fit",flush=True)
     dti_fit = dti_model.fit(dwi_data, mask=dwi_mask)  # This step may take a while
