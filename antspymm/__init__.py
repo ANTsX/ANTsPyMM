@@ -45,3 +45,5 @@ from .get_data import get_names_from_data_frame
 from .get_data import read_mm_csv
 from .get_data import assemble_modality_specific_dataframes
 from .get_data import mc_denoise
+from .get_data import mc_reg
+

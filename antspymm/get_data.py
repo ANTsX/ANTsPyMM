@@ -82,6 +82,134 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
         df['uid'].iloc[k]=os.path.splitext(temp)[0]
     return df
 
+def mc_reg(
+    image,
+    fixed=None,
+    type_of_transform="SyN",
+    mask=None,
+    total_sigma=1.0,
+    fdOffset=10.0,
+    verbose=False
+):
+    """
+    Correct time-series data for motion - with deformation.
+
+    Arguments
+    ---------
+        image: antsImage, usually ND where D=4.
+
+        fixed: Fixed image to register all timepoints to.  If not provided,
+            mean image is used.
+
+        type_of_transform : string
+            A linear or non-linear registration type. Mutual information metric and rigid transformation by default.
+            See ants registration for details.
+
+        fdOffset: offset value to use in framewise displacement calculation
+
+        outprefix : string
+            output will be named with this prefix plus a numeric extension.
+
+        verbose: boolean
+
+    Returns
+    -------
+    dict containing follow key/value pairs:
+        `motion_corrected`: Moving image warped to space of fixed image.
+        `motion_parameters`: transforms for each image in the time series.
+        `FD`: Framewise displacement generalized for arbitrary transformations.
+
+    Notes
+    -----
+    Control extra arguments via kwargs. see ants.registration for details.
+
+    Example
+    -------
+    >>> import ants
+    >>> fi = ants.image_read(ants.get_ants_data('ch2'))
+    >>> mytx = ants.motion_correction( fi )
+    """
+    idim = image.dimension
+    ishape = image.shape
+    nTimePoints = ishape[idim - 1]
+    if fixed is None:
+        fixed = ants.get_average_of_timeseries( image )
+    if mask is None:
+        mask = ants.get_mask(fixed)
+    FD = np.zeros(nTimePoints)
+    motion_parameters = list()
+    motion_corrected = list()
+    centerOfMass = mask.get_center_of_mass()
+    npts = pow(2, idim - 1)
+    pointOffsets = np.zeros((npts, idim - 1))
+    myrad = np.ones(idim - 1).astype(int).tolist()
+    mask1vals = np.zeros(int(mask.sum()))
+    mask1vals[round(len(mask1vals) / 2)] = 1
+    mask1 = ants.make_image(mask, mask1vals)
+    myoffsets = ants.get_neighborhood_in_mask(
+        mask1, mask1, radius=myrad, spatial_info=True
+    )["offsets"]
+    mycols = list("xy")
+    if idim - 1 == 3:
+        mycols = list("xyz")
+    useinds = list()
+    for k in range(myoffsets.shape[0]):
+        if abs(myoffsets[k, :]).sum() == (idim - 2):
+            useinds.append(k)
+        myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
+    fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
+    if verbose:
+        print("Progress:")
+    counter = 0
+    for k in range(nTimePoints):
+        mycount = round(k / nTimePoints * 100)
+        if verbose and mycount == counter:
+            counter = counter + 10
+            print(mycount, end="%.", flush=True)
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        temp = ants.iMath(temp, "Normalize")
+        if temp.numpy().var() > 0:
+            myrig = ants.registration(
+                    fixed, temp,
+                    type_of_transform='Rigid',
+                    total_sigma=total_sigma
+                )
+            myreg = ants.registration(
+                    fixed, temp,
+                    type_of_transform='SyNOnly',
+                    total_sigma=total_sigma,
+                    initial_transform=myrig['fwdtransforms'][0]
+                )
+            fdptsTxI = ants.apply_transforms_to_points(
+                idim - 1, fdpts, myreg["fwdtransforms"]
+            )
+            if k > 0 and motion_parameters[k - 1] != "NA":
+                fdptsTxIminus1 = ants.apply_transforms_to_points(
+                    idim - 1, fdpts, motion_parameters[k - 1]
+                )
+            else:
+                fdptsTxIminus1 = fdptsTxI
+            # take the absolute value, then the mean across columns, then the sum
+            FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
+            if len( myreg["fwdtransforms"] ) > 1:
+                motion_parameters.append(myreg["fwdtransforms"][1])
+            else:
+                motion_parameters.append(myreg["fwdtransforms"][0])
+            img1w = ants.apply_transforms( fixed,
+                ants.slice_image(image, axis=idim - 1, idx=k),
+                myreg["fwdtransforms"] )
+            motion_corrected.append(img1w)
+        else:
+            motion_parameters.append("NA")
+            motion_corrected.append(temp)
+    if verbose:
+        print("Done")
+    return {
+        "motion_corrected": ants.list_to_ndimage(image, motion_corrected),
+        "motion_parameters": motion_parameters,
+        "FD": FD,
+    }
+
 
 def get_data( name=None, force_download=False, version=10, target_extension='.csv' ):
     """
@@ -615,17 +743,14 @@ def dipy_dti_recon(
         for myidx in range(image.shape[3]):
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 b0 = ants.iMath( b0,'Normalize' )
-                b0 = ants.iMath( b0,'TruncateIntensity',0.01,0.98)
+                b0 = ants.iMath( b0,'TruncateIntensity',0.01,0.99)
                 maskedimage.append( b0 )
         maskedimage = ants.list_to_ndimage( image, maskedimage )
-        average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.98 )
-        if verbose:
-            print("begin motion corr")
-        moco0 = ants.motion_correction(
-                image=maskedimage,
-                fixed=average_b0_trunc,
-                type_of_transform='SyNBold',
-                total_sigma=1.0 )
+        average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.99 )
+        moco0 = mc_reg(
+            maskedimage,
+            fixed=average_b0_trunc,
+            type_of_transform="SyN" )
         motion_parameters = moco0['motion_parameters']
         FD = moco0['FD']
         maskedimage = []
@@ -635,10 +760,11 @@ def dipy_dti_recon(
             if myidx < bvecs.shape[0]:
                 dipymoco[myidx,:,:] = np.eye( 3 )
                 if moco0['motion_parameters'][myidx] != 'NA':
-                        txparam = ants.read_transform(moco0['motion_parameters'][myidx][0] )
-                        txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
-                        Rinv = inv( txparam )
-                        bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
+                    temp = moco0['motion_parameters'][myidx]
+                    txparam = ants.read_transform(temp)
+                    txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
+                    Rinv = inv( txparam )
+                    bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
                 b0 = ants.slice_image( image, axis=3, idx=myidx)
                 b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
                 mocoimage.append( b0 )
