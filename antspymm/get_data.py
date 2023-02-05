@@ -966,7 +966,8 @@ def concat_dewarp(
             print( motion_parameters[myidx] )
             print("concat parameters")
             print(concatx)
-        warpedb0 = ants.apply_transforms( refimg, b0, concatx )
+        warpedb0 = ants.apply_transforms( refimg, b0, concatx,
+            interpolator='nearestNeighbor' )
         dwpimage.append( warpedb0 )
     return ants.list_to_ndimage( physSpaceDWI, dwpimage )
 
