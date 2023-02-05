@@ -9,6 +9,7 @@ from .get_data import get_models
 from .get_data import dewarp_imageset
 from .get_data import super_res_mcimage
 from .get_data import dipy_dti_recon
+from .get_data import k_pass_dipy_dti_recon
 from .get_data import segment_timeseries_by_meanvalue
 from .get_data import wmh
 from .get_data import neuromelanin
@@ -46,4 +47,4 @@ from .get_data import read_mm_csv
 from .get_data import assemble_modality_specific_dataframes
 from .get_data import mc_denoise
 from .get_data import mc_reg
-
+from .get_data import concat_dewarp
