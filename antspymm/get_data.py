@@ -3113,7 +3113,7 @@ def mm(
         t1_image_norm = (  temp ) * bmask
         # ants.image_write( t1_image_norm, '/tmp/temp.nii.gz' )
         dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'],
-            dw_image, transform='Rigid', deform=True, verbose=verbose )
+            dw_image, transform='Rigid', deform=False, verbose=verbose )
         cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
         dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
