@@ -747,7 +747,7 @@ def t1_based_dwi_brain_extraction(
         reg = ants.registration( b0_avg, t1w,
             'SyNOnly',
             total_sigma=0.5,
-            initial_transform=rig0['fwdtransforms'][0],
+            initial_transform=reg['fwdtransforms'][0],
             verbose=False )
     outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
     return  {
@@ -1283,13 +1283,20 @@ def joint_dti_recon(
     ts_LR_avg = None
     ts_RL_avg = None
     if img_RL is not None:
-        print("dewarp with "+dewarp_modality)
         ts_LR_avg = recon_LR[dewarp_modality] * recon_LR['dwi_mask']
         ts_RL_avg = recon_RL[dewarp_modality] * recon_RL['dwi_mask']
-        if dewarp_modality == 'FA':
-            targeter = JHU_atlas_aff
+        if dewarp_modality == 'FA' and t1w is None:
+            if verbose:
+                print("dewarp with "+dewarp_modality)
+            targeter = ants.image_clone(JHU_atlas_aff)
+        elif dewarp_modality == 'FA' and t1w is not None:
+            if verbose:
+                print("dewarp with "+dewarp_modality+" t1 initial")
+            targeter = ants.registration( ts_LR_avg, t1w, 'Rigid' )['warpedmovout']
         else:
-            targeter = ts_LR_avg
+            if verbose:
+                print("dewarp with "+dewarp_modality)
+            targeter = ants.image_clone(ts_LR_avg)
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
             initial_template=targeter,
