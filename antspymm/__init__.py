@@ -47,4 +47,5 @@ from .get_data import read_mm_csv
 from .get_data import assemble_modality_specific_dataframes
 from .get_data import mc_denoise
 from .get_data import mc_reg
+from .get_data import dti_reg
 from .get_data import concat_dewarp

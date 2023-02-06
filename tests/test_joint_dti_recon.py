@@ -40,12 +40,13 @@ myoutx = antspymm.joint_dti_recon(
     img_RL = img_RL_in,
     bval_RL = img_RL_bval,
     bvec_RL = img_RL_bvec,
-    motion_correct = True,
+    motion_correct = 'Rigid',
     dewarp_modality = 'FA',
     verbose = True)
 
 if True:
     ants.image_write( myoutx['dtrecon_LR']['FA'], '/tmp/temp1fa1.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_LR']['motion_corrected'], '/tmp/temp1moco.nii.gz'  )
     ants.image_write( myoutx['dtrecon_RL']['FA'], '/tmp/temp2fa1.nii.gz'  )
     ants.image_write( myoutx['dtrecon_LR_dewarp']['FA'], '/tmp/temp1fa2.nii.gz'  )
     ants.image_write( myoutx['dtrecon_RL_dewarp']['FA'], '/tmp/temp2fa2.nii.gz'  )

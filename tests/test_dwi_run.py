@@ -22,7 +22,7 @@ img2 = ants.image_read( antspymm.get_data( id2, target_extension=".nii.gz") )
 
 bvec = antspymm.get_data( id1, target_extension=".bvec")
 bval = antspymm.get_data( id1, target_extension=".bval")
-dd = antspymm.dipy_dti_recon( img1, bval, bvec, motion_correct=True, verbose=True )
+dd = antspymm.dipy_dti_recon( img1, bval, bvec, motion_correct='Rigid', verbose=True )
 derka
 exit(0)
 # img1 = ants.image_read( "processed/dwp0sr.nii.gz" )

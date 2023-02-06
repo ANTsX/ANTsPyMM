@@ -82,6 +82,147 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
         df['uid'].iloc[k]=os.path.splitext(temp)[0]
     return df
 
+
+
+
+def dti_reg(
+    image,
+    avg_b0,
+    avg_dwi,
+    b0_idx,
+    type_of_transform="Rigid",
+    total_sigma=0.5,
+    fdOffset=10.0,
+    verbose=False, **kwargs
+):
+    """
+    Correct time-series data for motion - with deformation.
+
+    Arguments
+    ---------
+        image: antsImage, usually ND where D=4.
+
+        avg_b0: Fixed image b0 image
+
+        avg_b0: Fixed dwi same space as b0 image
+
+        b0_idx: indices of b0
+
+        type_of_transform : string
+            A linear or non-linear registration type. Mutual information metric and rigid transformation by default.
+            See ants registration for details.
+
+        fdOffset: offset value to use in framewise displacement calculation
+
+        outprefix : string
+            output will be named with this prefix plus a numeric extension.
+
+        verbose: boolean
+
+        kwargs: keyword args
+            extra arguments - these extra arguments will control the details of registration that is performed. see ants registration for more.
+
+    Returns
+    -------
+    dict containing follow key/value pairs:
+        `motion_corrected`: Moving image warped to space of fixed image.
+        `motion_parameters`: transforms for each image in the time series.
+        `FD`: Framewise displacement generalized for arbitrary transformations.
+
+    Notes
+    -----
+    Control extra arguments via kwargs. see ants.registration for details.
+
+    Example
+    -------
+    >>> import ants
+    """
+    idim = image.dimension
+    ishape = image.shape
+    nTimePoints = ishape[idim - 1]
+    mask = ants.get_mask(avg_b0)
+    FD = np.zeros(nTimePoints)
+    motion_parameters = list()
+    motion_corrected = list()
+    centerOfMass = mask.get_center_of_mass()
+    npts = pow(2, idim - 1)
+    pointOffsets = np.zeros((npts, idim - 1))
+    myrad = np.ones(idim - 1).astype(int).tolist()
+    mask1vals = np.zeros(int(mask.sum()))
+    mask1vals[round(len(mask1vals) / 2)] = 1
+    mask1 = ants.make_image(mask, mask1vals)
+    myoffsets = ants.get_neighborhood_in_mask(
+        mask1, mask1, radius=myrad, spatial_info=True
+    )["offsets"]
+    mycols = list("xy")
+    if idim - 1 == 3:
+        mycols = list("xyz")
+    useinds = list()
+    for k in range(myoffsets.shape[0]):
+        if abs(myoffsets[k, :]).sum() == (idim - 2):
+            useinds.append(k)
+        myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
+    fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
+    if verbose:
+        print("Progress:")
+    counter = 0
+    for k in range(nTimePoints):
+        mycount = round(k / nTimePoints * 100)
+        if verbose and mycount == counter:
+            counter = counter + 10
+            print(mycount, end="%.", flush=True)
+        if k in b0_idx:
+            fixed=ants.image_clone( avg_b0 )
+        else:
+            fixed=ants.image_clone( avg_dwi )
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        temp = ants.iMath(temp, "Normalize")
+        if temp.numpy().var() > 0:
+            myrig = ants.registration(
+                    fixed, temp,
+                    type_of_transform='BOLDRigid',
+                    **kwargs
+                )
+            if type_of_transform == 'SyN':
+                myreg = ants.registration(
+                    fixed, temp,
+                    type_of_transform='SyNOnly',
+                    total_sigma=total_sigma,
+                    initial_transform=myrig['fwdtransforms'][0],
+                    **kwargs
+                )
+            else:
+                myreg = myrig
+            fdptsTxI = ants.apply_transforms_to_points(
+                idim - 1, fdpts, myreg["fwdtransforms"]
+            )
+            if k > 0 and motion_parameters[k - 1] != "NA":
+                fdptsTxIminus1 = ants.apply_transforms_to_points(
+                    idim - 1, fdpts, motion_parameters[k - 1]
+                )
+            else:
+                fdptsTxIminus1 = fdptsTxI
+            # take the absolute value, then the mean across columns, then the sum
+            FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
+            motion_parameters.append(myreg["fwdtransforms"])
+            img1w = ants.apply_transforms( fixed,
+                ants.slice_image(image, axis=idim - 1, idx=k),
+                myreg["fwdtransforms"] )
+            motion_corrected.append(img1w)
+        else:
+            motion_parameters.append("NA")
+            motion_corrected.append(temp)
+    if verbose:
+        print("Done")
+    return {
+        "motion_corrected": ants.list_to_ndimage(image, motion_corrected),
+        "motion_parameters": motion_parameters,
+        "FD": FD,
+    }
+
+
+
+
 def mc_reg(
     image,
     fixed=None,
@@ -548,6 +689,7 @@ def t1_based_dwi_brain_extraction(
     dwi,
     b0_idx = None,
     transform='Rigid',
+    deform=None,
     verbose=False
 ):
     """
@@ -563,7 +705,9 @@ def t1_based_dwi_brain_extraction(
 
     b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
 
-    transform : string Rigid or SyNBold
+    transform : string Rigid or other ants.registration tx type
+
+    deform : follow up transform with deformation
 
     Returns
     -------
@@ -587,14 +731,13 @@ def t1_based_dwi_brain_extraction(
     else:
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
     b0_avg = ants.iMath(b0_avg,"Normalize")
-    reg = tra_initializer( b0_avg, t1w, n_simulations=12, verbose=verbose )
-#    reg = ants.registration( b0_avg, t1w,
-#        'SyNOnly',
-#        syn_metric='CC',
-#        syn_sampling=2,
-#        total_sigma=0.0,
-#        initial_transform=rig0['fwdtransforms'][0],
-#        verbose=False )
+    reg = tra_initializer( b0_avg, t1w, n_simulations=12,   verbose=verbose )
+    if deform is not None:
+        reg = ants.registration( b0_avg, t1w,
+            'SyNOnly',
+            total_sigma=0.5,
+            initial_transform=rig0['fwdtransforms'][0],
+            verbose=False )
     outmsk = ants.apply_transforms( b0_avg, t1bxt, reg['fwdtransforms'], interpolator='linear').threshold_image( 0.5, 1.0 )
     return  {
     'b0_avg':b0_avg,
@@ -753,9 +896,13 @@ def dipy_dti_recon(
                 regimage.append( b0 )
         regimage = ants.list_to_ndimage( image, regimage )
         average_b0_trunc = ants.iMath( average_b0, 'TruncateIntensity', 0.01, 0.99 )
-        moco0 = mc_reg(
+        average_dwi_trunc = ants.iMath( average_dwi, 'TruncateIntensity', 0.01, 0.99 )
+        average_dwi_trunc = ants.registration( average_b0_trunc, average_dwi_trunc, 'BOLDRigid')['warpedmovout']
+        moco0 = dti_reg(
             regimage,
-            fixed=average_b0_trunc,
+            avg_b0=average_b0_trunc,
+            avg_dwi=average_dwi_trunc,
+            b0_idx=b0_idx,
             type_of_transform=motion_correct,
             verbose=True )
         motion_parameters = moco0['motion_parameters']
@@ -1134,7 +1281,7 @@ def joint_dti_recon(
             targeter = ts_LR_avg
         dwp_OR = dewarp_imageset(
             [ts_LR_avg, ts_RL_avg],
-            initial_template=ts_LR_avg,
+            initial_template=targeter,
             iterations = 5,
             syn_metric='CC',
             syn_sampling=2,
@@ -1194,12 +1341,12 @@ def joint_dti_recon(
         recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0 )
+                mask_dilation=0, trim_the_mask=True )
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0, verbose=True )
+                mask_dilation=0, trim_the_mask=True, verbose=True )
 
     if verbose:
         print("recon done", flush=True)
