@@ -3169,6 +3169,7 @@ def mm(
             reference_image = dtibxt_data['b0_avg'],
             srmodel=srmodel,
             motion_correct='Rigid', # set to False if using input from qsiprep
+            denoise=True,
             verbose = verbose)
         mydti = output_dict['DTI']
         # summarize dwi with T1 outputs

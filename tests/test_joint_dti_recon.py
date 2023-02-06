@@ -33,7 +33,9 @@ t1w = t1wh * antspyt1w.brain_extraction( t1wh )
 bxtdwi = antspymm.t1_based_dwi_brain_extraction( 
     t1wh, t1w, img_LR_in,
     transform='Rigid', deform=True, verbose=True )
+print("dnz-begin")
 img_LR_in = antspymm.mc_denoise(img_LR_in)
+print("dnz-done")
 if False:
     print("dipy dti recon")
     dd = antspymm.dipy_dti_recon(
@@ -43,6 +45,11 @@ if False:
         motion_correct='Rigid', 
         trim_the_mask=4,
         verbose=True )
+    ants.image_write( dd['RGB'], '/tmp/temprgb.nii.gz' )
+    ants.image_write( dd['MD'], '/tmp/tempmd.nii.gz' ) 
+    ants.image_write( dd['FA'], '/tmp/tempfa.nii.gz' )
+    ants.image_write( dd['dwi_mask'], '/tmp/tempmask.nii.gz' )
+    derka
 
 myoutx = antspymm.joint_dti_recon(
     img_LR_in,
@@ -85,3 +92,5 @@ if True:
     ants.image_write( myoutx['dtrecon_RL_dewarp']['RGB'], '/tmp/temp2rgb.nii.gz'  )
     ants.image_write( myoutx['recon_fa'], '/tmp/temp1fa.nii.gz'  )
     ants.image_write( myoutx['recon_md'], '/tmp/temp1md.nii.gz'  )
+
+
