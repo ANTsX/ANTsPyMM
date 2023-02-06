@@ -805,7 +805,8 @@ def trim_dti_mask( fa, mask, param ):
         # next 3 lines of code are helpful
     edgemask = trim_mask - ants.iMath( trim_mask, "ME", param )
     edgemask = ants.threshold_image( fa * edgemask, "Otsu", 3 )
-    trim_mask[edgemask==3]=0
+    edgemask = ants.threshold_image( edgemask, 2, 3 )
+    trim_mask[edgemask==1]=0
     mask = ants.morphology( trim_mask, "close", param )
     return mask
 
