@@ -10,13 +10,11 @@ import antspynet
 import ants
 import pandas as pd
 import tensorflow as tf
-
 print(" Load in JHU atlas and labels ")
 ex_path = os.path.expanduser( "~/.antspyt1w/" )
 ex_path_mm = os.path.expanduser( "~/.antspymm/" )
 JHU_atlas = ants.image_read( ex_path + 'JHU-ICBM-FA-1mm.nii.gz' ) # Read in JHU atlas
 JHU_labels = ants.image_read( ex_path + 'JHU-ICBM-labels-1mm.nii.gz' ) # Read in JHU labels
-
 #### Load in data ####
 print("Load in subject data ...")
 lrid = ex_path_mm + "I1499279_Anon_20210819142214_5"
@@ -30,10 +28,27 @@ img_LR_bvec = lrid + '.bvec'
 img_RL_in = ants.image_read( rlid + '.nii.gz' ) # RL dwi image
 img_RL_bval = lrid + '.bval' # bval
 img_RL_bvec = lrid + '.bvec'
-t1wh = ants.image_read( t1id )
+t1wh = ants.iMath( ants.image_read( t1id ) , 'Normalize' )
 t1w = t1wh * antspyt1w.brain_extraction( t1wh )
+ants.plot( t1w , axis=2 )
 bxtdwi = antspymm.t1_based_dwi_brain_extraction( t1wh, t1w, img_LR_in,
     transform='Rigid', deform=True, verbose=True )
+derka
+myoutx = antspymm.joint_dti_recon(
+    img_LR_in,
+    img_LR_bval,
+    img_LR_bvec,
+    jhu_atlas = JHU_atlas,
+    jhu_labels = JHU_labels,
+    srmodel = None,
+    img_RL = img_RL_in,
+    bval_RL = img_RL_bval,
+    bvec_RL = img_RL_bvec,
+    motion_correct = 'Rigid',
+    dewarp_modality = 'FA',
+    brain_mask = bxtdwi['b0_mask' ],
+    t1w=t1w,
+    verbose = True)
 derka
 ######
 myoutx = antspymm.joint_dti_recon(
