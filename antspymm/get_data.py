@@ -1289,7 +1289,7 @@ def joint_dti_recon(
             if verbose:
                 print("dewarp with "+dewarp_modality)
             targeter = ants.image_clone(JHU_atlas_aff)
-        elif dewarp_modality == 'FA' and t1w is not None:
+        elif t1w is not None:
             if verbose:
                 print("dewarp with "+dewarp_modality+" t1 initial")
             targeter = ants.registration( ts_LR_avg, t1w, 'Rigid' )['warpedmovout']
