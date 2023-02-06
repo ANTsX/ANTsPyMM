@@ -48,6 +48,17 @@ def mm_read( x, modality='' ):
     """
     return ants.image_read( x, reorient=False )
 
+def mc_resample_image_to_target( x , y, interp_type='linear' ):
+    """
+    multichannel version of resample_image_to_target
+    """
+    xx=ants.split_channels( x )
+    yy=ants.split_channels( y )[0]
+    newl=[]
+    for k in range(len(xx)):
+        newl.append(  ants.resample_image_to_target( xx[k], yy, interp_type=interp_type ) )
+    return ants.merge_channels( newl )
+
 def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
     """
     convert a list of files in nrg format to a dataframe

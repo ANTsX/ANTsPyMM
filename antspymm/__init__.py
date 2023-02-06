@@ -49,3 +49,4 @@ from .get_data import mc_denoise
 from .get_data import mc_reg
 from .get_data import dti_reg
 from .get_data import concat_dewarp
+from .get_data import mc_resample_image_to_target
