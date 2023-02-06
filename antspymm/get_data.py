@@ -774,6 +774,41 @@ def mc_denoise( x ):
         dwpimage.append( dnzb0 )
     return ants.list_to_ndimage( x, dwpimage )
 
+def impute_fa( fa, md ):
+    """
+    impute bad values in dti, fa, md
+    """
+    def imputeit( x, fa ):
+        badfa=ants.threshold_image(fa,1,1)
+        if badfa.max() == 1:
+            temp=ants.image_clone(x)
+            temp[badfa==1]=0
+            temp=ants.iMath(temp,'GD',2)
+            x[ badfa==1 ]=temp[badfa==1]
+        return x
+    md=imputeit( md, fa )
+    fa=imputeit( ants.image_clone(fa), fa )
+    return fa, md
+
+def trim_dti_mask( fa, mask, param ):
+    """
+    trim the dti mask to get rid of bright fa rim
+    """
+    trim_mask = ants.image_clone( mask )
+    maskero = ants.iMath( trim_mask, "ME", param )
+    maskero = ants.morphology( maskero, "close", param ) # good
+    famask = ants.image_clone( mask )
+    famask = famask * ants.threshold_image( fa, 0.01, 0.90 )
+    famask = ants.morphology( famask, "close", param ) # good
+    famask = ants.iMath( famask, "FillHoles" )
+    trim_mask = ants.threshold_image( mask + maskero, 1, 2 )
+        # next 3 lines of code are helpful
+    edgemask = trim_mask - ants.iMath( trim_mask, "ME", param )
+    edgemask = ants.threshold_image( fa * edgemask, "Otsu", 3 )
+    trim_mask[edgemask==3]=0
+    mask = ants.morphology( trim_mask, "close", param )
+    return mask
+
 def dipy_dti_recon(
     image,
     bvalsfn,
@@ -785,7 +820,7 @@ def dipy_dti_recon(
     mask_closing = 5,
     average_b0 = None,
     fit_method='WLS',
-    trim_the_mask=True,
+    trim_the_mask=4,
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -973,10 +1008,11 @@ def dipy_dti_recon(
         FA = fractional_anisotropy(tenfit.evals)
         FA[np.isnan(FA)] = 1
         FA = np.clip(FA, 0, 1)
-        RGB = color_fa(FA, tenfit.evecs)
         MD1 = dti.mean_diffusivity(tenfit.evals)
         MD1 = ants.copy_image_info( b0, ants.from_numpy( MD1.astype(np.float32) ) )
         FA = ants.copy_image_info(  b0, ants.from_numpy( FA.astype(np.float32) ) )
+        FA, MD1 = impute_fa( FA, MD1 )
+        RGB = color_fa(FA.numpy(), tenfit.evecs)
         RGB = ants.from_numpy( RGB.astype(np.float32) )
         RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
         RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
@@ -993,20 +1029,8 @@ def dipy_dti_recon(
         print("recon dti.TensorModel done",flush=True)
 
     # change the brain mask based on high FA values
-    if trim_the_mask:
-        trim_mask = ants.image_clone( mask )
-        maskero = ants.iMath( trim_mask, "ME", 4 )
-        maskero = ants.morphology( maskero, "close", 4 ) # good
-        famask = ants.image_clone( mask )
-        famask = famask * ants.threshold_image( FA, 0.01, 0.90 )
-        famask = ants.morphology( famask, "close", 2 ) # good
-        famask = ants.iMath( famask, "FillHoles" )
-        trim_mask = ants.threshold_image( mask + maskero, 1, 2 )
-        # next 3 lines of code are helpful
-        edgemask = trim_mask - ants.iMath( trim_mask, "ME", 2 )
-        edgemask = ants.threshold_image( FA * edgemask, "Otsu", 3 )
-        trim_mask[edgemask==3]=0
-        mask = ants.morphology( trim_mask, "close", 2 )
+    if trim_the_mask > 0 :
+        mask = trim_dti_mask( FA, mask, trim_the_mask )
         if motion_correct is None:
             tenfit, FA, MD1, RGB0, RGB1, RGB2 = justthefit( gtab, fit_method, image, mask )
         else:
@@ -1359,12 +1383,12 @@ def joint_dti_recon(
         recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0, trim_the_mask=True )
+                mask_dilation=0, trim_the_mask=4 )
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0, trim_the_mask=True, verbose=True )
+                mask_dilation=0, trim_the_mask=4, verbose=True )
 
     if verbose:
         print("recon done", flush=True)
@@ -3113,7 +3137,7 @@ def mm(
         t1_image_norm = (  temp ) * bmask
         # ants.image_write( t1_image_norm, '/tmp/temp.nii.gz' )
         dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'],
-            dw_image, transform='Rigid', deform=False, verbose=verbose )
+            dw_image, transform='Rigid', deform=True, verbose=verbose )
         cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
         dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
         dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )

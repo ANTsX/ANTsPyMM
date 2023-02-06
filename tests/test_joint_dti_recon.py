@@ -32,7 +32,18 @@ t1wh = ants.iMath( ants.image_read( t1id ) , 'Normalize' )
 t1w = t1wh * antspyt1w.brain_extraction( t1wh )
 bxtdwi = antspymm.t1_based_dwi_brain_extraction( 
     t1wh, t1w, img_LR_in,
-    transform='Rigid', deform=False, verbose=True )
+    transform='Rigid', deform=True, verbose=True )
+img_LR_in = antspymm.mc_denoise(img_LR_in)
+if False:
+    print("dipy dti recon")
+    dd = antspymm.dipy_dti_recon(
+        img_LR_in, img_LR_bval, img_LR_bvec,
+        average_b0=bxtdwi['b0_avg'],
+        mask=bxtdwi['b0_mask'],
+        motion_correct='Rigid', 
+        trim_the_mask=4,
+        verbose=True )
+
 myoutx = antspymm.joint_dti_recon(
     img_LR_in,
     img_LR_bval,
@@ -45,7 +56,7 @@ myoutx = antspymm.joint_dti_recon(
     bvec_RL = img_RL_bvec,
     motion_correct = 'Rigid',
     dewarp_modality = 'FA',
-    brain_mask = bxtdwi['b0_mask' ],
+    brain_mask = bxtdwi['b0_mask'],
     t1w=t1w,
     verbose = True)
 
