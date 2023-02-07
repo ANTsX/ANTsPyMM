@@ -793,6 +793,10 @@ def impute_fa( fa, md ):
 def trim_dti_mask( fa, mask, param=3 ):
     """
     trim the dti mask to get rid of bright fa rim
+
+    this function erodes the famask by param amount then segments the rim into
+    bright and less bright parts.  the bright parts are trimmed from the mask 
+    and the remaining edges are cleaned up a bit with closing.
     """
     trim_mask = ants.image_clone( mask )
     trim_mask = ants.iMath( trim_mask, "FillHoles" )
