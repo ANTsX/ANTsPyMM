@@ -2403,6 +2403,11 @@ def wmh( flair, t1, t1seg,
   wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
     transformlist = t1_2_flair_reg['fwdtransforms'],
     interpolator = 'nearestNeighbor' )
+  seg_2_flair = ants.apply_transforms(flair, t1seg,
+    transformlist = t1_2_flair_reg['fwdtransforms'],
+    interpolator = 'nearestNeighbor' )
+  csfmask = ants.threshold_image(seg_2_flair,1,1)
+  flairsnr = mask_snr( flair, csfmask, wmseg_2_flair, bias_correct = False )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
   label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
   label1 = label_stats[label_stats["LabelValue"]==1.0]
@@ -2418,6 +2423,7 @@ def wmh( flair, t1, t1seg,
       'WMH_posterior_probability_map' : probability_mask_posterior,
       'wmh_mass': wmh_sum,
       'wmh_mass_prior': wmh_sum_prior,
+      'wmh_SNR' : flairsnr,
       'convexhull_mask': distmask }
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
@@ -3364,6 +3370,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
             ants.image_write( mm['flair']['WMH_probability_map'], myop )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
+        mm_wide['flair_snr'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
         mynets = list([ 'meanBold', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
         rsfpro = mm['rsf']
@@ -4360,9 +4367,8 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
       'WMH_probability_map' : augprob,
       'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
-      'wmh_mass_prior': wmh_sum_prior_aug  }
-
-
+      'wmh_mass_prior': wmh_sum_prior_aug,
+      'wmh_SNR': locwmh['wmh_SNR']  }
 
 
 def threaded_bind_wide_mm_csvs( mm_wide_csvs, n_workers ):
