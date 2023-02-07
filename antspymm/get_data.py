@@ -102,7 +102,7 @@ def dti_reg(
     avg_dwi,
     b0_idx,
     type_of_transform="Rigid",
-    total_sigma=0.5,
+    total_sigma=3.0,
     fdOffset=10.0,
     verbose=False, **kwargs
 ):
