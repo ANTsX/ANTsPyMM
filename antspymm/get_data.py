@@ -790,25 +790,21 @@ def impute_fa( fa, md ):
     fa=imputeit( ants.image_clone(fa), fa )
     return fa, md
 
-def trim_dti_mask( fa, mask, param ):
+def trim_dti_mask( fa, mask, param=3 ):
     """
     trim the dti mask to get rid of bright fa rim
     """
     trim_mask = ants.image_clone( mask )
-    maskero = ants.iMath( trim_mask, "ME", param )
-    maskero = ants.morphology( maskero, "close", param ) # good
-    famask = ants.image_clone( mask )
-    famask = famask * ants.threshold_image( fa, 0.01, 0.90 )
-    famask = ants.morphology( famask, "close", param ) # good
-    famask = ants.iMath( famask, "FillHoles" )
-    trim_mask = ants.threshold_image( mask + maskero, 1, 2 )
-        # next 3 lines of code are helpful
+    trim_mask = ants.iMath( trim_mask, "FillHoles" )
     edgemask = trim_mask - ants.iMath( trim_mask, "ME", param )
-    edgemask = ants.threshold_image( fa * edgemask, "Otsu", 3 )
-    edgemask = ants.threshold_image( edgemask, 2, 3 )
-    trim_mask[edgemask==1]=0
-    mask = ants.morphology( trim_mask, "close", param )
-    return mask
+    maxk=4
+    edgemask = ants.threshold_image( fa * edgemask, "Otsu", maxk )
+    edgemask = ants.threshold_image( edgemask, maxk-1, maxk )
+    trim_mask[edgemask >= 1 ]=0
+    trim_mask = ants.iMath(trim_mask,"ME",param)
+    trim_mask = ants.iMath(trim_mask,'GetLargestComponent')
+    trim_mask = ants.iMath(trim_mask,"MD",param)
+    return trim_mask
 
 def dipy_dti_recon(
     image,
