@@ -3169,7 +3169,7 @@ def mm(
             brain_mask = dtibxt_data['b0_mask'],
             reference_image = dtibxt_data['b0_avg'],
             srmodel=srmodel,
-            motion_correct='Rigid', # set to False if using input from qsiprep
+            motion_correct='SyN', # set to False if using input from qsiprep
             denoise=True,
             verbose = verbose)
         mydti = output_dict['DTI']
