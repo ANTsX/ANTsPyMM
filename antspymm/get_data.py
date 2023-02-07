@@ -790,12 +790,12 @@ def impute_fa( fa, md ):
     fa=imputeit( ants.image_clone(fa), fa )
     return fa, md
 
-def trim_dti_mask( fa, mask, param=3 ):
+def trim_dti_mask( fa, mask, param=2 ):
     """
     trim the dti mask to get rid of bright fa rim
 
     this function erodes the famask by param amount then segments the rim into
-    bright and less bright parts.  the bright parts are trimmed from the mask 
+    bright and less bright parts.  the bright parts are trimmed from the mask
     and the remaining edges are cleaned up a bit with closing.
     """
     trim_mask = ants.image_clone( mask )
@@ -805,9 +805,9 @@ def trim_dti_mask( fa, mask, param=3 ):
     edgemask = ants.threshold_image( fa * edgemask, "Otsu", maxk )
     edgemask = ants.threshold_image( edgemask, maxk-1, maxk )
     trim_mask[edgemask >= 1 ]=0
-    trim_mask = ants.iMath(trim_mask,"ME",1)
+    trim_mask = ants.iMath(trim_mask,"ME",param)
     trim_mask = ants.iMath(trim_mask,'GetLargestComponent')
-    trim_mask = ants.iMath(trim_mask,"MD",1)
+    trim_mask = ants.iMath(trim_mask,"MD",param)
     return trim_mask
 
 def dipy_dti_recon(
