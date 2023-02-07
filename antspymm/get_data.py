@@ -805,9 +805,9 @@ def trim_dti_mask( fa, mask, param=2 ):
     edgemask = ants.threshold_image( fa * edgemask, "Otsu", maxk )
     edgemask = ants.threshold_image( edgemask, maxk-1, maxk )
     trim_mask[edgemask >= 1 ]=0
-    trim_mask = ants.iMath(trim_mask,"ME",param)
+    trim_mask = ants.iMath(trim_mask,"ME",param-1)
     trim_mask = ants.iMath(trim_mask,'GetLargestComponent')
-    trim_mask = ants.iMath(trim_mask,"MD",param)
+    trim_mask = ants.iMath(trim_mask,"MD",param-1)
     return trim_mask
 
 def dipy_dti_recon(
@@ -821,7 +821,7 @@ def dipy_dti_recon(
     mask_closing = 5,
     average_b0 = None,
     fit_method='WLS',
-    trim_the_mask=4,
+    trim_the_mask=2,
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -1384,12 +1384,12 @@ def joint_dti_recon(
         recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0, trim_the_mask=4 )
+                mask_dilation=0)
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
                 motion_correct=None, fit_method=fit_method,
-                mask_dilation=0, trim_the_mask=4, verbose=True )
+                mask_dilation=0, verbose=True )
 
     if verbose:
         print("recon done", flush=True)
