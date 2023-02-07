@@ -801,9 +801,9 @@ def trim_dti_mask( fa, mask, param=3 ):
     edgemask = ants.threshold_image( fa * edgemask, "Otsu", maxk )
     edgemask = ants.threshold_image( edgemask, maxk-1, maxk )
     trim_mask[edgemask >= 1 ]=0
-    trim_mask = ants.iMath(trim_mask,"ME",param)
+    trim_mask = ants.iMath(trim_mask,"ME",1)
     trim_mask = ants.iMath(trim_mask,'GetLargestComponent')
-    trim_mask = ants.iMath(trim_mask,"MD",param)
+    trim_mask = ants.iMath(trim_mask,"MD",1)
     return trim_mask
 
 def dipy_dti_recon(
