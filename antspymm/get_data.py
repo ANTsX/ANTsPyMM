@@ -239,7 +239,7 @@ def mc_reg(
     fixed=None,
     type_of_transform="Rigid",
     mask=None,
-    total_sigma=0.5,
+    total_sigma=3.0,
     fdOffset=10.0,
     verbose=False, **kwargs
 ):
