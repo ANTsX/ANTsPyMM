@@ -1323,7 +1323,7 @@ def joint_dti_recon(
         elif t1w is not None:
             if verbose:
                 print("dewarp with "+dewarp_modality+" t1 initial")
-            targeter = ants.registration( ts_LR_avg, t1w, 'Rigid' )['warpedmovout']
+            targeter = ants.image_clone( t1wrig )
         else:
             if verbose:
                 print("dewarp with "+dewarp_modality)
@@ -1409,12 +1409,9 @@ def joint_dti_recon(
     if verbose:
         print("recon done", flush=True)
 
-    if img_RL is not None:
-        reconFA = recon_RL_dewarp['FA'] * 0.5 + recon_LR_dewarp['FA'] * 0.5
-        reconMD = recon_RL_dewarp['MD'] * 0.5 + recon_LR_dewarp['MD'] * 0.5
-    else:
-        reconFA = recon_LR_dewarp['FA']
-        reconMD = recon_LR_dewarp['MD']
+    recon_LR_dewarp['motion_corrected'] = img_LRdwp
+    reconFA = recon_LR_dewarp['FA']
+    reconMD = recon_LR_dewarp['MD']
 
     if verbose:
         print("JHU reg",flush=True)
