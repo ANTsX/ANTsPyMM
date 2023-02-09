@@ -1387,10 +1387,19 @@ def joint_dti_recon(
 
     recon_RL_dewarp = None
     if img_RL is not None:
-        recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
-            mask = brain_mask, average_b0 = reference_image,
-                motion_correct=None, fit_method=fit_method,
-                mask_dilation=0)
+        bval_LR = np.concatenate([bval_LR,bval_RL])  
+        bvec_LR = np.concatenate([bvec_LR,bvec_RL])  
+        # concatenate the images
+        mimg=[]
+        for kk in range( img_LRdwp.shape[3] ):
+            mimg.append( ants.slice_image( img_LRdwp, axis=3, idx=kk ) )
+        for kk in range( img_RLdwp.shape[3] ):
+            mimg.append( ants.slice_image( img_RLdwp, axis=3, idx=kk ) )
+        img_LRdwp = ants.list_to_ndimage( img_LRdwp, mimg )
+#        recon_RL_dewarp = dipy_dti_recon( img_RLdwp, bval_RL, bvec_RL,
+#            mask = brain_mask, average_b0 = reference_image,
+#                motion_correct=None, fit_method=fit_method,
+#                mask_dilation=0)
 
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, average_b0 = reference_image,
