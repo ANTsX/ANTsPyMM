@@ -1464,13 +1464,14 @@ def joint_dti_recon(
             mimg.append( ants.slice_image( img_RLdwp, axis=3, idx=kk ) )
         img_LRdwp = ants.list_to_ndimage( img_LRdwp, mimg )
 
+    if verbose:
+        print("final recon", flush=True)
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, 
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
             motion_correct=None, fit_method=fit_method,
             mask_dilation=0, verbose=True )
-
     if verbose:
         print("recon done", flush=True)
 
