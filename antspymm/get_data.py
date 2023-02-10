@@ -1437,7 +1437,6 @@ def joint_dti_recon(
 
     reg_its = [100,50,10]
     img_LRdwp = ants.image_clone( recon_LR[ 'motion_corrected' ] )
-    img_RL = None
     if srmodel is not None:
         reg_its = [100] + reg_its
         if img_RL is not None:
