@@ -1437,18 +1437,19 @@ def joint_dti_recon(
 
     reg_its = [100,50,10]
     img_LRdwp = ants.image_clone( recon_LR[ 'motion_corrected' ] )
-    if srmodel is not None:
-        reg_its = [100] + reg_its
-        if img_RL is not None:
-            img_RLdwp = ants.image_clone( recon_RL[ 'motion_corrected' ] )
+    if img_RL is not None:
+        img_RLdwp = ants.image_clone( recon_RL[ 'motion_corrected' ] )
+        if srmodel is not None:
             if verbose:
                 print("convert img_RL_dwp to img_RL_dwp_SR")
-                img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, isotropic=True,
-                    verbose=verbose )
+            img_RLdwp = super_res_mcimage( img_RLdwp, srmodel, isotropic=True,
+                        verbose=verbose )
+    if srmodel is not None:
+        reg_its = [100] + reg_its
         if verbose:
             print("convert img_LR_dwp to img_LR_dwp_SR")
         img_LRdwp = super_res_mcimage( img_LRdwp, srmodel, isotropic=True,
-            verbose=verbose )
+                verbose=verbose )
     if verbose:
         print("recon after distortion correction", flush=True)
 
@@ -1465,6 +1466,7 @@ def joint_dti_recon(
 
     if verbose:
         print("final recon", flush=True)
+        print(img_LRdwp)
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask, 
             average_b0 = reference_B0,
