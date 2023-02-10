@@ -52,3 +52,5 @@ from .get_data import concat_dewarp
 from .get_data import mc_resample_image_to_target
 from .get_data import trim_dti_mask
 from .get_data import impute_fa
+from .get_data import get_average_dwi_b0
+from .get_data import dti_template
