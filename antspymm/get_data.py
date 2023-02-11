@@ -3353,7 +3353,7 @@ def mm(
         t1reg = do_normalization
         if do_kk:
             normalization_dict['kk_norm'] = ants.apply_transforms( template, output_dict['kk']['thickness_image'], t1reg['fwdtransforms'])
-        if dw_image is not None:
+        if output_dict['DTI'] is not None:
             mydti = output_dict['DTI']
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
             normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
