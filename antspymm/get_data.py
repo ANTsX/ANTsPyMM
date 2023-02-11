@@ -4479,7 +4479,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
             strict=strict, probability_mask=None, prior_probability=prior_probability )
         if verbose:
-            print( "flair sim: " + str(n) + " vol: " + str( locwmh['wmh_mass_prior'] )+ " snr: " + str( locwmh['wmh_SNR'] ) )
+            print( "flair sim: " + str(n) + " vol: " + str( locwmh['wmh_mass'] )+ " vol-prior: " + str( locwmh['wmh_mass_prior'] )+ " snr: " + str( locwmh['wmh_SNR'] ) )
         wmh_sum_aug = wmh_sum_aug + locwmh['wmh_mass']
         wmh_sum_prior_aug = wmh_sum_prior_aug + locwmh['wmh_mass_prior']
         temp = locwmh['WMH_probability_map']
