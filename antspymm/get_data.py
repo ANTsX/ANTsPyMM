@@ -3226,7 +3226,13 @@ def mm(
             btpB0,btpDW=get_average_dwi_b0(dw_image)
             btpB0=ants.n4_bias_field_correction(btpB0)
             btpDW=ants.n4_bias_field_correction(btpDW)
-            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNBold',verbose=False)
+            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
+            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly', 
+                syn_metric='mattes', syn_sampling=32,
+                reg_iterations=[50,50,20],
+                multivariate_extras=[ [ "mattes", btpB0, hier['brain_n4_dnz'], 1, 32 ]],
+                initial_transform=initrig
+                )
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
             btpDW = ants.apply_transforms( btpDW, btpDW, 
                 tempreg['invtransforms'][1], interpolator='linear')
