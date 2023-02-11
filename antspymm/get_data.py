@@ -2354,14 +2354,16 @@ def hierarchical_modality_summary(
     def myhelper( target_image, seg, mytx, mapname, modname, mydf, extra='', verbose=False ):
         if verbose:
             print( mapname )
+        target_image_mask = ants.image_clone( target_image ) * 0.0
+        target_image_mask[ target_image != 0 ] = 1
         cortmapped = ants.apply_transforms(
             target_image,
             seg,
-            mytx, interpolator='nearestNeighbor' )
+            mytx, interpolator='nearestNeighbor' ) * target_image_mask
         mapped = antspyt1w.map_intensity_to_dataframe(
             mapname,
             target_image,
-            cortmapped)
+            cortmapped )
         mapped.iloc[:,1] = modname + '_' + extra + mapped.iloc[:,1]
         mappedw = antspyt1w.merge_hierarchical_csvs_to_wide_format(
             { 'x' : mapped},
@@ -3082,7 +3084,7 @@ def mm(
     rsf_image=None,
     flair_image=None,
     nm_image_list=None,
-    dw_image=None, bvals=None, bvecs=None,
+    dw_image=[], bvals=[], bvecs=[],
     srmodel=None,
     do_tractography = False,
     do_kk = False,
@@ -3109,11 +3111,11 @@ def mm(
 
     nm_image_list : list of neuromelanin images
 
-    dw_image : diffusion weighted image
+    dw_image : list of diffusion weighted images
 
-    bvals : bvals file name
+    bvals : list of bvals file names
 
-    bvecs : bvecs file name
+    bvecs : list of bvecs file names
 
     srmodel : optional srmodel
 
@@ -3138,15 +3140,17 @@ def mm(
     mycsvfn = ex_path + "FA_JHU_labels_edited.csv"
     citcsvfn = ex_path + "CIT168_Reinf_Learn_v1_label_descriptions_pad.csv"
     dktcsvfn = ex_path + "dkt.csv"
+    cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
     JHU_atlasfn = ex_path + 'JHU-ICBM-FA-1mm.nii.gz' # Read in JHU atlas
     JHU_labelsfn = ex_path + 'JHU-ICBM-labels-1mm.nii.gz' # Read in JHU labels
     templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-    if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ) or not exists( templatefn ):
+    if not exists( mycsvfn ) or not exists( citcsvfn ) or not exists( cnxcsvfn ) or not exists( dktcsvfn ) or not exists( JHU_atlasfn ) or not exists( JHU_labelsfn ) or not exists( templatefn ):
         print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
-        stophere
+        raise ValueError('**missing files** => call get_data from latest antspyt1w and antspymm.')
     mycsv = pd.read_csv(  mycsvfn )
-    citcsv = pd.read_csv(  os.path.expanduser(  citcsvfn ) )
+    citcsv = pd.read_csv(  os.path.expanduser( citcsvfn ) )
     dktcsv = pd.read_csv(  os.path.expanduser( dktcsvfn ) )
+    cnxcsv = pd.read_csv(  os.path.expanduser( cnxcsvfn ) )
     JHU_atlas = mm_read( JHU_atlasfn ) # Read in JHU atlas
     JHU_labels = mm_read( JHU_labelsfn ) # Read in JHU labels
     template = mm_read( templatefn ) # Read in template
@@ -3210,56 +3214,77 @@ def mm(
         else:
             output_dict['NM'] = neuromelanin( nm_image_list, t1imgbrn, t1_image, hier['deep_cit168lab'], srmodel=srmodel, target_range=target_range, verbose=verbose  )
 ################################## do the dti .....
-    if dw_image is not None:
+    if len(dw_image) > 0 :
         if verbose:
             print('dti-x')
-        t1_image_norm = ants.iMath( t1_image, "Normalize" )
-        bmask = ants.threshold_image( hier['brain_n4_dnz'], 0.01, 1e9 ).iMath("MD",20)
-        t1_image_norm = t1_image_norm * bmask
-        temp = 1.0 - t1_image_norm.numpy()
-        temp = ants.from_numpy( temp )
-        temp = ants.copy_image_info( t1_image_norm, temp )
-        t1_image_norm = (  temp ) * bmask
-        # ants.image_write( t1_image_norm, '/tmp/temp.nii.gz' )
-        dtibxt_data = t1_based_dwi_brain_extraction( t1_image_norm, hier['brain_n4_dnz'],
-            dw_image, transform='Rigid', deform=True, verbose=verbose )
-        cropmask = ants.iMath( dtibxt_data['b0_mask'], 'MD', 6 )
-        dtibxt_data['b0_mask'] = ants.crop_image( dtibxt_data['b0_mask'], cropmask )
-        dtibxt_data['b0_avg'] = ants.crop_image( dtibxt_data['b0_avg'], cropmask )
-        # ants.image_write( dtibxt_data['b0_avg'], '/tmp/temp2.nii.gz' )
-        # ants.image_write( dtibxt_data['b0_mask'], '/tmp/temp3.nii.gz' )
-        padder = [4,4,4]
-        dtibxt_data['b0_mask'] = ants.pad_image( dtibxt_data['b0_mask'], pad_width=padder )
-        dtibxt_data['b0_avg'] = ants.pad_image( dtibxt_data['b0_avg'], pad_width=padder )
-        dw_image = crop_mcimage( dw_image, cropmask, padder  )
-#        ants.image_write( dtibxt_data['b0_avg'], '/tmp/tempb0avg.nii.gz' )
-#        mydp = dipy_dti_recon(
-#            dw_image,
-#            bvals,
-#            bvecs,
-#            mask = dtibxt_data['b0_mask'],
-#            motion_correct = True,
-#            average_b0 = dtibxt_data['b0_avg'],
-#            verbose=True )
-#        ants.image_write( mydp['motion_corrected'] , '/tmp/tempdwi.nii.gz')
-#        derka
-        output_dict['DTI'] = joint_dti_recon(
-            dw_image,
-            bvals,
-            bvecs,
-            jhu_atlas=JHU_atlas,
-            jhu_labels=JHU_labels,
-            t1w = hier['brain_n4_dnz'],
-            brain_mask = dtibxt_data['b0_mask'],
-            reference_image = dtibxt_data['b0_avg'],
-            srmodel=srmodel,
-            motion_correct='SyN', # set to False if using input from qsiprep
-            denoise=True,
-            verbose = verbose)
+        if len( dw_image ) == 1: # use T1 for distortion correction
+            if verbose:
+                print("We have only one DTI: " + str(len(dw_image)))
+            dw_image = dw_image[0]
+            btpB0,btpDW=get_average_dwi_b0(dw_image)
+            btpB0=ants.n4_bias_field_correction(btpB0)
+            btpDW=ants.n4_bias_field_correction(btpDW)
+            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNBold',verbose=False)
+            mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
+            btpDW = ants.apply_transforms( btpDW, btpDW, 
+                tempreg['invtransforms'][1], interpolator='linear')
+            btpB0 = ants.apply_transforms( btpB0, btpB0,
+                tempreg['invtransforms'][1], interpolator='linear')
+            dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'][1], interpolator='nearestNeighbor')
+            dwimask = ants.iMath(dwimask,'MD',1)
+            t12dwi = ants.apply_transforms( btpDW, hier['brain_n4_dnz'], tempreg['fwdtransforms'][1], interpolator='linear')
+            if False:
+                ants.image_write( btpDW, '/tmp/t00.nii.gz')
+                ants.image_write( btpB0, '/tmp/t01.nii.gz')
+                ants.image_write( dwimask, '/tmp/t02.nii.gz')
+                ants.image_write( t12dwi, '/tmp/t03.nii.gz')
+            output_dict['DTI'] = joint_dti_recon(
+                dw_image,
+                bvals[0],
+                bvecs[0],
+                jhu_atlas=JHU_atlas,
+                jhu_labels=JHU_labels,
+                brain_mask = dwimask,
+                reference_B0 = btpB0,
+                reference_DWI = btpDW,
+                srmodel=srmodel,
+                motion_correct='SyN', # set to False if using input from qsiprep
+                denoise=True,
+                verbose = verbose)
+        else :  # use phase encoding acquisitions for distortion correction
+            if verbose:
+                print("We have both DTI_LR and DTI_RL: " + str(len(dw_image)))
+            a1b,a1w=get_average_dwi_b0(dw_image[0])
+            a2b,a2w=get_average_dwi_b0(dw_image[1])
+            btpB0, btpDW = dti_template(
+                b_image_list=[a1b,a2b],
+                w_image_list=[a1w,a2w],
+                iterations=7, verbose=verbose )
+            btpB0=ants.n4_bias_field_correction(btpB0)
+            btpDW=ants.n4_bias_field_correction(btpDW)
+            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyN', verbose=False)
+            mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
+            dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'], interpolator='nearestNeighbor')
+            output_dict['DTI'] = joint_dti_recon(
+                dw_image[0],
+                bvals[0],
+                bvecs[0],
+                jhu_atlas=JHU_atlas,
+                jhu_labels=JHU_labels,
+                brain_mask = dwimask,
+                reference_B0 = btpB0,
+                reference_DWI = btpDW,
+                srmodel=srmodel,
+                img_RL=dw_image[1],
+                bval_RL=bvals[1],
+                bvec_RL=bvecs[1],
+                motion_correct='SyN', # set to False if using input from qsiprep
+                denoise=True,
+                verbose = verbose)
         mydti = output_dict['DTI']
         # summarize dwi with T1 outputs
         # first - register ....
-        reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'Rigid' )
+        reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'SyNBold', total_sigma=1.0 )
         ##################################################
         output_dict['FA_summ'] = hierarchical_modality_summary(
             mydti['recon_fa'],
@@ -3279,7 +3304,12 @@ def mm(
             mydti['recon_fa'],
             hier['dkt_parc']['dkt_cortex'],
             reg['fwdtransforms'], interpolator='nearestNeighbor' )
-        mask = ants.threshold_image( mydti['recon_fa'], 0.05, 2.0 ).iMath("GetLargestComponent")
+        citmapped = ants.apply_transforms(
+            mydti['recon_fa'],
+            hier['cit168lab'],
+            reg['fwdtransforms'], interpolator='nearestNeighbor' )
+        dktmapped[ citmapped > 0]=0
+        mask = ants.threshold_image( mydti['recon_fa'], 0.01, 2.0 ).iMath("GetLargestComponent")
         if do_tractography: # dwi_deterministic_tracking dwi_closest_peak_tracking
             output_dict['tractography'] = dwi_deterministic_tracking(
                 mydti['dwi_LR_dewarped'],
@@ -3290,7 +3320,7 @@ def mm(
                 mask=mask,
                 verbose = verbose )
             mystr = output_dict['tractography']
-            output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped, dktcsv, verbose=verbose )
+            output_dict['tractography_connectivity'] = dwi_streamline_connectivity( mystr['streamlines'], dktmapped+citmapped, cnxcsv, verbose=verbose )
     ################################## do the flair .....
     if flair_image is not None:
         if verbose:
@@ -3488,7 +3518,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR","DTI_RL", "T2Flair" ],
+    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","DTI","DTI_LR", "T2Flair" ],
     verbose = True
 ):
     """
@@ -3873,6 +3903,20 @@ def mm_nrg(
                                 dowrite=True
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
+                                imgList = [ img ]
+                                bvalfnList = [ bvalfn ]
+                                bvecfnList = [ bvecfn ]
+                                if mymod == 'DTI_LR' :  # find DTI_RL
+                                    rl_search_path = os.path.join(subjectrootpath, 'DTI_RL', "*", "*nii.gz")
+                                    dtilrfn = glob.glob( rl_search_path )
+                                    if len( dtilrfn ) == 1:
+                                        dtilrfn=dtilrfn[0]
+                                        bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
+                                        bvecfnRL = re.sub( '.nii.gz', '.bvec' , dtilrfn )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgList.append( imgRL )
+                                        bvalfnList.append( bvalfnRL )
+                                        bvecfnList.append( bvecfnRL )
                                 srmodel_DTI_mdl=None
                                 if srmodel_DTI is not False:
                                     temp = ants.get_spacing(img)
@@ -3889,9 +3933,9 @@ def mm_nrg(
                                     else:
                                         print(mdlfn + " does not exist - wont use SR")
                                 tabPro, normPro = mm( t1, hier,
-                                    dw_image=img,
-                                    bvals = bvalfn,
-                                    bvecs = bvecfn,
+                                    dw_image=imgList,
+                                    bvals = bvalfnList,
+                                    bvecs = bvecfnList,
                                     srmodel=srmodel_DTI_mdl,
                                     do_tractography=not test_run,
                                     do_kk=False,
