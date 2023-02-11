@@ -199,6 +199,7 @@ def dti_reg(
         else:
             fixed=ants.image_clone( adw )
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, "Normalize")
         if temp.numpy().var() > 0:
             myrig = ants.registration(
@@ -725,7 +726,7 @@ def get_average_dwi_b0( x ):
             bavg = bavg + ants.registration(bavg,b0,'Rigid')['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
-    return bavg, xavg
+    return ants.n4_bias_field_correction(bavg), ants.n4_bias_field_correction(xavg)
 
 def dti_template(
     b_image_list=None,
@@ -3228,8 +3229,6 @@ def mm(
                 print("We have only one DTI: " + str(len(dw_image)))
             dw_image = dw_image[0]
             btpB0,btpDW=get_average_dwi_b0(dw_image)
-            btpB0=ants.n4_bias_field_correction(btpB0)
-            btpDW=ants.n4_bias_field_correction(btpDW)
             initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
             tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly', 
                 syn_metric='mattes', syn_sampling=32,
@@ -3272,8 +3271,6 @@ def mm(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
                 iterations=7, verbose=verbose )
-            btpB0=ants.n4_bias_field_correction(btpB0)
-            btpDW=ants.n4_bias_field_correction(btpDW)
             tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyN', verbose=False)
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
             dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'], interpolator='nearestNeighbor')
