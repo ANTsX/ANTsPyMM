@@ -2493,6 +2493,10 @@ def wmh( flair, t1, t1seg,
   if prior_probability_flair is not None:
       probability_mask_posterior = prior_probability_flair * probability_mask # use prior
       wmh_sum_prior = np.prod( ants.get_spacing(flair) ) * probability_mask_posterior.sum()
+  if math.isnan( wmh_sum ):
+    wmh_sum=0
+  if math.isnan( wmh_sum_prior ):
+    wmh_sum_prior=0
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
@@ -4475,7 +4479,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
             strict=strict, probability_mask=None, prior_probability=prior_probability )
         if verbose:
-            print( "flair sim: " + str(n) + " : " + str( locwmh['wmh_mass_prior'] ) )
+            print( "flair sim: " + str(n) + " vol: " + str( locwmh['wmh_mass_prior'] )+ " snr: " + str( locwmh['wmh_SNR'] ) )
         wmh_sum_aug = wmh_sum_aug + locwmh['wmh_mass']
         wmh_sum_prior_aug = wmh_sum_prior_aug + locwmh['wmh_mass_prior']
         temp = locwmh['WMH_probability_map']
