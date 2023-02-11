@@ -3233,7 +3233,7 @@ def mm(
             btpB0 = ants.apply_transforms( btpB0, btpB0,
                 tempreg['invtransforms'][1], interpolator='linear')
             dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'][1], interpolator='nearestNeighbor')
-            dwimask = ants.iMath(dwimask,'MD',1)
+            # dwimask = ants.iMath(dwimask,'MD',1)
             t12dwi = ants.apply_transforms( btpDW, hier['brain_n4_dnz'], tempreg['fwdtransforms'][1], interpolator='linear')
             if False:
                 ants.image_write( btpDW, '/tmp/t00.nii.gz')
