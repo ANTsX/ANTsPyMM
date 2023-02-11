@@ -1523,7 +1523,9 @@ def joint_dti_recon(
         'bval_LR':bval_LR,
         'bvec_LR':bvec_LR,
         'bval_RL':bval_RL,
-        'bvec_RL':bvec_RL
+        'bvec_RL':bvec_RL,
+        'b0avg': reference_B0,
+        'dwiavg': reference_DWI
     }
 
 
@@ -3426,6 +3428,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         ants.image_write( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
         ants.image_write( mydti['recon_md'],  myop+'dtimd.nii.gz' )
         ants.image_write( mydti['b0avg'],  myop+'b0avg.nii.gz' )
+        ants.image_write( mydti['dwiavg'],  myop+'dwiavg.nii.gz' )
         faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
         mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
         fat1derk = mm['FA_summ'].iloc[: , 1:]
