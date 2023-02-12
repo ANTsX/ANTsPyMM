@@ -154,7 +154,7 @@ def dti_reg(
     # first get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0(image)
     initrig = ants.registration( avg_b0, ab0, 'BOLDRigid' )['fwdtransforms'][0]
-    deftx = ants.registration( avg_dwi, adw, 'SyNOnly', 
+    deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
         multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
@@ -757,20 +757,20 @@ def dti_template(
                     multivariate_extras= [ [ "mattes", bavg, b_image_list[k], 1, 32 ]],
                     verbose=0 )
             txname = w1["fwdtransforms"][0]
-            txname = ants.apply_transforms(wavg, wavg, 
+            txname = ants.apply_transforms(wavg, wavg,
                 w1["fwdtransforms"], compose=txname )
             if k == 0:
                 txavg = ants.image_read(txname) * weights[k]
-                wavgnew = ants.apply_transforms( wavg, 
+                wavgnew = ants.apply_transforms( wavg,
                     w_image_list[k], txname ).iMath("Normalize")
-                bavgnew = ants.apply_transforms( wavg, 
+                bavgnew = ants.apply_transforms( wavg,
                     b_image_list[k], txname ).iMath("Normalize")
             else:
                 txavg = txavg + ants.image_read(txname) * weights[k]
                 if i >= (iterations-2):
-                    wavgnew = wavgnew+ants.apply_transforms( wavg, 
+                    wavgnew = wavgnew+ants.apply_transforms( wavg,
                         w_image_list[k], txname ).iMath("Normalize")
-                    bavgnew = bavgnew+ants.apply_transforms( wavg, 
+                    bavgnew = bavgnew+ants.apply_transforms( wavg,
                         b_image_list[k], txname ).iMath("Normalize")
         if verbose:
             print("iteration:",str(i),str(txavg.abs().mean()))
@@ -781,7 +781,7 @@ def dti_template(
         wavg = ants.apply_transforms(wavg, wavgnew, wavgfn).iMath("Normalize")
         bavg = ants.apply_transforms(bavg, bavgnew, wavgfn).iMath("Normalize")
     if verbose:
-        print("done") 
+        print("done")
     return bavg, wavg
 
 def t1_based_dwi_brain_extraction(
@@ -1045,6 +1045,14 @@ def dipy_dti_recon(
                         txparam = ants.read_transform(temp)
                         txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
                         Rinv = inv( txparam )
+                    elif len(temp) == 3 :
+                        temp1=temp[2] # FIXME should be composite of index 1 and 3
+                        temp2=temp[1] # FIXME should be composite of index 1 and 3
+                        txparam1 = ants.read_transform(temp1)
+                        txparam1 = ants.get_ants_transform_parameters(txparam1)[0:9].reshape( [3,3])
+                        txparam2 = ants.read_transform(temp2)
+                        txparam2 = ants.get_ants_transform_parameters(txparam2)[0:9].reshape( [3,3])
+                        Rinv = inv( np.dot( txparam2, txparam1 ) )
                     else:
                         temp=temp[0]
                         txparam = ants.read_transform(temp)
@@ -1057,7 +1065,7 @@ def dipy_dti_recon(
         if verbose:
             print("recon part two",flush=True)
         motion_corrected = ants.list_to_ndimage( image, mocoimage )
-        
+
     if verbose:
         print("recon dti.TensorModel",flush=True)
 
@@ -1352,7 +1360,7 @@ def joint_dti_recon(
         OR_RLFA = recon_RL['FA']
 
     recon_LR = dipy_dti_recon( img_LR, bval_LR, bvec_LR,
-            mask = brain_mask, 
+            mask = brain_mask,
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
             motion_correct=motion_correct,
@@ -1455,8 +1463,8 @@ def joint_dti_recon(
         print("recon after distortion correction", flush=True)
 
     if img_RL is not None:
-        bval_LR = np.concatenate([bval_LR,bval_RL])  
-        bvec_LR = np.concatenate([bvec_LR,bvec_RL])  
+        bval_LR = np.concatenate([bval_LR,bval_RL])
+        bvec_LR = np.concatenate([bvec_LR,bvec_RL])
         # concatenate the images
         mimg=[]
         for kk in range( img_LRdwp.shape[3] ):
@@ -1469,7 +1477,7 @@ def joint_dti_recon(
         print("final recon", flush=True)
         print(img_LRdwp)
     recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
-            mask = brain_mask, 
+            mask = brain_mask,
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
             motion_correct=None, fit_method=fit_method,
@@ -3230,14 +3238,14 @@ def mm(
             dw_image = dw_image[0]
             btpB0,btpDW=get_average_dwi_b0(dw_image)
             initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
-            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly', 
+            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly',
                 syn_metric='mattes', syn_sampling=32,
                 reg_iterations=[50,50,20],
                 multivariate_extras=[ [ "mattes", btpB0, hier['brain_n4_dnz'], 1, 32 ]],
                 initial_transform=initrig
                 )
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
-            btpDW = ants.apply_transforms( btpDW, btpDW, 
+            btpDW = ants.apply_transforms( btpDW, btpDW,
                 tempreg['invtransforms'][1], interpolator='linear')
             btpB0 = ants.apply_transforms( btpB0, btpB0,
                 tempreg['invtransforms'][1], interpolator='linear')
