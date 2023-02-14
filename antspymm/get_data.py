@@ -162,6 +162,7 @@ def dti_reg(
         print(output_directory_w)
         print(ofnG)
         print(ofnL)
+        print("remove_it " + str( remove_it ) )
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     # first get a global deformation from avg to ref space
@@ -274,6 +275,7 @@ def mc_reg(
     mask=None,
     total_sigma=3.0,
     fdOffset=10.0,
+    output_directory=None,
     verbose=False, **kwargs
 ):
     """
@@ -292,7 +294,7 @@ def mc_reg(
 
         fdOffset: offset value to use in framewise displacement calculation
 
-        outprefix : string
+        output_directory : string
             output will be named with this prefix plus a numeric extension.
 
         verbose: boolean
@@ -317,6 +319,19 @@ def mc_reg(
     >>> fi = ants.image_read(ants.get_ants_data('ch2'))
     >>> mytx = ants.motion_correction( fi )
     """
+    remove_it=False
+    if output_directory is None:
+        remove_it=True
+        output_directory = tempfile.mkdtemp()
+    output_directory_w = output_directory + "/mc_reg/"
+    os.makedirs(output_directory_w,exist_ok=True)
+    ofnG = tempfile.NamedTemporaryFile(delete=False,suffix='global_deformation',dir=output_directory_w).name
+    ofnL = tempfile.NamedTemporaryFile(delete=False,suffix='local_deformation',dir=output_directory_w).name
+    if verbose:
+        print(output_directory_w)
+        print(ofnG)
+        print(ofnL)
+  
     idim = image.dimension
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
@@ -360,6 +375,7 @@ def mc_reg(
             myrig = ants.registration(
                     fixed, temp,
                     type_of_transform='Rigid',
+                    outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
                 )
             if type_of_transform == 'SyN':
@@ -368,6 +384,7 @@ def mc_reg(
                     type_of_transform='SyNOnly',
                     total_sigma=total_sigma,
                     initial_transform=myrig['fwdtransforms'][0],
+                    outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
                 )
             else:
@@ -391,6 +408,11 @@ def mc_reg(
         else:
             motion_parameters.append("NA")
             motion_corrected.append(temp)
+
+    if remove_it:
+        import shutil
+        shutil.rmtree(output_directory)
+
     if verbose:
         print("Done")
     return {
@@ -1435,6 +1457,8 @@ def joint_dti_recon(
         print("recon after distortion correction", flush=True)
 
     if img_RL is not None:
+        print( img_LRdwp )
+        print( img_RLdwp )
         bval_LR = np.concatenate([bval_LR,bval_RL])
         bvec_LR = np.concatenate([bvec_LR,bvec_RL])
         # concatenate the images
