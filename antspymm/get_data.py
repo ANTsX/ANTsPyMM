@@ -3953,8 +3953,6 @@ def mm_nrg(
                                     verbose=True )
                                 mydti = tabPro['DTI']
                                 if visualize:
-                                    maxslice = np.min( [21, mydti['dtrecon_LR']['FA'] ] )
-                                    ants.plot( mydti['dtrecon_LR']['FA'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA pre correction', filename=mymm+mysep+"FAinit.png"  )
                                     maxslice = np.min( [21, mydti['recon_fa'] ] )
                                     ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
                                     ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
