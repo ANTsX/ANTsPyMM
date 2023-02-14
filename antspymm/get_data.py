@@ -21,6 +21,7 @@ from scipy.stats import pearsonr
 import re
 import datetime as dt
 from collections import Counter
+import tempfile
 
 
 from dipy.core.histeq import histeq
@@ -104,6 +105,7 @@ def dti_reg(
     type_of_transform="Rigid",
     total_sigma=1.0,
     fdOffset=10.0,
+    output_directory=None,
     verbose=False, **kwargs
 ):
     """
@@ -125,8 +127,8 @@ def dti_reg(
 
         fdOffset: offset value to use in framewise displacement calculation
 
-        outprefix : string
-            output will be named with this prefix plus a numeric extension.
+        output_directory : string
+            output will be placed in this directory plus a numeric extension.
 
         verbose: boolean
 
@@ -148,17 +150,29 @@ def dti_reg(
     -------
     >>> import ants
     """
+    remove_it=False
+    if output_directory is None:
+        remove_it=True
+        output_directory = tempfile.mkdtemp()
+    output_directory_w = output_directory + "/dti_reg/"
+    os.makedirs(output_directory_w,exist_ok=True)
+    ofnG = tempfile.NamedTemporaryFile(delete=False,suffix='global_deformation',dir=output_directory_w).name
+    ofnL = tempfile.NamedTemporaryFile(delete=False,suffix='local_deformation',dir=output_directory_w).name
+    if verbose:
+        print(output_directory_w)
+        print(ofnG)
+        print(ofnL)
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-
     # first get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0(image)
-    initrig = ants.registration( avg_b0, ab0, 'BOLDRigid' )['fwdtransforms'][0]
+    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)['fwdtransforms'][0]
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
         multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
-        initial_transform=initrig
+        initial_transform=initrig,
+        outprefix=ofnG
         )['fwdtransforms']
     idim = image.dimension
     ishape = image.shape
@@ -205,6 +219,7 @@ def dti_reg(
             myrig = ants.registration(
                     fixed, temp,
                     type_of_transform='BOLDRigid',
+                    outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
                 )
             if type_of_transform == 'SyN':
@@ -213,6 +228,7 @@ def dti_reg(
                     type_of_transform='SyNOnly',
                     total_sigma=total_sigma,
                     initial_transform=myrig['fwdtransforms'][0],
+                    outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
                 )
             else:
@@ -236,6 +252,11 @@ def dti_reg(
         else:
             motion_parameters.append("NA")
             motion_corrected.append(temp)
+
+    if remove_it:
+        import shutil
+        shutil.rmtree(output_directory)
+
     if verbose:
         print("Done")
     return {
@@ -243,7 +264,6 @@ def dti_reg(
         "motion_parameters": motion_parameters,
         "FD": FD,
     }
-
 
 
 
@@ -715,17 +735,21 @@ def get_average_dwi_b0( x ):
     returns:
         avg_b0, avg_dwi
     """
+    output_directory = tempfile.mkdtemp()
+    ofn = output_directory + "/w"
     b0_idx = segment_timeseries_by_meanvalue( x )['highermeans']
     xavg = ants.slice_image( x, axis=3, idx=0 )
     bavg = ants.slice_image( x, axis=3, idx=0 )
     for myidx in range(1,x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         if not myidx in b0_idx:
-            xavg = xavg + ants.registration(xavg,b0,'Rigid')['warpedmovout']
+            xavg = xavg + ants.registration(xavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
         else:
-            bavg = bavg + ants.registration(bavg,b0,'Rigid')['warpedmovout']
+            bavg = bavg + ants.registration(bavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
+    import shutil
+    shutil.rmtree(output_directory)
     return ants.n4_bias_field_correction(bavg), ants.n4_bias_field_correction(xavg)
 
 def dti_template(
@@ -741,7 +765,10 @@ def dti_template(
     returns:
         avg_b0, avg_dwi
     """
-    from tempfile import mktemp
+    output_directory = tempfile.mkdtemp()
+    mydeftx = tempfile.NamedTemporaryFile(delete=False,dir=output_directory).name
+    tmp = tempfile.NamedTemporaryFile(delete=False,dir=output_directory,suffix=".nii.gz")
+    wavgfn = tmp.name
     weights = np.repeat(1.0 / len(b_image_list), len(b_image_list))
     weights = [x / sum(weights) for x in weights]
     w_initial_template = w_image_list[0]
@@ -755,6 +782,7 @@ def dti_template(
             w1 = ants.registration(
                 wavg, w_image_list[k], type_of_transform='antsRegistrationSyNQuick[s]',
                     multivariate_extras= [ [ "mattes", bavg, b_image_list[k], 1, 32 ]],
+                    outprefix=mydeftx,
                     verbose=0 )
             txname = w1["fwdtransforms"][0]
             txname = ants.apply_transforms(wavg, wavg,
@@ -776,10 +804,11 @@ def dti_template(
             print("iteration:",str(i),str(txavg.abs().mean()))
         wscl = (-1.0) * gradient_step
         txavg = txavg * wscl
-        wavgfn = mktemp(suffix=".nii.gz")
         ants.image_write( txavg, wavgfn )
         wavg = ants.apply_transforms(wavg, wavgnew, wavgfn).iMath("Normalize")
         bavg = ants.apply_transforms(bavg, bavgnew, wavgfn).iMath("Normalize")
+    import shutil
+    shutil.rmtree( output_directory )
     if verbose:
         print("done")
     return bavg, wavg
@@ -919,6 +948,7 @@ def dipy_dti_recon(
     mask_closing = 5,
     fit_method='WLS',
     trim_the_mask=2,
+    output_directory=None,
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -951,9 +981,11 @@ def dipy_dti_recon(
 
     mask_closing : integer zero or more closes the brain mask
 
-    fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
+    fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel) ... if None, will not reconstruct DTI.
 
     trim_the_mask : boolean post-hoc method for trimming the mask
+
+    output_directory : directory where dti_reg results will go
 
     verbose : boolean
 
@@ -970,6 +1002,11 @@ def dipy_dti_recon(
     -------
     >>> import antspymm
     """
+
+    remove_it=False
+    if output_directory is None:
+        output_directory = tempfile.mkdtemp()
+        remove_it=True
 
     constant_mask=False
     if mask is not None:
@@ -1022,6 +1059,7 @@ def dipy_dti_recon(
             avg_dwi=average_dwi,
             b0_idx=b0_idx,
             type_of_transform=motion_correct,
+            output_directory=output_directory,
             verbose=True )
         motion_parameters = moco0['motion_parameters']
         FD = moco0['FD']
@@ -1070,6 +1108,8 @@ def dipy_dti_recon(
         print("recon dti.TensorModel",flush=True)
 
     def justthefit( gtab, fit_method, imagein, maskin ):
+        if fit_method is None:
+            return None, None, None, None
         maskedimage=[]
         for myidx in range(imagein.shape[3]):
             b0 = ants.slice_image( imagein, axis=3, idx=myidx)
@@ -1090,33 +1130,35 @@ def dipy_dti_recon(
         RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
         RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
         RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
-        return tenfit, FA, MD1, RGB0, RGB1, RGB2
+        RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
+        return tenfit, FA, MD1, RGB
 
     gtab = gradient_table(bvals, bvecs)
     if motion_correct is None:
-        tenfit, FA, MD1, RGB0, RGB1, RGB2 = justthefit( gtab, fit_method, image, maskdil )
+        tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     else:
-        tenfit, FA, MD1, RGB0, RGB1, RGB2 = justthefit( gtab, fit_method, motion_corrected, maskdil )
+        tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, motion_corrected, maskdil )
 
     if verbose:
         print("recon dti.TensorModel done",flush=True)
 
     # change the brain mask based on high FA values
-    if trim_the_mask > 0 :
+    if trim_the_mask > 0 and fit_method is not None:
         mask = trim_dti_mask( FA, mask, trim_the_mask )
         if motion_correct is None:
-            tenfit, FA, MD1, RGB0, RGB1, RGB2 = justthefit( gtab, fit_method, image, mask )
+            tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, mask )
         else:
-            tenfit, FA, MD1, RGB0, RGB1, RGB2 = justthefit( gtab, fit_method, motion_corrected, mask )
+            tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, motion_corrected, mask )
+
+    if remove_it:
+        import shutil
+        shutil.rmtree(output_directory)
 
     return {
         'tensormodel' : tenfit,
         'MD' : MD1 ,
         'FA' : FA ,
-        'RGB' : ants.merge_channels( [RGB0,RGB1,RGB2] ),
-#        'MD' : MD1 * mask,
-#        'FA' : FA * mask,
-#        'RGB' : ants.merge_channels( [RGB0* mask,RGB1* mask,RGB2* mask] ),
+        'RGB' : RGB,
         'motion_corrected' : motion_corrected,
         'framewise_displacement' : FD,
         'motion_parameters':motion_parameters,
@@ -1353,8 +1395,9 @@ def joint_dti_recon(
             mask = brain_mask,
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
-            motion_correct=motion_correct, mask_dilation=mymd,
-            fit_method=fit_method )
+            motion_correct=motion_correct, 
+            mask_dilation=mymd,
+            fit_method=None )
         bval_RL = recon_RL['bvals']
         bvec_RL = recon_RL['bvecs']
         OR_RLFA = recon_RL['FA']
@@ -1364,86 +1407,15 @@ def joint_dti_recon(
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
             motion_correct=motion_correct,
-            mask_dilation=mymd, fit_method=fit_method, verbose=verbose )
+            mask_dilation=mymd, 
+            fit_method=None, 
+            verbose=verbose )
     bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
     OR_LRFA = recon_LR['FA']
 
-    if verbose:
-        print( "JHU initialization ..." )
-
-    JHU_atlas_aff = ants.registration(
-        OR_LRFA * recon_LR['dwi_mask'],
-        jhu_atlas, 'Affine' )['warpedmovout']
-    JHU_atlas_aff_mask = ants.threshold_image( JHU_atlas_aff, 0.1, 2.0 ).iMath("GetLargestComponent").iMath("FillHoles").iMath("MD",20)
-    JHU_atlas_aff = ants.crop_image( JHU_atlas_aff, JHU_atlas_aff_mask )
-
-    synreg = None
-    t1wrig = None
-    if t1w is not None:
-        t1wtarget = recon_LR[ 'dwi_mask' ] * recon_LR[dewarp_modality]
-        t1wrig = ants.registration( t1wtarget, t1w, 'Rigid' )['warpedmovout']
-
     ts_LR_avg = None
     ts_RL_avg = None
-    if img_RL is not None and False:
-        ts_LR_avg = recon_LR[dewarp_modality] * recon_LR['dwi_mask']
-        ts_RL_avg = recon_RL[dewarp_modality] * recon_RL['dwi_mask']
-        if dewarp_modality == 'FA' and t1w is None:
-            if verbose:
-                print("dewarp with "+dewarp_modality)
-            targeter = ants.image_clone(JHU_atlas_aff)
-        elif t1w is not None:
-            if verbose:
-                print("dewarp with "+dewarp_modality+" t1 initial")
-            targeter = ants.image_clone( t1wrig )
-        else:
-            if verbose:
-                print("dewarp with "+dewarp_modality)
-            targeter = ants.image_clone(ts_LR_avg)
-        dwp_OR = dewarp_imageset(
-            [ts_LR_avg, ts_RL_avg],
-            initial_template=targeter,
-            iterations = 5,
-            syn_metric='CC',
-            syn_sampling=2,
-            reg_iterations=[100,100,100,20] )
-    elif t1w is not None and False:
-        synreg = ants.registration(
-            t1wrig,
-            t1wtarget,
-            'SyNOnly',
-            total_sigma=3.0,
-            # syn_metric='CC', syn_sampling=2,
-            reg_iterations=[20,10],
-            gradient_step=0.1 )
-        dwp_OR ={
-            'deformable_registrations':[synreg],
-            'dewarpedmean':synreg['warpedmovout']
-            }
-
-    if False:
-        if verbose:
-            print('img_LRdwp')
-        img_RLdwp = None
-        img_LRdwp = concat_dewarp( dwp_OR['dewarpedmean'],
-                img_LR,
-                img_LR, # phys-space == original space
-                dwp_OR['deformable_registrations'][0]['fwdtransforms'],
-                recon_LR['motion_parameters'],
-                motion_correct=motion_correct is not None
-                )
-        if img_RL is not None:
-            if verbose:
-                print('img_RLdwp')
-            img_RLdwp = concat_dewarp( dwp_OR['dewarpedmean'],
-                img_RL,
-                img_LR, # phys-space != original space
-                dwp_OR['deformable_registrations'][1]['fwdtransforms'],
-                recon_RL['motion_parameters'],
-                motion_correct=motion_correct is not None
-                )
-
     reg_its = [100,50,10]
     img_LRdwp = ants.image_clone( recon_LR[ 'motion_corrected' ] )
     if img_RL is not None:
@@ -1524,11 +1496,7 @@ def joint_dti_recon(
         'dtrecon_LR':recon_LR,
         'dtrecon_LR_dewarp':recon_LR_dewarp,
         'dtrecon_RL':recon_RL,
-#        'dtrecon_RL_dewarp':recon_RL_dewarp,
-#        'dewarping_object':dwp_OR,
         'dwi_LR_dewarped':img_LRdwp,
-#        'dwi_RL_dewarped':img_RLdwp,
-#        't1w_rigid':t1wrig,
         'bval_LR':bval_LR,
         'bvec_LR':bvec_LR,
         'bval_RL':bval_RL,
@@ -2517,7 +2485,6 @@ def wmh( flair, t1, t1seg,
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
-        import tempfile
         bestmi = math.inf
         myorig = list(ants.get_origin( fixed ))
         mymax = 0;
