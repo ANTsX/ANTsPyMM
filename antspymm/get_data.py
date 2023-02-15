@@ -331,7 +331,7 @@ def mc_reg(
         print(output_directory_w)
         print(ofnG)
         print(ofnL)
-  
+
     idim = image.dimension
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
@@ -1418,7 +1418,7 @@ def joint_dti_recon(
             mask = brain_mask,
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
-            motion_correct=motion_correct, 
+            motion_correct=motion_correct,
             mask_dilation=mymd,
             fit_method=None )
         bval_RL = recon_RL['bvals']
@@ -1430,8 +1430,8 @@ def joint_dti_recon(
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
             motion_correct=motion_correct,
-            mask_dilation=mymd, 
-            fit_method=None, 
+            mask_dilation=mymd,
+            fit_method=None,
             verbose=verbose )
     bval_LR = recon_LR['bvals']
     bvec_LR = recon_LR['bvecs']
@@ -2487,9 +2487,7 @@ def wmh( flair, t1, t1seg,
   csfmask = ants.threshold_image(seg_2_flair,1,1)
   flairsnr = mask_snr( flair, csfmask, wmseg_2_flair, bias_correct = False )
   probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
-  label_stats = ants.label_stats(probability_mask_WM, wmseg_2_flair)
-  label1 = label_stats[label_stats["LabelValue"]==1.0]
-  wmh_sum = label1['Mass'].values[0]
+  wmh_sum = np.prod( ants.get_spacing( flair ) ) * probability_mask_WM.sum()
   wmh_sum_prior = math.nan
   probability_mask_posterior = None
   if prior_probability_flair is not None:
