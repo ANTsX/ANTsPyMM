@@ -791,6 +791,8 @@ def dti_template(
     mydeftx = tempfile.NamedTemporaryFile(delete=False,dir=output_directory).name
     tmp = tempfile.NamedTemporaryFile(delete=False,dir=output_directory,suffix=".nii.gz")
     wavgfn = tmp.name
+    tmp2 = tempfile.NamedTemporaryFile(delete=False,dir=output_directory)
+    comptx = tmp2.name
     weights = np.repeat(1.0 / len(b_image_list), len(b_image_list))
     weights = [x / sum(weights) for x in weights]
     w_initial_template = w_image_list[0]
@@ -806,9 +808,8 @@ def dti_template(
                     multivariate_extras= [ [ "mattes", bavg, b_image_list[k], 1, 32 ]],
                     outprefix=mydeftx,
                     verbose=0 )
-            txname = w1["fwdtransforms"][0]
             txname = ants.apply_transforms(wavg, wavg,
-                w1["fwdtransforms"], compose=txname )
+                w1["fwdtransforms"], compose=comptx )
             if k == 0:
                 txavg = ants.image_read(txname) * weights[k]
                 wavgnew = ants.apply_transforms( wavg,
@@ -2509,6 +2510,9 @@ def wmh( flair, t1, t1seg,
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
+        output_directory = tempfile.mkdtemp()
+        output_directory_w = output_directory + "/tra_reg/"
+        os.makedirs(output_directory_w,exist_ok=True)
         bestmi = math.inf
         myorig = list(ants.get_origin( fixed ))
         mymax = 0;
@@ -2516,7 +2520,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
             if abs(myorig[k]) > mymax:
                 mymax = abs(myorig[k])
         maxtrans = mymax * 0.05
-        bestreg=ants.registration( fixed,moving,'Translation')
+        bestreg=ants.registration( fixed,moving,'Translation',
+            outprefix=output_directory_w+"trans")
         initx = ants.read_transform( bestreg['fwdtransforms'][0] )
         for mytx in transform:
             regtx = 'Rigid'
@@ -2535,9 +2540,13 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                     if k > 0:
                         reg = ants.registration( fixed, moving, regtx,
                             initial_transform=tp.name,
+                            outprefix=output_directory_w+"reg"+str(k),
                             verbose=False )
                     else:
-                        reg = ants.registration( fixed, moving, regtx, verbose=False )
+                        reg = ants.registration( fixed, moving, 
+                            regtx,                             
+                            outprefix=output_directory_w+"reg"+str(k),
+                            verbose=False )
                     mymi = math.inf
                     temp = reg['warpedmovout']
                     myvar = temp.numpy().var()
