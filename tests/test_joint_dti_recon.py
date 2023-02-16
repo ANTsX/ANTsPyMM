@@ -36,7 +36,7 @@ btpB0=ants.image_read('/tmp/tempbtpB.nii.gz')
 btpDW=ants.image_read('/tmp/tempbtpD.nii.gz')
 btpB0=ants.n4_bias_field_correction(btpB0)
 btpDW=ants.n4_bias_field_correction(btpDW)
-
+derka
 t1wh = ants.iMath( ants.image_read( t1id ) , 'Normalize' )
 mybxt = antspyt1w.brain_extraction( t1wh )
 t1w = t1wh * mybxt
@@ -117,6 +117,15 @@ dd = antspymm.dipy_dti_recon(
 ants.image_write( dd['motion_corrected'], '/tmp/temp.nii.gz')
 ants.image_write( dd['RGB'], '/tmp/temprgb.nii.gz')
 ants.image_write( dd['FA'], '/tmp/tempfa.nii.gz')
+
+dd=antspymm.dti_reg(
+    img_LR_in,
+    btpB0,
+    btpDW,
+    type_of_transform="SyN",
+    output_directory="/tmp/derka/",
+    verbose=True
+)
 
 print("dipy dti recon-B")
 ee = antspymm.dipy_dti_recon(
