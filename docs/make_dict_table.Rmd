@@ -1,0 +1,24 @@
+---
+title: antspymm data dictionary summary
+output: html_document
+---
+
+```{r,echo=FALSE,include=FALSE}
+library(plyr)
+library(data.table)
+library(ztable)
+library(moonBook)
+library(kableExtra)
+library(flextable)
+library(plotly)
+library( ztable )
+options(digits=3)
+options( ztable.type="html" )
+tblcmd = ztable
+rr=read.csv("antspymm_data_dictionary.csv")
+ss=rr[,c("Atlas","Measurement",'Modality' )]
+```
+
+```{r,echo=FALSE,results='asis'}
+tblcmd(mytable( Modality~. ,data=ss ))
+```
