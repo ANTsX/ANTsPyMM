@@ -2541,8 +2541,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                             outprefix=output_directory_w+"reg"+str(k),
                             verbose=False )
                     else:
-                        reg = ants.registration( fixed, moving, 
-                            regtx,                             
+                        reg = ants.registration( fixed, moving,
+                            regtx,
                             outprefix=output_directory_w+"reg"+str(k),
                             verbose=False )
                     mymi = math.inf
@@ -3230,7 +3230,7 @@ def mm(
     if len(dw_image) > 0 :
         if verbose:
             print('dti-x')
-        if len( dw_image ) == 1: # use T1 for distortion correction
+        if len( dw_image ) == 1: # use T1 for distortion correction and brain extraction
             if verbose:
                 print("We have only one DTI: " + str(len(dw_image)))
             dw_image = dw_image[0]
@@ -3268,7 +3268,7 @@ def mm(
                 motion_correct='SyN', # set to False if using input from qsiprep
                 denoise=True,
                 verbose = verbose)
-        else :  # use phase encoding acquisitions for distortion correction
+        else :  # use phase encoding acquisitions for distortion correction and T1 for brain extraction
             if verbose:
                 print("We have both DTI_LR and DTI_RL: " + str(len(dw_image)))
             a1b,a1w=get_average_dwi_b0(dw_image[0])
@@ -3277,7 +3277,13 @@ def mm(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
                 iterations=7, verbose=verbose )
-            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyN', verbose=False)
+            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
+            tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly',
+                syn_metric='mattes', syn_sampling=32,
+                reg_iterations=[50,50,20],
+                multivariate_extras=[ [ "mattes", btpB0, hier['brain_n4_dnz'], 1, 32 ]],
+                initial_transform=initrig
+                )
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
             dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'], interpolator='nearestNeighbor')
             output_dict['DTI'] = joint_dti_recon(
