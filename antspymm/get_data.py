@@ -1558,8 +1558,8 @@ def joint_dti_recon(
         print("recon done", flush=True)
 
     if img_RL is not None:
-        fdjoin = [ dtrecon_LR['framewise_displacement'],
-                   dtrecon_RL['framewise_displacement']]
+        fdjoin = [ recon_LR['framewise_displacement'],
+                   recon_RL['framewise_displacement'] ]
         recon_LR_dewarp['framewise_displacement']=np.concatenate( fdjoin )
     else:
         recon_LR_dewarp['framewise_displacement']=recon_LR['framewise_displacement']
