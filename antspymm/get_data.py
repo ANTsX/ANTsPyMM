@@ -3123,7 +3123,14 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=dwp['FD'][dwpind]
 
+  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
+  trimmask = ants.iMath( bmask, "ME",2)
+  edgemask = ants.iMath( bmask, "ME",1) - trimmask
   outdict['nuisance'] = rsfNuisance
+  outdict['tsnr'] = tsnr( dwp['dewarped'][dwpind], bmask )
+  outdict['ssnr'] = slice_snr( dwp['dewarped'][dwpind], nonbrainmask, bmask )
+  outdict['dvars'] = dvars( dwp['dewarped'][dwpind], bmask )
+  outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
 
@@ -3607,6 +3614,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         alffkeys = [key for key, val in rsfpro.items() if search_key in key]
         for myalf in alffkeys:
             mm_wide[ myalf ]=rsfpro[myalf]
+        mm_wide['rsf_tsnr_mean'] =  rsfpro['tsnr'].mean()
+        mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
+        mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
+        mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
