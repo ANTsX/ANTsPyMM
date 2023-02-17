@@ -896,13 +896,15 @@ def t1_based_dwi_brain_extraction(
     'b0_avg':b0_avg,
     'b0_mask':outmsk }
 
-def mc_denoise( x ):
+def mc_denoise( x, ratio = 0.5 ):
     """
     ants denoising for timeseries (4D)
 
     Arguments
     ---------
     x : an antsImage 4D
+
+    ratio : weight between 1 and 0 - lower weights bring result closer to initial image
 
     Returns
     -------
@@ -913,8 +915,81 @@ def mc_denoise( x ):
     for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         dnzb0 = ants.denoise_image( b0, p=1,r=1,noise_model='Gaussian' )
-        dwpimage.append( dnzb0 )
+        dwpimage.append( dnzb0 * ratio + b0 * (1.0-ratio) )
     return ants.list_to_ndimage( x, dwpimage )
+
+
+def tsnr( x, mask, indices=None ):
+    """
+    3D temporal snr image from a 4D time series image
+
+    x: image
+
+    mask : mask
+
+    indices: indices to use
+
+    returns a 3D image
+    """
+    M = ants.timeseries_to_matrix( x, mask )
+    if indices is not None:
+        M=M[indices,:]
+    stdM = np.std(M, axis=0 )
+    stdM[np.isnan(stdM)] = 0
+    tt = round( 0.975*100 )
+    threshold_std = np.percentile( stdM, tt )
+    tsnrimage = ants.make_image( mask, stdM )
+    return tsnrimage
+
+def dvars( x,  mask, indices=None ):
+    """
+    dvars on a time series image
+
+    x: image
+
+    mask : mask
+
+    indices: indices to use
+
+    returns an array
+    """
+    M = ants.timeseries_to_matrix( x, mask )
+    if indices is not None:
+        M=M[indices,:]
+    DVARS = np.zeros( M.shape[0] )
+    for i in range(1, M.shape[0] ):
+        vecdiff = M[i-1,:] - M[i,:]
+        DVARS[i] = np.sqrt( ( vecdiff * vecdiff ).mean() )
+    DVARS[0] = DVARS.mean()
+    return DVARS
+
+
+def slice_snr( x,  background_mask, foreground_mask, indices=None ):
+    """
+    slice-wise SNR on a time series image
+
+    x: image
+
+    background_mask : mask - maybe CSF or background or dilated brain mask minus original brain mask
+
+    foreground_mask : mask - maybe cortex or WM or brain mask
+
+    indices: indices to use
+
+    returns an array
+    """
+    MB = ants.timeseries_to_matrix( x, background_mask )
+    MF = ants.timeseries_to_matrix( x, foreground_mask )
+    if indices is not None:
+        MB=MB[indices,:]
+        MF=MF[indices,:]
+    ssnr = np.zeros( MB.shape[0] )
+    for i in range( MB.shape[0] ):
+        ssnr[i]=MF[i,:].mean()/MB[i,:].std()
+    ssnr[np.isnan(ssnr)] = 0
+    return ssnr
+
+
 
 def impute_fa( fa, md ):
     """
@@ -1047,7 +1122,7 @@ def dipy_dti_recon(
         bvecs = bvecsfn.copy()
     gtab = gradient_table(bvals, bvecs)
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
-    FD = None
+    FD = np.zeros( image.shape[3] )
     motion_corrected = None
     maskedimage = None
     motion_parameters = None
@@ -1482,7 +1557,15 @@ def joint_dti_recon(
     if verbose:
         print("recon done", flush=True)
 
+    if img_RL is not None:
+        fdjoin = [ dtrecon_LR['framewise_displacement'],
+                   dtrecon_RL['framewise_displacement']]
+        recon_LR_dewarp['framewise_displacement']=np.concatenate( fdjoin )
+    else:
+        recon_LR_dewarp['framewise_displacement']=recon_LR['framewise_displacement']
+
     recon_LR_dewarp['motion_corrected'] = img_LRdwp
+    motion_count = ( recon_LR_dewarp['framewise_displacement'] > 3.0  ).sum()
     reconFA = recon_LR_dewarp['FA']
     reconMD = recon_LR_dewarp['MD']
 
@@ -1511,6 +1594,14 @@ def joint_dti_recon(
             {'df_MD_JHU_ORRL' : df_MD_JHU_ORRL},
             col_names = ['Mean'] )
 
+    temp = segment_timeseries_by_meanvalue( img_LRdwp )
+    b0_idx = temp['highermeans']
+    non_b0_idx = temp['lowermeans']
+
+    nonbrainmask = ants.iMath( recon_LR_dewarp['dwi_mask'], "MD",2) - recon_LR_dewarp['dwi_mask']
+    trimmask = ants.iMath( recon_LR_dewarp['dwi_mask'], "ME",2)
+    edgemask = ants.iMath( recon_LR_dewarp['dwi_mask'], "ME",1) - trimmask
+
     return {
         'recon_fa':reconFA,
         'recon_fa_summary':df_FA_JHU_ORRL_bfwide,
@@ -1527,7 +1618,15 @@ def joint_dti_recon(
         'bval_RL':bval_RL,
         'bvec_RL':bvec_RL,
         'b0avg': reference_B0,
-        'dwiavg': reference_DWI
+        'dwiavg': reference_DWI,
+        'high_motion_count': motion_count,
+        'tsnr_b0': tsnr( img_LRdwp, recon_LR_dewarp['dwi_mask'], b0_idx),
+        'tsnr_dwi': tsnr( img_LRdwp, recon_LR_dewarp['dwi_mask'], non_b0_idx),
+        'dvars_b0': dvars( img_LRdwp, recon_LR_dewarp['dwi_mask'], b0_idx),
+        'dvars_dwi': dvars( img_LRdwp, recon_LR_dewarp['dwi_mask'], non_b0_idx),
+        'ssnr_b0': slice_snr( img_LRdwp, nonbrainmask ,recon_LR_dewarp['dwi_mask'], b0_idx),
+        'ssnr_dwi': slice_snr( img_LRdwp, nonbrainmask, recon_LR_dewarp['dwi_mask'], non_b0_idx),
+        'fa_SNR': mask_snr( reconFA, edgemask, trimmask )
     }
 
 
@@ -3517,9 +3616,17 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         rsfpro['fullCorrMat'].to_csv( ofn2 )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
-        if mydti['dtrecon_LR']['framewise_displacement'] is not None:
-            mm_wide['dti_FD_mean'] = mydti['dtrecon_LR']['framewise_displacement'].mean()
-            mm_wide['dti_FD_max'] = mydti['dtrecon_LR']['framewise_displacement'].max()
+        mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
+        mm_wide['dti_tsnr_dwi_mean'] =  mydti['tsnr_dwi'].mean()
+        mm_wide['dti_dvars_b0_mean'] =  mydti['dvars_b0'].mean()
+        mm_wide['dti_dvars_dwi_mean'] =  mydti['dvars_dwi'].mean()
+        mm_wide['dti_ssnr_b0_mean'] =  mydti['ssnr_b0'].mean()
+        mm_wide['dti_ssnr_dwi_mean'] =  mydti['ssnr_dwi'].mean()
+        mm_wide['dti_fa_SNR'] =  mydti['fa_SNR']
+        if mydti['dtrecon_LR_dewarp']['framewise_displacement'] is not None:
+            mm_wide['dti_high_motion_count'] =  mydti['high_motion_count']
+            mm_wide['dti_FD_mean'] = mydti['dtrecon_LR_dewarp']['framewise_displacement'].mean()
+            mm_wide['dti_FD_max'] = mydti['dtrecon_LR_dewarp']['framewise_displacement'].max()
         else:
             mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
     mmwidefn = output_prefix + separator + 'mmwide.csv'
