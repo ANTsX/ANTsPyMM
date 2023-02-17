@@ -256,7 +256,7 @@ def dti_reg(
 
     if remove_it:
         import shutil
-        shutil.rmtree(output_directory)
+        shutil.rmtree(output_directory, ignore_errors=True )
 
     if verbose:
         print("Done")
@@ -411,7 +411,7 @@ def mc_reg(
 
     if remove_it:
         import shutil
-        shutil.rmtree(output_directory)
+        shutil.rmtree(output_directory, ignore_errors=True )
 
     if verbose:
         print("Done")
@@ -771,7 +771,7 @@ def get_average_dwi_b0( x ):
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
     import shutil
-    shutil.rmtree(output_directory)
+    shutil.rmtree(output_directory, ignore_errors=True )
     return ants.n4_bias_field_correction(bavg), ants.n4_bias_field_correction(xavg)
 
 def dti_template(
@@ -831,7 +831,7 @@ def dti_template(
         wavg = ants.apply_transforms(wavg, wavgnew, wavgfn).iMath("Normalize")
         bavg = ants.apply_transforms(bavg, bavgnew, wavgfn).iMath("Normalize")
     import shutil
-    shutil.rmtree( output_directory )
+    shutil.rmtree( output_directory, ignore_errors=True )
     if verbose:
         print("done")
     return bavg, wavg
@@ -1175,7 +1175,7 @@ def dipy_dti_recon(
 
     if remove_it:
         import shutil
-        shutil.rmtree(output_directory)
+        shutil.rmtree(output_directory, ignore_errors=True )
 
     return {
         'tensormodel' : tenfit,
