@@ -167,7 +167,8 @@ def dti_reg(
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     # first get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0(image)
-    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)['fwdtransforms'][0]
+    initrig = tra_initializer(avg_b0, ab0, verbose=False,max_rotation=45, transform=['rigid'])
+    # ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)['fwdtransforms'][0]
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
