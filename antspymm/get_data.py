@@ -167,7 +167,7 @@ def dti_reg(
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     # first get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0(image)
-    initrig = tra_initializer(avg_b0, ab0, verbose=False,max_rotation=45, transform=['rigid'])
+    initrig = tra_initializer(avg_b0, ab0, verbose=False,max_rotation=60, transform=['rigid'], verbose=verbose)
     # ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)['fwdtransforms'][0]
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
@@ -1549,7 +1549,8 @@ def joint_dti_recon(
     if verbose:
         print("final recon", flush=True)
         print(img_LRdwp)
-    recon_LR_dewarp = dipy_dti_recon( img_LRdwp, bval_LR, bvec_LR,
+    recon_LR_dewarp = dipy_dti_recon(
+            img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask,
             average_b0 = reference_B0,
             average_dwi = reference_DWI,
