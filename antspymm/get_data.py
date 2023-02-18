@@ -3564,7 +3564,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     cnxderk = None
     if mm['tractography_connectivity'] is not None:
         cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
-        ofn = output_prefix + separator + 'dtistreamlinecorr.csv'
+        ofn = output_prefix + separator + 'dtistreamlineconn.csv'
         pd.DataFrame(mm['tractography_connectivity']['connectivity_matrix']).to_csv( ofn )
     mm_wide = pd.concat( [
         thkderk,
