@@ -781,17 +781,22 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
     if fixed_b0 is None and fixed_dwi is None:
         xavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
         bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
-        fixed_b0 = ants.slice_image( x, axis=3, idx=b0_idx[0] )
-        fixed_dwi = ants.slice_image( x, axis=3, idx=fixed_b0[0] )
+        fixed_b0_use = ants.slice_image( x, axis=3, idx=b0_idx[0] )
+        fixed_dwi_use = ants.slice_image( x, axis=3, idx=non_b0_idx[0] )
     else:
+        temp_b0 = ants.slice_image( x, axis=3, idx=b0_idx[0] )
+        temp_dwi = ants.slice_image( x, axis=3, idx=non_b0_idx[0] )
         xavg = fixed_b0 * 0.0
         bavg = fixed_b0 * 0.0
+        tempreg = ants.registration( fixed_b0, temp_b0,'BOLDRigid')
+        fixed_b0_use = tempreg['warpedmovout']
+        fixed_dwi_use = ants.apply_transforms( fixed_b0, temp_dwi, tempreg['fwdtransforms'] )
     for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         if not myidx in b0_idx:
-            xavg = xavg + ants.registration(fixed_dwi,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            xavg = xavg + ants.registration(fixed_dwi_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
         else:
-            bavg = bavg + ants.registration(fixed_b0,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            bavg = bavg + ants.registration(fixed_b0_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
     import shutil
