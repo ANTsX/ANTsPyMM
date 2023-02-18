@@ -208,7 +208,7 @@ def dti_reg(
     for k in range(nTimePoints):
         if verbose and ( k % counter) ==  0:
             myperc = round( k / nTimePoints * 100)
-            print(mycount, end="%.", flush=True)
+            print(myperc, end="%.", flush=True)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
         else:
