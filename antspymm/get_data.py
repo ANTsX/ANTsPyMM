@@ -166,9 +166,9 @@ def dti_reg(
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
     # first get a global deformation from avg to ref space
-    ab0, adw = get_average_dwi_b0(image)
-    initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=['rigid'], verbose=verbose)
-    # ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)['fwdtransforms'][0]
+    ab0, adw = get_average_dwi_b0(image, avg_b0, avg_dwi )
+    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=['rigid'], verbose=verbose)
+    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
@@ -760,24 +760,38 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'highermeans':higherindices }
 
 
-def get_average_dwi_b0( x ):
+def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
     """
     automatically generates the average b0 and dwi and outputs both
+
+    x : input image
+
+    fixed_b0 : alernative reference space
+
+    fixed_dwi : alernative reference space
 
     returns:
         avg_b0, avg_dwi
     """
     output_directory = tempfile.mkdtemp()
     ofn = output_directory + "/w"
-    b0_idx = segment_timeseries_by_meanvalue( x )['highermeans']
-    xavg = ants.slice_image( x, axis=3, idx=0 )
-    bavg = ants.slice_image( x, axis=3, idx=0 )
-    for myidx in range(1,x.shape[3]):
+    temp = segment_timeseries_by_meanvalue( x )
+    b0_idx = temp['highermeans']
+    non_b0_idx = temp['lowermeans']
+    if fixed_b0 is None and fixed_dwi is None:
+        xavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
+        bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
+        fixed_b0 = ants.slice_image( x, axis=3, idx=b0_idx[0] )
+        fixed_dwi = ants.slice_image( x, axis=3, idx=fixed_b0[0] )
+    else:
+        xavg = fixed_b0 * 0.0
+        bavg = fixed_b0 * 0.0
+    for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         if not myidx in b0_idx:
-            xavg = xavg + ants.registration(xavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            xavg = xavg + ants.registration(fixed_dwi,b0,'Rigid',outprefix=ofn)['warpedmovout']
         else:
-            bavg = bavg + ants.registration(bavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            bavg = bavg + ants.registration(fixed_b0,b0,'Rigid',outprefix=ofn)['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
     import shutil
