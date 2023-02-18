@@ -99,7 +99,6 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
 
 def dti_reg(
     image,
-    image_fixed,
     avg_b0,
     avg_dwi,
     b0_idx=None,
@@ -115,9 +114,6 @@ def dti_reg(
     Arguments
     ---------
         image: antsImage, usually ND where D=4.
-
-        image_fixed: antsImage, usually ND where D=4 - the fixed reference Space
-            corresponding to avg_b0 and avg_DWI
 
         avg_b0: Fixed image b0 image
 
@@ -208,11 +204,10 @@ def dti_reg(
     fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
     if verbose:
         print("Progress:")
-    counter = 0
+    counter = round( nTimePoints / 10 )
     for k in range(nTimePoints):
-        mycount = round(k / nTimePoints * 100)
-        if verbose and mycount == counter:
-            counter = counter + 10
+        if verbose and ( k % counter) ==  0:
+            myperc = round( k / nTimePoints * 100)
             print(mycount, end="%.", flush=True)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
@@ -265,8 +260,18 @@ def dti_reg(
 
     if verbose:
         print("Done")
+    d4siz = list(avg_b0.shape)
+    d4siz.append( 2 )
+    spc = list(ants.get_spacing( avg_b0 ))
+    spc.append( ants.get_spacing( image )[3])
+    mydir = ants.get_direction( avg_b0 )
+    mydir4d = ants.get_direction( image )
+    mydir4d[0:3,0:3]=mydir
+    myorg = list(ants.get_origin( avg_b0 ))
+    myorg.append( ants.get_origin( image )[3] )
+    avg_b0_4d = ants.make_image(d4siz,0,spacing=spc,origin=myorg,direction=mydir4d)
     return {
-        "motion_corrected": ants.list_to_ndimage(image_fixed, motion_corrected),
+        "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected),
         "motion_parameters": motion_parameters,
         "FD": FD,
     }
