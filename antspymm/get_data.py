@@ -3658,7 +3658,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","DTI","DTI_LR", "T2Flair" ],
+    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
     verbose = True
 ):
     """
@@ -4478,6 +4478,8 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
         if 'resnetGrade' in xdf.columns:
             index_no = xdf.columns.get_loc('resnetGrade')
             xdf = xdf.drop( xdf.columns[range(index_no+1)] , axis=1)
+    print(xdf)
+
     if xdf.shape[0] == 2:
         xdfcols = xdf.columns
         xdf = xdf.iloc[1]
@@ -4488,10 +4490,13 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
             print("Cannot Merge : Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
         else:
             xdf = pd.DataFrame(ddnum, columns=xdfcols )
+    print(xdf)
     if xdf.shape[1] == 0:
         return None
+    print(xdf)
     if colprefix is not None:
         xdf.columns=colprefix + xdf.columns
+    print(xdf)
     return pd.concat( [df,xdf], axis=1 )
 
 def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
