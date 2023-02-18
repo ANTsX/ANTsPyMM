@@ -4478,7 +4478,6 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
         if 'resnetGrade' in xdf.columns:
             index_no = xdf.columns.get_loc('resnetGrade')
             xdf = xdf.drop( xdf.columns[range(index_no+1)] , axis=1)
-    print(xdf)
 
     if xdf.shape[0] == 2:
         xdfcols = xdf.columns
