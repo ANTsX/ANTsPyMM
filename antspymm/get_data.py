@@ -3602,7 +3602,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
         mm_wide['flair_snr'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
-        mynets = list([ 'meanBold', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval', 'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
+        mynets = list([ 'meanBold', 'alff', 'falff',
+            'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
+            'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience',
+            'Subcortical', 'DorsalAttention', 'tsnr'] )
         rsfpro = mm['rsf']
         for mykey in mynets:
             myop = output_prefix + separator + mykey + '.nii.gz'
