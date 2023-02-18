@@ -99,6 +99,7 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
 
 def dti_reg(
     image,
+    image_fixed,
     avg_b0,
     avg_dwi,
     b0_idx=None,
@@ -114,6 +115,9 @@ def dti_reg(
     Arguments
     ---------
         image: antsImage, usually ND where D=4.
+
+        image_fixed: antsImage, usually ND where D=4 - the fixed reference Space
+            corresponding to avg_b0 and avg_DWI
 
         avg_b0: Fixed image b0 image
 
@@ -262,7 +266,7 @@ def dti_reg(
     if verbose:
         print("Done")
     return {
-        "motion_corrected": ants.list_to_ndimage(image, motion_corrected),
+        "motion_corrected": ants.list_to_ndimage(image_fixed, motion_corrected),
         "motion_parameters": motion_parameters,
         "FD": FD,
     }
