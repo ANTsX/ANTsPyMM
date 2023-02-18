@@ -4490,13 +4490,10 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
             print("Cannot Merge : Shape MisMatch " + str( len(newcolnames) ) + " " + str(ddnum.shape[1]))
         else:
             xdf = pd.DataFrame(ddnum, columns=xdfcols )
-    print(xdf)
     if xdf.shape[1] == 0:
         return None
-    print(xdf)
     if colprefix is not None:
         xdf.columns=colprefix + xdf.columns
-    print(xdf)
     return pd.concat( [df,xdf], axis=1 )
 
 def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
