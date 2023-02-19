@@ -1575,8 +1575,8 @@ def joint_dti_recon(
     fgmask = ants.threshold_image( reconFA, 0.5 , 1.0).iMath("GetLargestComponent")
     bgmask = ants.threshold_image( reconFA, 1e-4 , 0.1)
     fa_SNR = 0.0
-    if fgmask.sum() > 1 and bgmask.sum() > 1:
-        fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
+    fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
+    fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9 )
 
     return {
         'recon_fa':reconFA,
@@ -1603,6 +1603,7 @@ def joint_dti_recon(
         'dvars_dwi': dvars( img_LRdwp, recon_LR_dewarp['dwi_mask'], non_b0_idx),
         'ssnr_b0': slice_snr( img_LRdwp, nonbrainmask ,recon_LR_dewarp['dwi_mask'], b0_idx),
         'ssnr_dwi': slice_snr( img_LRdwp, nonbrainmask, recon_LR_dewarp['dwi_mask'], non_b0_idx),
+        'fa_evr': fa_evr,
         'fa_SNR': fa_SNR
     }
 
@@ -2566,12 +2567,14 @@ def wmh( flair, t1, t1seg,
     wmh_sum=0
   if math.isnan( wmh_sum_prior ):
     wmh_sum_prior=0
+  flair_evr = antspyt1w.patch_eigenvalue_ratio( flair, 512, [16,16,16], evdepth = 0.9 )
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
       'WMH_posterior_probability_map' : probability_mask_posterior,
       'wmh_mass': wmh_sum,
       'wmh_mass_prior': wmh_sum_prior,
+      'wmh_evr' : flair_evr,
       'wmh_SNR' : flairsnr,
       'convexhull_mask': distmask }
 
@@ -3103,7 +3106,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
-
+  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9 )
   return outdict
 
 
@@ -3570,7 +3573,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
             ants.image_write( mm['flair']['WMH_probability_map'], myop )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
-        mm_wide['flair_snr'] = mm['flair']['wmh_SNR']
+        mm_wide['flair_evr'] = mm['flair']['wmh_evr']
+        mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
         mynets = list([ 'meanBold', 'alff', 'falff',
             'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
@@ -3591,6 +3595,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
         mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
+        mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         ofn = output_prefix + separator + 'rsfcorr.csv'
@@ -3606,6 +3611,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['dti_dvars_dwi_mean'] =  mydti['dvars_dwi'].mean()
         mm_wide['dti_ssnr_b0_mean'] =  mydti['ssnr_b0'].mean()
         mm_wide['dti_ssnr_dwi_mean'] =  mydti['ssnr_dwi'].mean()
+        mm_wide['dti_fa_evr'] =  mydti['fa_evr']
         mm_wide['dti_fa_SNR'] =  mydti['fa_SNR']
         if mydti['framewise_displacement'] is not None:
             mm_wide['dti_high_motion_count'] =  mydti['high_motion_count']
@@ -4596,7 +4602,8 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
       'WMH_probability_map' : augprob,
       'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
-      'wmh_mass_prior': wmh_sum_prior_aug,
+      'wmh_mass_prior': wmh_sum_prior_aug,,
+      'wmh_evr': locwmh['wmh_evr'],
       'wmh_SNR': locwmh['wmh_SNR']  }
 
 
