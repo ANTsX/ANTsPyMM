@@ -1576,7 +1576,7 @@ def joint_dti_recon(
     bgmask = ants.threshold_image( reconFA, 1e-4 , 0.1)
     fa_SNR = 0.0
     fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
-    fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9 )
+    fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
     return {
         'recon_fa':reconFA,
@@ -2567,7 +2567,7 @@ def wmh( flair, t1, t1seg,
     wmh_sum=0
   if math.isnan( wmh_sum_prior ):
     wmh_sum_prior=0
-  flair_evr = antspyt1w.patch_eigenvalue_ratio( flair, 512, [16,16,16], evdepth = 0.9 )
+  flair_evr = antspyt1w.patch_eigenvalue_ratio( flair, 512, [16,16,16], evdepth = 0.9, mask=wmseg_2_flair )
   return{
       'WMH_probability_map_raw': probability_mask,
       'WMH_probability_map' : probability_mask_WM,
@@ -2868,6 +2868,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   else:
       sn_z = math.nan
 
+  nm_evr = antspyt1w.patch_eigenvalue_ratio( nm_avg, 512, [6,6,6], evdepth = 0.9, mask=cropper2nm )
+
   return{
       'NM_avg' : nm_avg,
       'NM_avg_cropped' : nm_avg_cropped,
@@ -2893,6 +2895,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_q0pt90' : np.quantile( nm_avg_cropped.numpy(), 0.90 ),
       'NM_q0pt95' : np.quantile( nm_avg_cropped.numpy(), 0.95 ),
       'NM_substantianigra_z_coordinate' : sn_z,
+      'NM_evr' : nm_evr,
       'NM_count': len( list_nm_images )
        }
 
@@ -3106,7 +3109,7 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
-  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9 )
+  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   return outdict
 
 
@@ -3557,6 +3560,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['NM_volume_substantianigra'] = mm['NM']['NM_volume_substantianigra']
         mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
         mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
+        mm_wide['NM_evr'] = mm['NM']['NM_evr']
         mm_wide['NM_count'] = mm['NM']['NM_count']
         mm_wide['NM_min'] = mm['NM']['NM_min']
         mm_wide['NM_max'] = mm['NM']['NM_max']
