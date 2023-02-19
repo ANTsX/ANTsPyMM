@@ -1730,6 +1730,8 @@ def mask_snr( x, background_mask, foreground_mask, bias_correct=True ):
 
     """
     import numpy as np
+    if foreground_mask.sum() <= 1 or background_mask.sum() <= 1:
+        return 0
     xbc = ants.iMath( x - x.min(), "Normalize" )
     if bias_correct:
         xbc = ants.n3_bias_field_correction( xbc )
@@ -1737,14 +1739,6 @@ def mask_snr( x, background_mask, foreground_mask, bias_correct=True ):
     signal = (xbc[ foreground_mask == 1] ).mean()
     noise = (xbc[ background_mask == 1] ).std()
     return signal / noise
-
-#    print( x + " mid-snr: " + str(middle_slice_snr( ants.image_read(x))))
-# for x in fns:
-#    print( x + " fg-snr: " + str(foreground_background_snr( ants.image_read(x),20)))
-#    print( x + " mid-snr: " + str(middle_slice_snr( ants.image_read(x))))
-# for x in fns:
-#    qsnr = quantile_snr( ants.image_read(x),0.1,0.2,0.6,0.7)
-#    print( x + " mid-snr: " + str( qsnr ) )
 
 
 def dwi_deterministic_tracking(
