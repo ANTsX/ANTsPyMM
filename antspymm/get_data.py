@@ -382,12 +382,12 @@ def dti_reg(
     d4siz = list(avg_b0.shape)
     d4siz.append( 2 )
     spc = list(ants.get_spacing( avg_b0 ))
-    spc.append( ants.get_spacing( image )[3])
+    spc.append( 1.0 )
     mydir = ants.get_direction( avg_b0 )
     mydir4d = ants.get_direction( image )
     mydir4d[0:3,0:3]=mydir
     myorg = list(ants.get_origin( avg_b0 ))
-    myorg.append( ants.get_origin( image )[3] )
+    myorg.append( 0.0 )
     avg_b0_4d = ants.make_image(d4siz,0,spacing=spc,origin=myorg,direction=mydir4d)
     return {
         "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected),
