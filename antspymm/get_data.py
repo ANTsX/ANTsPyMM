@@ -165,21 +165,13 @@ def dti_reg(
         print("remove_it " + str( remove_it ) )
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-    # first get a global deformation from avg to ref space
-    ab0, adw = get_average_dwi_b0(image, avg_b0, avg_dwi )
-    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=['rigid'], verbose=verbose)
-    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
-    deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
-        syn_metric='CC', syn_sampling=2,
-        reg_iterations=[50,50,20],
-        multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
-        initial_transform=initrig['fwdtransforms'][0],
-        outprefix=ofnG
-        )['fwdtransforms']
+    # first get a local deformation from slice to local avg space
+    # then get a global deformation from avg to ref space
+    ab0, adw = get_average_dwi_b0( image )
     idim = image.dimension
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
-    mask = ants.get_mask(avg_b0)
+    mask = ants.get_mask(adw)
     FD = np.zeros(nTimePoints)
     motion_parameters = list()
     motion_corrected = list()
@@ -245,14 +237,33 @@ def dti_reg(
                 fdptsTxIminus1 = fdptsTxI
             # take the absolute value, then the mean across columns, then the sum
             FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
-            motion_parameters.append(deftx+myreg["fwdtransforms"])
-            img1w = ants.apply_transforms( fixed,
-                ants.slice_image(image, axis=idim - 1, idx=k),
-                deftx+myreg["fwdtransforms"] )
-            motion_corrected.append(img1w)
+            motion_parameters.append(myreg["fwdtransforms"])
         else:
             motion_parameters.append("NA")
-            motion_corrected.append(temp)
+
+    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=['rigid'], verbose=verbose)
+    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
+    deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
+        syn_metric='CC', syn_sampling=2,
+        reg_iterations=[50,50,20],
+        multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
+        initial_transform=initrig['fwdtransforms'][0],
+        outprefix=ofnG
+        )['fwdtransforms']
+
+    for k in range(nTimePoints):
+        if k in b0_idx:
+            fixed=ants.image_clone( ab0 )
+        else:
+            fixed=ants.image_clone( adw )
+        if temp.numpy().var() > 0:
+            motion_parameters[k]=deftx+motion_parameters[k]
+            img1w = ants.apply_transforms( avg_dwi,
+                ants.slice_image(image, axis=idim - 1, idx=k),
+                motion_parameters[k] )
+            motion_corrected.append(img1w)
+        else:
+            motion_corrected.append(fixed)
 
     if remove_it:
         import shutil
