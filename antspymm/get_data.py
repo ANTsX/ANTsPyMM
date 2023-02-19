@@ -198,7 +198,7 @@ def dti_reg(
         print("Progress:")
     counter = round( nTimePoints / 10 )
     for k in range(nTimePoints):
-        if verbose and ( k % counter) ==  0:
+        if verbose and ( ( k % counter) ==  0 ) or ( k == (nTimePoints-1) ) ):
             myperc = round( k / nTimePoints * 100)
             print(myperc, end="%.", flush=True)
         if k in b0_idx:
@@ -1235,12 +1235,9 @@ def dipy_dti_recon(
                         txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
                         Rinv = inv( txparam )
                     bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
-                b0 = ants.slice_image( image, axis=3, idx=myidx)
-                b0 = ants.apply_transforms( average_b0, b0, moco0['motion_parameters'][myidx] )
-                mocoimage.append( b0 )
         if verbose:
             print("recon part two",flush=True)
-        motion_corrected = ants.list_to_ndimage( image, mocoimage )
+        motion_corrected = moco0['motion_corrected']
 
     if verbose:
         print("recon dti.TensorModel",flush=True)
