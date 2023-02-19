@@ -347,7 +347,7 @@ def dti_reg(
     initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
-        reg_iterations=[50,0,0],
+        reg_iterations=[50,50,20],
         multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
         initial_transform=initrig['fwdtransforms'][0],
         outprefix=ofnG
