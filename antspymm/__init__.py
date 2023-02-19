@@ -9,7 +9,6 @@ from .get_data import get_models
 from .get_data import dewarp_imageset
 from .get_data import super_res_mcimage
 from .get_data import dipy_dti_recon
-from .get_data import k_pass_dipy_dti_recon
 from .get_data import segment_timeseries_by_meanvalue
 from .get_data import wmh
 from .get_data import neuromelanin
@@ -54,4 +53,5 @@ from .get_data import trim_dti_mask
 from .get_data import impute_fa
 from .get_data import get_average_dwi_b0
 from .get_data import dti_template
-from .get_data import dvars
+from .get_data import merge_dwi_data
+from .get_data import bvec_reorientation
