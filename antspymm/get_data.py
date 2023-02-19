@@ -115,7 +115,7 @@ def merge_dwi_data( img_LRdwp, bval_LR, bvec_LR, img_RLdwp, bval_RL, bvec_RL ):
     insamespace = ants.image_physical_space_consistency( img_LRdwp, img_RLdwp )
     if not insamespace :
         raise ValueError('not insamespace ... corrected image pair should occupy the same physical space')
-    
+
     bval_LR = np.concatenate([bval_LR,bval_RL])
     bvec_LR = np.concatenate([bvec_LR,bvec_RL])
     # concatenate the images
@@ -1295,7 +1295,7 @@ def dipy_dti_recon(
     if trim_the_mask > 0 and fit_method is not None:
         mask = trim_dti_mask( FA, mask, trim_the_mask )
         tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, mask )
-        
+
     return {
         'tensormodel' : tenfit,
         'MD' : MD1 ,
@@ -4606,7 +4606,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
       'WMH_probability_map' : augprob,
       'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
-      'wmh_mass_prior': wmh_sum_prior_aug,,
+      'wmh_mass_prior': wmh_sum_prior_aug,
       'wmh_evr': locwmh['wmh_evr'],
       'wmh_SNR': locwmh['wmh_SNR']  }
 
