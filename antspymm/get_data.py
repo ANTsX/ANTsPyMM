@@ -1606,8 +1606,8 @@ def joint_dti_recon(
         'tsnr_dwi': tsnr( img_LRdwp, recon_LR_dewarp['dwi_mask'], non_b0_idx),
         'dvars_b0': dvars( img_LRdwp, recon_LR_dewarp['dwi_mask'], b0_idx),
         'dvars_dwi': dvars( img_LRdwp, recon_LR_dewarp['dwi_mask'], non_b0_idx),
-        'ssnr_b0': slice_snr( img_LRdwp, nonbrainmask ,recon_LR_dewarp['dwi_mask'], b0_idx),
-        'ssnr_dwi': slice_snr( img_LRdwp, nonbrainmask, recon_LR_dewarp['dwi_mask'], non_b0_idx),
+        'ssnr_b0': slice_snr( img_LRdwp, bgmask , fgmask, b0_idx),
+        'ssnr_dwi': slice_snr( img_LRdwp, bgmask, fgmask, non_b0_idx),
         'fa_evr': fa_evr,
         'fa_SNR': fa_SNR
     }
@@ -4852,3 +4852,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                 joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
 
     return jmmUniq, jmm, joinDiagnostics
+
+
+
+def joint_viz( ):
+    
