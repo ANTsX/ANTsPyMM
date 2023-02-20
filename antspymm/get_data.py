@@ -1542,7 +1542,7 @@ def joint_dti_recon(
     else:
         framewise_displacement=reg_LR['FD']
 
-    motion_count = ( framewise_displacement > 3.0  ).sum()
+    motion_count = ( framewise_displacement > 1.5  ).sum()
     reconFA = recon_LR_dewarp['FA']
     reconMD = recon_LR_dewarp['MD']
 
