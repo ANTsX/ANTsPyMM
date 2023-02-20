@@ -4855,5 +4855,50 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
 
 
 
-def joint_viz( ):
-    
+def viz_mm(
+    sourcedir, # folder
+    sid , # subject unique id
+    dtid, # date
+    sourcedatafoldername = 'images', # root for source data
+    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
+    verbose = True
+):
+    import glob as glob
+    from os.path import exists
+    ex_path = os.path.expanduser( "~/.antspyt1w/" )
+    ex_pathmm = os.path.expanduser( "~/.antspymm/" )
+    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+    if not exists( templatefn ):
+        print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
+        antspyt1w.get_data( force_download=True )
+        get_data( force_download=True )
+    temp = sourcedir.split( "/" )
+    splitCount = len( temp )
+    template = mm_read( templatefn ) # Read in template
+    subjectrootpath = os.path.join(sourcedir,sid, dtid)
+    myimgsInput = glob.glob( subjectrootpath+"/*" )
+    myimgsInput.sort( )
+    if verbose:
+        print( myimgsInput )
+    t1_search_path = os.path.join(subjectrootpath, "T1w", iid, "*nii.gz")
+    if verbose:
+        print(f"t1 search path: {t1_search_path}")
+    t1fn = glob.glob(t1_search_path)
+    t1fn.sort()
+    t1fn = t1fn[0]
+    t1 = mm_read( t1fn )
+    nimages = len(myimgsInput)
+    if verbose:
+        print(  " we have : " + str(nimages) + " modalities.")
+    for overmodX in nrg_modality_list:
+        mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+        if overmodX == 'T1w':
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
+        if verbose:
+            print(f"modality search path: {mod_search_path}")
+        myimgsr = glob.glob(mod_search_path)
+        myimgsr.sort()
+        print(myimgsr)
+    if verbose:
+        print("viz complete.")
+    return
