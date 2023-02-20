@@ -371,7 +371,8 @@ def dti_reg(
 
     if verbose:
         print("Reorient bvecs")
-    bvecs = bvec_reorientation( motion_parameters, bvecs )
+    if bvecs is not None:
+        bvecs = bvec_reorientation( motion_parameters, bvecs )
 
     if remove_it:
         import shutil
