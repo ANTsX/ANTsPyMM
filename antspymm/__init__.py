@@ -55,3 +55,6 @@ from .get_data import get_average_dwi_b0
 from .get_data import dti_template
 from .get_data import merge_dwi_data
 from .get_data import bvec_reorientation
+from .get_data import tsnr
+from .get_data import dvars
+from .get_data import slice_snr
