@@ -1070,7 +1070,7 @@ def mc_denoise( x, ratio = 0.5 ):
 
 def tsnr( x, mask, indices=None ):
     """
-    3D temporal snr image from a 4D time series image
+    3D temporal snr image from a 4D time series image ... the matrix is normalized to range of 0,1
 
     x: image
 
@@ -1081,6 +1081,8 @@ def tsnr( x, mask, indices=None ):
     returns a 3D image
     """
     M = ants.timeseries_to_matrix( x, mask )
+    M = M - M.min()
+    M = M / M.max()
     if indices is not None:
         M=M[indices,:]
     stdM = np.std(M, axis=0 )
@@ -1092,7 +1094,7 @@ def tsnr( x, mask, indices=None ):
 
 def dvars( x,  mask, indices=None ):
     """
-    dvars on a time series image
+    dvars on a time series image ... the matrix is normalized to range of 0,1
 
     x: image
 
@@ -1103,6 +1105,8 @@ def dvars( x,  mask, indices=None ):
     returns an array
     """
     M = ants.timeseries_to_matrix( x, mask )
+    M = M - M.min()
+    M = M / M.max()
     if indices is not None:
         M=M[indices,:]
     DVARS = np.zeros( M.shape[0] )
@@ -1127,8 +1131,9 @@ def slice_snr( x,  background_mask, foreground_mask, indices=None ):
 
     returns an array
     """
-    MB = ants.timeseries_to_matrix( x, background_mask )
-    MF = ants.timeseries_to_matrix( x, foreground_mask )
+    xuse=ants.iMath(x,"Normalize")
+    MB = ants.timeseries_to_matrix( xuse, background_mask )
+    MF = ants.timeseries_to_matrix( xuse, foreground_mask )
     if indices is not None:
         MB=MB[indices,:]
         MF=MF[indices,:]
@@ -1137,7 +1142,6 @@ def slice_snr( x,  background_mask, foreground_mask, indices=None ):
         ssnr[i]=MF[i,:].mean()/MB[i,:].std()
     ssnr[np.isnan(ssnr)] = 0
     return ssnr
-
 
 
 def impute_fa( fa, md ):
@@ -2935,8 +2939,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   import math
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
-
-  dwp = dewarp_imageset( [fmri], iterations=1, padding=8,
+  fmri = ants.iMath( fmri, 'Normalize' )
+  dwp = dewarp_imageset( [ fmri], iterations=1, padding=8,
           target_idx = [7,8,9],
           syn_sampling = 20, syn_metric='mattes',
           type_of_transform = 'SyN',
