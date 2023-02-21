@@ -4860,9 +4860,8 @@ def quick_viz_mm_nrg(
     sid , # subject unique id
     dtid, # date
     sourcedatafoldername = 'images', # root for source data
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
     extract_brain=True,
-    slice_factor = 0.6,
+    slice_factor = 0.55,
     show_it = None,
     verbose = True
 ):
@@ -4895,31 +4894,97 @@ def quick_viz_mm_nrg(
     nimages = len(myimgsInput)
     vizlist=[]
     if verbose:
-        print(  " we have : " + str(nimages) + " modalities.")
-    for overmodX in nrg_modality_list:
-        mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+        print(  " we have : " + str(nimages) + " modalities.  will visualize T1 NM rsfMRI DTIB0 DTIDWI FLAIR")
+    # nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
+    nrg_modality_list = [ 'T1w', 'NM2DMT', 'rsfMRI', 'DWI1', 'DWI2', 'T2Flair' ]
+    for nrgNum in [0,1,2,3,4,5]:
+        overmodX = nrg_modality_list[nrgNum]
         if overmodX == 'T1w':
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
-        myimgsr = glob.glob(mod_search_path)
-        myimgsr.sort()
-        if ( len(myimgsr) > 0):
-            vimg=ants.image_read( myimgsr[0] )
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) == 0:
+                if verbose:
+                    print("No t1 images: " + sid + dtid )
+                return None
+            myimgsr.sort()
+            myimgsr=myimgsr[0]
+            vimg=ants.image_read( myimgsr )
+        elif overmodX == 'DWI1':
+            mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr=myimgsr[0]
+                vimg=ants.image_read( myimgsr )
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
+        elif overmodX == 'DWI2':
+            mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr=myimgsr[len(myimgsr)-1]
+                vimg=ants.image_read( myimgsr )
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
+        elif overmodX == 'NM2DMT':
+            mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr0=myimgsr[0]
+                vimg=ants.image_read( myimgsr0 )
+                for k in range(1,len(myimgsr)):
+                    temp = ants.image_read( myimgsr[k])
+                    vimg=vimg+ants.resample_image_to_target(temp,vimg)
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
+        elif overmodX == 'rsfMRI':
+            mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr=myimgsr[0]
+                vimg=ants.image_read( myimgsr )
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
+        else :
+            mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr=myimgsr[0]
+                vimg=ants.image_read( myimgsr )
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
+        if True:
             if extract_brain and overmodX == 'T1w':
-                vimg = vimg * antspynet.brain_extraction(vimg,'t1').threshold_image(0.5,1)
+                vimg = vimg * antspyt1w.brain_extraction(vimg)
             if verbose:
-                print(f"modality search path: {myimgsr[0]}")
-            if len( vimg.shape ) == 4 and not "DTI" in overmodX:
+                print(f"modality search path: {myimgsr}" + " num: " + str(nrgNum))
+            if len( vimg.shape ) == 4 and not "DWI" in overmodX:
                 vimg=ants.get_average_of_timeseries(vimg)
-            if len( vimg.shape ) == 4 and ( overmodX == "DTI_LR" or overmodX == "DTI" ):
+            if len( vimg.shape ) == 4 and ( overmodX == "DWI2"  ):
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttdw
-            if len( vimg.shape ) == 4 and overmodX == "DTI_RL":
+            if len( vimg.shape ) == 4 and overmodX == "DWI1":
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttb0
             msk=ants.get_mask(vimg)
             vimg=ants.crop_image(vimg,msk)
             if overmodX == 'T1w':
                 refimg=ants.image_clone( vimg )
+                noizimg = ants.add_noise_to_image( refimg*0, 'additivegaussian', [100,1] )
                 vizlist.append( vimg )
             else:
                 vimg = ants.resample_image_to_target( vimg, refimg )
