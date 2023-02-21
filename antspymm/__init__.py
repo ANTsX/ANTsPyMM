@@ -58,5 +58,5 @@ from .get_data import bvec_reorientation
 from .get_data import tsnr
 from .get_data import dvars
 from .get_data import slice_snr
-from .get_data import viz_mm
+from .get_data import quick_viz_mm_nrg
 

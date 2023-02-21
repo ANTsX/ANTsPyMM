@@ -4855,16 +4855,21 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
 
 
 
-def viz_mm(
+def quick_viz_mm_nrg(
     sourcedir, # folder
     sid , # subject unique id
     dtid, # date
     sourcedatafoldername = 'images', # root for source data
     nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
+    extract_brain=True,
+    slice_factor = 0.6,
+    show_it = None,
     verbose = True
 ):
+    iid='*'
     import glob as glob
     from os.path import exists
+    import ants
     ex_path = os.path.expanduser( "~/.antspyt1w/" )
     ex_pathmm = os.path.expanduser( "~/.antspymm/" )
     templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
@@ -4880,7 +4885,7 @@ def viz_mm(
     myimgsInput.sort( )
     if verbose:
         print( myimgsInput )
-    t1_search_path = os.path.join(subjectrootpath, "T1w", iid, "*nii.gz")
+    t1_search_path = os.path.join(subjectrootpath, "T1w", "*", "*nii.gz")
     if verbose:
         print(f"t1 search path: {t1_search_path}")
     t1fn = glob.glob(t1_search_path)
@@ -4888,17 +4893,53 @@ def viz_mm(
     t1fn = t1fn[0]
     t1 = mm_read( t1fn )
     nimages = len(myimgsInput)
+    vizlist=[]
     if verbose:
         print(  " we have : " + str(nimages) + " modalities.")
     for overmodX in nrg_modality_list:
         mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
         if overmodX == 'T1w':
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
-        if verbose:
-            print(f"modality search path: {mod_search_path}")
         myimgsr = glob.glob(mod_search_path)
         myimgsr.sort()
-        print(myimgsr)
+        if ( len(myimgsr) > 0):
+            vimg=ants.image_read( myimgsr[0] )
+            if extract_brain and overmodX == 'T1w':
+                vimg = vimg * antspynet.brain_extraction(vimg,'t1').threshold_image(0.5,1)
+            if verbose:
+                print(f"modality search path: {myimgsr[0]}")
+            if len( vimg.shape ) == 4 and not "DTI" in overmodX:
+                vimg=ants.get_average_of_timeseries(vimg)
+            if len( vimg.shape ) == 4 and ( overmodX == "DTI_LR" or overmodX == "DTI" ):
+                ttb0, ttdw=get_average_dwi_b0(vimg)
+                vimg = ttdw
+            if len( vimg.shape ) == 4 and overmodX == "DTI_RL":
+                ttb0, ttdw=get_average_dwi_b0(vimg)
+                vimg = ttb0
+            msk=ants.get_mask(vimg)
+            vimg=ants.crop_image(vimg,msk)
+            if overmodX == 'T1w':
+                refimg=ants.image_clone( vimg )
+                vizlist.append( vimg )
+            else:
+                vimg = ants.resample_image_to_target( vimg, refimg )
+                vimg = ants.iMath( vimg, 'TruncateIntensity',0.01,0.98)
+                vizlist.append( ants.iMath( vimg, 'Normalize' ) * 255 )
+
+    listlen = len( vizlist )
+    vizlist = np.asarray( vizlist )
+    if show_it is not None:
+        filenameout=None
+        if verbose:
+            print( show_it )
+        for a in [0,1,2]:
+            n=int(np.round( refimg.shape[a] * slice_factor ))
+            slices=np.repeat( int(n), listlen  )
+            if isinstance(show_it,str):
+                filenameout=show_it+'_ax'+str(int(a))+'_sl'+str(n)+'.png'
+                if verbose:
+                    print( filenameout )
+            ants.plot_grid(vizlist.reshape(2,3), slices.reshape(2,3), title='MM Subject ' + sid + ' ' + dtid, rfacecolor='white', axes=a, filename=filenameout )
     if verbose:
         print("viz complete.")
-    return
+    return vizlist
