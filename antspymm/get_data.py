@@ -4972,14 +4972,14 @@ def quick_viz_mm_nrg(
                 vimg = vimg * antspyt1w.brain_extraction(vimg)
             if verbose:
                 print(f"modality search path: {myimgsr}" + " num: " + str(nrgNum))
-            if len( vimg.shape ) == 4 and not "DWI" in overmodX:
-                vimg=ants.get_average_of_timeseries(vimg)
             if len( vimg.shape ) == 4 and ( overmodX == "DWI2"  ):
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttdw
-            if len( vimg.shape ) == 4 and overmodX == "DWI1":
+            elif len( vimg.shape ) == 4 and overmodX == "DWI1":
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttb0
+            elif len( vimg.shape ) == 4 :
+                vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
             vimg=ants.crop_image(vimg,msk)
             if overmodX == 'T1w':
