@@ -5075,7 +5075,7 @@ s
     if image is None:
         return None
     msk = ants.get_mask( image ).morphology("close",3)
-    mskdil = ants.iMath(msk, "MD",5)
+    mskdil = ants.iMath(msk, "MD",8)
     image = ants.crop_image( image, mskdil ).iMath("Normalize")
     msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
     nvox = int( msk.sum() )
