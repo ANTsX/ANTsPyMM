@@ -5031,8 +5031,22 @@ def quick_viz_mm_nrg(
 
 def quick_viz_image(
     image_filename,
-    viz_filename
+    viz_filename, 
+    title=False,
+    verbose=False
 ):
+    """
+    quick triplanar visualization of an image with quick quantitative assessment by EVR and BRISQUE ... 4D input will be visualized and assessed in 3D
+
+    image_filename : character usually a nifti image
+
+    viz_filename : character for a png output image
+
+    title : display a summary title on the png
+
+    verbose : boolean
+
+    """
     import glob as glob
     from os.path import exists
     import ants
@@ -5056,22 +5070,18 @@ def quick_viz_image(
     myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
         evdepth = 0.9, mask=msk )
     image = ants.crop_image( image, msk )
-    ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_pad=0 )
+    ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    from brisque import BRISQUE
+    obj = BRISQUE(url=False)
+    mybrisq = obj.score( np.array( Image.open( viz_filename )) )
+    ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
+    ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
     spc = ants.get_spacing( image )
-    df = pd.DataFrame([[ mystem, myevr, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'EVR', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    df = pd.DataFrame([[ mystem, mybrisq, myevr, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'brisq', 'EVR', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    if verbose:
+        print( df )
     import re
     csvfn = re.sub( "png", "csv", viz_filename )
     df.to_csv( csvfn )
     return
-    ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)
-    img = Image.open( viz_filename ).copy()
-    width, height = img.size
-    myfs = [width/96,height/96]
-    plt.figure(dpi=300, figsize=myfs, frameon=False )
-    plt.imshow(img)
-    plt.text(20, -10, ttl, color="red", fontsize=12 )
-    plt.axis("off")
-    plt.subplots_adjust(0,0,1,1)
-    plt.savefig( viz_filename, bbox_inches='tight',pad_inches = 0 )
-    plt.close()
 
