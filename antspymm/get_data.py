@@ -5029,14 +5029,26 @@ def quick_viz_mm_nrg(
 
 
 
-def quick_viz_image(
+def blind_image_assessment(
     image_filename,
     viz_filename, 
     title=False,
     verbose=False
 ):
     """
-    quick triplanar visualization of an image with quick quantitative assessment by EVR and BRISQUE ... 4D input will be visualized and assessed in 3D
+    quick blind image assessment and triplanar visualization of an image ... 4D input will be visualized and assessed in 3D.  produces a png and csv where csv contains:
+
+    * reflection error ( estimates asymmetry )
+
+    * brisq ( blind quality assessment )
+
+    * patch eigenvalue ratio ( blind quality assessment )
+s
+    * mask volume ( estimates foreground object size )
+
+    * spacing
+
+    * dimension after cropping by mask
 
     image_filename : character usually a nifti image
 

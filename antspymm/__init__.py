@@ -60,5 +60,4 @@ from .get_data import tsnr
 from .get_data import dvars
 from .get_data import slice_snr
 from .get_data import quick_viz_mm_nrg
-from .get_data import quick_viz_image
-
+from .get_data import blind_image_assessment
