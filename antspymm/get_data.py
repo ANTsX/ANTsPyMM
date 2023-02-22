@@ -5083,6 +5083,7 @@ s
         p = int( np.round( minshp * 0.5 ) )
     patch_shape = np.repeat( p, 3 )
     if verbose:
+        print(image)
         print( patch_shape )
         print( npatch )
     myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
