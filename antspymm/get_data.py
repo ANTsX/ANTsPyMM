@@ -5069,7 +5069,9 @@ def quick_viz_image(
     patch_shape = np.repeat( p, 3 )
     myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
         evdepth = 0.9, mask=msk )
-    image = ants.crop_image( image, msk )
+    image = ants.crop_image( image, msk ).iMath("Normalize")
+    imagereflect = ants.reflect_image(image, axis=0)
+    asym_err = ( image - imagereflect ).abs().mean()
     ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
@@ -5077,7 +5079,8 @@ def quick_viz_image(
     ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
     ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
     spc = ants.get_spacing( image )
-    df = pd.DataFrame([[ mystem, mybrisq, myevr, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'brisq', 'EVR', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    msk_vol = msk.sum() * np.prod( spc )
+    df = pd.DataFrame([[ mystem, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
     if verbose:
         print( df )
     import re
