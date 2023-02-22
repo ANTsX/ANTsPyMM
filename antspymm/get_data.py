@@ -5074,7 +5074,7 @@ s
     msk = ants.get_mask( image ).morphology("close",3)
     image = ants.crop_image( image, msk ).iMath("Normalize")
     msk = ants.crop_image( msk, msk ).iMath("Normalize")
-    nvox = np.prod( image.shape )
+    nvox = int( msk.sum() )
     minshp = np.min( image.shape )
     p = int( 32 )
     npatch = int( np.round(  0.1 * nvox ) )
