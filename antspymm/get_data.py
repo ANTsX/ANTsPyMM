@@ -49,6 +49,23 @@ def mm_read( x, modality='' ):
     """
     return ants.image_read( x, reorient=False )
 
+def mm_read_to_3d( x, modality='' ):
+    """
+    read an image from a filename - and return as 3d or None if that is not possible
+    """
+    img = ants.image_read( x, reorient=False )
+    if img.dimension < 3:
+        return None
+    elif img.dimension == 4:
+        nslices = img.shape[3]
+        sl = np.round( nslices * 0.5 )
+        if sl > nslices:
+            sl = nslices-1
+        return ants.slice_image( img, axis=3, idx=int(sl) )
+    elif img.dimension == 3:
+        return img
+    return None
+
 def mc_resample_image_to_target( x , y, interp_type='linear' ):
     """
     multichannel version of resample_image_to_target
@@ -4002,10 +4019,10 @@ def mm_nrg(
                                     verbose=True )
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
-                                    ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png" )
-                                    ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png" )
+                                    ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png", flat=True )
+                                    ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png", flat=True  )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
-                                        ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png" )
+                                        ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True  )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
@@ -4951,7 +4968,7 @@ def quick_viz_mm_nrg(
             if len( myimgsr ) > 0:
                 myimgsr.sort()
                 myimgsr=myimgsr[0]
-                vimg=ants.image_read( myimgsr )
+                vimg=mm_read_to_3d( myimgsr )
             else:
                 if verbose:
                     print("No " + overmodX)
@@ -5008,3 +5025,53 @@ def quick_viz_mm_nrg(
     if verbose:
         print("viz complete.")
     return vizlist
+
+
+
+
+def quick_viz_image(
+    image_filename,
+    viz_filename
+):
+    import glob as glob
+    from os.path import exists
+    import ants
+    import matplotlib.pyplot as plt
+    from PIL import Image
+    from pathlib import Path
+    mystem=Path( image_filename ).stem    
+    mystem=Path( mystem ).stem    
+    image = mm_read_to_3d( image_filename )
+    image = ants.iMath( image, 'TruncateIntensity',0.01,0.98)
+    if image is None:
+        return None
+    msk = ants.get_mask( image ).morphology("close",3)
+    minshp = np.min( image.shape )
+    p = int( 32 )
+    npatch = 256
+    if minshp < p*2:
+        p = int( np.round( minshp * 0.5 ) )
+        npatch = 128
+    patch_shape = np.repeat( p, 3 )
+    myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
+        evdepth = 0.9, mask=msk )
+    image = ants.crop_image( image, msk )
+    ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_pad=0 )
+    spc = ants.get_spacing( image )
+    df = pd.DataFrame([[ mystem, myevr, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'EVR', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    import re
+    csvfn = re.sub( "png", "csv", viz_filename )
+    df.to_csv( csvfn )
+    return
+    ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)
+    img = Image.open( viz_filename ).copy()
+    width, height = img.size
+    myfs = [width/96,height/96]
+    plt.figure(dpi=300, figsize=myfs, frameon=False )
+    plt.imshow(img)
+    plt.text(20, -10, ttl, color="red", fontsize=12 )
+    plt.axis("off")
+    plt.subplots_adjust(0,0,1,1)
+    plt.savefig( viz_filename, bbox_inches='tight',pad_inches = 0 )
+    plt.close()
+

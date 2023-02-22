@@ -35,6 +35,7 @@ from .get_data import plot_spec
 from .get_data import down2iso
 from .get_data import tra_initializer
 from .get_data import mm_read
+from .get_data import mm_read_to_3d
 from .get_data import nrg_filelist_to_dataframe
 from .get_data import bind_wide_mm_csvs
 from .get_data import augment_image
@@ -59,4 +60,5 @@ from .get_data import tsnr
 from .get_data import dvars
 from .get_data import slice_snr
 from .get_data import quick_viz_mm_nrg
+from .get_data import quick_viz_image
 
