@@ -5080,7 +5080,7 @@ s
     npatch = int( np.round(  0.1 * nvox ) )
     npatch = np.min(  [512,npatch ] )
     if minshp < p*2:
-        p = int( np.round( minshp * 0.5 ) )
+        p = int( np.round( minshp * 0.25 ) )
     patch_shape = np.repeat( p, 3 )
     if verbose:
         print(image)
