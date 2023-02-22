@@ -5033,6 +5033,7 @@ def blind_image_assessment(
     image_filename,
     viz_filename, 
     title=False,
+    pull_rank=False,
     verbose=False
 ):
     """
@@ -5056,6 +5057,8 @@ s
 
     title : display a summary title on the png
 
+    pull_rank : boolean
+
     verbose : boolean
 
     """
@@ -5072,8 +5075,9 @@ s
     if image is None:
         return None
     msk = ants.get_mask( image ).morphology("close",3)
-    image = ants.crop_image( image, msk ).iMath("Normalize")
-    msk = ants.crop_image( msk, msk ).iMath("Normalize")
+    mskdil = ants.iMath(msk, "MD",5)
+    image = ants.crop_image( image, mskdil ).iMath("Normalize")
+    msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
     nvox = int( msk.sum() )
     minshp = np.min( image.shape )
     p = int( 32 )
@@ -5088,6 +5092,8 @@ s
         print( npatch )
     myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
         evdepth = 0.9, mask=msk )
+    if pull_rank:
+        image = ants.rank_intensity(image)
     imagereflect = ants.reflect_image(image, axis=0)
     asym_err = ( image - imagereflect ).abs().mean()
     ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
