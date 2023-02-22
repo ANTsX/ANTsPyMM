@@ -5072,16 +5072,21 @@ s
     if image is None:
         return None
     msk = ants.get_mask( image ).morphology("close",3)
+    image = ants.crop_image( image, msk ).iMath("Normalize")
+    msk = ants.crop_image( msk, msk ).iMath("Normalize")
+    nvox = np.prod( image.shape )
     minshp = np.min( image.shape )
     p = int( 32 )
-    npatch = 256
+    npatch = int( np.round(  0.1 * nvox ) )
+    npatch = np.min(  [512,npatch ] )
     if minshp < p*2:
         p = int( np.round( minshp * 0.5 ) )
-        npatch = 128
     patch_shape = np.repeat( p, 3 )
+    if verbose:
+        print( patch_shape )
+        print( npatch )
     myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
         evdepth = 0.9, mask=msk )
-    image = ants.crop_image( image, msk ).iMath("Normalize")
     imagereflect = ants.reflect_image(image, axis=0)
     asym_err = ( image - imagereflect ).abs().mean()
     ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
