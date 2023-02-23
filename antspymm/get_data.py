@@ -5094,8 +5094,12 @@ s
     image = ants.iMath( image, 'TruncateIntensity',0.01,0.98)
     if image is None:
         return None
-    msk = ants.get_mask( image ).morphology("close",3)
-    mskdil = ants.iMath(msk, "MD",8)
+    if "NM2DMT" in image_filename:
+        msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.05, 1.0 )    
+    else:
+        msk = ants.get_mask( image )
+    msk = ants.morphology(msk, "close", 3 )    
+    mskdil = ants.iMath(msk, "MD", 4 )
     image = ants.crop_image( image, mskdil ).iMath("Normalize")
     msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
     nvox = int( msk.sum() )
