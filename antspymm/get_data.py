@@ -5092,7 +5092,7 @@ s
 
     pull_rank : boolean
 
-    resample : None max or min, resamples image to isotropy
+    resample : None, numeric max or min, resamples image to isotropy
 
     verbose : boolean
 
@@ -5110,8 +5110,10 @@ s
     if resample is not None:
         if resample == 'min':
             newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
-        else:
+        elif resample == 'max':
             newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+        else:
+            newspc = np.repeat( resample, 3 )
         image = ants.resample_image( image, newspc )
     if image is None:
         return None
