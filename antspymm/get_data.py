@@ -74,12 +74,12 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
     if thumb and x.dimension == 3:
         if y is None:
             try:
-                ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
+                ants.plot_ortho( x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
         else:
             try:
-                ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
+                ants.plot_ortho( y, x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
     if thumb and x.dimension == 4:
@@ -91,13 +91,13 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
         xview = ants.slice_image( x, axis=3, idx=int(sl) ) 
         if y is None:
             try:
-                ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
+                ants.plot_ortho( xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
         else:
             if y.dimension == 3:
                 try:
-                    ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
+                    ants.plot_ortho(y, xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
                 except:
                     pass
     return
@@ -935,7 +935,7 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'highermeans':higherindices }
 
 
-def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
+def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
     """
     automatically generates the average b0 and dwi and outputs both
 
@@ -945,6 +945,8 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
 
     fixed_dwi : alernative reference space
 
+    fast : boolean
+
     returns:
         avg_b0, avg_dwi
     """
@@ -953,7 +955,7 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
     temp = segment_timeseries_by_meanvalue( x )
     b0_idx = temp['highermeans']
     non_b0_idx = temp['lowermeans']
-    if fixed_b0 is None and fixed_dwi is None:
+    if ( fixed_b0 is None and fixed_dwi is None ) or fast:
         xavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
         bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
         fixed_b0_use = ants.slice_image( x, axis=3, idx=b0_idx[0] )
@@ -968,10 +970,16 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None ):
         fixed_dwi_use = ants.apply_transforms( fixed_b0, temp_dwi, tempreg['fwdtransforms'] )
     for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
-        if not myidx in b0_idx:
-            xavg = xavg + ants.registration(fixed_dwi_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
+        if not fast:
+            if not myidx in b0_idx:
+                xavg = xavg + ants.registration(fixed_dwi_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            else:
+                bavg = bavg + ants.registration(fixed_b0_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
         else:
-            bavg = bavg + ants.registration(fixed_b0_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
+            if not myidx in b0_idx:
+                xavg = xavg + b0
+            else:
+                bavg = bavg + b0
     bavg = ants.iMath( bavg, 'Normalize' )
     xavg = ants.iMath( xavg, 'Normalize' )
     import shutil
@@ -5059,11 +5067,9 @@ def quick_viz_mm_nrg(
     return vizlist
 
 
-
-
 def blind_image_assessment(
-    image_filename,
-    viz_filename, 
+    image,
+    viz_filename=None, 
     title=False,
     pull_rank=False,
     resample='max',
@@ -5077,14 +5083,16 @@ def blind_image_assessment(
     * brisq ( blind quality assessment )
 
     * patch eigenvalue ratio ( blind quality assessment )
-s
+
+    * PSNR and SSIM vs a smoothed reference (4D or 3D appropriate)
+
     * mask volume ( estimates foreground object size )
 
     * spacing
 
     * dimension after cropping by mask
 
-    image_filename : character usually a nifti image
+    image : character or image object usually a nifti image
 
     viz_filename : character for a png output image
 
@@ -5103,9 +5111,25 @@ s
     import matplotlib.pyplot as plt
     from PIL import Image
     from pathlib import Path
-    mystem=Path( image_filename ).stem    
-    mystem=Path( mystem ).stem    
-    image = mm_read_to_3d( image_filename )
+    mystem=''
+    isfilename=isinstance( image, str)
+    if isfilename:
+        image_filename = image
+        mystem=Path( image ).stem    
+        mystem=Path( mystem ).stem
+        image_reference = ants.image_read( image )
+        image = mm_read_to_3d( image )
+    else:
+        image_reference = ants.image_clone( image )
+    
+    if image_reference.dimension == 4:
+        if "DTI" in image_filename:
+           temp, image_reference = get_average_dwi_b0( image_reference, fast=True )
+           image_reference = ants.iMath( image_reference, 'Normalize' )
+        else:
+           image_reference = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
+    else:
+        image_reference = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
     image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
     if resample is not None:
         if resample == 'min':
@@ -5115,16 +5139,18 @@ s
         else:
             newspc = np.repeat( resample, 3 )
         image = ants.resample_image( image, newspc )
-    if image is None:
-        return None
+        image_reference = ants.resample_image( image_reference, newspc )
     if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
         msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.05, 1.0 )    
     else:
         msk = ants.get_mask( image )
     msk = ants.morphology(msk, "close", 3 )    
+    bgmsk = msk*0+1-msk
     mskdil = ants.iMath(msk, "MD", 4 )
     image = ants.crop_image( image, mskdil ).iMath("Normalize")
     msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
+    bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
+    image_reference = ants.crop_image( image_reference, mskdil ).iMath("Normalize")
     nvox = int( msk.sum() )
     minshp = np.min( image.shape )
     npatch = int( np.round(  0.1 * nvox ) )
@@ -5152,19 +5178,24 @@ s
     # xyz=None
     # if xyz is None:
     #    xyz = [int(s / 2) for s in image.shape]
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
-    ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red',  resample=False )
     spc = ants.get_spacing( image )
     msk_vol = msk.sum() * np.prod( spc )
-    df = pd.DataFrame([[ mystem, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    srnref = image[ msk == 1 ].mean() / image[ bgmsk == 1 ].std()
+    psnrref = antspynet.psnr(  image_reference, image  )
+    ssimref = antspynet.ssim(  image_reference, image  )
+    ttl=mystem + " SNR: " + "{:0.4f}".format(srnref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
+    if viz_filename is not None:
+        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
+    df = pd.DataFrame([[ mystem, srnref, psnrref, ssimref, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'snr',  'psnr', 'ssim', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
     if verbose:
         print( df )
     import re
-    csvfn = re.sub( "png", "csv", viz_filename )
-    df.to_csv( csvfn )
-    return
+    if viz_filename is not None:
+        csvfn = re.sub( "png", "csv", viz_filename )
+        df.to_csv( csvfn )
+    return df
 
