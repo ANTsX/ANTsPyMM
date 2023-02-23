@@ -5066,6 +5066,7 @@ def blind_image_assessment(
     viz_filename, 
     title=False,
     pull_rank=False,
+    resample='min',
     verbose=False
 ):
     """
@@ -5091,6 +5092,8 @@ s
 
     pull_rank : boolean
 
+    resample : None max or min, resamples image to isotropy
+
     verbose : boolean
 
     """
@@ -5103,7 +5106,13 @@ s
     mystem=Path( image_filename ).stem    
     mystem=Path( mystem ).stem    
     image = mm_read_to_3d( image_filename )
-    image = ants.iMath( image, 'TruncateIntensity',0.01,0.98)
+    image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
+    if resample is not None:
+        if resample == 'min':
+            newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
+        else:
+            newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+        image = ants.resample_image( image, newspc )
     if image is None:
         return None
     if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
