@@ -5110,8 +5110,12 @@ s
         print(image)
         print( patch_shape )
         print( npatch )
-    myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
-        evdepth = 0.9, mask=msk )
+    myevr = math.nan # dont want to fail if something odd happens in patch extraction
+    try:
+        myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
+            evdepth = 0.9, mask=msk )
+    except:
+        pass
     if pull_rank:
         image = ants.rank_intensity(image)
     imagereflect = ants.reflect_image(image, axis=0)
