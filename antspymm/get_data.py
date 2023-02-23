@@ -74,12 +74,12 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
     if thumb and x.dimension == 3:
         if y is None:
             try:
-                ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
         else:
             try:
-                ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
     if thumb and x.dimension == 4:
@@ -91,13 +91,13 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
         xview = ants.slice_image( x, axis=3, idx=int(sl) ) 
         if y is None:
             try:
-                ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
             except:
                 pass
         else:
             if y.dimension == 3:
                 try:
-                    ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                    ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
                 except:
                     pass
     return
@@ -4051,10 +4051,10 @@ def mm_nrg(
                                     verbose=True )
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
-                                    ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png", flat=True )
-                                    ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png", flat=True  )
+                                    ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png", flat=True, resample=False )
+                                    ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png", flat=True, resample=False  )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
-                                        ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True  )
+                                        ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True , resample=False )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
@@ -5139,14 +5139,12 @@ s
     xyz=None
     if xyz is None:
         xyz = [int(s / 2) for s in image.shape]
-    imagev = ants.image_clone(image)
-    ants.set_spacing( imagev, [1,1,1])
-    ants.plot_ortho( imagev, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, xyz=xyz, reorient=False )
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, xyz=xyz, resample=False )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
     ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
-    ants.plot_ortho( imagev, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' ,xyz=xyz, reorient=False)
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red', xyz=xyz, resample=False )
     spc = ants.get_spacing( image )
     msk_vol = msk.sum() * np.prod( spc )
     df = pd.DataFrame([[ mystem, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
