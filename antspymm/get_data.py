@@ -5136,15 +5136,15 @@ s
         image = ants.rank_intensity(image)
     imagereflect = ants.reflect_image(image, axis=0)
     asym_err = ( image - imagereflect ).abs().mean()
-    xyz=None
-    if xyz is None:
-        xyz = [int(s / 2) for s in image.shape]
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, xyz=xyz, resample=False )
+    # xyz=None
+    # if xyz is None:
+    #    xyz = [int(s / 2) for s in image.shape]
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
     ttl=mystem + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red', xyz=xyz, resample=False )
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red',  resample=False )
     spc = ants.get_spacing( image )
     msk_vol = msk.sum() * np.prod( spc )
     df = pd.DataFrame([[ mystem, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
