@@ -5066,7 +5066,7 @@ def blind_image_assessment(
     viz_filename, 
     title=False,
     pull_rank=False,
-    resample='min',
+    resample='max',
     verbose=False
 ):
     """
