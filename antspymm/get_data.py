@@ -66,6 +66,31 @@ def mm_read_to_3d( x, modality='' ):
         return img
     return None
 
+def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
+    ants.image_write( x, fn )
+    if not thumb or x.components > 1:
+        return
+    thumb_fn=re.sub(".nii.gz","_3dthumb.png",fn)
+    if thumb and x.dimension == 3:
+        if y is None:
+            ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+        else:
+            ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    if thumb and x.dimension == 4:
+        thumb_fn=re.sub(".nii.gz","_4dthumb.png",fn)
+        nslices = x.shape[3]
+        sl = np.round( nslices * 0.5 )
+        if sl > nslices:
+            sl = nslices-1
+        xview = ants.slice_image( x, axis=3, idx=int(sl) ) 
+        if y is None:
+            ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+        else:
+            if y.dimension == 3:
+                ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    return
+
+
 def mc_resample_image_to_target( x , y, interp_type='linear' ):
     """
     multichannel version of resample_image_to_target
@@ -3354,11 +3379,6 @@ def mm(
             dwimask = ants.apply_transforms( btpDW, mybxt, tempreg['fwdtransforms'][1], interpolator='nearestNeighbor')
             # dwimask = ants.iMath(dwimask,'MD',1)
             t12dwi = ants.apply_transforms( btpDW, hier['brain_n4_dnz'], tempreg['fwdtransforms'][1], interpolator='linear')
-            if False:
-                ants.image_write( btpDW, '/tmp/t00.nii.gz')
-                ants.image_write( btpB0, '/tmp/t01.nii.gz')
-                ants.image_write( dwimask, '/tmp/t02.nii.gz')
-                ants.image_write( t12dwi, '/tmp/t03.nii.gz')
             output_dict['DTI'] = joint_dti_recon(
                 dw_image,
                 bvals[0],
@@ -3523,7 +3543,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         for mykey in mm_norm.keys():
             tempfn = output_prefix + separator + mykey + '.nii.gz'
             if mm_norm[mykey] is not None:
-                ants.image_write( mm_norm[mykey], tempfn )
+                image_write_with_thumbnail( mm_norm[mykey], tempfn )
     thkderk = None
     if t1wide is not None:
         thkderk = t1wide.iloc[: , 1:]
@@ -3532,26 +3552,26 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
         mykey='thickness_image'
         tempfn = output_prefix + separator + mykey + '.nii.gz'
-        ants.image_write( mm['kk'][mykey], tempfn )
+        image_write_with_thumbnail( mm['kk'][mykey], tempfn )
     nmderk = None
     if mm['NM'] is not None:
         nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
         for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
             tempfn = output_prefix + separator + mykey + '.nii.gz'
-            ants.image_write( mm['NM'][mykey], tempfn )
+            image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
 
     faderk = mdderk = fat1derk = mdt1derk = None
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         myop = output_prefix + separator
         write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
-        ants.image_write( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
-        ants.image_write( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
-        ants.image_write( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz' )
-        ants.image_write( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
-        ants.image_write( mydti['recon_md'],  myop+'dtimd.nii.gz' )
-        ants.image_write( mydti['b0avg'],  myop+'b0avg.nii.gz' )
-        ants.image_write( mydti['dwiavg'],  myop+'dwiavg.nii.gz' )
+        image_write_with_thumbnail( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
+        image_write_with_thumbnail( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
+        image_write_with_thumbnail( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz', mydti['recon_fa'] )
+        image_write_with_thumbnail( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
+        image_write_with_thumbnail( mydti['recon_md'],  myop+'dtimd.nii.gz' )
+        image_write_with_thumbnail( mydti['b0avg'],  myop+'b0avg.nii.gz' )
+        image_write_with_thumbnail( mydti['dwiavg'],  myop+'dwiavg.nii.gz' )
         faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
         mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
         fat1derk = mm['FA_summ'].iloc[: , 1:]
@@ -3596,7 +3616,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     if mm['flair'] is not None:
         myop = output_prefix + separator + 'wmh.nii.gz'
         if mm['flair']['WMH_probability_map'] is not None:
-            ants.image_write( mm['flair']['WMH_probability_map'], myop )
+            image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
         mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
         mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
         mm_wide['flair_evr'] = mm['flair']['wmh_evr']
@@ -3609,7 +3629,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         rsfpro = mm['rsf']
         for mykey in mynets:
             myop = output_prefix + separator + mykey + '.nii.gz'
-            ants.image_write( rsfpro[mykey], myop )
+            image_write_with_thumbnail( rsfpro[mykey], myop, thumb=False )
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
         mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
         # falff and alff
@@ -3988,7 +4008,7 @@ def mm_nrg(
                                         "antsRegistrationSyNQuickRepro[s]", outprefix = regout, verbose=False )
                                     myjac = ants.create_jacobian_determinant_image( template,
                                         t1reg['fwdtransforms'][0], do_log=True, geom=True )
-                                    ants.image_write( myjac, regout + "logjacobian.nii.gz" )
+                                    image_write_with_thumbnail( myjac, regout + "logjacobian.nii.gz", thumb=False )
                                     if visualize:
                                         ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
                                         ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
