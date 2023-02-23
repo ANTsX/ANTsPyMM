@@ -73,9 +73,15 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
     thumb_fn=re.sub(".nii.gz","_3dthumb.png",fn)
     if thumb and x.dimension == 3:
         if y is None:
-            ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            try:
+                ants.plot_ortho( ants.rank_intensity(x), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            except:
+                pass
         else:
-            ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            try:
+                ants.plot_ortho( ants.rank_intensity(y), x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            except:
+                pass
     if thumb and x.dimension == 4:
         thumb_fn=re.sub(".nii.gz","_4dthumb.png",fn)
         nslices = x.shape[3]
@@ -84,10 +90,16 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
             sl = nslices-1
         xview = ants.slice_image( x, axis=3, idx=int(sl) ) 
         if y is None:
-            ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            try:
+                ants.plot_ortho( ants.rank_intensity(xview), crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+            except:
+                pass
         else:
             if y.dimension == 3:
-                ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                try:
+                    ants.plot_ortho( ants.rank_intensity(y), xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+                except:
+                    pass
     return
 
 
