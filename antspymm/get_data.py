@@ -5094,7 +5094,7 @@ s
     image = ants.iMath( image, 'TruncateIntensity',0.01,0.98)
     if image is None:
         return None
-    if "NM2DMT" in image_filename:
+    if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
         msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.05, 1.0 )    
     else:
         msk = ants.get_mask( image )
