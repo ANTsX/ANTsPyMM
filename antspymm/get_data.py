@@ -5124,7 +5124,7 @@ s
         image = ants.rank_intensity(image)
     imagereflect = ants.reflect_image(image, axis=0)
     asym_err = ( image - imagereflect ).abs().mean()
-    ants.plot_ortho( image, crop=True, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
