@@ -5125,12 +5125,14 @@ s
     msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
     nvox = int( msk.sum() )
     minshp = np.min( image.shape )
-    p = int( 32 )
     npatch = int( np.round(  0.1 * nvox ) )
     npatch = np.min(  [512,npatch ] )
-    p2 = int( np.round( minshp * 0.25 ) )
-    p = np.min( [p,p2] )
-    patch_shape = np.repeat( p, 3 )
+    patch_shape = []
+    for k in range( 3 ):
+        p = int( 32.0 / ants.get_spacing( image  )[k] )
+        if p > int( np.round( image.shape[k] * 0.5 ) ):
+            p = int( np.round( image.shape[k] * 0.5 ) )
+        patch_shape.append( p )
     if verbose:
         print(image)
         print( patch_shape )
