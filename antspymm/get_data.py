@@ -5143,7 +5143,9 @@ s
         if xyz[i] is None:
             xyz[i] = int(image.shape[i] / 2)
     print( xyz )
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, xyz=xyz, slices=xyz )
+    imagev = ants.image_clone(image)
+    ants.set_spacing( imagev, [1,1,1])
+    ants.plot_ortho( imagev, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, xyz=xyz, reorient=False )
     from brisque import BRISQUE
     obj = BRISQUE(url=False)
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
