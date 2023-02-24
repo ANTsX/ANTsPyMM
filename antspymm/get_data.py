@@ -91,7 +91,7 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
         sl = np.round( nslices * 0.5 )
         if sl > nslices:
             sl = nslices-1
-        xview = ants.slice_image( x, axis=3, idx=int(sl) ) 
+        xview = ants.slice_image( x, axis=3, idx=int(sl) )
         if y is None:
             try:
                 ants.plot_ortho( xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0, resample=False )
@@ -4049,7 +4049,7 @@ def mm_nrg(
                                     if visualize:
                                         maxslice = np.min( [21, hier['brain_n4_dnz'].shape[2] ] )
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
-                                        ants.plot( tabPro['kk']['thickness_image'], axis=2, nslices=maxslice, ncol=7, crop=True, title='kk', 
+                                        ants.plot( tabPro['kk']['thickness_image'], axis=2, nslices=maxslice, ncol=7, crop=True, title='kk',
                                         cmap='plasma', filename=mymm+mysep+"kkthickness.png" )
                             if mymod == 'T2Flair' and ishapelen == 3:
                                 dowrite=True
@@ -5073,7 +5073,7 @@ def quick_viz_mm_nrg(
 
 def blind_image_assessment(
     image,
-    viz_filename=None, 
+    viz_filename=None,
     title=False,
     pull_rank=False,
     resample='max',
@@ -5129,7 +5129,7 @@ def blind_image_assessment(
                 mymeta = json.load(fcc_file)
                 if verbose:
                     print(json.dumps(mymeta, indent=4))
-        mystem=Path( image ).stem    
+        mystem=Path( image ).stem
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
         image = ants.image_read( image )
@@ -5139,7 +5139,7 @@ def blind_image_assessment(
     if image_reference.dimension == 4:
         ntimepoints = image_reference.shape[3]
         if "DTI" in image_filename:
-            myTSseg = segment_timeseries_by_meanvalue( image_reference )   
+            myTSseg = segment_timeseries_by_meanvalue( image_reference )
             image_b0, image_dwi = get_average_dwi_b0( image_reference, fast=True )
             image_b0 = ants.iMath( image_b0, 'Normalize' )
             image_dwi = ants.iMath( image_dwi, 'Normalize' )
@@ -5167,7 +5167,7 @@ def blind_image_assessment(
                     image_compare = ants.image_clone( image_dwi )
                     modality='DTIdwi'
             else:
-                image_compare = ants.image_clone( image_b0 )    
+                image_compare = ants.image_clone( image_b0 )
         image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
         if resample is not None:
             if resample == 'min':
@@ -5179,10 +5179,10 @@ def blind_image_assessment(
             image = ants.resample_image( image, newspc )
             image_compare = ants.resample_image( image_compare, newspc )
         # if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
-        msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )    
+        msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )
         # else:
         #    msk = ants.get_mask( image )
-        msk = ants.morphology(msk, "close", 3 )    
+        msk = ants.morphology(msk, "close", 3 )
         bgmsk = msk*0+1-msk
         mskdil = ants.iMath(msk, "MD", 4 )
         # ants.plot_ortho( image, msk, crop=False )
@@ -5206,7 +5206,7 @@ def blind_image_assessment(
             print( npatch )
         myevr = math.nan # dont want to fail if something odd happens in patch extraction
         try:
-            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
+            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
                 evdepth = 0.9, mask=msk )
         except:
             pass
@@ -5215,7 +5215,7 @@ def blind_image_assessment(
         imagereflect = ants.reflect_image(image, axis=0)
         asym_err = ( image - imagereflect ).abs().mean()
         # estimate noise by center cropping, denoizing and taking magnitude of difference
-        mycc = antspyt1w.special_crop( image, 
+        mycc = antspyt1w.special_crop( image,
             ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
         myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
         noizlevel = ( mycc - myccd ).abs().mean()
@@ -5238,8 +5238,14 @@ def blind_image_assessment(
         mrimodel='NA'
         if mymeta is not None:
             # mriseries=mymeta['']
-            mrimfg=mymeta['Manufacturer']
-            mrimodel=mymeta['ManufacturersModelName']
+            try:
+                mrimfg=mymeta['Manufacturer']
+            except:
+                pass
+            try:
+                mrimodel=mymeta['ManufacturersModelNamex']
+            except:
+                pass
         ttl=mystem + ' '
         ttl=''
         ttl=ttl + "NZ: " + "{:0.4f}".format(noizlevel) + " SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " MI: " + "{:0.4f}".format(mymi)
@@ -5254,4 +5260,3 @@ def blind_image_assessment(
         csvfn = re.sub( "png", "csv", viz_filename )
         outdf.to_csv( csvfn )
     return outdf
-
