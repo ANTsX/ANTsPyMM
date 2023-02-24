@@ -4046,7 +4046,8 @@ def mm_nrg(
                                     if visualize:
                                         maxslice = np.min( [21, hier['brain_n4_dnz'].shape[2] ] )
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
-                                        ants.plot( hier['brain_n4_dnz'], tabPro['kk']['thickness_image'], axis=2, nslices=maxslice, ncol=7, crop=True, title='kk', filename=mymm+mysep+"kkthickness.png" )
+                                        ants.plot( tabPro['kk']['thickness_image'], axis=2, nslices=maxslice, ncol=7, crop=True, title='kk', 
+                                        cmap='plasma', filename=mymm+mysep+"kkthickness.png" )
                             if mymod == 'T2Flair' and ishapelen == 3:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
@@ -5140,17 +5141,22 @@ def blind_image_assessment(
             newspc = np.repeat( resample, 3 )
         image = ants.resample_image( image, newspc )
         image_reference = ants.resample_image( image_reference, newspc )
-    if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
-        msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.05, 1.0 )    
-    else:
-        msk = ants.get_mask( image )
+    # if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
+    msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )    
+    # else:
+    #    msk = ants.get_mask( image )
     msk = ants.morphology(msk, "close", 3 )    
     bgmsk = msk*0+1-msk
     mskdil = ants.iMath(msk, "MD", 4 )
+    # ants.plot_ortho( image, msk, crop=False )
     image = ants.crop_image( image, mskdil ).iMath("Normalize")
     msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
     bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
     image_reference = ants.crop_image( image_reference, mskdil ).iMath("Normalize")
+    # ants.plot( image, nslices=21, ncol=7, axis=2)
+    # ants.plot_ortho( image, crop=False )
+    # ants.plot_ortho( image, crop=True )
+    # ants.plot_ortho( image, flat=True, crop=True )
     nvox = int( msk.sum() )
     minshp = np.min( image.shape )
     npatch = int( np.round(  0.1 * nvox ) )
@@ -5184,13 +5190,19 @@ def blind_image_assessment(
     mybrisq = obj.score( np.array( Image.open( viz_filename )) )
     spc = ants.get_spacing( image )
     msk_vol = msk.sum() * np.prod( spc )
-    srnref = image[ msk == 1 ].mean() / image[ bgmsk == 1 ].std()
+    bgstd = image[ bgmsk == 1 ].std()
+    fgmean = image[ msk == 1 ].mean()
+    bgmean = image[ bgmsk == 1 ].mean()
+    snrref = fgmean / bgstd
+    cnrref = ( fgmean - bgmean ) / bgstd
     psnrref = antspynet.psnr(  image_reference, image  )
     ssimref = antspynet.ssim(  image_reference, image  )
-    ttl=mystem + " SNR: " + "{:0.4f}".format(srnref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
+    ttl=mystem + ' '
+    ttl=''
+    ttl=ttl + "SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
     if viz_filename is not None:
         ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
-    df = pd.DataFrame([[ mystem, srnref, psnrref, ssimref, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'snr',  'psnr', 'ssim', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+    df = pd.DataFrame([[ mystem, snrref, cnrref, psnrref, ssimref, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'snr', 'cnr', 'psnr', 'ssim', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
     if verbose:
         print( df )
     import re
