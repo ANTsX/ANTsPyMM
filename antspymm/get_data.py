@@ -5222,7 +5222,7 @@ def blind_image_assessment(
         if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]], jjj], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz','slice'])
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2], jjj ]], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz','slice'])
         outdf = pd.concat( [outdf, df ], axis=0 )
         if verbose:
             print( outdf )
