@@ -5115,12 +5115,20 @@ def blind_image_assessment(
     import matplotlib.pyplot as plt
     from PIL import Image
     from pathlib import Path
+    import json
     import re
     mystem=''
     isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
+    mymeta = None
     if isfilename:
         image_filename = image
+        json_name = re.sub(".nii.gz",".json",image_filename)
+        if exists( json_name ):
+            with open(json_name, 'r') as fcc_file:
+                mymeta = json.load(fcc_file)
+                if verbose:
+                    print(json.dumps(mymeta, indent=4))
         mystem=Path( image ).stem    
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
@@ -5225,13 +5233,20 @@ def blind_image_assessment(
         psnrref = antspynet.psnr(  image_compare, image  )
         ssimref = antspynet.ssim(  image_compare, image  )
         mymi = ants.image_mutual_information( image_compare, image )
+        mriseries='NA'
+        mrimfg='NA'
+        mrimodel='NA'
+        if mymeta is not None:
+            # mriseries=mymeta['']
+            mrimfg=mymeta['Manufacturer']
+            mrimodel=mymeta['ManufacturersModelName']
         ttl=mystem + ' '
         ttl=''
         ttl=ttl + "NZ: " + "{:0.4f}".format(noizlevel) + " SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " MI: " + "{:0.4f}".format(mymi)
         if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality ]], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz','slice','modality'])
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
         outdf = pd.concat( [outdf, df ], axis=0 )
         if verbose:
             print( outdf )
