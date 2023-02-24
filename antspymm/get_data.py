@@ -49,7 +49,7 @@ def mm_read( x, modality='' ):
     """
     return ants.image_read( x, reorient=False )
 
-def mm_read_to_3d( x, modality='' ):
+def mm_read_to_3d( x, slice=None, modality='' ):
     """
     read an image from a filename - and return as 3d or None if that is not possible
     """
@@ -58,7 +58,10 @@ def mm_read_to_3d( x, modality='' ):
         return None
     elif img.dimension == 4:
         nslices = img.shape[3]
-        sl = np.round( nslices * 0.5 )
+        if slice is None:
+            sl = np.round( nslices * 0.5 )
+        else:
+            sl = slice
         if sl > nslices:
             sl = nslices-1
         return ants.slice_image( img, axis=3, idx=int(sl) )
@@ -5112,102 +5115,119 @@ def blind_image_assessment(
     import matplotlib.pyplot as plt
     from PIL import Image
     from pathlib import Path
+    import re
     mystem=''
     isfilename=isinstance( image, str)
+    outdf = pd.DataFrame()
     if isfilename:
         image_filename = image
         mystem=Path( image ).stem    
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
-        image = mm_read_to_3d( image )
+        image = ants.image_read( image )
     else:
         image_reference = ants.image_clone( image )
-    
+    ntimepoints = 1
     if image_reference.dimension == 4:
+        ntimepoints = image_reference.shape[3]
         if "DTI" in image_filename:
-           temp, image_reference = get_average_dwi_b0( image_reference, fast=True )
-           image_reference = ants.iMath( image_reference, 'Normalize' )
+            myTSseg = segment_timeseries_by_meanvalue( image_reference )   
+            image_b0, image_dwi = get_average_dwi_b0( image_reference, fast=True )
+            image_b0 = ants.iMath( image_b0, 'Normalize' )
+            image_dwi = ants.iMath( image_dwi, 'Normalize' )
         else:
-           image_reference = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
+            image_b0 = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
     else:
-        image_reference = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
-    image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
-    if resample is not None:
-        if resample == 'min':
-            newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
-        elif resample == 'max':
-            newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
-        else:
-            newspc = np.repeat( resample, 3 )
-        image = ants.resample_image( image, newspc )
-        image_reference = ants.resample_image( image_reference, newspc )
-    # if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
-    msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )    
-    # else:
-    #    msk = ants.get_mask( image )
-    msk = ants.morphology(msk, "close", 3 )    
-    bgmsk = msk*0+1-msk
-    mskdil = ants.iMath(msk, "MD", 4 )
-    # ants.plot_ortho( image, msk, crop=False )
-    image = ants.crop_image( image, mskdil ).iMath("Normalize")
-    msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
-    bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
-    image_reference = ants.crop_image( image_reference, mskdil ).iMath("Normalize")
-    # ants.plot( image, nslices=21, ncol=7, axis=2)
-    # ants.plot_ortho( image, crop=False )
-    # ants.plot_ortho( image, crop=True )
-    # ants.plot_ortho( image, flat=True, crop=True )
-    nvox = int( msk.sum() )
-    minshp = np.min( image.shape )
-    npatch = int( np.round(  0.1 * nvox ) )
-    npatch = np.min(  [512,npatch ] )
-    patch_shape = []
-    for k in range( 3 ):
-        p = int( 32.0 / ants.get_spacing( image  )[k] )
-        if p > int( np.round( image.shape[k] * 0.5 ) ):
-            p = int( np.round( image.shape[k] * 0.5 ) )
-        patch_shape.append( p )
-    if verbose:
-        print(image)
-        print( patch_shape )
-        print( npatch )
-    myevr = math.nan # dont want to fail if something odd happens in patch extraction
-    try:
-        myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
-            evdepth = 0.9, mask=msk )
-    except:
-        pass
-    if pull_rank:
-        image = ants.rank_intensity(image)
-    imagereflect = ants.reflect_image(image, axis=0)
-    asym_err = ( image - imagereflect ).abs().mean()
-    # xyz=None
-    # if xyz is None:
-    #    xyz = [int(s / 2) for s in image.shape]
-    ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-    from brisque import BRISQUE
-    obj = BRISQUE(url=False)
-    mybrisq = obj.score( np.array( Image.open( viz_filename )) )
-    spc = ants.get_spacing( image )
-    msk_vol = msk.sum() * np.prod( spc )
-    bgstd = image[ bgmsk == 1 ].std()
-    fgmean = image[ msk == 1 ].mean()
-    bgmean = image[ bgmsk == 1 ].mean()
-    snrref = fgmean / bgstd
-    cnrref = ( fgmean - bgmean ) / bgstd
-    psnrref = antspynet.psnr(  image_reference, image  )
-    ssimref = antspynet.ssim(  image_reference, image  )
-    ttl=mystem + ' '
-    ttl=''
-    ttl=ttl + "SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " BQ: " + "{:0.4f}".format(mybrisq)
-    if viz_filename is not None:
-        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
-    df = pd.DataFrame([[ mystem, snrref, cnrref, psnrref, ssimref, asym_err, mybrisq, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'snr', 'cnr', 'psnr', 'ssim', 'reflection_err', 'brisq', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
-    if verbose:
-        print( df )
-    import re
+        image_compare = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
+    #    if ntimepoints > 10:
+    #        ntimepoints=10
+    for jjj in range(ntimepoints):
+        if image_reference.dimension == 4:
+            image = ants.slice_image( image_reference, idx=int(jjj), axis=3 )
+            if "DTI" in image_filename:
+                if jjj in myTSseg['highermeans']:
+                    image_compare = ants.image_clone( image_b0 )
+                else:
+                    image_compare = ants.image_clone( image_dwi )    
+            else:
+                image_compare = ants.image_clone( image_b0 )    
+        image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
+        if resample is not None:
+            if resample == 'min':
+                newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
+            elif resample == 'max':
+                newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+            else:
+                newspc = np.repeat( resample, 3 )
+            image = ants.resample_image( image, newspc )
+            image_compare = ants.resample_image( image_compare, newspc )
+        # if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
+        msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )    
+        # else:
+        #    msk = ants.get_mask( image )
+        msk = ants.morphology(msk, "close", 3 )    
+        bgmsk = msk*0+1-msk
+        mskdil = ants.iMath(msk, "MD", 4 )
+        # ants.plot_ortho( image, msk, crop=False )
+        image = ants.crop_image( image, mskdil ).iMath("Normalize")
+        msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
+        bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
+        image_compare = ants.crop_image( image_compare, mskdil ).iMath("Normalize")
+        nvox = int( msk.sum() )
+        minshp = np.min( image.shape )
+        npatch = int( np.round(  0.1 * nvox ) )
+        npatch = np.min(  [512,npatch ] )
+        patch_shape = []
+        for k in range( 3 ):
+            p = int( 32.0 / ants.get_spacing( image  )[k] )
+            if p > int( np.round( image.shape[k] * 0.5 ) ):
+                p = int( np.round( image.shape[k] * 0.5 ) )
+            patch_shape.append( p )
+        if verbose:
+            print(image)
+            print( patch_shape )
+            print( npatch )
+        myevr = math.nan # dont want to fail if something odd happens in patch extraction
+        try:
+            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape, 
+                evdepth = 0.9, mask=msk )
+        except:
+            pass
+        if pull_rank:
+            image = ants.rank_intensity(image)
+        imagereflect = ants.reflect_image(image, axis=0)
+        asym_err = ( image - imagereflect ).abs().mean()
+        # estimate noise by center cropping, denoizing and taking magnitude of difference
+        mycc = antspyt1w.special_crop( image, 
+            ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+        myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
+        noizlevel = ( mycc - myccd ).abs().mean()
+#        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+#        from brisque import BRISQUE
+#        obj = BRISQUE(url=False)
+#        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
+        spc = ants.get_spacing( image )
+        msk_vol = msk.sum() * np.prod( spc )
+        bgstd = image[ bgmsk == 1 ].std()
+        fgmean = image[ msk == 1 ].mean()
+        bgmean = image[ bgmsk == 1 ].mean()
+        snrref = fgmean / bgstd
+        cnrref = ( fgmean - bgmean ) / bgstd
+        psnrref = antspynet.psnr(  image_compare, image  )
+        ssimref = antspynet.ssim(  image_compare, image  )
+        mymi = ants.image_mutual_information( image_compare, image )
+        ttl=mystem + ' '
+        ttl=''
+        ttl=ttl + "NZ: " + "{:0.4f}".format(noizlevel) + " SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " MI: " + "{:0.4f}".format(mymi)
+        if viz_filename is not None:
+            viz_filename_use = re.sub( ".png", str(jjj).zfill(4)+".png", viz_filename )
+            ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2]]], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','dimx','dimy','dimz'])
+        outdf = pd.concat( [outdf, df ], axis=0 )
+        if verbose:
+            print( outdf )
     if viz_filename is not None:
         csvfn = re.sub( "png", "csv", viz_filename )
-        df.to_csv( csvfn )
-    return df
+        outdf.to_csv( csvfn )
+    return outdf
 
