@@ -5152,7 +5152,7 @@ def blind_image_assessment(
         if "rsfMRI" in image_filename:
             modality='rsfMRI'
         elif "T1w" in image_filename:
-            modality='rsfMRI'
+            modality='T1w'
         elif "T2Flair" in image_filename:
             modality='T2Flair'
         elif "NM2DMT" in image_filename:
