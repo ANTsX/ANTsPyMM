@@ -5243,7 +5243,7 @@ def blind_image_assessment(
             except:
                 pass
             try:
-                mrimodel=mymeta['ManufacturersModelNamex']
+                mrimodel=mymeta['ManufacturersModelName']
             except:
                 pass
         ttl=mystem + ' '
