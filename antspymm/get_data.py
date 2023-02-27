@@ -3696,10 +3696,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
 
 
 def mm_nrg(
-    sourcedir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" ), # study folder
-    sid  = "100898",   # subject unique id
-    dtid = "20210331", # date
-    iid  = "1496183",  # image unique id for t1 - should have highest grade if repeats exist
+    studyid,   # pandas data frame
+    sourcedir = os.path.expanduser( "~/data/PPMI/MV/example_s3_b/images/PPMI/" ),
     sourcedatafoldername = 'images', # root for source data
     processDir = "processed", # where output will go - parallel to sourcedatafoldername
     mysep = '-', # define a separator for filename components
@@ -3707,7 +3705,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
+    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ],
     verbose = True
 ):
     """
@@ -3741,14 +3739,9 @@ def mm_nrg(
     Parameters
     -------------
 
+    studyid : must have columns subjectID date (in form 20220228) imageID
+
     sourcedir : a study specific folder containing individual subject folders
-
-    sid  : subject unique id e.g. S001
-
-    dtid : date eg "20210331"
-
-    iid  : image unique id for t1 e.g. "1496183"  - this image should have the
-        highest grade if repeats exist
 
     sourcedatafoldername : root for source data e.g. "images"
 
@@ -3776,6 +3769,13 @@ def mm_nrg(
     captured in a ipynb / html file.
 
     """
+    studyid = studyid.dropna(axis=1)
+    if studyid.shape[0] < 1:
+        raise ValueError('studyid has no rows')
+    musthavecols = ['subjectID','date','imageID']
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in studyid.keys():
+            raise ValueError('studyid is missing column ' +musthavecols[k] )
     def makewideout( x, separator = '-' ):
         return x + separator + 'mmwide.csv'
     if nrg_modality_list[0] != 'T1w':
@@ -3797,6 +3797,10 @@ def mm_nrg(
     test_run = False
     if test_run:
         visualize=False
+    # get sid and dtid from studyid
+    sid = str(studyid['subjectID'].iloc[0])
+    dtid = str(studyid['date'].iloc[0])
+    iid = str(studyid['imageID'].iloc[0])
     subjectrootpath = os.path.join(sourcedir,sid, dtid)
     if verbose:
         print("subjectrootpath: "+ subjectrootpath )
@@ -3900,19 +3904,43 @@ def mm_nrg(
         if counter > (len(nrg_modality_list)+1):
             print("This is weird. " + str(counter))
             return
-        mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
         if overmodX == 'T1w':
-            mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
+            iidOtherMod = iid
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+        elif overmodX == 'NM2DMT' and ('nmid1' in studyid.keys() ):
+            iidOtherMod = str( int(studyid['nmid1'].iloc[0]) )
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            for nmnum in range(2,11):
+                locnmnum = 'nmid'+str(nmnum)
+                if locnmnum in studyid.keys() :
+                    iidOtherMod = str( int(studyid[locnmnum].iloc[0]) )
+                    mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
+                    myimgsr.append( glob.glob(mod_search_path)[0] )
+        elif 'rsfMRI' in overmodX and ('rsfid' in studyid.keys() ):
+            iidOtherMod = str( int(studyid['rsfid'].iloc[0]) )
+            mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+        elif 'DTI' in overmodX and ('dtid' in studyid.keys() ):
+            iidOtherMod = str( int(studyid['dtid'].iloc[0]) )
+            mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+        elif 'T2Flair' in overmodX and ('flairid' in studyid.keys() ):
+            iidOtherMod = str( int(studyid['flairid'].iloc[0]) )
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
         if verbose:
+            print( "overmod " + overmodX + " " + iidOtherMod )
             print(f"modality search path: {mod_search_path}")
-        myimgsr = glob.glob(mod_search_path)
         myimgsr.sort()
         if len(myimgsr) > 0:
             overmodXx = str(overmodX)
             dowrite=False
             if verbose:
                 print( 'overmodX is : ' + overmodXx )
-                print( 'example image name is : ' + myimgsr[0] )
+                print( 'example image name is : '  )
+                print( myimgsr )
             if overmodXx == 'NM2DMT':
                 myimgsr2 = myimgsr
                 myimgsr2.sort()
