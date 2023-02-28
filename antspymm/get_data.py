@@ -3248,7 +3248,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
   fmri = ants.iMath( fmri, 'Normalize' )
-
+  bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).iMath("FillHoles")
   if verbose:
       print("Begin rsfmri motion correction")
   corrmo = timeseries_reg(
@@ -3264,25 +3264,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     reg_iterations=[40,20,5] )
   if verbose:
       print("End rsfmri motion correction")
-      ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
+      # ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
 
-  basicmask = ants.get_mask( fmri_template )
-  mytsnr = tsnr( corrmo['motion_corrected'], basicmask )
-  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.98 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh )
-  basicmask = basicmask * tsnrmask
-  if verbose:
-      ants.image_write( fmri_template, '/tmp/template.nii.gz' )
-      ants.image_write( basicmask, '/tmp/tempmask.nii.gz' )
-
-  t1reg = ants.registration( fmri_template * basicmask, t1, 'BOLDRigid' )['fwdtransforms'][0]
-  mybxt = ants.threshold_image( t1segmentation, 1, 6 )
-  bmask = ants.apply_transforms( fmri_template, mybxt, t1reg, interpolator='nearestNeighbor')
-  bmask = ants.iMath( bmask, 'MD', 1 )
+  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
+  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
   bmask = bmask * tsnrmask
-  if verbose:
-      print("rsf mask done")
-      ants.image_write( bmask, '/tmp/tempmask2.nii.gz' )
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
   if verbose:
@@ -3290,14 +3277,14 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       ants.image_write( und, '/tmp/template_bold_masked.nii.gz' )
       ants.image_write( t1reg['warpedmovout'], '/tmp/t1tobold.nii.gz' )
   boldseg = ants.apply_transforms( und, t1segmentation,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' )
-  gmseg = ants.threshold_image( t1segmentation, 2, 2 ).iMath("MD",1)
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
   gmseg = ants.apply_transforms( und, gmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
-               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",2)
+               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
 
