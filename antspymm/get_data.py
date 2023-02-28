@@ -49,7 +49,9 @@ def version( all=False ):
         return pkg_resources.require("antspymm")[0].version
     else:
         return {
+              'tensorflow': pkg_resources.require("tensorflow")[0].version,
               'antspyx': pkg_resources.require("antspyx")[0].version,
+              'antspynet': pkg_resources.require("antspynet")[0].version,
               'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
