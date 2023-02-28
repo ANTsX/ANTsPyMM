@@ -43,9 +43,16 @@ import glob as glob
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def version():
+def version( all=False ):
     import pkg_resources
-    return pkg_resources.require("antspymm")[0].version
+    if not all:
+        return pkg_resources.require("antspymm")[0].version
+    else:
+        return {
+              'antspyx': pkg_resources.require("antspyx")[0].version,
+              'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
+              'antspymm': pkg_resources.require("antspymm")[0].version
+              }
 
 def mm_read( x, modality='' ):
     """
