@@ -43,12 +43,9 @@ import glob as glob
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
-def version( all=False ):
+def version( ):
     import pkg_resources
-    if not all:
-        return pkg_resources.require("antspymm")[0].version
-    else:
-        return {
+    return {
               'tensorflow': pkg_resources.require("tensorflow")[0].version,
               'antspyx': pkg_resources.require("antspyx")[0].version,
               'antspynet': pkg_resources.require("antspynet")[0].version,
