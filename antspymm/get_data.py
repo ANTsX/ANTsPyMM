@@ -3274,15 +3274,16 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   t1reg = ants.registration( und, t1, "SyNBold" )
   if verbose:
       print("t1 2 bold done")
-      ants.image_write( und, '/tmp/template_bold_masked.nii.gz' )
-      ants.image_write( t1reg['warpedmovout'], '/tmp/t1tobold.nii.gz' )
+#      ants.image_write( und, '/tmp/template_bold_masked.nii.gz' )
+#      ants.image_write( t1reg['warpedmovout'], '/tmp/t1tobold.nii.gz' )
   boldseg = ants.apply_transforms( und, t1segmentation,
     t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
+  gmseg = ants.iMath( gmseg, 'MD', 1 )
   gmseg = ants.apply_transforms( und, gmseg,
-    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
                ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
@@ -3429,6 +3430,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
+  outdict['motion_corrected'] = corrmo['motion_corrected']
+  outdict['brain_mask'] = bmask
   outdict['nuisance'] = rsfNuisance
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
