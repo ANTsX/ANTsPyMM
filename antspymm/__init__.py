@@ -49,6 +49,7 @@ from .get_data import assemble_modality_specific_dataframes
 from .get_data import mc_denoise
 from .get_data import mc_reg
 from .get_data import dti_reg
+from .get_data import timeseries_reg
 from .get_data import concat_dewarp
 from .get_data import mc_resample_image_to_target
 from .get_data import trim_dti_mask
@@ -56,10 +57,12 @@ from .get_data import impute_fa
 from .get_data import get_average_dwi_b0
 from .get_data import dti_template
 from .get_data import merge_dwi_data
+from .get_data import merge_timeseries_data
 from .get_data import bvec_reorientation
 from .get_data import tsnr
 from .get_data import dvars
 from .get_data import slice_snr
 from .get_data import quick_viz_mm_nrg
 from .get_data import blind_image_assessment
+from .get_data import get_average_rsf
 from .get_data import version

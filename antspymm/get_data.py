@@ -162,6 +162,203 @@ def nrg_filelist_to_dataframe( filename_list, myseparator="-" ):
     return df
 
 
+def merge_timeseries_data( img_LR, img_RL, allow_resample=True ):
+    """
+    merge time series data into space of reference_image
+
+    img_LR : image
+
+    img_RL : image
+
+    allow_resample : boolean
+
+    """
+    # concatenate the images into the reference space
+    mimg=[]
+    for kk in range( img_LR.shape[3] ):
+        temp = ants.slice_image( img_LR, axis=3, idx=kk )
+        mimg.append( reg['warpedmovout'] )
+    for kk in range( img_RL.shape[3] ):
+        temp = ants.slice_image( img_RL, axis=3, idx=kk )
+        if kk == 0:
+            insamespace = ants.image_physical_space_consistency( temp, mimg[0] )
+        if allow_resample and not insamespace :
+            temp = ants.resample_image_to_target( temp, mimg[0] )
+        mimg.append( temp )
+    return ants.list_to_ndimage( img_LR, mimg )
+
+
+def timeseries_reg(
+    image,
+    avg_b0,
+    type_of_transform="Rigid",
+    total_sigma=1.0,
+    fdOffset=10.0,
+    output_directory=None,
+    verbose=False, **kwargs
+):
+    """
+    Correct time-series data for motion - with deformation.
+
+    Arguments
+    ---------
+        image: antsImage, usually ND where D=4.
+
+        avg_b0: Fixed image b0 image
+
+        type_of_transform : string
+            A linear or non-linear registration type. Mutual information metric and rigid transformation by default.
+            See ants registration for details.
+
+        fdOffset: offset value to use in framewise displacement calculation
+
+        output_directory : string
+            output will be placed in this directory plus a numeric extension.
+
+        verbose: boolean
+
+        kwargs: keyword args
+            extra arguments - these extra arguments will control the details of registration that is performed. see ants registration for more.
+
+    Returns
+    -------
+    dict containing follow key/value pairs:
+        `motion_corrected`: Moving image warped to space of fixed image.
+        `motion_parameters`: transforms for each image in the time series.
+        `FD`: Framewise displacement generalized for arbitrary transformations.
+
+    Notes
+    -----
+    Control extra arguments via kwargs. see ants.registration for details.
+
+    Example
+    -------
+    >>> import ants
+    """
+    idim = image.dimension
+    ishape = image.shape
+    nTimePoints = ishape[idim - 1]
+    FD = np.zeros(nTimePoints)
+    if type_of_transform is None:
+        return {
+            "motion_corrected": image,
+            "motion_parameters": None,
+            "FD": FD
+        }
+
+    remove_it=False
+    if output_directory is None:
+        remove_it=True
+        output_directory = tempfile.mkdtemp()
+    output_directory_w = output_directory + "/ts_reg/"
+    os.makedirs(output_directory_w,exist_ok=True)
+    ofnG = tempfile.NamedTemporaryFile(delete=False,suffix='global_deformation',dir=output_directory_w).name
+    ofnL = tempfile.NamedTemporaryFile(delete=False,suffix='local_deformation',dir=output_directory_w).name
+    if verbose:
+        print(output_directory_w)
+        print(ofnG)
+        print(ofnL)
+        print("remove_it " + str( remove_it ) )
+
+    # get a local deformation from slice to local avg space
+    motion_parameters = list()
+    motion_corrected = list()
+    mask = ants.get_mask( avg_b0 )
+    centerOfMass = mask.get_center_of_mass()
+    npts = pow(2, idim - 1)
+    pointOffsets = np.zeros((npts, idim - 1))
+    myrad = np.ones(idim - 1).astype(int).tolist()
+    mask1vals = np.zeros(int(mask.sum()))
+    mask1vals[round(len(mask1vals) / 2)] = 1
+    mask1 = ants.make_image(mask, mask1vals)
+    myoffsets = ants.get_neighborhood_in_mask(
+        mask1, mask1, radius=myrad, spatial_info=True
+    )["offsets"]
+    mycols = list("xy")
+    if idim - 1 == 3:
+        mycols = list("xyz")
+    useinds = list()
+    for k in range(myoffsets.shape[0]):
+        if abs(myoffsets[k, :]).sum() == (idim - 2):
+            useinds.append(k)
+        myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
+    fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
+    if verbose:
+        print("Progress:")
+    counter = round( nTimePoints / 10 )
+    for k in range(nTimePoints):
+        if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
+            myperc = round( k / nTimePoints * 100)
+            print(myperc, end="%.", flush=True)
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        temp = ants.n4_bias_field_correction( temp )
+        temp = ants.iMath(temp, "Normalize")
+        if temp.numpy().var() > 0:
+            myrig = ants.registration(
+                    avg_b0, temp,
+                    type_of_transform='BOLDRigid',
+                    outprefix=ofnL+str(k).zfill(4)+"_",
+                    **kwargs
+                )
+            if type_of_transform == 'SyN':
+                myreg = ants.registration(
+                    avg_b0, temp,
+                    type_of_transform='SyNOnly',
+                    total_sigma=total_sigma,
+                    initial_transform=myrig['fwdtransforms'][0],
+                    outprefix=ofnL+str(k).zfill(4)+"_",
+                    **kwargs
+                )
+            else:
+                myreg = myrig
+            fdptsTxI = ants.apply_transforms_to_points(
+                idim - 1, fdpts, myrig["fwdtransforms"]
+            )
+            if k > 0 and motion_parameters[k - 1] != "NA":
+                fdptsTxIminus1 = ants.apply_transforms_to_points(
+                    idim - 1, fdpts, motion_parameters[k - 1]
+                )
+            else:
+                fdptsTxIminus1 = fdptsTxI
+            # take the absolute value, then the mean across columns, then the sum
+            FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
+            motion_parameters.append(myreg["fwdtransforms"])
+        else:
+            motion_parameters.append("NA")
+
+    for k in range(nTimePoints):
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        if temp.numpy().var() > 0:
+            img1w = ants.apply_transforms( avg_b0,
+                temp,
+                motion_parameters[k] )
+            motion_corrected.append(img1w)
+        else:
+            motion_corrected.append(avg_b0)
+
+    if remove_it:
+        import shutil
+        shutil.rmtree(output_directory, ignore_errors=True )
+
+    if verbose:
+        print("Done")
+    d4siz = list(avg_b0.shape)
+    d4siz.append( 2 )
+    spc = list(ants.get_spacing( avg_b0 ))
+    spc.append( ants.get_spacing(image)[3] )
+    mydir = ants.get_direction( avg_b0 )
+    mydir4d = ants.get_direction( image )
+    mydir4d[0:3,0:3]=mydir
+    myorg = list(ants.get_origin( avg_b0 ))
+    myorg.append( 0.0 )
+    avg_b0_4d = ants.make_image(d4siz,0,spacing=spc,origin=myorg,direction=mydir4d)
+    return {
+        "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected),
+        "motion_parameters": motion_parameters,
+        "FD": FD
+    }
+
+
 def merge_dwi_data( img_LRdwp, bval_LR, bvec_LR, img_RLdwp, bval_RL, bvec_RL ):
     """
     merge motion and distortion corrected data if possible
@@ -236,7 +433,6 @@ def bvec_reorientation( motion_parameters, bvecs ):
                     Rinv = inv( txparam )
                 bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
     return bvecs
-
 
 
 def dti_reg(
@@ -423,6 +619,7 @@ def dti_reg(
         print("end global distortion correction")
 
     for k in range(nTimePoints):
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
         else:
@@ -946,6 +1143,31 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     return {
     'lowermeans':lowerindices,
     'highermeans':higherindices }
+
+
+def get_average_rsf( x ):
+    """
+    automatically generates the average bold image with quick registration
+
+    returns:
+        avg_bold
+    """
+    output_directory = tempfile.mkdtemp()
+    ofn = output_directory + "/w"
+    bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
+    oavg = ants.slice_image( x, axis=3, idx=0 )
+    for myidx in range(x.shape[3]):
+        b0 = ants.slice_image( x, axis=3, idx=myidx)
+        bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+    bavg = ants.iMath( bavg, 'Normalize' )
+    oavg = ants.image_clone( bavg )
+    bavg = oavg * 0.0
+    for myidx in range(x.shape[3]):
+        b0 = ants.slice_image( x, axis=3, idx=myidx)
+        bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+    import shutil
+    shutil.rmtree(output_directory, ignore_errors=True )
+    return ants.n4_bias_field_correction(bavg)
 
 
 def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
@@ -2979,8 +3201,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_count': len( list_nm_images )
        }
 
-def resting_state_fmri_networks( fmri, t1, t1segmentation,
-    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 ):
+def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
+    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN' ):
 
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -2989,6 +3211,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   Arguments
   ---------
   fmri : BOLD fmri antsImage
+
+  fmri_template : reference space for BOLD
 
   t1 : ANTsImage
     input 3-D T1 brain image (brain extracted)
@@ -3004,6 +3228,8 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
 
   nc  : number of components for compcor filtering
 
+  type_of_transform : SyN or Rigid
+
   Returns
   ---------
   a dictionary containing the derived network maps
@@ -3016,20 +3242,17 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
   fmri = ants.iMath( fmri, 'Normalize' )
-  dwp = dewarp_imageset( [ fmri], iterations=1, padding=8,
-          target_idx = [7,8,9],
-          syn_sampling = 20, syn_metric='mattes',
-          type_of_transform = 'SyN',
-          total_sigma = 0.0, random_seed=1,
-          reg_iterations = [50,20] )
-  und = dwp['dewarpedmean']
-  bmask = antspynet.brain_extraction( und, 'bold' ).threshold_image( 0.3, 1.0 )
-  bmask = ants.iMath( bmask, "MD", 4 ).iMath( "ME", 4 ).iMath( "FillHoles" )
-
-
-  t1reg = ants.registration( und * bmask, t1, "SyNBold" )
+  initrig = ants.registration( fmri_template, t1, 'BOLDRigid' )['fwdtransforms'][0]
+  t1reg = ants.registration( fmri_template, t1, 'SyNOnly',
+                syn_metric='mattes', syn_sampling=32,
+                reg_iterations=[50,50,20],
+                initial_transform=initrig )
+  mybxt = ants.threshold_image( t1segmentation, 1, 6 )
+  bmask = ants.apply_transforms( fmri_template, mybxt, tempreg['fwdtransforms'], interpolator='nearestNeighbor')
+  und = fmri_template * bmask
+  t1reg = ants.registration( und, t1, "SyNBold" )
   boldseg = ants.apply_transforms( und, t1segmentation,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' )
   gmseg = ants.threshold_image( t1segmentation, 2, 2 ).iMath("MD",1)
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
@@ -3040,13 +3263,17 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
 
-  dwpind = 0
+  corrmo = timeseries_reg( fmri, fmri_template,
+    type_of_transform=type_of_transform,
+    total_sigma=1.0, fdOffset=10.0,
+    output_directory=None, verbose=False)
+
   # get falff and alff
-  mycompcor = ants.compcor( dwp['dewarped'][dwpind],
+  mycompcor = ants.compcor( corrmo['motion_corrected'],
     ncompcor=nc, quantile=0.90, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
 
-  nt = dwp['dewarped'][dwpind].shape[3]
+  nt = corrmo['motion_corrected'].shape[3]
 
   myvoxes = range(powers_areal_mni_itk.shape[0])
   anat = powers_areal_mni_itk['Anatomy']
@@ -3061,15 +3288,15 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
   locations = pts2bold.iloc[:,:3].values
   ptImg = ants.make_points_image( locations, bmask, radius = 2 )
 
-  tr = ants.get_spacing( dwp['dewarped'][dwpind] )[3]
-  highMotionTimes = np.where( dwp['FD'][dwpind] >= 1.0 )
-  goodtimes = np.where( dwp['FD'][dwpind] < 0.5 )
+  tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
+  highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
+  goodtimes = np.where( corrmo['FD'] < 0.5 )
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-  simg = ants.smooth_image(dwp['dewarped'][dwpind], smth, sigma_in_physical_coordinates = False )
+  simg = ants.smooth_image(corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
 
   nuisance = mycompcor[ 'components' ]
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
-  nuisance = np.c_[ nuisance, dwp['FD'][dwpind] ]
+  nuisance = np.c_[ nuisance, corrmo['FD'] ]
 
   gmmat = ants.timeseries_to_matrix( simg, gmseg )
   gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
@@ -3177,15 +3404,15 @@ def resting_state_fmri_networks( fmri, t1, t1segmentation,
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
 
   rsfNuisance = pd.DataFrame( nuisance )
-  rsfNuisance['FD']=dwp['FD'][dwpind]
+  rsfNuisance['FD']=corrmo['FD']
 
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
   outdict['nuisance'] = rsfNuisance
-  outdict['tsnr'] = tsnr( dwp['dewarped'][dwpind], bmask )
-  outdict['ssnr'] = slice_snr( dwp['dewarped'][dwpind], nonbrainmask, bmask )
-  outdict['dvars'] = dvars( dwp['dewarped'][dwpind], bmask )
+  outdict['tsnr'] = tsnr( corrmo['motion_corrected'], gmseg )
+  outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
+  outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
   outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
@@ -3256,7 +3483,7 @@ def crop_mcimage( x, mask, padder=None ):
 def mm(
     t1_image,
     hier,
-    rsf_image=None,
+    rsf_image=[],
     flair_image=None,
     nm_image_list=None,
     dw_image=[], bvals=[], bvecs=[],
@@ -3280,7 +3507,7 @@ def mm(
 
     hier  : output of antspyt1w.hierarchical ( see read hierarchical )
 
-    rsf_image : resting state fmri
+    rsf_image : list of resting state fmri
 
     flair_image : flair
 
@@ -3375,12 +3602,38 @@ def mm(
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     ################################## do the rsf .....
-    if rsf_image is not None:
+    if len(rsf_image) > 0:
+        rsf_image = [i for i in rsf_image if i is not None]
         if verbose:
-            print('rsf')
-        if rsf_image.shape[3] > 40: # FIXME - better heuristic?
-            output_dict['rsf'] = resting_state_fmri_networks( rsf_image, hier['brain_n4_dnz'], t1atropos,
-                f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6 )
+            print('rsf length ' + str( len( rsf_image ) ) )
+        if len( rsf_image ) >= 2: # assume 2 is the largest possible value
+            rsf_image1 = rsf_image[0]
+            rsf_image2 = rsf_image[1]
+            # build a template then join the images
+            if verbose:
+                print("initial average for rsf")
+            rsfavg1=get_average_rsf(rsf_image1)
+            rsfavg2=get_average_rsf(rsf_image2)
+            if verbose:
+                print("template average for rsf")
+            boldTemplate, throwaway = dti_template(
+                b_image_list=[rsfavg1,rsfavg2],
+                w_image_list=[rsfavg1,rsfavg2],
+                iterations=7, verbose=verbose )
+            if verbose:
+                print("join the 2 rsf")
+            rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
+        elif len( rsf_image ) == 1:
+            rsf_image = rsf_image[0]
+            boldTemplate=get_average_rsf(rsf_image)
+        if rsf_image.shape[3] > 10: # FIXME - better heuristic?
+            output_dict['rsf'] = resting_state_fmri_networks(
+                rsf_image,
+                boldTemplate,
+                hier['brain_n4_dnz'],
+                t1atropos,
+                f=[0.03,0.08],
+                spa = 1.5, spt = 0.5, nc = 6 )
     if nm_image_list is not None:
         if verbose:
             print('nm')
@@ -3928,14 +4181,26 @@ def mm_nrg(
                     iidOtherMod = str( int(studyid[locnmnum].iloc[0]) )
                     mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
                     myimgsr.append( glob.glob(mod_search_path)[0] )
-        elif 'rsfMRI' in overmodX and ('rsfid' in studyid.keys() ):
-            iidOtherMod = str( int(studyid['rsfid'].iloc[0]) )
-            mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
-            myimgsr = glob.glob(mod_search_path)
-        elif 'DTI' in overmodX and ('dtid' in studyid.keys() ):
-            iidOtherMod = str( int(studyid['dtid'].iloc[0]) )
-            mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
-            myimgsr = glob.glob(mod_search_path)
+        elif 'rsfMRI' in overmodX and ( ( 'rsfid1' in studyid.keys() ) or ('rsfid2' in studyid.keys() ) ):
+            myimgsr = []
+            if  'rsfid1' in studyid.keys():
+                iidOtherMod = str( int(studyid['rsfid1'].iloc[0]) )
+                mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+                myimgsr.append( glob.glob(mod_search_path)[0] )
+            if  'rsfid2' in studyid.keys():
+                iidOtherMod = str( int(studyid['rsfid2'].iloc[0]) )
+                mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+                myimgsr.append( glob.glob(mod_search_path)[0] )
+        elif 'DTI' in overmodX and (  'dtid1' in studyid.keys() or  'dtid2' in studyid.keys() ):
+            myimgsr = []
+            if  'dtid1' in studyid.keys():
+                iidOtherMod = str( int(studyid['dtid1'].iloc[0]) )
+                mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+                myimgsr.append( glob.glob(mod_search_path)[0] )
+            if  'dtid2' in studyid.keys():
+                iidOtherMod = str( int(studyid['dtid2'].iloc[0]) )
+                mod_search_path = os.path.join(subjectrootpath, overmodX+"*", iidOtherMod, "*nii.gz")
+                myimgsr.append( glob.glob(mod_search_path)[0] )
         elif 'T2Flair' in overmodX and ('flairid' in studyid.keys() ):
             iidOtherMod = str( int(studyid['flairid'].iloc[0]) )
             mod_search_path = os.path.join(subjectrootpath, overmodX, iidOtherMod, "*nii.gz")
@@ -4022,8 +4287,9 @@ def mm_nrg(
                         ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
                         ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
             else :
-                for myimgcount in range( len( myimgsr ) ):
+                if len( myimgsr ) > 0:
                     dowrite=False
+                    myimgcount = 0
                     if len( myimgsr ) > 0 :
                         myimg = myimgsr[myimgcount]
                         subjectpropath = os.path.dirname( myimg )
@@ -4106,9 +4372,15 @@ def mm_nrg(
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
                                         ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True )
                             if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
+                                img2 = None
+                                if len( myimgsr ) > 1:
+                                    img2 = mm_read( myimgsr[myimgcount+1] )
+                                    ishapelen2 = len( img2.shape )
+                                    if ishapelen2 != 4 :
+                                        img2 = None
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
-                                    rsf_image=img,
+                                    rsf_image=[img,img2],
                                     srmodel=None,
                                     do_tractography=False,
                                     do_kk=False,
@@ -4134,11 +4406,9 @@ def mm_nrg(
                                 imgList = [ img ]
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
-                                if mymod == 'DTI_LR' :  # find DTI_RL
-                                    rl_search_path = os.path.join(subjectrootpath, 'DTI_RL', "*", "*nii.gz")
-                                    dtilrfn = glob.glob( rl_search_path )
+                                if len( myimgsr ) > 1:  # find DTI_RL
+                                    dtilrfn = myimgsr[myimgcount+1]
                                     if len( dtilrfn ) == 1:
-                                        dtilrfn=dtilrfn[0]
                                         bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
                                         bvecfnRL = re.sub( '.nii.gz', '.bvec' , dtilrfn )
                                         imgRL = ants.image_read( dtilrfn )
