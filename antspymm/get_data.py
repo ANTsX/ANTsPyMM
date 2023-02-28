@@ -3941,14 +3941,14 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['flair_evr'] = mm['flair']['wmh_evr']
         mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
-        mynets = list([ 'meanBold', 'alff', 'falff',
+        mynets = list([ 'meanBold', 'brain_mask', 'motion_corrected', 'alff', 'falff',
             'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
             'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience',
             'Subcortical', 'DorsalAttention', 'tsnr'] )
         rsfpro = mm['rsf']
         for mykey in mynets:
             myop = output_prefix + separator + mykey + '.nii.gz'
-            image_write_with_thumbnail( rsfpro[mykey], myop, thumb=False )
+            image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
         mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
         # falff and alff
