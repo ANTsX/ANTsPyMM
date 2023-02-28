@@ -1,5 +1,6 @@
 
-from setuptools import setup
+from setuptools import setup, find_packages
+from distutils.util import convert_path
 
 long_description = open("README.md").read()
 
@@ -7,7 +8,7 @@ with open("./requirements.txt") as f:
       requirements = f.read().splitlines()
 
 setup(name='antspymm',
-      version='0.8.6',
+      version='0.8.7',
       description='multi-channel/time-series medical image processing with antspyx',
       long_description=long_description,
       long_description_content_type="text/markdown; charset=UTF-8; variant=GFM",

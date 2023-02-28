@@ -43,6 +43,10 @@ import glob as glob
 
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
+def version():
+    import pkg_resources
+    return pkg_resources.require("antspymm")[0].version
+
 def mm_read( x, modality='' ):
     """
     read an image from a filename - same as ants.image_read (for now)
