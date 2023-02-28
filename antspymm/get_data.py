@@ -3251,7 +3251,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   if verbose:
       print("Begin rsfmri motion correction")
-  corrmo = timeseries_reg( fmri, fmri_template,
+  corrmo = timeseries_reg(
+    fmri, fmri_template,
     type_of_transform=type_of_transform,
     total_sigma=0.0,
     fdOffset=10.0,
@@ -3260,8 +3261,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     verbose=False,
     syn_metric='cc',
     syn_sampling=2,
-    reg_iterations=[40,20,5],
-    trim = 8 )
+    reg_iterations=[40,20,5] )
   if verbose:
       print("End rsfmri motion correction")
       ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
