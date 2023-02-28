@@ -177,7 +177,7 @@ def merge_timeseries_data( img_LR, img_RL, allow_resample=True ):
     mimg=[]
     for kk in range( img_LR.shape[3] ):
         temp = ants.slice_image( img_LR, axis=3, idx=kk )
-        mimg.append( reg['warpedmovout'] )
+        mimg.append( temp )
     for kk in range( img_RL.shape[3] ):
         temp = ants.slice_image( img_RL, axis=3, idx=kk )
         if kk == 0:
@@ -3202,7 +3202,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN' ):
+    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN',
+    verbose=False ):
 
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -3230,6 +3231,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   type_of_transform : SyN or Rigid
 
+  verbose : boolean
+
   Returns
   ---------
   a dictionary containing the derived network maps
@@ -3248,7 +3251,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
                 reg_iterations=[50,50,20],
                 initial_transform=initrig )
   mybxt = ants.threshold_image( t1segmentation, 1, 6 )
-  bmask = ants.apply_transforms( fmri_template, mybxt, tempreg['fwdtransforms'], interpolator='nearestNeighbor')
+  bmask = ants.apply_transforms( fmri_template, mybxt, t1reg['fwdtransforms'], interpolator='nearestNeighbor')
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
   boldseg = ants.apply_transforms( und, t1segmentation,
@@ -3263,10 +3266,17 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
 
+  if verbose:
+      print("Begin rsfmri motion correction")
+
   corrmo = timeseries_reg( fmri, fmri_template,
     type_of_transform=type_of_transform,
     total_sigma=1.0, fdOffset=10.0,
     output_directory=None, verbose=False)
+
+  if verbose:
+      print("End rsfmri motion correction")
+      ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
 
   # get falff and alff
   mycompcor = ants.compcor( corrmo['motion_corrected'],
@@ -3616,10 +3626,13 @@ def mm(
             rsfavg2=get_average_rsf(rsf_image2)
             if verbose:
                 print("template average for rsf")
-            boldTemplate, throwaway = dti_template(
-                b_image_list=[rsfavg1,rsfavg2],
-                w_image_list=[rsfavg1,rsfavg2],
-                iterations=7, verbose=verbose )
+            init_temp = ants.image_clone( rsfavg1 )
+            if rsf_image1.shape[3] < rsf_image2.shape[3]:
+                init_temp = ants.image_clone( rsfavg2 )
+            boldTemplate = ants.build_template(
+                initial_template = init_temp,
+                image_list=[rsfavg1,rsfavg2],
+                iterations=4, verbose=False )
             if verbose:
                 print("join the 2 rsf")
             rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
@@ -3633,7 +3646,7 @@ def mm(
                 hier['brain_n4_dnz'],
                 t1atropos,
                 f=[0.03,0.08],
-                spa = 1.5, spt = 0.5, nc = 6 )
+                spa = 1.5, spt = 0.5, nc = 6, verbose=verbose )
     if nm_image_list is not None:
         if verbose:
             print('nm')
