@@ -4002,7 +4002,11 @@ def mm_nrg(
     Parameters
     -------------
 
-    studyid : must have columns subjectID date (in form 20220228) imageID
+    studyid : must have columns 1. subjectID 2. date (in form 20220228) and 3. imageID
+        other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
+        these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
+        rsf=resting state fmri, flair=T2Flair.  none of these are required. only
+        t1 is required.
 
     sourcedir : a study specific folder containing individual subject folders
 
