@@ -3268,8 +3268,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   basicmask = ants.get_mask( fmri_template )
   mytsnr = tsnr( corrmo['motion_corrected'], basicmask )
-  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.95 )
-  basicmask = basicmask * ants.threshold_image( mytsnr, mytsnrThresh, math.inf )
+  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.98 )
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh )
+  basicmask = basicmask * tsnrmask
   if verbose:
       ants.image_write( fmri_template, '/tmp/template.nii.gz' )
       ants.image_write( basicmask, '/tmp/tempmask.nii.gz' )
@@ -3278,7 +3279,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   mybxt = ants.threshold_image( t1segmentation, 1, 6 )
   bmask = ants.apply_transforms( fmri_template, mybxt, t1reg, interpolator='nearestNeighbor')
   bmask = ants.iMath( bmask, 'MD', 1 )
-  bmask = bmask * ants.threshold_image( mytsnr, mytsnrThresh, math.inf )
+  bmask = bmask * tsnrmask
   if verbose:
       print("rsf mask done")
       ants.image_write( bmask, '/tmp/tempmask2.nii.gz' )
