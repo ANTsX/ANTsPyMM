@@ -194,6 +194,7 @@ def timeseries_reg(
     type_of_transform="Rigid",
     total_sigma=1.0,
     fdOffset=10.0,
+    trim = 0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -211,6 +212,8 @@ def timeseries_reg(
             See ants registration for details.
 
         fdOffset: offset value to use in framewise displacement calculation
+
+        trim : integer - trim this many images off the front of the time series
 
         output_directory : string
             output will be placed in this directory plus a numeric extension.
@@ -287,7 +290,7 @@ def timeseries_reg(
     if verbose:
         print("Progress:")
     counter = round( nTimePoints / 10 )
-    for k in range(nTimePoints):
+    for k in range( nTimePoints):
         if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
             myperc = round( k / nTimePoints * 100)
             print(myperc, end="%.", flush=True)
@@ -353,9 +356,9 @@ def timeseries_reg(
     myorg.append( 0.0 )
     avg_b0_4d = ants.make_image(d4siz,0,spacing=spc,origin=myorg,direction=mydir4d)
     return {
-        "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected),
-        "motion_parameters": motion_parameters,
-        "FD": FD
+        "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected[trim:len(motion_corrected)]),
+        "motion_parameters": motion_parameters[trim:len(motion_parameters)],
+        "FD": FD[trim:len(FD)]
     }
 
 
@@ -3250,11 +3253,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       print("Begin rsfmri motion correction")
   corrmo = timeseries_reg( fmri, fmri_template,
     type_of_transform=type_of_transform,
-    total_sigma=0.0, fdOffset=10.0,
-    output_directory=None, verbose=False,
+    total_sigma=0.0,
+    fdOffset=10.0,
+    trim = 8,
+    output_directory=None,
+    verbose=False,
     syn_metric='cc',
     syn_sampling=2,
-    reg_iterations=[40,20,5] )
+    reg_iterations=[40,20,5],
+    trim = 8 )
   if verbose:
       print("End rsfmri motion correction")
       ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
@@ -3650,7 +3657,12 @@ def mm(
                 iterations=5, verbose=False )
             if verbose:
                 print("join the 2 rsf")
-            rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
+            if rsf_image1.shape[3] > 10 and rsf_image2.shape[3] > 10:
+                rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
+            elif rsf_image1.shape[3] > rsf_image2.shape[3]:
+                rsf_image = rsf_image1
+            else:
+                rsf_image = rsf_image2
         elif len( rsf_image ) == 1:
             rsf_image = rsf_image[0]
             boldTemplate=get_average_rsf(rsf_image)
