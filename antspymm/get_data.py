@@ -255,6 +255,7 @@ def timeseries_reg(
     ofnG = tempfile.NamedTemporaryFile(delete=False,suffix='global_deformation',dir=output_directory_w).name
     ofnL = tempfile.NamedTemporaryFile(delete=False,suffix='local_deformation',dir=output_directory_w).name
     if verbose:
+        print('bold motcorr with ' + type_of_transform)
         print(output_directory_w)
         print(ofnG)
         print(ofnL)
@@ -297,8 +298,7 @@ def timeseries_reg(
             myrig = ants.registration(
                     avg_b0, temp,
                     type_of_transform='BOLDRigid',
-                    outprefix=ofnL+str(k).zfill(4)+"_",
-                    **kwargs
+                    outprefix=ofnL+str(k).zfill(4)+"_"
                 )
             if type_of_transform == 'SyN':
                 myreg = ants.registration(
@@ -3245,15 +3245,42 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
   fmri = ants.iMath( fmri, 'Normalize' )
-  initrig = ants.registration( fmri_template, t1, 'BOLDRigid' )['fwdtransforms'][0]
-  t1reg = ants.registration( fmri_template, t1, 'SyNOnly',
-                syn_metric='mattes', syn_sampling=32,
-                reg_iterations=[50,50,20],
-                initial_transform=initrig )
+
+  if verbose:
+      print("Begin rsfmri motion correction")
+  corrmo = timeseries_reg( fmri, fmri_template,
+    type_of_transform=type_of_transform,
+    total_sigma=0.0, fdOffset=10.0,
+    output_directory=None, verbose=False,
+    syn_metric='cc',
+    syn_sampling=2,
+    reg_iterations=[40,20,5] )
+  if verbose:
+      print("End rsfmri motion correction")
+      ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
+
+  basicmask = ants.get_mask( fmri_template )
+  mytsnr = tsnr( corrmo['motion_corrected'], basicmask )
+  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.95 )
+  basicmask = basicmask * ants.threshold_image( mytsnr, mytsnrThresh, math.inf )
+  if verbose:
+      ants.image_write( fmri_template, '/tmp/template.nii.gz' )
+      ants.image_write( basicmask, '/tmp/tempmask.nii.gz' )
+
+  t1reg = ants.registration( fmri_template * basicmask, t1, 'BOLDRigid' )['fwdtransforms'][0]
   mybxt = ants.threshold_image( t1segmentation, 1, 6 )
-  bmask = ants.apply_transforms( fmri_template, mybxt, t1reg['fwdtransforms'], interpolator='nearestNeighbor')
+  bmask = ants.apply_transforms( fmri_template, mybxt, t1reg, interpolator='nearestNeighbor')
+  bmask = ants.iMath( bmask, 'MD', 1 )
+  bmask = bmask * ants.threshold_image( mytsnr, mytsnrThresh, math.inf )
+  if verbose:
+      print("rsf mask done")
+      ants.image_write( bmask, '/tmp/tempmask2.nii.gz' )
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
+  if verbose:
+      print("t1 2 bold done")
+      ants.image_write( und, '/tmp/template_bold_masked.nii.gz' )
+      ants.image_write( t1reg['warpedmovout'], '/tmp/t1tobold.nii.gz' )
   boldseg = ants.apply_transforms( und, t1segmentation,
     t1reg['fwdtransforms'], interpolator = 'genericLabel' )
   gmseg = ants.threshold_image( t1segmentation, 2, 2 ).iMath("MD",1)
@@ -3265,18 +3292,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
                ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",2)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-
-  if verbose:
-      print("Begin rsfmri motion correction")
-
-  corrmo = timeseries_reg( fmri, fmri_template,
-    type_of_transform=type_of_transform,
-    total_sigma=1.0, fdOffset=10.0,
-    output_directory=None, verbose=False)
-
-  if verbose:
-      print("End rsfmri motion correction")
-      ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
 
   # get falff and alff
   mycompcor = ants.compcor( corrmo['motion_corrected'],
@@ -3420,7 +3435,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   trimmask = ants.iMath( bmask, "ME",2)
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
   outdict['nuisance'] = rsfNuisance
-  outdict['tsnr'] = tsnr( corrmo['motion_corrected'], gmseg )
+  outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
   outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
@@ -3632,7 +3647,7 @@ def mm(
             boldTemplate = ants.build_template(
                 initial_template = init_temp,
                 image_list=[rsfavg1,rsfavg2],
-                iterations=4, verbose=False )
+                iterations=5, verbose=False )
             if verbose:
                 print("join the 2 rsf")
             rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
@@ -3646,7 +3661,9 @@ def mm(
                 hier['brain_n4_dnz'],
                 t1atropos,
                 f=[0.03,0.08],
-                spa = 1.5, spt = 0.5, nc = 6, verbose=verbose )
+                spa = 1.0,
+                spt = 0.5,
+                nc = 6, verbose=verbose )
     if nm_image_list is not None:
         if verbose:
             print('nm')
