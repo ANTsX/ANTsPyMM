@@ -108,6 +108,11 @@ antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
 
 ```
 
+## build docs
+
+```
+pdoc --html .
+```
 
 ## to publish a release
 
