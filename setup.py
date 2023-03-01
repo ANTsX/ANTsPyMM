@@ -1,6 +1,5 @@
 
 from setuptools import setup, find_packages
-from distutils.util import convert_path
 
 long_description = open("README.md").read()
 
