@@ -63,6 +63,8 @@ ANTsPyMM will process several types of brain MRI into tabular form as well as no
 Results of these processes are plentiful; processing for a single subject 
 will all modalities will take around 2 hours on an average laptop.
 
+documentation of functions [here](https://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/csvinterface/docs/antspymm/mm.html).
+
 # first time setup
 
 ```python
