@@ -8,5 +8,4 @@ pathlib
 dipy
 nibabel
 scipy
-brisque
 siq

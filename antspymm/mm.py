@@ -1,7 +1,66 @@
 
-__all__ = ['get_data','dewarp_imageset','super_res_mcimage','dipy_dti_recon',
-    'segment_timeseries_by_meanvalue', 'wmh', 'neuromelanin',
-    'resting_state_fmri_networks', 'dwi_deterministic_tracking']
+__all__ = ['version',
+    'mm_read',
+    'mm_read_to_3d',
+    'image_write_with_thumbnail',
+    'mc_resample_image_to_target',
+    'nrg_filelist_to_dataframe',
+    'merge_timeseries_data',
+    'timeseries_reg',
+    'merge_dwi_data',
+    'bvec_reorientation',
+    'dti_reg',
+    'mc_reg',
+    'get_data',
+    'get_models',
+    'dewarp_imageset',
+    'super_res_mcimage',
+    'segment_timeseries_by_meanvalue',
+    'get_average_rsf',
+    'get_average_dwi_b0',
+    'dti_template',
+    't1_based_dwi_brain_extraction',
+    'mc_denoise',
+    'tsnr',
+    'dvars',
+    'slice_snr',
+    'impute_fa',
+    'trim_dti_mask',
+    'dipy_dti_recon',
+    'concat_dewarp',
+    'joint_dti_recon',
+    'middle_slice_snr',
+    'foreground_background_snr',
+    'quantile_snr',
+    'mask_snr',
+    'dwi_deterministic_tracking',
+    'dwi_closest_peak_tracking',
+    'dwi_streamline_pairwise_connectivity',
+    'dwi_streamline_connectivity',
+    'hierarchical_modality_summary',
+    'tra_initializer',
+    'neuromelanin',
+    'resting_state_fmri_networks',
+    'write_bvals_bvecs',
+    'crop_mcimage',
+    'mm',
+    'write_mm',
+    'mm_nrg',
+    'alffmap',
+    'alff_image',
+    'down2iso',
+    'read_mm_csv',
+    'assemble_modality_specific_dataframes',
+    'bind_wide_mm_csvs',
+    'merge_mm_dataframe',
+    'augment_image',
+    'boot_wmh',
+    'threaded_bind_wide_mm_csvs',
+    'get_names_from_data_frame',
+    'average_mm_df',
+    'quick_viz_mm_nrg',
+    'blind_image_assessment',
+    'wmh']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -44,6 +103,22 @@ import glob as glob
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
 def version( ):
+    """
+    report versions of this package and primary dependencies
+
+    Arguments
+    ---------
+    None
+
+    Returns
+    -------
+    a dictionary with package name and versions
+
+    Example
+    -------
+    >>> import antspymm
+    >>> antspymm.version()
+    """
     import pkg_resources
     return {
               'tensorflow': pkg_resources.require("tensorflow")[0].version,
@@ -80,6 +155,9 @@ def mm_read_to_3d( x, slice=None, modality='' ):
     return None
 
 def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
+    """
+    will write the image and (optionally) a png thumbnail with (optional) overlay/underlay
+    """
     ants.image_write( x, fn )
     if not thumb or x.components > 1:
         return
@@ -203,24 +281,24 @@ def timeseries_reg(
 
     Arguments
     ---------
-        image: antsImage, usually ND where D=4.
+    image: antsImage, usually ND where D=4.
 
-        avg_b0: Fixed image b0 image
+    avg_b0: Fixed image b0 image
 
-        type_of_transform : string
+    type_of_transform : string
             A linear or non-linear registration type. Mutual information metric and rigid transformation by default.
             See ants registration for details.
 
-        fdOffset: offset value to use in framewise displacement calculation
+    fdOffset: offset value to use in framewise displacement calculation
 
-        trim : integer - trim this many images off the front of the time series
+    trim : integer - trim this many images off the front of the time series
 
-        output_directory : string
+    output_directory : string
             output will be placed in this directory plus a numeric extension.
 
-        verbose: boolean
+    verbose: boolean
 
-        kwargs: keyword args
+    kwargs: keyword args
             extra arguments - these extra arguments will control the details of registration that is performed. see ants registration for more.
 
     Returns
@@ -2772,119 +2850,25 @@ def hierarchical_modality_summary(
     return dfout
 
 
-def wmh( flair, t1, t1seg,
-    mmfromconvexhull = 3.0,
-    strict=True,
-    probability_mask=None,
-    prior_probability=None,
-    model='sysu',
-    verbose=False ) :
-  """
-  Outputs the WMH probability mask and a summary single measurement
-
-  Arguments
-  ---------
-  flair : ANTsImage
-    input 3-D FLAIR brain image (not skull-stripped).
-
-  t1 : ANTsImage
-    input 3-D T1 brain image (not skull-stripped).
-
-  t1seg : ANTsImage
-    T1 segmentation image
-
-  mmfromconvexhull : float
-    restrict WMH to regions that are WM or mmfromconvexhull mm away from the
-    convex hull of the cerebrum.   we choose a default value based on
-    Figure 4 from:
-    https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6240579/pdf/fnagi-10-00339.pdf
-
-  strict: boolean - if True, only use convex hull distance
-
-  probability_mask : None - use to compute wmh just once - then this function
-        just does refinement and summary
-
-  prior_probability : optional prior probability image in space of the input t1
-
-  model : either sysu or hyper
-
-  verbose : boolean
-
-  Returns
-  ---------
-  WMH probability map and a summary single measurement which is the sum of the WMH map
-
-  """
-  import numpy as np
-  import math
-  t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
-  if probability_mask is None and model == 'sysu':
-    if verbose:
-        print('sysu')
-    probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
-  elif probability_mask is None and model == 'hyper':
-    if verbose:
-        print('hyper')
-    probability_mask = antspynet.hypermapp3r_segmentation( t1_2_flair_reg['warpedmovout'], flair )
-  # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
-  prior_probability_flair = None
-  if prior_probability is not None:
-      prior_probability_flair = ants.apply_transforms( flair, prior_probability,
-        t1_2_flair_reg['fwdtransforms'] )
-  wmseg_mask = ants.threshold_image( t1seg,
-    low_thresh = 3, high_thresh = 3).iMath("FillHoles")
-  wmseg_mask_use = ants.image_clone( wmseg_mask )
-  distmask = None
-  if mmfromconvexhull > 0:
-        convexhull = ants.threshold_image( t1seg, 1, 4 )
-        spc2vox = np.prod( ants.get_spacing( t1seg ) )
-        voxdist = 0.0
-        myspc = ants.get_spacing( t1seg )
-        for k in range( t1seg.dimension ):
-            voxdist = voxdist + myspc[k] * myspc[k]
-        voxdist = math.sqrt( voxdist )
-        nmorph = round( 2.0 / voxdist )
-        convexhull = ants.morphology( convexhull, "close", nmorph ).iMath("FillHoles")
-        dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
-        distmask = ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
-        wmseg_mask = wmseg_mask + distmask
-        if strict:
-            wmseg_mask_use = ants.threshold_image( wmseg_mask, 2, 2 )
-        else:
-            wmseg_mask_use = ants.threshold_image( wmseg_mask, 1, 2 )
-  ##############################################################################
-  wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
-    transformlist = t1_2_flair_reg['fwdtransforms'],
-    interpolator = 'nearestNeighbor' )
-  seg_2_flair = ants.apply_transforms(flair, t1seg,
-    transformlist = t1_2_flair_reg['fwdtransforms'],
-    interpolator = 'nearestNeighbor' )
-  csfmask = ants.threshold_image(seg_2_flair,1,1)
-  flairsnr = mask_snr( flair, csfmask, wmseg_2_flair, bias_correct = False )
-  probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
-  wmh_sum = np.prod( ants.get_spacing( flair ) ) * probability_mask_WM.sum()
-  wmh_sum_prior = math.nan
-  probability_mask_posterior = None
-  if prior_probability_flair is not None:
-      probability_mask_posterior = prior_probability_flair * probability_mask # use prior
-      wmh_sum_prior = np.prod( ants.get_spacing(flair) ) * probability_mask_posterior.sum()
-  if math.isnan( wmh_sum ):
-    wmh_sum=0
-  if math.isnan( wmh_sum_prior ):
-    wmh_sum_prior=0
-  flair_evr = antspyt1w.patch_eigenvalue_ratio( flair, 512, [16,16,16], evdepth = 0.9, mask=wmseg_2_flair )
-  return{
-      'WMH_probability_map_raw': probability_mask,
-      'WMH_probability_map' : probability_mask_WM,
-      'WMH_posterior_probability_map' : probability_mask_posterior,
-      'wmh_mass': wmh_sum,
-      'wmh_mass_prior': wmh_sum_prior,
-      'wmh_evr' : flair_evr,
-      'wmh_SNR' : flairsnr,
-      'convexhull_mask': distmask }
-
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
+    """
+    multi-start multi-transform registration solution - based on ants.registration
+
+    fixed: fixed image
+
+    moving: moving image
+
+    n_simulations : number of simulations
+
+    max_rotation : maximum rotation angle
+
+    transform : list of transforms to loop through
+
+    verbose : boolean
+
+    """
+    if True:
         output_directory = tempfile.mkdtemp()
         output_directory_w = output_directory + "/tra_reg/"
         os.makedirs(output_directory_w,exist_ok=True)
@@ -5082,13 +5066,6 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
 
 def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
     """
-    try:
-        jmm
-    except NameError:
-        jmm_in = pd.read_csv("joined_mm_or.csv", low_memory=False, dtype='unicode')
-        jmm_in = jmm_in.replace(r'^\s*$', np.nan, regex=True)
-
-    # repeat averaged samples (left) and L/R averaged (right)
     jmrowavg, jmmcolavg, diagnostics = antspymm.average_mm_df( jmm_in, verbose=True )
     """
 
@@ -5605,3 +5582,117 @@ def blind_image_assessment(
         csvfn = re.sub( "png", "csv", viz_filename )
         outdf.to_csv( csvfn )
     return outdf
+
+
+
+def wmh( flair, t1, t1seg,
+    mmfromconvexhull = 3.0,
+    strict=True,
+    probability_mask=None,
+    prior_probability=None,
+    model='sysu',
+    verbose=False ) :
+    """
+    Outputs the WMH probability mask and a summary single measurement
+
+    Arguments
+    ---------
+    flair : ANTsImage
+        input 3-D FLAIR brain image (not skull-stripped).
+
+    t1 : ANTsImage
+        input 3-D T1 brain image (not skull-stripped).
+
+    t1seg : ANTsImage
+        T1 segmentation image
+
+    mmfromconvexhull : float
+        restrict WMH to regions that are WM or mmfromconvexhull mm away from the
+        convex hull of the cerebrum.   we choose a default value based on
+        Figure 4 from:
+        https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6240579/pdf/fnagi-10-00339.pdf
+
+    strict: boolean - if True, only use convex hull distance
+
+    probability_mask : None - use to compute wmh just once - then this function
+        just does refinement and summary
+
+    prior_probability : optional prior probability image in space of the input t1
+
+    model : either sysu or hyper
+
+    verbose : boolean
+
+    Returns
+    ---------
+    WMH probability map and a summary single measurement which is the sum of the WMH map
+
+    """
+    import numpy as np
+    import math
+    t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+    if probability_mask is None and model == 'sysu':
+        if verbose:
+            print('sysu')
+        probability_mask = antspynet.sysu_media_wmh_segmentation( flair )
+    elif probability_mask is None and model == 'hyper':
+        if verbose:
+            print('hyper')
+        probability_mask = antspynet.hypermapp3r_segmentation( t1_2_flair_reg['warpedmovout'], flair )
+    # t1_2_flair_reg = tra_initializer( flair, t1, n_simulations=4, max_rotation=5, transform=['rigid'], verbose=False )
+    prior_probability_flair = None
+    if prior_probability is not None:
+        prior_probability_flair = ants.apply_transforms( flair, prior_probability,
+            t1_2_flair_reg['fwdtransforms'] )
+    wmseg_mask = ants.threshold_image( t1seg,
+        low_thresh = 3, high_thresh = 3).iMath("FillHoles")
+    wmseg_mask_use = ants.image_clone( wmseg_mask )
+    distmask = None
+    if mmfromconvexhull > 0:
+            convexhull = ants.threshold_image( t1seg, 1, 4 )
+            spc2vox = np.prod( ants.get_spacing( t1seg ) )
+            voxdist = 0.0
+            myspc = ants.get_spacing( t1seg )
+            for k in range( t1seg.dimension ):
+                voxdist = voxdist + myspc[k] * myspc[k]
+            voxdist = math.sqrt( voxdist )
+            nmorph = round( 2.0 / voxdist )
+            convexhull = ants.morphology( convexhull, "close", nmorph ).iMath("FillHoles")
+            dist = ants.iMath( convexhull, "MaurerDistance" ) * -1.0
+            distmask = ants.threshold_image( dist, mmfromconvexhull, 1.e80 )
+            wmseg_mask = wmseg_mask + distmask
+            if strict:
+                wmseg_mask_use = ants.threshold_image( wmseg_mask, 2, 2 )
+            else:
+                wmseg_mask_use = ants.threshold_image( wmseg_mask, 1, 2 )
+    ##############################################################################
+    wmseg_2_flair = ants.apply_transforms(flair, wmseg_mask_use,
+        transformlist = t1_2_flair_reg['fwdtransforms'],
+        interpolator = 'nearestNeighbor' )
+    seg_2_flair = ants.apply_transforms(flair, t1seg,
+        transformlist = t1_2_flair_reg['fwdtransforms'],
+        interpolator = 'nearestNeighbor' )
+    csfmask = ants.threshold_image(seg_2_flair,1,1)
+    flairsnr = mask_snr( flair, csfmask, wmseg_2_flair, bias_correct = False )
+    probability_mask_WM = wmseg_2_flair * probability_mask # Remove WMH signal outside of WM
+    wmh_sum = np.prod( ants.get_spacing( flair ) ) * probability_mask_WM.sum()
+    wmh_sum_prior = math.nan
+    probability_mask_posterior = None
+    if prior_probability_flair is not None:
+        probability_mask_posterior = prior_probability_flair * probability_mask # use prior
+        wmh_sum_prior = np.prod( ants.get_spacing(flair) ) * probability_mask_posterior.sum()
+    if math.isnan( wmh_sum ):
+        wmh_sum=0
+    if math.isnan( wmh_sum_prior ):
+        wmh_sum_prior=0
+    flair_evr = antspyt1w.patch_eigenvalue_ratio( flair, 512, [16,16,16], evdepth = 0.9, mask=wmseg_2_flair )
+    return{
+        'WMH_probability_map_raw': probability_mask,
+        'WMH_probability_map' : probability_mask_WM,
+        'WMH_posterior_probability_map' : probability_mask_posterior,
+        'wmh_mass': wmh_sum,
+        'wmh_mass_prior': wmh_sum_prior,
+        'wmh_evr' : flair_evr,
+        'wmh_SNR' : flairsnr,
+        'convexhull_mask': distmask }
+
