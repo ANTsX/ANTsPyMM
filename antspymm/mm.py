@@ -1836,11 +1836,11 @@ def joint_dti_recon(
             return( img )
 
     img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
-    if denoise:
+    if denoise and srmodel is None:
         img_LR = mc_denoise( img_LR )
     if img_RL is not None:
         img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
-        if denoise:
+        if denoise and srmodel is None:
             img_RL = mc_denoise( img_RL )
 
     if brain_mask is not None:
@@ -5695,4 +5695,3 @@ def wmh( flair, t1, t1seg,
         'wmh_evr' : flair_evr,
         'wmh_SNR' : flairsnr,
         'convexhull_mask': distmask }
-
