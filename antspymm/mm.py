@@ -4100,6 +4100,8 @@ def mm_nrg(
         print(f"t1 search path: {t1_search_path}")
     t1fn = glob.glob(t1_search_path)
     t1fn.sort()
+    if len( t1fn ) < 1:
+        raise ValueError('mm_nrg cannot find the T1w with uid ' + iid + ' @ ' + subjectrootpath )
     t1fn = t1fn[0]
     t1 = mm_read( t1fn )
     hierfn0 = re.sub( sourcedatafoldername, processDir, t1fn)
@@ -5272,6 +5274,8 @@ def quick_viz_mm_nrg(
         print(f"t1 search path: {t1_search_path}")
     t1fn = glob.glob(t1_search_path)
     t1fn.sort()
+    if len( t1fn ) < 1:
+        raise ValueError('quick_viz_mm_nrg cannot find the T1w @ ' + subjectrootpath )
     t1fn = t1fn[0]
     t1 = mm_read( t1fn )
     nimages = len(myimgsInput)
