@@ -1424,7 +1424,7 @@ def t1_based_dwi_brain_extraction(
     'b0_avg':b0_avg,
     'b0_mask':outmsk }
 
-def mc_denoise( x, ratio = 0.5 ):
+def mc_denoise( x, ratio = 1.0 ):
     """
     ants denoising for timeseries (4D)
 
@@ -1445,7 +1445,6 @@ def mc_denoise( x, ratio = 0.5 ):
         dnzb0 = ants.denoise_image( b0, p=1,r=1,noise_model='Gaussian' )
         dwpimage.append( dnzb0 * ratio + b0 * (1.0-ratio) )
     return ants.list_to_ndimage( x, dwpimage )
-
 
 def tsnr( x, mask, indices=None ):
     """
