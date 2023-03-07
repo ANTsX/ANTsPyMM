@@ -5,7 +5,7 @@ __all__ = ['version',
     'image_write_with_thumbnail',
     'nrg_format_path',
     'higest_quality_repeat',
-    'best_mmm',
+    'match_modalities',
     'mc_resample_image_to_target',
     'nrg_filelist_to_dataframe',
     'merge_timeseries_data',
@@ -65,6 +65,7 @@ __all__ = ['version',
     'quick_viz_mm_nrg',
     'blind_image_assessment',
     'average_blind_qc_by_modality',
+    'best_mmm',
     'wmh']
 
 from pathlib import Path
@@ -164,7 +165,7 @@ def version( ):
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -330,47 +331,53 @@ def match_modalities(t1df, dtdf, rsdf, fldf, nmdf):
             mmdf.at[k, 'dtid1'] = locdf['imageID'].values[0]
             mmdf.at[k, 'dtfn1'] = locdf['fn'].values[0]
             mmdf.at[k, 'dtloop1'] = locdf['OL_LOOP'].values[0]
-            m
+            
 
 
-def best_mmm(wmod, mysep='-', verbose=True):
+def best_mmm( mmdf, wmod, mysep='-', verbose=False):
     """
-    Matches the given modality .
+    Selects the best repeats per modality.
     
     Args:
-    wmod (str): the modality of the image ('rsfMRI' or 'DTI')
+    wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DTI')
+
     mysep (str, optional): the separator used in the image file names. Defaults to '-'.
-    verbose (bool, optional): if True, print the number of rows in the metadata dataframe before and after filtering. Defaults to True.
+    
+    verbose (bool, optional): default True
     
     Returns:
+
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     """
-    msel = meta['modality'] == wmod
-#    if wmod == 'rsfMRI':
-#        msel = unique( c( grep("-rsfMRI-",meta$fn), grep("-rsfMRI_RL-",meta$fn), grep("-rsfMRI_LR-",meta$fn) ) )
-#    if wmod == 'DTI':
-#        msel = unique( c( grep("-DTI-",meta$fn), grep("-DTI_LR-",meta$fn), grep("-DTI_RL-",meta$fn) ) )
-#        msel = intersect(msel, grep("DTIdwi", meta['modality']))
-    
-    uids = meta['fn'][msel]
-    metasub = meta[msel, ]
+    msel = mmdf['modality'] == wmod
+    if wmod == 'rsfMRI':
+        msel1 = mmdf['modality'] == 'rsfMRI' 
+        msel2 = mmdf['modality'] == 'rsfMRI_LR'
+        msel3 = mmdf['modality'] == 'rsfMRI_RL'
+        msel = msel1 | msel2 | msel3 
+    if wmod == 'DTI':
+        msel = mmdf['modality'] == 'DTI' | mmdf['modality'] == 'DTI_LR' | mmdf['modality'] == 'DTI_RL'
+    uids = list(mmdf['fn'][msel])
+    metasub = mmdf[msel]
     
     if verbose:
-        print(f"{wmod} {nrow(metasub)} pre")
+        print(f"{wmod} {(metasub.shape[0])} pre")
     
     for k in range(len(uids)):
-        temp = unlist(strsplit(uids[k], mysep))
-        metasub[k, 'subjectID'] = temp[2]
-        metasub[k, 'date'] = temp[3]
-        metasub[k, 'subjectIDdate'] = paste0(temp[2], mysep, temp[3])
-        metasub[k, 'imageID'] = temp[5]
+        temp = str(uids[k].split( mysep ) )
+        metasub[k, 'subjectID'] = temp[1]
+        metasub[k, 'date'] = temp[2]
+        metasub[k, 'subjectIDdate'] = temp[1] + mysep + temp[2]
+        metasub[k, 'imageID'] = temp[4]
     
-    metasub['negol'] = 1.0 - metasub['OL_LOOP']
-    metasubq = highest_quality_repeat(metasub, 'subjectID', 'date', 'negol')
+    metasub['negol'] = 1.0 - metasub['ol_loop']
+    if 'date' not in metasub.keys():
+        metasub['date']='NA'
+    metasubq = highest_quality_repeat(metasub, 'fn', 'date', 'negol')
     
     if verbose:
-        print(f"{wmod} {nrow(metasubq)} post")
+        print(f"{wmod} {metasubq.shape[0]} post")
     
     return {'raw': metasub, 'filt': metasubq}
 
@@ -5833,50 +5840,53 @@ def blind_image_assessment(
     return outdf
 
 
-def average_blind_qc_by_modality(qc_full):
+def average_blind_qc_by_modality(qc_full,verbose=False):
     """
-    Processes the meta data and returns the final meta data.
+    Averages time series qc results to yield one entry per image. this also filters to "known" columns.
 
     Args:
-    qc_full: pandas dataframe containing the full meta data.
+    qc_full: pandas dataframe containing the full qc data.
 
     Returns:
-    pandas dataframe containing the processed meta data.
+    pandas dataframe containing the processed qc data.
     """
-
     # Get unique modalities
     modalities = qc_full['modality'].unique()
     modalities = modalities[modalities != 'unknown']
-
     # Get modalities to select
     m0sel = qc_full['modality'].isin(modalities)
-
     # Get unique ids
     uid = qc_full['fn'] + "_" + qc_full['modality'].astype(str)
     to_average = uid.unique()
-
     # Define column indices
-    contcols = list(range(2, 18))
-    ocols = [0] + list(range(18, 22))
-
+    contcols = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi',
+       'reflection_err', 'EVR', 'msk_vol', 'spc0', 'spc1', 'spc2', 'dimx',
+       'dimy', 'dimz', 'slice']
+    ocols = ['fn','modality', 'mriseries', 'mrimfg', 'mrimodel']
+    # restrict to columns we "know"
+    qc_full = qc_full[ocols+contcols]
     # Create empty meta dataframe
-    meta = pd.DataFrame(columns=qc_full.columns)
-
+    meta = pd.DataFrame(columns=ocols+contcols)
     # Process each unique id
-    for k in range(len(to_average)):
+    n = len(to_average)
+    for k in range(n):
+        if verbose:
+            if k % 100 == 0:
+                progger = str( np.round( k / n * 100 ) )
+                print( progger, end ="...", flush=True)
         m1sel = uid == to_average[k]
         if sum(m1sel) > 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
             mfsub = qc_full[m1sel]
-            meta.loc[k, contcols] = mfsub.iloc[:, contcols].mean(numeric_only=True)
-            meta.loc[k, 'slice'] = mfsub['slice'].max()
-            meta.loc[k, ocols] = mfsub.iloc[0, ocols]
+            if mfsub.shape[0] > 1:
+                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
+                meta.loc[k, 'slice'] = mfsub['slice'].max()
+                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
         elif sum(m1sel) == 1:
             # If only one entry for id, just copy the entry
             mfsub = qc_full[m1sel]
             meta.loc[k] = mfsub.iloc[0]
-
     return meta
 
 def wmh( flair, t1, t1seg,

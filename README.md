@@ -108,6 +108,19 @@ tabPro, normPro = antspymm.mm(
 
 antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
 
+```s
+
+## blind quality control
+
+automatically qc, filter and match multiple modality images at each time point.
+
+```python
+qcdf=antspymm.blind_image_assessment(fns) ## run the qc on all images - requires a relatively large sample per modality to be effective
+qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
+qcdfaol=antspymm.outlierness_by_modality(qcdfa) # estimate outlier scores
+print( qcdfaol.shape )
+print( qcdfaol.keys )
+matched_mm_data=antspymm.best_mmm( qcdfaol, outlier_threshold=0.5 )
 ```
 
 ## build docs

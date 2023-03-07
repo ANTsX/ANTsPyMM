@@ -9,7 +9,7 @@ from .mm import get_models
 from .mm import nrg_format_path
 from .mm import highest_quality_repeat
 from .mm import average_blind_qc_by_modality
-from .mm import best_mmm
+from .mm import match_modalities
 from .mm import outlierness_by_modality
 from .mm import dewarp_imageset
 from .mm import super_res_mcimage
@@ -71,3 +71,4 @@ from .mm import quick_viz_mm_nrg
 from .mm import blind_image_assessment
 from .mm import get_average_rsf
 from .mm import version
+from .mm import best_mmm
