@@ -3,11 +3,15 @@ __all__ = ['version',
     'mm_read',
     'mm_read_to_3d',
     'image_write_with_thumbnail',
+    'nrg_format_path',
+    'higest_quality_repeat',
+    'best_mmm',
     'mc_resample_image_to_target',
     'nrg_filelist_to_dataframe',
     'merge_timeseries_data',
     'timeseries_reg',
     'merge_dwi_data',
+    'outlierness_by_modality',
     'bvec_reorientation',
     'dti_reg',
     'mc_reg',
@@ -60,6 +64,7 @@ __all__ = ['version',
     'average_mm_df',
     'quick_viz_mm_nrg',
     'blind_image_assessment',
+    'average_blind_qc_by_modality',
     'wmh']
 
 from pathlib import Path
@@ -127,6 +132,247 @@ def version( ):
               'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
+
+
+
+def version( ):
+    """
+    report versions of this package and primary dependencies
+
+    Arguments
+    ---------
+    None
+
+    Returns
+    -------
+    a dictionary with package name and versions
+
+    Example
+    -------
+    >>> import antspymm
+    >>> antspymm.version()
+    """
+    import pkg_resources
+    return {
+              'tensorflow': pkg_resources.require("tensorflow")[0].version,
+              'antspyx': pkg_resources.require("antspyx")[0].version,
+              'antspynet': pkg_resources.require("antspynet")[0].version,
+              'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
+              'antspymm': pkg_resources.require("antspymm")[0].version
+              }
+
+
+def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
+    """
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
+
+    Args:
+    - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
+    - uid: (str) Unique identifier for a subject. Default is 'fn'.
+    - outlier_columns: (list) List of columns containing outlier information. Default is ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol'].
+    - verbose: (bool) If True, prints information for each modality. Default is False.
+
+    Returns:
+    - qcdf: (Pandas DataFrame) Updated dataframe with outlierness scores for each modality in the 'ol_loop' and 'ol_lof' column.  Higher values near 1 are more outlying.
+
+    Raises:
+    - ValueError: If uid is not present in the dataframe.
+
+    Example:
+    >>> df = pd.read_csv('data.csv')
+    >>> outlierness_by_modality(df)
+    """
+    from sklearn.neighbors import LocalOutlierFactor
+    if uid not in qcdf.keys():
+        raise ValueError(uid + " not in dataframe")
+    if 'ol_loop' not in qcdf.keys():
+        qcdf['ol_loop']=math.nan
+    if 'ol_lof' not in qcdf.keys():
+        qcdf['ol_lof']=math.nan
+    for mod in [ 'T1w', 'T2Flair', 'rsfMRI', 'NM2DMT','DTIdwi','DTIb0']:
+        lof = LocalOutlierFactor()
+        if verbose:
+            print(mod)
+        locsel = qcdf["modality"] == mod
+        rr = qcdf[locsel][outlier_columns]
+        temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=16, cluster_labels=None)
+        qcdf.loc[locsel,'ol_loop']=temp
+        yhat = lof.fit_predict(rr)
+        temp = lof.negative_outlier_factor_*(-1.0)
+        temp = temp - temp.min()
+        qcdf.loc[locsel,'ol_lof']=temp/temp.max()
+    return qcdf
+
+
+def nrg_format_path( projectID, subjectID, date, modality, imageID, separator='-' ):
+    """
+    create the NRG path on disk given the project, subject id, date, modality and image id
+
+    Arguments
+    ---------
+
+    projectID : string for the project e.g. PPMI
+
+    subjectID : string uniquely identifying the subject e.g. 0001
+
+    date : string for the date usually 20550228 ie YYYYMMDD format
+
+    modality : string should be one of T1w, T2Flair, rsfMRI, NM2DMT and DTI ... rsfMRI and DTI may also be DTI_LR, DTI_RL, rsfMRI_LR and rsfMRI_RL where the RL / LR relates to phase encoding direction (even if it is AP/PA)
+
+    imageID : string uniquely identifying the specific image
+
+    separator : default to -
+
+    Returns
+    -------
+    the path where one would write the image on disk
+
+    """
+    thedirectory = os.path.join( str(projectID), str(subjectID), str(date), str(modality), str(imageID) )
+    thefilename = str(projectID) + separator + str(subjectID) + separator + str(date) + separator + str(modality) + separator + str(imageID)
+    return os.path.join( thedirectory, thefilename )
+
+def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
+    """
+    This function returns a subset of the input dataframe that retains only the rows
+    that correspond to the highest quality observation for each combination of ID and visit.
+    
+    Parameters:
+    ----------
+    mxdfin: pandas.DataFrame
+        The input dataframe.
+    idvar: str
+        The name of the column that contains the ID variable.
+    visitvar: str
+        The name of the column that contains the visit variable.
+    qualityvar: str
+        The name of the column that contains the quality variable.
+        
+    Returns:
+    -------
+    pandas.DataFrame
+        A subset of the input dataframe that retains only the rows that correspond
+        to the highest quality observation for each combination of ID and visit.
+    """
+    if visitvar not in mxdfin.columns:
+        raise ValueError("visitvar not in dataframe")
+    if idvar not in mxdfin.columns:
+        raise ValueError("idvar not in dataframe")
+    if qualityvar not in mxdfin.columns:
+        raise ValueError("qualityvar not in dataframe")
+    
+    vizzes = mxdfin[visitvar].unique()
+    uids = mxdfin[idvar].unique()
+    useit = np.zeros(mxdfin.shape[0], dtype=bool)
+    
+    for u in uids:
+        losel = mxdfin[idvar] == u
+        vizzesloc = mxdfin[losel][visitvar].unique()
+        
+        for v in vizzesloc:
+            losel = (mxdfin[idvar] == u) & (mxdfin[visitvar] == v)
+            mysnr = mxdfin.loc[losel, qualityvar]
+            myw = np.where(losel)[0]
+            
+            if len(myw) > 1:
+                if any(~np.isnan(mysnr)):
+                    useit[myw[np.argmax(mysnr)]] = True
+                else:
+                    useit[myw] = True
+            else:
+                useit[myw] = True
+                
+    return mxdfin[useit]
+
+
+def match_modalities(t1df, dtdf, rsdf, fldf, nmdf):
+    """
+    Match each modality to each T1-weighted row.
+
+    :param t1df: T1-weighted image data frame
+    :param dtdf: DT image data frame
+    :param rsdf: RS image data frame
+    :param fldf: FL image data frame
+    :param nmdf: NM image data frame
+    :return: filtered matched modality data frame
+    """
+    import pandas as pd
+    import numpy as np
+    impnames = ['subjectIDdate', 'fn']
+    mmdf = t1df[t1df['filt']['OL_LOOP'] <= 0.5]
+    mmdf['flairid'] = np.nan
+    mmdf['flairfn'] = np.nan
+    mmdf['flairloop'] = np.nan
+    mmdf['dtid1'] = np.nan
+    mmdf['dtfn1'] = np.nan
+    mmdf['dtloop1'] = np.nan
+    mmdf['dtid2'] = np.nan
+    mmdf['dtfn2'] = np.nan
+    mmdf['dtloop2'] = np.nan
+    mmdf['rsfid1'] = np.nan
+    mmdf['rsffn1'] = np.nan
+    mmdf['rsfloop1'] = np.nan
+    mmdf['rsfid2'] = np.nan
+    mmdf['rsffn2'] = np.nan
+    mmdf['rsfloop2'] = np.nan
+    
+    for k in range(mmdf.shape[0]):
+        locsel = (dtdf['raw']['subjectIDdate'] == mmdf['subjectIDdate'][k]) & (dtdf['raw']['OL_LOOP'] < 0.5)
+        if sum(locsel) == 1:
+            mmdf.at[k, 'dtid1'] = dtdf['raw']['imageID'][locsel].values[0]
+            mmdf.at[k, 'dtfn1'] = dtdf['raw']['fn'][locsel].values[0]
+            mmdf.at[k, 'dtloop1'] = dtdf['raw']['OL_LOOP'][locsel].values[0]
+        elif sum(locsel) > 1:
+            locdf = dtdf['raw'][locsel]
+            dedupe = locdf[['snr', 'cnr']].duplicated()
+            locdf = locdf[~dedupe]
+            locdf = locdf.sort_values('OL_LOOP').iloc[:2, :]
+            mmdf.at[k, 'dtid1'] = locdf['imageID'].values[0]
+            mmdf.at[k, 'dtfn1'] = locdf['fn'].values[0]
+            mmdf.at[k, 'dtloop1'] = locdf['OL_LOOP'].values[0]
+            m
+
+
+def best_mmm(wmod, mysep='-', verbose=True):
+    """
+    Matches the given modality .
+    
+    Args:
+    wmod (str): the modality of the image ('rsfMRI' or 'DTI')
+    mysep (str, optional): the separator used in the image file names. Defaults to '-'.
+    verbose (bool, optional): if True, print the number of rows in the metadata dataframe before and after filtering. Defaults to True.
+    
+    Returns:
+    list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
+
+    """
+    msel = meta['modality'] == wmod
+#    if wmod == 'rsfMRI':
+#        msel = unique( c( grep("-rsfMRI-",meta$fn), grep("-rsfMRI_RL-",meta$fn), grep("-rsfMRI_LR-",meta$fn) ) )
+#    if wmod == 'DTI':
+#        msel = unique( c( grep("-DTI-",meta$fn), grep("-DTI_LR-",meta$fn), grep("-DTI_RL-",meta$fn) ) )
+#        msel = intersect(msel, grep("DTIdwi", meta['modality']))
+    
+    uids = meta['fn'][msel]
+    metasub = meta[msel, ]
+    
+    if verbose:
+        print(f"{wmod} {nrow(metasub)} pre")
+    
+    for k in range(len(uids)):
+        temp = unlist(strsplit(uids[k], mysep))
+        metasub[k, 'subjectID'] = temp[2]
+        metasub[k, 'date'] = temp[3]
+        metasub[k, 'subjectIDdate'] = paste0(temp[2], mysep, temp[3])
+        metasub[k, 'imageID'] = temp[5]
+    
+    metasub['negol'] = 1.0 - metasub['OL_LOOP']
+    metasubq = highest_quality_repeat(metasub, 'subjectID', 'date', 'negol')
+    
+    if verbose:
+        print(f"{wmod} {nrow(metasubq)} post")
+    
+    return {'raw': metasub, 'filt': metasubq}
 
 def mm_read( x, modality='' ):
     """
@@ -1424,7 +1670,7 @@ def t1_based_dwi_brain_extraction(
     'b0_avg':b0_avg,
     'b0_mask':outmsk }
 
-def mc_denoise( x, ratio = 1.0 ):
+def mc_denoise( x, ratio = 0.5 ):
     """
     ants denoising for timeseries (4D)
 
@@ -5587,6 +5833,51 @@ def blind_image_assessment(
     return outdf
 
 
+def average_blind_qc_by_modality(qc_full):
+    """
+    Processes the meta data and returns the final meta data.
+
+    Args:
+    qc_full: pandas dataframe containing the full meta data.
+
+    Returns:
+    pandas dataframe containing the processed meta data.
+    """
+
+    # Get unique modalities
+    modalities = qc_full['modality'].unique()
+    modalities = modalities[modalities != 'unknown']
+
+    # Get modalities to select
+    m0sel = qc_full['modality'].isin(modalities)
+
+    # Get unique ids
+    uid = qc_full['fn'] + "_" + qc_full['modality'].astype(str)
+    to_average = uid.unique()
+
+    # Define column indices
+    contcols = list(range(2, 18))
+    ocols = [0] + list(range(18, 22))
+
+    # Create empty meta dataframe
+    meta = pd.DataFrame(columns=qc_full.columns)
+
+    # Process each unique id
+    for k in range(len(to_average)):
+        m1sel = uid == to_average[k]
+        if sum(m1sel) > 1:
+            # If more than one entry for id, take the average of continuous columns,
+            # maximum of the slice column, and the first entry of the other columns
+            mfsub = qc_full[m1sel]
+            meta.loc[k, contcols] = mfsub.iloc[:, contcols].mean(numeric_only=True)
+            meta.loc[k, 'slice'] = mfsub['slice'].max()
+            meta.loc[k, ocols] = mfsub.iloc[0, ocols]
+        elif sum(m1sel) == 1:
+            # If only one entry for id, just copy the entry
+            mfsub = qc_full[m1sel]
+            meta.loc[k] = mfsub.iloc[0]
+
+    return meta
 
 def wmh( flair, t1, t1seg,
     mmfromconvexhull = 3.0,

@@ -6,6 +6,11 @@ except:
 
 from .mm import get_data
 from .mm import get_models
+from .mm import nrg_format_path
+from .mm import highest_quality_repeat
+from .mm import average_blind_qc_by_modality
+from .mm import best_mmm
+from .mm import outlierness_by_modality
 from .mm import dewarp_imageset
 from .mm import super_res_mcimage
 from .mm import dipy_dti_recon
