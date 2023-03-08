@@ -120,7 +120,7 @@ qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the tim
 qcdfaol=antspymm.outlierness_by_modality(qcdfa) # estimate outlier scores
 print( qcdfaol.shape )
 print( qcdfaol.keys )
-matched_mm_data=antspymm.best_mmm( qcdfaol, outlier_threshold=0.5 )
+matched_mm_data=antspymm.match_modalities( qcdfaol  )
 ```
 
 ## build docs

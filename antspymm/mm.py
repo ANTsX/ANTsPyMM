@@ -289,7 +289,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     return mxdfin[useit]
 
 
-def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_loop', verbose=False ):
+def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_loop',  verbose=False ):
     """
     Find the best multiple modality dataset at each time point
 
@@ -302,7 +302,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
     import pandas as pd
     import numpy as np
     mmdf = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
-    t2df = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
+    fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
     rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
     dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
@@ -321,7 +321,23 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
     mmdf['rsfid2'] = np.nan
     mmdf['rsffn2'] = np.nan
     mmdf['rsfloop2'] = np.nan
+    mmdf['nmid1'] = np.nan
+    mmdf['nmid2'] = np.nan
+    mmdf['nmid3'] = np.nan
+    mmdf['nmid4'] = np.nan
+    mmdf['nmid5'] = np.nan
+    mmdf['nmid6'] = np.nan
+    mmdf['nmid7'] = np.nan
+    mmdf['nmid8'] = np.nan
+    mmdf['nmid9'] = np.nan
+    mmdf['nmid10'] = np.nan
+    if verbose:
+        print( mmdf.shape )
     for k in range(mmdf.shape[0]):
+        if verbose:
+            if k % 100 == 0:
+                progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
+                print( progger, end ="...", flush=True)
         if dtdf is not None:
             locsel = (dtdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (dtdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
@@ -332,13 +348,15 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 locdf = dtdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
                 locdf = locdf[~dedupe]
-                locdf = locdf.sort_values(outlier_column).iloc[:2]
+                if locdf.shape[0] > 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf["fn"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
+                if locdf.shape[0] > 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
         if rsdf is not None:        
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
@@ -349,13 +367,35 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 locdf = rsdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
                 locdf = locdf[~dedupe]
-                locdf = locdf.sort_values(outlier_column).iloc[:2]
+                if locdf.shape[0] > 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf["fn"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values
-                mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf["fn"].values[1]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
+                if locdf.shape[0] > 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf["fn"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
+
+        if fldf is not None:        
+            locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
+            if locsel.sum() == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = fldf['imageID'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['fn'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
+
+        if nmdf is not None:        
+            locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
+            if locsel.sum() > 0:
+                locdf = nmdf[locsel]
+                for i in range(locsel.sum()):
+                    nmid = "nmid"+str(i)
+                    mmdf.iloc[k, nmid] = locdf['imageID'].iloc[i].values[0]
+                    nmfn = "nmfn"+str(i)
+                    mmdf.iloc[k, nmfn] = locdf['fn'].iloc[i].values[0]
+                    nmloop = "nmloop"+str(i)
+                    mmdf.iloc[k, nmloop] = locdf[outlier_column].iloc[i].values[0]
+                    
     return mmdf
 
 def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
