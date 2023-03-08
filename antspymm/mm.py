@@ -390,12 +390,12 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 locdf = nmdf[locsel]
                 for i in range(locsel.sum()):
                     nmid = "nmid"+str(i)
-                    mmdf.iloc[k, nmid] = locdf['imageID'].iloc[i].values[0]
+                    mmdf.iloc[k, nmid] = locdf['imageID'].iloc[i]
                     nmfn = "nmfn"+str(i)
-                    mmdf.iloc[k, nmfn] = locdf['fn'].iloc[i].values[0]
+                    mmdf.iloc[k, nmfn] = locdf['fn'].iloc[i]
                     nmloop = "nmloop"+str(i)
-                    mmdf.iloc[k, nmloop] = locdf[outlier_column].iloc[i].values[0]
-                    
+                    mmdf.iloc[k, nmloop] = locdf[outlier_column].iloc[i]
+
     return mmdf
 
 def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
