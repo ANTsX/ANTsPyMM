@@ -72,3 +72,6 @@ from .mm import blind_image_assessment
 from .mm import get_average_rsf
 from .mm import version
 from .mm import best_mmm
+from .mm import nrg_2_bids
+from .mm import bids_2_nrg
+from .mm import parse_nrg_filename

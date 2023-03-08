@@ -66,6 +66,9 @@ __all__ = ['version',
     'blind_image_assessment',
     'average_blind_qc_by_modality',
     'best_mmm',
+    'nrg_2_bids',
+    'bids_2_nrg',
+    'parse_nrg_filename',
     'wmh']
 
 from pathlib import Path
@@ -135,33 +138,33 @@ def version( ):
               }
 
 
-
-def version( ):
+def parse_nrg_filename( x, separator='-' ):
     """
-    report versions of this package and primary dependencies
-
-    Arguments
-    ---------
-    None
-
-    Returns
-    -------
-    a dictionary with package name and versions
-
-    Example
-    -------
-    >>> import antspymm
-    >>> antspymm.version()
+    split a NRG filename into its named parts
     """
-    import pkg_resources
+    temp = x.split( separator )
+    if len(temp) != 5:
+        raise ValueError(x + " not a valid NRG filename")
     return {
-              'tensorflow': pkg_resources.require("tensorflow")[0].version,
-              'antspyx': pkg_resources.require("antspyx")[0].version,
-              'antspynet': pkg_resources.require("antspynet")[0].version,
-              'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
-              'antspymm': pkg_resources.require("antspymm")[0].version
-              }
+        'project':temp[0],
+        'subjectID':temp[1],
+        'date':temp[2],
+        'modality':temp[3],
+        'imageID':temp[4]
+    }
 
+
+def nrg_2_bids( x ):
+    """
+    convert nrg filename to bids path / filename
+    """
+    return None
+
+def bids_2_nrg( x, date, imageid ):
+    """
+    convert bids path to nrg path / filename
+    """
+    return None
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
@@ -286,21 +289,23 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     return mxdfin[useit]
 
 
-def match_modalities(t1df, dtdf, rsdf, fldf, nmdf):
+def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_loop', verbose=False ):
     """
-    Match each modality to each T1-weighted row.
+    Find the best multiple modality dataset at each time point
 
-    :param t1df: T1-weighted image data frame
-    :param dtdf: DT image data frame
-    :param rsdf: RS image data frame
-    :param fldf: FL image data frame
-    :param nmdf: NM image data frame
+    :param qc_dataframe: quality control data frame with 
+    :param unique_identifier : the unique NRG filename for each image
+    :param outlier_column: outlierness score used to identify the best image (pair) at a given date
+    :param verbose: boolean
     :return: filtered matched modality data frame
     """
     import pandas as pd
     import numpy as np
-    impnames = ['subjectIDdate', 'fn']
-    mmdf = t1df[t1df['filt']['OL_LOOP'] <= 0.5]
+    mmdf = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
+    t2df = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
+    nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
+    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
+    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
     mmdf['flairid'] = np.nan
     mmdf['flairfn'] = np.nan
     mmdf['flairloop'] = np.nan
@@ -316,25 +321,44 @@ def match_modalities(t1df, dtdf, rsdf, fldf, nmdf):
     mmdf['rsfid2'] = np.nan
     mmdf['rsffn2'] = np.nan
     mmdf['rsfloop2'] = np.nan
-    
     for k in range(mmdf.shape[0]):
-        locsel = (dtdf['raw']['subjectIDdate'] == mmdf['subjectIDdate'][k]) & (dtdf['raw']['OL_LOOP'] < 0.5)
-        if sum(locsel) == 1:
-            mmdf.at[k, 'dtid1'] = dtdf['raw']['imageID'][locsel].values[0]
-            mmdf.at[k, 'dtfn1'] = dtdf['raw']['fn'][locsel].values[0]
-            mmdf.at[k, 'dtloop1'] = dtdf['raw']['OL_LOOP'][locsel].values[0]
-        elif sum(locsel) > 1:
-            locdf = dtdf['raw'][locsel]
-            dedupe = locdf[['snr', 'cnr']].duplicated()
-            locdf = locdf[~dedupe]
-            locdf = locdf.sort_values('OL_LOOP').iloc[:2, :]
-            mmdf.at[k, 'dtid1'] = locdf['imageID'].values[0]
-            mmdf.at[k, 'dtfn1'] = locdf['fn'].values[0]
-            mmdf.at[k, 'dtloop1'] = locdf['OL_LOOP'].values[0]
-            
+        if dtdf is not None:
+            locsel = (dtdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (dtdf[outlier_column] < 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = dtdf["imageID"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf["fn"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = dtdf[outlier_column][locsel].values[0]
+            elif sum(locsel) > 1:
+                locdf = dtdf[locsel]
+                dedupe = locdf[["snr","cnr"]].duplicated()
+                locdf = locdf[~dedupe]
+                locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = locdf["imageID"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
+        if rsdf is not None:        
+            locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf["fn"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
+            elif sum(locsel) > 1:
+                locdf = rsdf[locsel]
+                dedupe = locdf[["snr","cnr"]].duplicated()
+                locdf = locdf[~dedupe]
+                locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = locdf["imageID"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values
+                mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf["fn"].values[1]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
+    return mmdf
 
-
-def best_mmm( mmdf, wmod, mysep='-', verbose=False):
+def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     """
     Selects the best repeats per modality.
     
@@ -342,6 +366,8 @@ def best_mmm( mmdf, wmod, mysep='-', verbose=False):
     wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DTI')
 
     mysep (str, optional): the separator used in the image file names. Defaults to '-'.
+
+    outlier_name : column name for outlier score
     
     verbose (bool, optional): default True
     
@@ -355,23 +381,34 @@ def best_mmm( mmdf, wmod, mysep='-', verbose=False):
         msel1 = mmdf['modality'] == 'rsfMRI' 
         msel2 = mmdf['modality'] == 'rsfMRI_LR'
         msel3 = mmdf['modality'] == 'rsfMRI_RL'
-        msel = msel1 | msel2 | msel3 
+        msel = msel1 | msel2 
+        msel = msel | msel3 
     if wmod == 'DTI':
-        msel = mmdf['modality'] == 'DTI' | mmdf['modality'] == 'DTI_LR' | mmdf['modality'] == 'DTI_RL'
+        msel1 = mmdf['modality'] == 'DTI' 
+        msel2 = mmdf['modality'] == 'DTI_LR'
+        msel3 = mmdf['modality'] == 'DTI_RL'
+        msel4 = mmdf['modality'] == 'DTIdwi'
+        msel = msel1 | msel2 | msel3 | msel4
+    if sum(msel) == 0:
+        return {'raw': None, 'filt': None}
     uids = list(mmdf['fn'][msel])
     metasub = mmdf[msel]
     
     if verbose:
         print(f"{wmod} {(metasub.shape[0])} pre")
     
+    metasub['subjectID']=math.nan
+    metasub['date']=math.nan
+    metasub['subjectIDdate']=math.nan
+    metasub['imageID']=math.nan
     for k in range(len(uids)):
-        temp = str(uids[k].split( mysep ) )
-        metasub[k, 'subjectID'] = temp[1]
-        metasub[k, 'date'] = temp[2]
-        metasub[k, 'subjectIDdate'] = temp[1] + mysep + temp[2]
-        metasub[k, 'imageID'] = temp[4]
+        temp = uids[k].split( mysep )
+        metasub['subjectID'].iloc[k] = temp[1]
+        metasub['date'].iloc[k] = temp[2]
+        metasub['subjectIDdate'].iloc[k] = temp[1] + mysep + temp[2]
+        metasub['imageID'].iloc[k] = temp[4]
     
-    metasub['negol'] = 1.0 - metasub['ol_loop']
+    metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
         metasub['date']='NA'
     metasubq = highest_quality_repeat(metasub, 'fn', 'date', 'negol')
