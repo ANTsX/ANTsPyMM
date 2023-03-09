@@ -321,16 +321,13 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
     mmdf['rsfid2'] = np.nan
     mmdf['rsffn2'] = np.nan
     mmdf['rsfloop2'] = np.nan
-    mmdf['nmid1'] = np.nan
-    mmdf['nmid2'] = np.nan
-    mmdf['nmid3'] = np.nan
-    mmdf['nmid4'] = np.nan
-    mmdf['nmid5'] = np.nan
-    mmdf['nmid6'] = np.nan
-    mmdf['nmid7'] = np.nan
-    mmdf['nmid8'] = np.nan
-    mmdf['nmid9'] = np.nan
-    mmdf['nmid10'] = np.nan
+    for k in range(1,11):
+        myid='nmid'+str(k)
+        mmdf[myid] = np.nan
+        myid='nmfn'+str(k)
+        mmdf[myid] = np.nan
+        myid='nmloop'+str(k)
+        mmdf[myid] = np.nan
     if verbose:
         print( mmdf.shape )
     for k in range(mmdf.shape[0]):
@@ -388,13 +385,13 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
             if locsel.sum() > 0:
                 locdf = nmdf[locsel]
-                for i in range(locsel.sum()):
-                    nmid = "nmid"+str(i)
-                    mmdf.iloc[k, nmid] = locdf['imageID'].iloc[i]
-                    nmfn = "nmfn"+str(i)
-                    mmdf.iloc[k, nmfn] = locdf['fn'].iloc[i]
-                    nmloop = "nmloop"+str(i)
-                    mmdf.iloc[k, nmloop] = locdf[outlier_column].iloc[i]
+                for i in range(np.min( [10,locdf.shape[0]])):
+                    nmid = "nmid"+str(i+1)
+                    mmdf[nmid].iloc[k] = locdf['imageID'].iloc[i]
+                    nmfn = "nmfn"+str(i+1)
+                    mmdf[nmfn].iloc[k] = locdf['imageID'].iloc[i]
+                    nmloop = "nmloop"+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
 
     return mmdf
 
