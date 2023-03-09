@@ -75,3 +75,6 @@ from .mm import best_mmm
 from .mm import nrg_2_bids
 from .mm import bids_2_nrg
 from .mm import parse_nrg_filename
+from .mm import novelty_detection_ee
+from .mm import novelty_detection_svm
+from .mm import novelty_detection_lof

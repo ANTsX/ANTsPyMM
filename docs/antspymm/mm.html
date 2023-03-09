@@ -32,7 +32,7 @@
     &#39;image_write_with_thumbnail&#39;,
     &#39;nrg_format_path&#39;,
     &#39;higest_quality_repeat&#39;,
-    &#39;best_mmm&#39;,
+    &#39;match_modalities&#39;,
     &#39;mc_resample_image_to_target&#39;,
     &#39;nrg_filelist_to_dataframe&#39;,
     &#39;merge_timeseries_data&#39;,
@@ -92,6 +92,13 @@
     &#39;quick_viz_mm_nrg&#39;,
     &#39;blind_image_assessment&#39;,
     &#39;average_blind_qc_by_modality&#39;,
+    &#39;best_mmm&#39;,
+    &#39;nrg_2_bids&#39;,
+    &#39;bids_2_nrg&#39;,
+    &#39;parse_nrg_filename&#39;,
+    &#39;novelty_detection_svm&#39;,
+    &#39;novelty_detection_ee&#39;,
+    &#39;novelty_detection_lof&#39;,
     &#39;wmh&#39;]
 
 from pathlib import Path
@@ -161,37 +168,72 @@ def version( ):
               }
 
 
-
-def version( ):
+def parse_nrg_filename( x, separator=&#39;-&#39; ):
     &#34;&#34;&#34;
-    report versions of this package and primary dependencies
-
-    Arguments
-    ---------
-    None
-
-    Returns
-    -------
-    a dictionary with package name and versions
-
-    Example
-    -------
-    &gt;&gt;&gt; import antspymm
-    &gt;&gt;&gt; antspymm.version()
+    split a NRG filename into its named parts
     &#34;&#34;&#34;
-    import pkg_resources
+    temp = x.split( separator )
+    if len(temp) != 5:
+        raise ValueError(x + &#34; not a valid NRG filename&#34;)
     return {
-              &#39;tensorflow&#39;: pkg_resources.require(&#34;tensorflow&#34;)[0].version,
-              &#39;antspyx&#39;: pkg_resources.require(&#34;antspyx&#34;)[0].version,
-              &#39;antspynet&#39;: pkg_resources.require(&#34;antspynet&#34;)[0].version,
-              &#39;antspyt1w&#39;: pkg_resources.require(&#34;antspyt1w&#34;)[0].version,
-              &#39;antspymm&#39;: pkg_resources.require(&#34;antspymm&#34;)[0].version
-              }
+        &#39;project&#39;:temp[0],
+        &#39;subjectID&#39;:temp[1],
+        &#39;date&#39;:temp[2],
+        &#39;modality&#39;:temp[3],
+        &#39;imageID&#39;:temp[4]
+    }
 
+
+def nrg_2_bids( x ):
+    &#34;&#34;&#34;
+    convert nrg filename to bids path / filename
+    &#34;&#34;&#34;
+    temp = parse_nrg_filename( os.path.basename(x) )
+    bidsmod=&#39;anat&#39;
+    if &#34;DTI&#34; in temp[&#39;modality&#39;] :
+        bidsmod=&#39;dwi&#39;
+    elif &#34;rsfMRI&#34; in temp[&#39;modality&#39;]:
+        bidsmod=&#39;func&#39;
+    return {
+        &#39;project&#39;:temp[&#39;project&#39;],
+        &#39;subjectID&#39;:&#39;sub-&#39;+temp[&#39;subjectID&#39;],
+        &#39;session&#39;:&#39;ses-&#39;+temp[&#39;date&#39;],
+        &#39;modality&#39;:bidsmod
+    }
+
+def bids_2_nrg( x, project=None ):
+    &#34;&#34;&#34;
+    convert bids path / filename to something like nrg path / filename structure
+    &#34;&#34;&#34;
+    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
+    import os
+    # Split the path into directories
+    subid=None
+    modality=None
+    session=None
+    imagename=os.path.basename(x)
+    while True:
+        head, tail = os.path.split(x)
+        if not tail:
+            break
+        if &#34;sub-&#34; in tail:
+            subid=tail
+        elif &#34;ses-&#34; in tail:
+            session=tail
+        elif tail == &#39;anat&#39; or tail == &#39;func&#39; or tail == &#39;dwi&#39; :
+            modality=tail
+        x = head
+    return {
+        &#39;project&#39;:project,
+        &#39;subjectID&#39;:subid,
+        &#39;date&#39;:session,
+        &#39;modality&#39;:modality,
+        &#39;imageID&#39;:imagename
+    }
 
 def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;], verbose=False ):
     &#34;&#34;&#34;
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -227,6 +269,9 @@ def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noi
         yhat = lof.fit_predict(rr)
         temp = lof.negative_outlier_factor_*(-1.0)
         temp = temp - temp.min()
+        yhat[ yhat == 1] = 0
+        yhat[ yhat == -1] = 1 # these are outliers
+        qcdf.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
         qcdf.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
     return qcdf
 
@@ -312,92 +357,185 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     return mxdfin[useit]
 
 
-def match_modalities(t1df, dtdf, rsdf, fldf, nmdf):
+def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_column=&#39;ol_loop&#39;,  verbose=False ):
     &#34;&#34;&#34;
-    Match each modality to each T1-weighted row.
+    Find the best multiple modality dataset at each time point
 
-    :param t1df: T1-weighted image data frame
-    :param dtdf: DT image data frame
-    :param rsdf: RS image data frame
-    :param fldf: FL image data frame
-    :param nmdf: NM image data frame
+    :param qc_dataframe: quality control data frame with 
+    :param unique_identifier : the unique NRG filename for each image
+    :param outlier_column: outlierness score used to identify the best image (pair) at a given date
+    :param verbose: boolean
     :return: filtered matched modality data frame
     &#34;&#34;&#34;
     import pandas as pd
     import numpy as np
-    impnames = [&#39;subjectIDdate&#39;, &#39;fn&#39;]
-    mmdf = t1df[t1df[&#39;filt&#39;][&#39;OL_LOOP&#39;] &lt;= 0.5]
+    mmdf = best_mmm( qc_dataframe, &#39;T1w&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    fldf = best_mmm( qc_dataframe, &#39;T2Flair&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    nmdf = best_mmm( qc_dataframe, &#39;NM2DMT&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    rsdf = best_mmm( qc_dataframe, &#39;rsfMRI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    dtdf = best_mmm( qc_dataframe, &#39;DTI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     mmdf[&#39;flairid&#39;] = np.nan
     mmdf[&#39;flairfn&#39;] = np.nan
     mmdf[&#39;flairloop&#39;] = np.nan
+    mmdf[&#39;flairlof&#39;] = np.nan
     mmdf[&#39;dtid1&#39;] = np.nan
     mmdf[&#39;dtfn1&#39;] = np.nan
     mmdf[&#39;dtloop1&#39;] = np.nan
+    mmdf[&#39;dtlof1&#39;] = np.nan
     mmdf[&#39;dtid2&#39;] = np.nan
     mmdf[&#39;dtfn2&#39;] = np.nan
     mmdf[&#39;dtloop2&#39;] = np.nan
+    mmdf[&#39;dtlof2&#39;] = np.nan
     mmdf[&#39;rsfid1&#39;] = np.nan
     mmdf[&#39;rsffn1&#39;] = np.nan
     mmdf[&#39;rsfloop1&#39;] = np.nan
+    mmdf[&#39;rsflof1&#39;] = np.nan
     mmdf[&#39;rsfid2&#39;] = np.nan
     mmdf[&#39;rsffn2&#39;] = np.nan
     mmdf[&#39;rsfloop2&#39;] = np.nan
-    
+    mmdf[&#39;rsflof2&#39;] = np.nan
+    for k in range(1,11):
+        myid=&#39;nmid&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmfn&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmloop&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmlof&#39;+str(k)
+        mmdf[myid] = np.nan
+    if verbose:
+        print( mmdf.shape )
     for k in range(mmdf.shape[0]):
-        locsel = (dtdf[&#39;raw&#39;][&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;][k]) &amp; (dtdf[&#39;raw&#39;][&#39;OL_LOOP&#39;] &lt; 0.5)
-        if sum(locsel) == 1:
-            mmdf.at[k, &#39;dtid1&#39;] = dtdf[&#39;raw&#39;][&#39;imageID&#39;][locsel].values[0]
-            mmdf.at[k, &#39;dtfn1&#39;] = dtdf[&#39;raw&#39;][&#39;fn&#39;][locsel].values[0]
-            mmdf.at[k, &#39;dtloop1&#39;] = dtdf[&#39;raw&#39;][&#39;OL_LOOP&#39;][locsel].values[0]
-        elif sum(locsel) &gt; 1:
-            locdf = dtdf[&#39;raw&#39;][locsel]
-            dedupe = locdf[[&#39;snr&#39;, &#39;cnr&#39;]].duplicated()
-            locdf = locdf[~dedupe]
-            locdf = locdf.sort_values(&#39;OL_LOOP&#39;).iloc[:2, :]
-            mmdf.at[k, &#39;dtid1&#39;] = locdf[&#39;imageID&#39;].values[0]
-            mmdf.at[k, &#39;dtfn1&#39;] = locdf[&#39;fn&#39;].values[0]
-            mmdf.at[k, &#39;dtloop1&#39;] = locdf[&#39;OL_LOOP&#39;].values[0]
-            m
+        if verbose:
+            if k % 100 == 0:
+                progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
+                print( progger, end =&#34;...&#34;, flush=True)
+        if dtdf is not None:
+            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (dtdf[outlier_column] &lt; 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = dtdf[&#34;imageID&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = dtdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = dtdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = dtdf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                if locdf.shape[0] &gt; 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
+        if rsdf is not None:        
+            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = rsdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = rsdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = rsdf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                if locdf.shape[0] &gt; 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
 
+        if fldf is not None:        
+            locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
+            if locsel.sum() == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;fn&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
 
-def best_mmm(wmod, mysep=&#39;-&#39;, verbose=True):
+        if nmdf is not None:        
+            locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
+            if locsel.sum() &gt; 0:
+                locdf = nmdf[locsel]
+                for i in range(np.min( [10,locdf.shape[0]])):
+                    nmid = &#34;nmid&#34;+str(i+1)
+                    mmdf[nmid].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    nmfn = &#34;nmfn&#34;+str(i+1)
+                    mmdf[nmfn].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    nmloop = &#34;nmloop&#34;+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    nmloop = &#34;nmlof&#34;+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf[&#39;ol_lof_decision&#39;].iloc[i]
+
+    return mmdf
+
+def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, verbose=False):
     &#34;&#34;&#34;
-    Matches the given modality .
+    Selects the best repeats per modality.
     
     Args:
-    wmod (str): the modality of the image (&#39;rsfMRI&#39; or &#39;DTI&#39;)
+    wmod (str): the modality of the image ( &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39; &#39;rsfMRI&#39;, &#39;DTI&#39;)
+
     mysep (str, optional): the separator used in the image file names. Defaults to &#39;-&#39;.
-    verbose (bool, optional): if True, print the number of rows in the metadata dataframe before and after filtering. Defaults to True.
+
+    outlier_name : column name for outlier score
+    
+    verbose (bool, optional): default True
     
     Returns:
+
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     &#34;&#34;&#34;
-    msel = meta[&#39;modality&#39;] == wmod
-#    if wmod == &#39;rsfMRI&#39;:
-#        msel = unique( c( grep(&#34;-rsfMRI-&#34;,meta$fn), grep(&#34;-rsfMRI_RL-&#34;,meta$fn), grep(&#34;-rsfMRI_LR-&#34;,meta$fn) ) )
-#    if wmod == &#39;DTI&#39;:
-#        msel = unique( c( grep(&#34;-DTI-&#34;,meta$fn), grep(&#34;-DTI_LR-&#34;,meta$fn), grep(&#34;-DTI_RL-&#34;,meta$fn) ) )
-#        msel = intersect(msel, grep(&#34;DTIdwi&#34;, meta[&#39;modality&#39;]))
-    
-    uids = meta[&#39;fn&#39;][msel]
-    metasub = meta[msel, ]
+    msel = mmdf[&#39;modality&#39;] == wmod
+    if wmod == &#39;rsfMRI&#39;:
+        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39; 
+        msel2 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_LR&#39;
+        msel3 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_RL&#39;
+        msel = msel1 | msel2 
+        msel = msel | msel3 
+    if wmod == &#39;DTI&#39;:
+        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39; 
+        msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
+        msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
+        msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
+        msel = msel1 | msel2 | msel3 | msel4
+    if sum(msel) == 0:
+        return {&#39;raw&#39;: None, &#39;filt&#39;: None}
+    uids = list(mmdf[&#39;fn&#39;][msel])
+    metasub = mmdf[msel]
     
     if verbose:
-        print(f&#34;{wmod} {nrow(metasub)} pre&#34;)
+        print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
     
+    metasub[&#39;subjectID&#39;]=math.nan
+    metasub[&#39;date&#39;]=math.nan
+    metasub[&#39;subjectIDdate&#39;]=math.nan
+    metasub[&#39;imageID&#39;]=math.nan
     for k in range(len(uids)):
-        temp = unlist(strsplit(uids[k], mysep))
-        metasub[k, &#39;subjectID&#39;] = temp[2]
-        metasub[k, &#39;date&#39;] = temp[3]
-        metasub[k, &#39;subjectIDdate&#39;] = paste0(temp[2], mysep, temp[3])
-        metasub[k, &#39;imageID&#39;] = temp[5]
+        temp = uids[k].split( mysep )
+        metasub[&#39;subjectID&#39;].iloc[k] = temp[1]
+        metasub[&#39;date&#39;].iloc[k] = temp[2]
+        metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
+        metasub[&#39;imageID&#39;].iloc[k] = temp[4]
     
-    metasub[&#39;negol&#39;] = 1.0 - metasub[&#39;OL_LOOP&#39;]
-    metasubq = highest_quality_repeat(metasub, &#39;subjectID&#39;, &#39;date&#39;, &#39;negol&#39;)
+    metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+    if &#39;date&#39; not in metasub.keys():
+        metasub[&#39;date&#39;]=&#39;NA&#39;
+    metasubq = highest_quality_repeat(metasub, &#39;fn&#39;, &#39;date&#39;, &#39;negol&#39;)
     
     if verbose:
-        print(f&#34;{wmod} {nrow(metasubq)} post&#34;)
+        print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
     
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}
 
@@ -5860,50 +5998,53 @@ def blind_image_assessment(
     return outdf
 
 
-def average_blind_qc_by_modality(qc_full):
+def average_blind_qc_by_modality(qc_full,verbose=False):
     &#34;&#34;&#34;
-    Processes the meta data and returns the final meta data.
+    Averages time series qc results to yield one entry per image. this also filters to &#34;known&#34; columns.
 
     Args:
-    qc_full: pandas dataframe containing the full meta data.
+    qc_full: pandas dataframe containing the full qc data.
 
     Returns:
-    pandas dataframe containing the processed meta data.
+    pandas dataframe containing the processed qc data.
     &#34;&#34;&#34;
-
     # Get unique modalities
     modalities = qc_full[&#39;modality&#39;].unique()
     modalities = modalities[modalities != &#39;unknown&#39;]
-
     # Get modalities to select
     m0sel = qc_full[&#39;modality&#39;].isin(modalities)
-
     # Get unique ids
     uid = qc_full[&#39;fn&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
     to_average = uid.unique()
-
     # Define column indices
-    contcols = list(range(2, 18))
-    ocols = [0] + list(range(18, 22))
-
+    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,
+       &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;dimx&#39;,
+       &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
+    ocols = [&#39;fn&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
+    # restrict to columns we &#34;know&#34;
+    qc_full = qc_full[ocols+contcols]
     # Create empty meta dataframe
-    meta = pd.DataFrame(columns=qc_full.columns)
-
+    meta = pd.DataFrame(columns=ocols+contcols)
     # Process each unique id
-    for k in range(len(to_average)):
+    n = len(to_average)
+    for k in range(n):
+        if verbose:
+            if k % 100 == 0:
+                progger = str( np.round( k / n * 100 ) )
+                print( progger, end =&#34;...&#34;, flush=True)
         m1sel = uid == to_average[k]
         if sum(m1sel) &gt; 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
             mfsub = qc_full[m1sel]
-            meta.loc[k, contcols] = mfsub.iloc[:, contcols].mean(numeric_only=True)
-            meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
-            meta.loc[k, ocols] = mfsub.iloc[0, ocols]
+            if mfsub.shape[0] &gt; 1:
+                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
+                meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
+                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
         elif sum(m1sel) == 1:
             # If only one entry for id, just copy the entry
             mfsub = qc_full[m1sel]
             meta.loc[k] = mfsub.iloc[0]
-
     return meta
 
 def wmh( flair, t1, t1seg,
@@ -6015,7 +6156,90 @@ def wmh( flair, t1, t1seg,
         &#39;wmh_mass_prior&#39;: wmh_sum_prior,
         &#39;wmh_evr&#39; : flair_evr,
         &#39;wmh_SNR&#39; : flairsnr,
-        &#39;convexhull_mask&#39;: distmask }</code></pre>
+        &#39;convexhull_mask&#39;: distmask }
+
+
+
+def novelty_detection_ee(df_train, df_test, contamination=0.05):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Elliptic Envelope.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    import pandas as pd
+    from sklearn.covariance import EllipticEnvelope
+    # Fit the model on the training data
+    clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)
+
+
+
+def novelty_detection_svm(df_train, df_test, nu=0.05, kernel=&#39;rbf&#39;):
+    &#34;&#34;&#34;
+    This function performs novelty detection using One-Class SVM.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+    kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    from sklearn.svm import OneClassSVM
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = OneClassSVM(nu=nu, kernel=kernel)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)
+
+
+
+def novelty_detection_lof(df_train, df_test, n_neighbors=20):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    from sklearn.neighbors import LocalOutlierFactor
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)</code></pre>
 </details>
 </section>
 <section>
@@ -6166,62 +6390,65 @@ detrend detrend the input time series</p>
 </details>
 </dd>
 <dt id="antspymm.mm.average_blind_qc_by_modality"><code class="name flex">
-<span>def <span class="ident">average_blind_qc_by_modality</span></span>(<span>qc_full)</span>
+<span>def <span class="ident">average_blind_qc_by_modality</span></span>(<span>qc_full, verbose=False)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Processes the meta data and returns the final meta data.</p>
+<div class="desc"><p>Averages time series qc results to yield one entry per image. this also filters to "known" columns.</p>
 <p>Args:
-qc_full: pandas dataframe containing the full meta data.</p>
+qc_full: pandas dataframe containing the full qc data.</p>
 <p>Returns:
-pandas dataframe containing the processed meta data.</p></div>
+pandas dataframe containing the processed qc data.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def average_blind_qc_by_modality(qc_full):
+<pre><code class="python">def average_blind_qc_by_modality(qc_full,verbose=False):
     &#34;&#34;&#34;
-    Processes the meta data and returns the final meta data.
+    Averages time series qc results to yield one entry per image. this also filters to &#34;known&#34; columns.
 
     Args:
-    qc_full: pandas dataframe containing the full meta data.
+    qc_full: pandas dataframe containing the full qc data.
 
     Returns:
-    pandas dataframe containing the processed meta data.
+    pandas dataframe containing the processed qc data.
     &#34;&#34;&#34;
-
     # Get unique modalities
     modalities = qc_full[&#39;modality&#39;].unique()
     modalities = modalities[modalities != &#39;unknown&#39;]
-
     # Get modalities to select
     m0sel = qc_full[&#39;modality&#39;].isin(modalities)
-
     # Get unique ids
     uid = qc_full[&#39;fn&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
     to_average = uid.unique()
-
     # Define column indices
-    contcols = list(range(2, 18))
-    ocols = [0] + list(range(18, 22))
-
+    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,
+       &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;dimx&#39;,
+       &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
+    ocols = [&#39;fn&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
+    # restrict to columns we &#34;know&#34;
+    qc_full = qc_full[ocols+contcols]
     # Create empty meta dataframe
-    meta = pd.DataFrame(columns=qc_full.columns)
-
+    meta = pd.DataFrame(columns=ocols+contcols)
     # Process each unique id
-    for k in range(len(to_average)):
+    n = len(to_average)
+    for k in range(n):
+        if verbose:
+            if k % 100 == 0:
+                progger = str( np.round( k / n * 100 ) )
+                print( progger, end =&#34;...&#34;, flush=True)
         m1sel = uid == to_average[k]
         if sum(m1sel) &gt; 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
             mfsub = qc_full[m1sel]
-            meta.loc[k, contcols] = mfsub.iloc[:, contcols].mean(numeric_only=True)
-            meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
-            meta.loc[k, ocols] = mfsub.iloc[0, ocols]
+            if mfsub.shape[0] &gt; 1:
+                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
+                meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
+                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
         elif sum(m1sel) == 1:
             # If only one entry for id, just copy the entry
             mfsub = qc_full[m1sel]
             meta.loc[k] = mfsub.iloc[0]
-
     return meta</code></pre>
 </details>
 </dd>
@@ -6408,60 +6635,120 @@ pandas dataframe containing the processed meta data.</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.best_mmm"><code class="name flex">
-<span>def <span class="ident">best_mmm</span></span>(<span>wmod, mysep='-', verbose=True)</span>
+<span>def <span class="ident">best_mmm</span></span>(<span>mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Matches the given modality .</p>
+<div class="desc"><p>Selects the best repeats per modality.</p>
 <p>Args:
-wmod (str): the modality of the image ('rsfMRI' or 'DTI')
-mysep (str, optional): the separator used in the image file names. Defaults to '-'.
-verbose (bool, optional): if True, print the number of rows in the metadata dataframe before and after filtering. Defaults to True.</p>
-<p>Returns:
-list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.</p></div>
+wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DTI')</p>
+<p>mysep (str, optional): the separator used in the image file names. Defaults to '-'.</p>
+<p>outlier_name : column name for outlier score</p>
+<p>verbose (bool, optional): default True</p>
+<p>Returns:</p>
+<p>list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def best_mmm(wmod, mysep=&#39;-&#39;, verbose=True):
+<pre><code class="python">def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, verbose=False):
     &#34;&#34;&#34;
-    Matches the given modality .
+    Selects the best repeats per modality.
     
     Args:
-    wmod (str): the modality of the image (&#39;rsfMRI&#39; or &#39;DTI&#39;)
+    wmod (str): the modality of the image ( &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39; &#39;rsfMRI&#39;, &#39;DTI&#39;)
+
     mysep (str, optional): the separator used in the image file names. Defaults to &#39;-&#39;.
-    verbose (bool, optional): if True, print the number of rows in the metadata dataframe before and after filtering. Defaults to True.
+
+    outlier_name : column name for outlier score
+    
+    verbose (bool, optional): default True
     
     Returns:
+
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     &#34;&#34;&#34;
-    msel = meta[&#39;modality&#39;] == wmod
-#    if wmod == &#39;rsfMRI&#39;:
-#        msel = unique( c( grep(&#34;-rsfMRI-&#34;,meta$fn), grep(&#34;-rsfMRI_RL-&#34;,meta$fn), grep(&#34;-rsfMRI_LR-&#34;,meta$fn) ) )
-#    if wmod == &#39;DTI&#39;:
-#        msel = unique( c( grep(&#34;-DTI-&#34;,meta$fn), grep(&#34;-DTI_LR-&#34;,meta$fn), grep(&#34;-DTI_RL-&#34;,meta$fn) ) )
-#        msel = intersect(msel, grep(&#34;DTIdwi&#34;, meta[&#39;modality&#39;]))
-    
-    uids = meta[&#39;fn&#39;][msel]
-    metasub = meta[msel, ]
+    msel = mmdf[&#39;modality&#39;] == wmod
+    if wmod == &#39;rsfMRI&#39;:
+        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39; 
+        msel2 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_LR&#39;
+        msel3 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_RL&#39;
+        msel = msel1 | msel2 
+        msel = msel | msel3 
+    if wmod == &#39;DTI&#39;:
+        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39; 
+        msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
+        msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
+        msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
+        msel = msel1 | msel2 | msel3 | msel4
+    if sum(msel) == 0:
+        return {&#39;raw&#39;: None, &#39;filt&#39;: None}
+    uids = list(mmdf[&#39;fn&#39;][msel])
+    metasub = mmdf[msel]
     
     if verbose:
-        print(f&#34;{wmod} {nrow(metasub)} pre&#34;)
+        print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
     
+    metasub[&#39;subjectID&#39;]=math.nan
+    metasub[&#39;date&#39;]=math.nan
+    metasub[&#39;subjectIDdate&#39;]=math.nan
+    metasub[&#39;imageID&#39;]=math.nan
     for k in range(len(uids)):
-        temp = unlist(strsplit(uids[k], mysep))
-        metasub[k, &#39;subjectID&#39;] = temp[2]
-        metasub[k, &#39;date&#39;] = temp[3]
-        metasub[k, &#39;subjectIDdate&#39;] = paste0(temp[2], mysep, temp[3])
-        metasub[k, &#39;imageID&#39;] = temp[5]
+        temp = uids[k].split( mysep )
+        metasub[&#39;subjectID&#39;].iloc[k] = temp[1]
+        metasub[&#39;date&#39;].iloc[k] = temp[2]
+        metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
+        metasub[&#39;imageID&#39;].iloc[k] = temp[4]
     
-    metasub[&#39;negol&#39;] = 1.0 - metasub[&#39;OL_LOOP&#39;]
-    metasubq = highest_quality_repeat(metasub, &#39;subjectID&#39;, &#39;date&#39;, &#39;negol&#39;)
+    metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+    if &#39;date&#39; not in metasub.keys():
+        metasub[&#39;date&#39;]=&#39;NA&#39;
+    metasubq = highest_quality_repeat(metasub, &#39;fn&#39;, &#39;date&#39;, &#39;negol&#39;)
     
     if verbose:
-        print(f&#34;{wmod} {nrow(metasubq)} post&#34;)
+        print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
     
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.bids_2_nrg"><code class="name flex">
+<span>def <span class="ident">bids_2_nrg</span></span>(<span>x, project=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>convert bids path / filename to something like nrg path / filename structure</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def bids_2_nrg( x, project=None ):
+    &#34;&#34;&#34;
+    convert bids path / filename to something like nrg path / filename structure
+    &#34;&#34;&#34;
+    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
+    import os
+    # Split the path into directories
+    subid=None
+    modality=None
+    session=None
+    imagename=os.path.basename(x)
+    while True:
+        head, tail = os.path.split(x)
+        if not tail:
+            break
+        if &#34;sub-&#34; in tail:
+            subid=tail
+        elif &#34;ses-&#34; in tail:
+            session=tail
+        elif tail == &#39;anat&#39; or tail == &#39;func&#39; or tail == &#39;dwi&#39; :
+            modality=tail
+        x = head
+    return {
+        &#39;project&#39;:project,
+        &#39;subjectID&#39;:subid,
+        &#39;date&#39;:session,
+        &#39;modality&#39;:modality,
+        &#39;imageID&#39;:imagename
+    }</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.bind_wide_mm_csvs"><code class="name flex">
@@ -9299,6 +9586,143 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
     return signal / noise</code></pre>
 </details>
 </dd>
+<dt id="antspymm.mm.match_modalities"><code class="name flex">
+<span>def <span class="ident">match_modalities</span></span>(<span>qc_dataframe, unique_identifier='fn', outlier_column='ol_loop', verbose=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find the best multiple modality dataset at each time point</p>
+<p>:param qc_dataframe: quality control data frame with
+:param unique_identifier : the unique NRG filename for each image
+:param outlier_column: outlierness score used to identify the best image (pair) at a given date
+:param verbose: boolean
+:return: filtered matched modality data frame</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_column=&#39;ol_loop&#39;,  verbose=False ):
+    &#34;&#34;&#34;
+    Find the best multiple modality dataset at each time point
+
+    :param qc_dataframe: quality control data frame with 
+    :param unique_identifier : the unique NRG filename for each image
+    :param outlier_column: outlierness score used to identify the best image (pair) at a given date
+    :param verbose: boolean
+    :return: filtered matched modality data frame
+    &#34;&#34;&#34;
+    import pandas as pd
+    import numpy as np
+    mmdf = best_mmm( qc_dataframe, &#39;T1w&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    fldf = best_mmm( qc_dataframe, &#39;T2Flair&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    nmdf = best_mmm( qc_dataframe, &#39;NM2DMT&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    rsdf = best_mmm( qc_dataframe, &#39;rsfMRI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    dtdf = best_mmm( qc_dataframe, &#39;DTI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    mmdf[&#39;flairid&#39;] = np.nan
+    mmdf[&#39;flairfn&#39;] = np.nan
+    mmdf[&#39;flairloop&#39;] = np.nan
+    mmdf[&#39;flairlof&#39;] = np.nan
+    mmdf[&#39;dtid1&#39;] = np.nan
+    mmdf[&#39;dtfn1&#39;] = np.nan
+    mmdf[&#39;dtloop1&#39;] = np.nan
+    mmdf[&#39;dtlof1&#39;] = np.nan
+    mmdf[&#39;dtid2&#39;] = np.nan
+    mmdf[&#39;dtfn2&#39;] = np.nan
+    mmdf[&#39;dtloop2&#39;] = np.nan
+    mmdf[&#39;dtlof2&#39;] = np.nan
+    mmdf[&#39;rsfid1&#39;] = np.nan
+    mmdf[&#39;rsffn1&#39;] = np.nan
+    mmdf[&#39;rsfloop1&#39;] = np.nan
+    mmdf[&#39;rsflof1&#39;] = np.nan
+    mmdf[&#39;rsfid2&#39;] = np.nan
+    mmdf[&#39;rsffn2&#39;] = np.nan
+    mmdf[&#39;rsfloop2&#39;] = np.nan
+    mmdf[&#39;rsflof2&#39;] = np.nan
+    for k in range(1,11):
+        myid=&#39;nmid&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmfn&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmloop&#39;+str(k)
+        mmdf[myid] = np.nan
+        myid=&#39;nmlof&#39;+str(k)
+        mmdf[myid] = np.nan
+    if verbose:
+        print( mmdf.shape )
+    for k in range(mmdf.shape[0]):
+        if verbose:
+            if k % 100 == 0:
+                progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
+                print( progger, end =&#34;...&#34;, flush=True)
+        if dtdf is not None:
+            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (dtdf[outlier_column] &lt; 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = dtdf[&#34;imageID&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = dtdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = dtdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = dtdf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                if locdf.shape[0] &gt; 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
+        if rsdf is not None:        
+            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
+            if sum(locsel) == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = rsdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = rsdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = rsdf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                if locdf.shape[0] &gt; 1:
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
+
+        if fldf is not None:        
+            locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
+            if locsel.sum() == 1:
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;fn&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
+
+        if nmdf is not None:        
+            locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
+            if locsel.sum() &gt; 0:
+                locdf = nmdf[locsel]
+                for i in range(np.min( [10,locdf.shape[0]])):
+                    nmid = &#34;nmid&#34;+str(i+1)
+                    mmdf[nmid].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    nmfn = &#34;nmfn&#34;+str(i+1)
+                    mmdf[nmfn].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    nmloop = &#34;nmloop&#34;+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    nmloop = &#34;nmlof&#34;+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf[&#39;ol_lof_decision&#39;].iloc[i]
+
+    return mmdf</code></pre>
+</details>
+</dd>
 <dt id="antspymm.mm.mc_denoise"><code class="name flex">
 <span>def <span class="ident">mc_denoise</span></span>(<span>x, ratio=0.5)</span>
 </code></dt>
@@ -11040,6 +11464,159 @@ by histogram matching - ants.histogram_match_image</dd>
        }</code></pre>
 </details>
 </dd>
+<dt id="antspymm.mm.novelty_detection_ee"><code class="name flex">
+<span>def <span class="ident">novelty_detection_ee</span></span>(<span>df_train, df_test, contamination=0.05)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function performs novelty detection using Elliptic Envelope.</p>
+<p>Parameters:
+df_train (pandas dataframe): training data used to fit the model
+df_test (pandas dataframe): test data used to predict novelties
+contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)</p>
+<p>Returns:
+predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def novelty_detection_ee(df_train, df_test, contamination=0.05):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Elliptic Envelope.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    import pandas as pd
+    from sklearn.covariance import EllipticEnvelope
+    # Fit the model on the training data
+    clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.novelty_detection_lof"><code class="name flex">
+<span>def <span class="ident">novelty_detection_lof</span></span>(<span>df_train, df_test, n_neighbors=20)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function performs novelty detection using Local Outlier Factor (LOF).</p>
+<p>Parameters:
+df_train (pandas dataframe): training data used to fit the model
+df_test (pandas dataframe): test data used to predict novelties
+n_neighbors (int): number of neighbors used to compute the LOF (default: 20)</p>
+<p>Returns:
+predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def novelty_detection_lof(df_train, df_test, n_neighbors=20):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    from sklearn.neighbors import LocalOutlierFactor
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.novelty_detection_svm"><code class="name flex">
+<span>def <span class="ident">novelty_detection_svm</span></span>(<span>df_train, df_test, nu=0.05, kernel='rbf')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function performs novelty detection using One-Class SVM.</p>
+<p>Parameters:
+df_train (pandas dataframe): training data used to fit the model
+df_test (pandas dataframe): test data used to predict novelties
+nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+kernel (str): kernel type used in the SVM algorithm (default: 'rbf')</p>
+<p>Returns:
+predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def novelty_detection_svm(df_train, df_test, nu=0.05, kernel=&#39;rbf&#39;):
+    &#34;&#34;&#34;
+    This function performs novelty detection using One-Class SVM.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+    kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    &#34;&#34;&#34;
+    from sklearn.svm import OneClassSVM
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = OneClassSVM(nu=nu, kernel=kernel)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.nrg_2_bids"><code class="name flex">
+<span>def <span class="ident">nrg_2_bids</span></span>(<span>x)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>convert nrg filename to bids path / filename</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def nrg_2_bids( x ):
+    &#34;&#34;&#34;
+    convert nrg filename to bids path / filename
+    &#34;&#34;&#34;
+    temp = parse_nrg_filename( os.path.basename(x) )
+    bidsmod=&#39;anat&#39;
+    if &#34;DTI&#34; in temp[&#39;modality&#39;] :
+        bidsmod=&#39;dwi&#39;
+    elif &#34;rsfMRI&#34; in temp[&#39;modality&#39;]:
+        bidsmod=&#39;func&#39;
+    return {
+        &#39;project&#39;:temp[&#39;project&#39;],
+        &#39;subjectID&#39;:&#39;sub-&#39;+temp[&#39;subjectID&#39;],
+        &#39;session&#39;:&#39;ses-&#39;+temp[&#39;date&#39;],
+        &#39;modality&#39;:bidsmod
+    }</code></pre>
+</details>
+</dd>
 <dt id="antspymm.mm.nrg_filelist_to_dataframe"><code class="name flex">
 <span>def <span class="ident">nrg_filelist_to_dataframe</span></span>(<span>filename_list, myseparator='-')</span>
 </code></dt>
@@ -11158,7 +11735,8 @@ by histogram matching - ants.histogram_match_image</dd>
 <span>def <span class="ident">outlierness_by_modality</span></span>(<span>qcdf, uid='fn', outlier_columns=['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol'], verbose=False)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.</p>
+<div class="desc"><p>Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
+LOF appears to be more conservative.</p>
 <p>Args:
 - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
 - uid: (str) Unique identifier for a subject. Default is 'fn'.
@@ -11179,7 +11757,7 @@ Higher values near 1 are more outlying.</p>
 </summary>
 <pre><code class="python">def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;], verbose=False ):
     &#34;&#34;&#34;
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -11215,8 +11793,36 @@ Higher values near 1 are more outlying.</p>
         yhat = lof.fit_predict(rr)
         temp = lof.negative_outlier_factor_*(-1.0)
         temp = temp - temp.min()
+        yhat[ yhat == 1] = 0
+        yhat[ yhat == -1] = 1 # these are outliers
+        qcdf.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
         qcdf.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
     return qcdf</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.parse_nrg_filename"><code class="name flex">
+<span>def <span class="ident">parse_nrg_filename</span></span>(<span>x, separator='-')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>split a NRG filename into its named parts</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def parse_nrg_filename( x, separator=&#39;-&#39; ):
+    &#34;&#34;&#34;
+    split a NRG filename into its named parts
+    &#34;&#34;&#34;
+    temp = x.split( separator )
+    if len(temp) != 5:
+        raise ValueError(x + &#34; not a valid NRG filename&#34;)
+    return {
+        &#39;project&#39;:temp[0],
+        &#39;subjectID&#39;:temp[1],
+        &#39;date&#39;:temp[2],
+        &#39;modality&#39;:temp[3],
+        &#39;imageID&#39;:temp[4]
+    }</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.quantile_snr"><code class="name flex">
@@ -13017,6 +13623,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.average_blind_qc_by_modality" href="#antspymm.mm.average_blind_qc_by_modality">average_blind_qc_by_modality</a></code></li>
 <li><code><a title="antspymm.mm.average_mm_df" href="#antspymm.mm.average_mm_df">average_mm_df</a></code></li>
 <li><code><a title="antspymm.mm.best_mmm" href="#antspymm.mm.best_mmm">best_mmm</a></code></li>
+<li><code><a title="antspymm.mm.bids_2_nrg" href="#antspymm.mm.bids_2_nrg">bids_2_nrg</a></code></li>
 <li><code><a title="antspymm.mm.bind_wide_mm_csvs" href="#antspymm.mm.bind_wide_mm_csvs">bind_wide_mm_csvs</a></code></li>
 <li><code><a title="antspymm.mm.blind_image_assessment" href="#antspymm.mm.blind_image_assessment">blind_image_assessment</a></code></li>
 <li><code><a title="antspymm.mm.boot_wmh" href="#antspymm.mm.boot_wmh">boot_wmh</a></code></li>
@@ -13045,6 +13652,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.impute_fa" href="#antspymm.mm.impute_fa">impute_fa</a></code></li>
 <li><code><a title="antspymm.mm.joint_dti_recon" href="#antspymm.mm.joint_dti_recon">joint_dti_recon</a></code></li>
 <li><code><a title="antspymm.mm.mask_snr" href="#antspymm.mm.mask_snr">mask_snr</a></code></li>
+<li><code><a title="antspymm.mm.match_modalities" href="#antspymm.mm.match_modalities">match_modalities</a></code></li>
 <li><code><a title="antspymm.mm.mc_denoise" href="#antspymm.mm.mc_denoise">mc_denoise</a></code></li>
 <li><code><a title="antspymm.mm.mc_reg" href="#antspymm.mm.mc_reg">mc_reg</a></code></li>
 <li><code><a title="antspymm.mm.mc_resample_image_to_target" href="#antspymm.mm.mc_resample_image_to_target">mc_resample_image_to_target</a></code></li>
@@ -13057,9 +13665,14 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.mm_read" href="#antspymm.mm.mm_read">mm_read</a></code></li>
 <li><code><a title="antspymm.mm.mm_read_to_3d" href="#antspymm.mm.mm_read_to_3d">mm_read_to_3d</a></code></li>
 <li><code><a title="antspymm.mm.neuromelanin" href="#antspymm.mm.neuromelanin">neuromelanin</a></code></li>
+<li><code><a title="antspymm.mm.novelty_detection_ee" href="#antspymm.mm.novelty_detection_ee">novelty_detection_ee</a></code></li>
+<li><code><a title="antspymm.mm.novelty_detection_lof" href="#antspymm.mm.novelty_detection_lof">novelty_detection_lof</a></code></li>
+<li><code><a title="antspymm.mm.novelty_detection_svm" href="#antspymm.mm.novelty_detection_svm">novelty_detection_svm</a></code></li>
+<li><code><a title="antspymm.mm.nrg_2_bids" href="#antspymm.mm.nrg_2_bids">nrg_2_bids</a></code></li>
 <li><code><a title="antspymm.mm.nrg_filelist_to_dataframe" href="#antspymm.mm.nrg_filelist_to_dataframe">nrg_filelist_to_dataframe</a></code></li>
 <li><code><a title="antspymm.mm.nrg_format_path" href="#antspymm.mm.nrg_format_path">nrg_format_path</a></code></li>
 <li><code><a title="antspymm.mm.outlierness_by_modality" href="#antspymm.mm.outlierness_by_modality">outlierness_by_modality</a></code></li>
+<li><code><a title="antspymm.mm.parse_nrg_filename" href="#antspymm.mm.parse_nrg_filename">parse_nrg_filename</a></code></li>
 <li><code><a title="antspymm.mm.quantile_snr" href="#antspymm.mm.quantile_snr">quantile_snr</a></code></li>
 <li><code><a title="antspymm.mm.quick_viz_mm_nrg" href="#antspymm.mm.quick_viz_mm_nrg">quick_viz_mm_nrg</a></code></li>
 <li><code><a title="antspymm.mm.read_mm_csv" href="#antspymm.mm.read_mm_csv">read_mm_csv</a></code></li>

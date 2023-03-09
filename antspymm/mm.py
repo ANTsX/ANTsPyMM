@@ -69,6 +69,9 @@ __all__ = ['version',
     'nrg_2_bids',
     'bids_2_nrg',
     'parse_nrg_filename',
+    'novelty_detection_svm',
+    'novelty_detection_ee',
+    'novelty_detection_lof',
     'wmh']
 
 from pathlib import Path
@@ -158,13 +161,48 @@ def nrg_2_bids( x ):
     """
     convert nrg filename to bids path / filename
     """
-    return None
+    temp = parse_nrg_filename( os.path.basename(x) )
+    bidsmod='anat'
+    if "DTI" in temp['modality'] :
+        bidsmod='dwi'
+    elif "rsfMRI" in temp['modality']:
+        bidsmod='func'
+    return {
+        'project':temp['project'],
+        'subjectID':'sub-'+temp['subjectID'],
+        'session':'ses-'+temp['date'],
+        'modality':bidsmod
+    }
 
-def bids_2_nrg( x, date, imageid ):
+def bids_2_nrg( x, project=None ):
     """
-    convert bids path to nrg path / filename
+    convert bids path / filename to something like nrg path / filename structure
     """
-    return None
+    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
+    import os
+    # Split the path into directories
+    subid=None
+    modality=None
+    session=None
+    imagename=os.path.basename(x)
+    while True:
+        head, tail = os.path.split(x)
+        if not tail:
+            break
+        if "sub-" in tail:
+            subid=tail
+        elif "ses-" in tail:
+            session=tail
+        elif tail == 'anat' or tail == 'func' or tail == 'dwi' :
+            modality=tail
+        x = head
+    return {
+        'project':project,
+        'subjectID':subid,
+        'date':session,
+        'modality':modality,
+        'imageID':imagename
+    }
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
@@ -204,6 +242,9 @@ def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 
         yhat = lof.fit_predict(rr)
         temp = lof.negative_outlier_factor_*(-1.0)
         temp = temp - temp.min()
+        yhat[ yhat == 1] = 0
+        yhat[ yhat == -1] = 1 # these are outliers
+        qcdf.loc[locsel,'ol_lof_decision']=yhat
         qcdf.loc[locsel,'ol_lof']=temp/temp.max()
     return qcdf
 
@@ -309,24 +350,31 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
     mmdf['flairid'] = np.nan
     mmdf['flairfn'] = np.nan
     mmdf['flairloop'] = np.nan
+    mmdf['flairlof'] = np.nan
     mmdf['dtid1'] = np.nan
     mmdf['dtfn1'] = np.nan
     mmdf['dtloop1'] = np.nan
+    mmdf['dtlof1'] = np.nan
     mmdf['dtid2'] = np.nan
     mmdf['dtfn2'] = np.nan
     mmdf['dtloop2'] = np.nan
+    mmdf['dtlof2'] = np.nan
     mmdf['rsfid1'] = np.nan
     mmdf['rsffn1'] = np.nan
     mmdf['rsfloop1'] = np.nan
+    mmdf['rsflof1'] = np.nan
     mmdf['rsfid2'] = np.nan
     mmdf['rsffn2'] = np.nan
     mmdf['rsfloop2'] = np.nan
+    mmdf['rsflof2'] = np.nan
     for k in range(1,11):
         myid='nmid'+str(k)
         mmdf[myid] = np.nan
         myid='nmfn'+str(k)
         mmdf[myid] = np.nan
         myid='nmloop'+str(k)
+        mmdf[myid] = np.nan
+        myid='nmlof'+str(k)
         mmdf[myid] = np.nan
     if verbose:
         print( mmdf.shape )
@@ -341,6 +389,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = dtdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf["fn"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = dtdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = dtdf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
                 locdf = dtdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
@@ -350,16 +399,19 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf["fn"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = locdf['ol_lof_decision'][locsel].values[0]
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1]
         if rsdf is not None:        
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf["fn"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = rsdf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
@@ -369,10 +421,12 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf["fn"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = locdf['ol_lof_decision'].values[0]
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf["fn"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = locdf['ol_lof_decision'].values[1]
 
         if fldf is not None:        
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
@@ -380,6 +434,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = fldf['imageID'][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['fn'][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = fldf['ol_lof_decision'][locsel].values[0]
 
         if nmdf is not None:        
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
@@ -392,6 +447,8 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                     mmdf[nmfn].iloc[k] = locdf['imageID'].iloc[i]
                     nmloop = "nmloop"+str(i+1)
                     mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    nmloop = "nmlof"+str(i+1)
+                    mmdf[nmloop].iloc[k] = locdf['ol_lof_decision'].iloc[i]
 
     return mmdf
 
@@ -6073,3 +6130,86 @@ def wmh( flair, t1, t1seg,
         'wmh_evr' : flair_evr,
         'wmh_SNR' : flairsnr,
         'convexhull_mask': distmask }
+
+
+
+def novelty_detection_ee(df_train, df_test, contamination=0.05):
+    """
+    This function performs novelty detection using Elliptic Envelope.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    """
+    import pandas as pd
+    from sklearn.covariance import EllipticEnvelope
+    # Fit the model on the training data
+    clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)
+
+
+
+def novelty_detection_svm(df_train, df_test, nu=0.05, kernel='rbf'):
+    """
+    This function performs novelty detection using One-Class SVM.
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+    kernel (str): kernel type used in the SVM algorithm (default: 'rbf')
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    """
+    from sklearn.svm import OneClassSVM
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = OneClassSVM(nu=nu, kernel=kernel)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)
+
+
+
+def novelty_detection_lof(df_train, df_test, n_neighbors=20):
+    """
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    df_train (pandas dataframe): training data used to fit the model
+    df_test (pandas dataframe): test data used to predict novelties
+    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+
+    Returns:
+    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    """
+    from sklearn.neighbors import LocalOutlierFactor
+    # Fit the model on the training data
+    df_train[ df_train == math.inf ] = 0
+    df_test[ df_test == math.inf ] = 0
+    clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm='auto',contamination='auto', novelty=True)
+    clf.fit(df_train)
+
+    # Predict novelties on the test data
+    predictions = clf.predict(df_test)
+    predictions[predictions==1]=0
+    predictions[predictions==-1]=1
+    return pd.Series(predictions, index=df_test.index)
