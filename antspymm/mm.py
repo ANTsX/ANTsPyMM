@@ -5827,11 +5827,18 @@ def blind_image_assessment(
     import json
     import re
     mystem=''
-    isfilename=isinstance( image, str)
+    if isinstance(image,list):
+        isfilename=isinstance( image[0], str)
+        image = image[0]
+    else:
+        isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    image_filename=''
     if isfilename:
         image_filename = image
+        if isinstance(image,list):
+            image_filename=image[0]
         json_name = re.sub(".nii.gz",".json",image_filename)
         if exists( json_name ):
             with open(json_name, 'r') as fcc_file:
