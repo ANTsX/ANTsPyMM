@@ -6213,10 +6213,10 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm='auto',contamination='auto', novelty=True)
-    clf.fit(df_train)
+    clf.fit(df_train.values)
 
     # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    predictions = clf.predict(df_test.values)
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
     return pd.Series(predictions, index=df_test.index)
