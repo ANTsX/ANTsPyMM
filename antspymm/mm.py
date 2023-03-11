@@ -5282,7 +5282,7 @@ def mm_csv(
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
-                                # check existence of all files expected
+                                # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
                                         raise ValueError('mm_csv dti data ' + dtiex )
