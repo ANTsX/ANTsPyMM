@@ -4942,7 +4942,7 @@ def mm_csv(
     for k in range(len(musthavecols)):
         if not musthavecols[k] in studycsv.keys():
             raise ValueError('studycsv is missing column ' +musthavecols[k] )
-    def makewideout( x, separator = '-' ):
+    def makewideout( x, separator = mysep ):
         return x + separator + 'mmwide.csv'
     testloop = False
     counter=0
@@ -4984,15 +4984,19 @@ def mm_csv(
                 imfns.append( 'nmid' + str(i) )
         elif locmod == 'rsfMRI':
             imfns=[]
-            for i in range(2):
+            for i in range(3):
                 imfns.append( 'rsfid' + str(i) )
         elif locmod == 'DTI':
             imfns=[]
-            for i in range(2):
+            for i in range(3):
                 imfns.append( 'dtid' + str(i) )
         for i in imfns:
+            if verbose:
+                print( i + " " + locmod )
             if i in studycsv.keys():
                 fni=str(studycsv[i].iloc[0])
+                if verbose:
+                    print( i + " " + fni + ' exists ' + str( exists( fni ) ) )
                 if exists( fni ):
                     myimgsInput.append( fni )
                     temp = os.path.basename( fni )
@@ -5115,7 +5119,6 @@ def mm_csv(
                     is4d = True
                 if len( myimgsr2 ) == 1 and not is4d: # check dimension
                     myimgsr2 = myimgsr2 + myimgsr2
-                mymm = 'DERKA'
                 mymmout = makewideout( mymm )
                 if verbose and not exists( mymmout ):
                     print( "NM " + mymm  + ' execution ')
@@ -5165,7 +5168,7 @@ def mm_csv(
             else :
                 if len( myimgsr ) > 0:
                     dowrite=False
-                    myimgcount = 0
+                    myimgcount=0
                     if len( myimgsr ) > 0 :
                         myimg = myimgsr[myimgcount]
                         subjectpropath = os.path.dirname( mydoc['outprefix'] )
@@ -5272,13 +5275,17 @@ def mm_csv(
                                 bvecfnList = [ bvecfn ]
                                 if len( myimgsr ) > 1:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
-                                    if len( dtilrfn ) == 1:
+                                    if exists( dtilrfn ):
                                         bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
                                         bvecfnRL = re.sub( '.nii.gz', '.bvec' , dtilrfn )
                                         imgRL = ants.image_read( dtilrfn )
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
+                                # check existence of all files expected
+                                for dtiex in bvalfnList+bvecfnList+myimgsr:
+                                    if not exists(dtiex):
+                                        raise ValueError('mm_csv dti data ' + dtiex )
                                 srmodel_DTI_mdl=None
                                 if srmodel_DTI is not False:
                                     temp = ants.get_spacing(img)
