@@ -28,6 +28,7 @@ from .mm import dwi_streamline_pairwise_connectivity
 from .mm import write_bvals_bvecs
 from .mm import mm
 from .mm import mm_nrg
+from .mm import mm_csv
 from .mm import write_mm
 from .mm import mask_snr
 from .mm import crop_mcimage
