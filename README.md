@@ -160,6 +160,8 @@ mmrun = antspymm.mm_csv( studycsv, mysep='_' )
 
 ## NRG example
 
+NRG format details [here](https://htmlpreview.github.io/?https://github.com/stnava/biomedicalDataOrganization/blob/master/src/nrg_data_organization_summary.html)
+
 ```
 imagesNRG/
 └── ANTPD
