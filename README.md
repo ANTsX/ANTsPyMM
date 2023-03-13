@@ -127,21 +127,71 @@ matched_mm_data=antspymm.match_modalities( qcdfaol  )
 
 from : [ANT PD](https://openneuro.org/datasets/ds001907/versions/3.0.2)
 
+```
+imagesBIDS/
+└── ANTPD
+    └── sub-RC4125
+        └── ses-1
+            ├── anat
+            │   ├── sub-RC4125_ses-1_T1w.json
+            │   └── sub-RC4125_ses-1_T1w.nii.gz
+            ├── dwi
+            │   ├── sub-RC4125_ses-1_dwi.bval
+            │   ├── sub-RC4125_ses-1_dwi.bvec
+            │   ├── sub-RC4125_ses-1_dwi.json
+            │   └── sub-RC4125_ses-1_dwi.nii.gz
+            └── func
+                ├── sub-RC4125_ses-1_task-ANT_run-1_bold.json
+                ├── sub-RC4125_ses-1_task-ANT_run-1_bold.nii.gz
+                └── sub-RC4125_ses-1_task-ANT_run-1_events.tsv
+```
+
 ```python
 import antspymm
 import pandas as pd
 import glob as glob
-fns = glob.glob("images/ANT_PD/sub-RC4125/ses-*/*/*gz")
+fns = glob.glob("imagesBIDS/ANTPD/sub-RC4125/ses-*/*/*gz")
 fns.sort()
-fns = fns[0:3]
-qcdf = pd.DataFrame()
-for fn in fns: ## run the qc on all images - requires a relatively large sample per modality to be effective
-    print( fn )
-    tdf=antspymm.blind_image_assessment(fn) 
-    qcdf = pd.concat( [qcdf,tdf],axis=0)
+randid='000' # BIDS does not have unique image ids - so we assign one
+studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/imagesBIDS/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+# see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
+mmrun = antspymm.mm_csv( studycsv, mysep='_' )
+```
+
+## NRG example
+
+```
+imagesNRG/
+└── ANTPD
+    └── sub-RC4125
+        └── ses-1
+            ├── DTI
+            │   └── 000
+            │       ├── ANTPD_sub-RC4125_ses-1_DTI_000.bval
+            │       ├── ANTPD_sub-RC4125_ses-1_DTI_000.bvec
+            │       ├── ANTPD_sub-RC4125_ses-1_DTI_000.json
+            │       └── ANTPD_sub-RC4125_ses-1_DTI_000.nii.gz
+            ├── T1w
+            │   └── 000
+            │       └── ANTPD_sub-RC4125_ses-1_T1w_000.nii.gz
+            └── rsfMRI
+                └── 000
+                    └── ANTPD_sub-RC4125_ses-1_rsfMRI_000.nii.gz
+```
+
+
+
+```python
+import antspymm
+import pandas as pd
+import glob as glob
+fns = [ 
+    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0],
+    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")[0],
+    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")[0] ]
 qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
-randid='z9q48' # BIDS does not have unique image ids - so we assign one
-studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/images/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', '000', 'T1w', '/Users/stnava/data/openneuro/imagesNRG/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+# see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
 mmrun = antspymm.mm_csv( studycsv, mysep='_' )
 ```
 
