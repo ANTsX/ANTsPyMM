@@ -4909,7 +4909,7 @@ def mm_csv(
         - modality 
         - sourcedir 
         - outputdir 
-        - filename
+        - filename (path to the t1 image)
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only

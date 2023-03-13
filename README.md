@@ -123,6 +123,29 @@ print( qcdfaol.keys )
 matched_mm_data=antspymm.match_modalities( qcdfaol  )
 ```
 
+## an example on open neuro (BIDS) data
+
+from : [ANT PD](https://openneuro.org/datasets/ds001907/versions/3.0.2)
+
+```python
+import antspymm
+import pandas as pd
+import glob as glob
+fns = glob.glob("images/ANT_PD/sub-RC4125/ses-*/*/*gz")
+fns.sort()
+fns = fns[0:3]
+qcdf = pd.DataFrame()
+for fn in fns: ## run the qc on all images - requires a relatively large sample per modality to be effective
+    print( fn )
+    tdf=antspymm.blind_image_assessment(fn) 
+    qcdf = pd.concat( [qcdf,tdf],axis=0)
+qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
+randid='z9q48' # BIDS does not have unique image ids - so we assign one
+studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/images/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+mmrun = antspymm.mm_csv( studycsv, mysep='_' )
+```
+
+
 ## build docs
 
 ```
