@@ -187,15 +187,23 @@ imagesNRG/
 import antspymm
 import pandas as pd
 import glob as glob
-fns = [ 
-    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0],
-    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")[0],
-    glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")[0] ]
-studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', '000', 'T1w', '/Users/stnava/data/openneuro/imagesNRG/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], None, fns[1], None, None, None ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'nmid1', 'flairid' ])
-# see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
-mmrun = antspymm.mm_csv( studycsv, mysep='_' )
+t1fn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0]
+dtfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")
+rsfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")
+studycsv = antspymm.generate_mm_dataframe( 
+    'sub-RC4125', 
+    'ses-1', 
+    '000', 
+    'T1w', 
+    '/Users/stnava/data/openneuro/imagesNRG/', 
+    '/Users/stnava/data/openneuro/processed/', 
+    t1fn,
+    rsf_filenames=rsfn,
+    dti_filenames=dtfn
+)
+studycsv2 = studycsv.dropna(axis=1)
+mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 ```
-
 
 ## build docs
 

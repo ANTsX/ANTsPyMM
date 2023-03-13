@@ -73,6 +73,7 @@ __all__ = ['version',
     'novelty_detection_svm',
     'novelty_detection_ee',
     'novelty_detection_lof',
+    'generate_mm_dataframe',
     'wmh']
 
 from pathlib import Path
@@ -141,6 +142,66 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
+def generate_mm_dataframe( 
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename=None,
+        rsf_filenames=[],
+        dti_filenames=[],
+        nm_filenames=[]
+):
+    from os.path import exists
+    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    if not isinstance(t1_filename, str):
+        raise ValueError("t1_filename is not a string")
+    if not exists(t1_filename):
+        raise ValueError("t1_filename does not exist")
+    if modality not in valid_modalities:
+        raise ValueError('modality ' + str(modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+    if not exists( output_image_directory ):
+        raise ValueError("output_image_directory does not exist")
+    if not exists( source_image_directory ):
+        raise ValueError("source_image_directory does not exist")
+    if len( rsf_filenames ) < 2:
+        for k in range(len(rsf_filenames),2):
+            rsf_filenames.append(None)
+    if len( dti_filenames ) < 2:
+        for k in range(len(dti_filenames),2):
+            dti_filenames.append(None)
+    if len( nm_filenames ) < 10:
+        for k in range(len(nm_filenames),10):
+            nm_filenames.append(None)
+    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
+    for k in allfns:
+        if k is not None:
+            if not isinstance(k, str):
+                raise ValueError(str(k) + " is not a string")            
+            if not exists( k ):
+                raise ValueError( "image " + k + " does not exist")
+    studycsv = pd.DataFrame([[ 
+        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
+        t1_filename, 
+        flair_filename, 
+        rsf_filenames[0], rsf_filenames[1], 
+        dti_filenames[0], dti_filenames[1], 
+        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
+        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
+        ]], 
+        columns=[
+        'subjectID', 'date', 'imageID', 'modality', 'sourcedir', 
+        'outputdir', 
+        'filename', 
+        'flairid',
+        'rsfid1', 'rsfid2', 
+        'dtid1', 'dtid2', 'flairid',
+        'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
+        'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10' ])
+    return studycsv
 
 def parse_nrg_filename( x, separator='-' ):
     """
@@ -4407,7 +4468,7 @@ def mm_nrg(
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
-        t1 is required.  rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+        t1 is required.  rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.  see antspymm.generate_mm_dataframe
 
     sourcedir : a study specific folder containing individual subject folders
 
@@ -4914,6 +4975,7 @@ def mm_csv(
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
         t1 is required. rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+        see antspymm.generate_mm_dataframe
 
     sourcedir : a study specific folder containing individual subject folders
 

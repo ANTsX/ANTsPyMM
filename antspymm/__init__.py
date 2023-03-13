@@ -79,3 +79,4 @@ from .mm import parse_nrg_filename
 from .mm import novelty_detection_ee
 from .mm import novelty_detection_svm
 from .mm import novelty_detection_lof
+from .mm import generate_mm_dataframe
