@@ -4407,7 +4407,7 @@ def mm_nrg(
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
-        t1 is required.
+        t1 is required.  rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
 
     sourcedir : a study specific folder containing individual subject folders
 
@@ -4913,7 +4913,7 @@ def mm_csv(
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
-        t1 is required.
+        t1 is required. rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
 
     sourcedir : a study specific folder containing individual subject folders
 
