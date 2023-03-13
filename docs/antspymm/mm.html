@@ -77,6 +77,7 @@
     &#39;mm&#39;,
     &#39;write_mm&#39;,
     &#39;mm_nrg&#39;,
+    &#39;mm_csv&#39;,
     &#39;alffmap&#39;,
     &#39;alff_image&#39;,
     &#39;down2iso&#39;,
@@ -99,6 +100,7 @@
     &#39;novelty_detection_svm&#39;,
     &#39;novelty_detection_ee&#39;,
     &#39;novelty_detection_lof&#39;,
+    &#39;generate_mm_dataframe&#39;,
     &#39;wmh&#39;]
 
 from pathlib import Path
@@ -167,6 +169,66 @@ def version( ):
               &#39;antspymm&#39;: pkg_resources.require(&#34;antspymm&#34;)[0].version
               }
 
+def generate_mm_dataframe( 
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename=None,
+        rsf_filenames=[],
+        dti_filenames=[],
+        nm_filenames=[]
+):
+    from os.path import exists
+    valid_modalities = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if not isinstance(t1_filename, str):
+        raise ValueError(&#34;t1_filename is not a string&#34;)
+    if not exists(t1_filename):
+        raise ValueError(&#34;t1_filename does not exist&#34;)
+    if modality not in valid_modalities:
+        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair &#34;)
+    if not exists( output_image_directory ):
+        raise ValueError(&#34;output_image_directory does not exist&#34;)
+    if not exists( source_image_directory ):
+        raise ValueError(&#34;source_image_directory does not exist&#34;)
+    if len( rsf_filenames ) &lt; 2:
+        for k in range(len(rsf_filenames),2):
+            rsf_filenames.append(None)
+    if len( dti_filenames ) &lt; 2:
+        for k in range(len(dti_filenames),2):
+            dti_filenames.append(None)
+    if len( nm_filenames ) &lt; 10:
+        for k in range(len(nm_filenames),10):
+            nm_filenames.append(None)
+    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
+    for k in allfns:
+        if k is not None:
+            if not isinstance(k, str):
+                raise ValueError(str(k) + &#34; is not a string&#34;)            
+            if not exists( k ):
+                raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
+    studycsv = pd.DataFrame([[ 
+        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
+        t1_filename, 
+        flair_filename, 
+        rsf_filenames[0], rsf_filenames[1], 
+        dti_filenames[0], dti_filenames[1], 
+        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
+        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
+        ]], 
+        columns=[
+        &#39;subjectID&#39;, &#39;date&#39;, &#39;imageID&#39;, &#39;modality&#39;, &#39;sourcedir&#39;, 
+        &#39;outputdir&#39;, 
+        &#39;filename&#39;, 
+        &#39;flairid&#39;,
+        &#39;rsfid1&#39;, &#39;rsfid2&#39;, 
+        &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39;,
+        &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
+        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ])
+    return studycsv
 
 def parse_nrg_filename( x, separator=&#39;-&#39; ):
     &#34;&#34;&#34;
@@ -4433,7 +4495,7 @@ def mm_nrg(
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
-        t1 is required.
+        t1 is required.  rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.  see antspymm.generate_mm_dataframe
 
     sourcedir : a study specific folder containing individual subject folders
 
@@ -4848,6 +4910,471 @@ def mm_nrg(
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
+                                srmodel_DTI_mdl=None
+                                if srmodel_DTI is not False:
+                                    temp = ants.get_spacing(img)
+                                    dtspc=[temp[0],temp[1],temp[2]]
+                                    bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
+                                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                                    if isinstance( srmodel_DTI, str ):
+                                        srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
+                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                    if exists( mdlfn ):
+                                        if verbose:
+                                            print(mdlfn)
+                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                    else:
+                                        print(mdlfn + &#34; does not exist - wont use SR&#34;)
+                                tabPro, normPro = mm( t1, hier,
+                                    dw_image=imgList,
+                                    bvals = bvalfnList,
+                                    bvecs = bvecfnList,
+                                    srmodel=srmodel_DTI_mdl,
+                                    do_tractography=not test_run,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                mydti = tabPro[&#39;DTI&#39;]
+                                if visualize:
+                                    maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
+                                    ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
+                                    ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
+                                    ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
+                            if dowrite:
+                                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                                for mykey in normPro.keys():
+                                    if normPro[mykey] is not None:
+                                        if visualize:
+                                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+&#34;.png&#34;   )
+        if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
+            return
+        if verbose:
+            print(&#34;done with &#34; + overmodX )
+    if verbose:
+        print(&#34;mm_nrg complete.&#34;)
+    return
+
+
+
+def mm_csv(
+    studycsv,   # pandas data frame
+    mysep = &#39;-&#39;, # or &#34;_&#34; for BIDS
+    srmodel_T1 = False, # optional - will add a great deal of time
+    srmodel_NM = False, # optional - will add a great deal of time
+    srmodel_DTI = False, # optional - will add a great deal of time
+):
+    &#34;&#34;&#34;
+    too dangerous to document ... use with care.
+
+    processes multiple modality MRI specifically:
+
+    * T1w
+    * T2Flair
+    * DTI, DTI_LR, DTI_RL
+    * rsfMRI, rsfMRI_LR, rsfMRI_RL
+    * NM2DMT (neuromelanin)
+
+    other modalities may be added later ...
+
+    &#34;trust me, i know what i&#39;m doing&#34; - sledgehammer
+
+    convert to pynb via:
+        p2j mm.py -o
+
+    convert the ipynb to html via:
+        jupyter nbconvert ANTsPyMM/tests/mm.ipynb --execute --to html
+
+    this function does not assume NRG format for the input data ....
+
+    Parameters
+    -------------
+
+    studycsv : must have columns:
+        - subjectID 
+        - date or session
+        - imageID 
+        - modality 
+        - sourcedir 
+        - outputdir 
+        - filename (path to the t1 image)
+        other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
+        these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
+        rsf=resting state fmri, flair=T2Flair.  none of these are required. only
+        t1 is required. rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+        see antspymm.generate_mm_dataframe
+
+    sourcedir : a study specific folder containing individual subject folders
+
+    outputdir : a study specific folder where individual output subject folders will go
+
+    filename : the raw image filename (full path)
+
+    srmodel_T1 : False (default) - will add a great deal of time - or h5 filename, 2 chan
+
+    srmodel_NM : False (default) - will add a great deal of time - or h5 filename, 1 chan
+
+    srmodel_DTI : False (default) - will add a great deal of time - or h5 filename, 1 chan
+
+    Returns
+    ---------
+
+    writes output to disk and produces figures
+
+    &#34;&#34;&#34;
+    visualize = True
+    verbose = True
+    nrg_modality_list = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if studycsv.shape[0] &lt; 1:
+        raise ValueError(&#39;studycsv has no rows&#39;)
+    musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in studycsv.keys():
+            raise ValueError(&#39;studycsv is missing column &#39; +musthavecols[k] )
+    def makewideout( x, separator = mysep ):
+        return x + separator + &#39;mmwide.csv&#39;
+    testloop = False
+    counter=0
+    import glob as glob
+    from os.path import exists
+    ex_path = os.path.expanduser( &#34;~/.antspyt1w/&#34; )
+    ex_pathmm = os.path.expanduser( &#34;~/.antspymm/&#34; )
+    templatefn = ex_path + &#39;CIT168_T1w_700um_pad_adni.nii.gz&#39;
+    if not exists( templatefn ):
+        print( &#34;**missing files** =&gt; call get_data from latest antspyt1w and antspymm.&#34; )
+        antspyt1w.get_data( force_download=True )
+        get_data( force_download=True )
+    template = mm_read( templatefn ) # Read in template
+    test_run = False
+    if test_run:
+        visualize=False
+    # get sid and dtid from studycsv
+    # musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    sid = str(studycsv[&#39;subjectID&#39;].iloc[0])
+    dtid = str(studycsv[&#39;date&#39;].iloc[0])
+    iid = str(studycsv[&#39;imageID&#39;].iloc[0])
+    modality = str(studycsv[&#39;modality&#39;].iloc[0])
+    sourcedir = str(studycsv[&#39;sourcedir&#39;].iloc[0])
+    outputdir = str(studycsv[&#39;outputdir&#39;].iloc[0])
+    filename = str(studycsv[&#39;filename&#39;].iloc[0])
+    if not exists(filename):
+            raise ValueError(&#39;mm_nrg cannot find filename &#39; + filename + &#39; in mm_csv&#39; )
+    def docsamson( locmod, verbose=True ):
+        myimgsInput = []
+        myoutputPrefix = None
+        imfns = [ &#39;filename&#39;, &#39;rsfid1&#39;, &#39;rsfid2&#39;, &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39; ]
+        if locmod == &#39;T1w&#39;:
+            imfns=[&#39;filename&#39;]
+        elif locmod == &#39;T2Flair&#39;:
+            imfns=[&#39;flairid&#39;]
+        elif locmod == &#39;NM2DMT&#39;:
+            imfns=[]
+            for i in range(11):
+                imfns.append( &#39;nmid&#39; + str(i) )
+        elif locmod == &#39;rsfMRI&#39;:
+            imfns=[]
+            for i in range(3):
+                imfns.append( &#39;rsfid&#39; + str(i) )
+        elif locmod == &#39;DTI&#39;:
+            imfns=[]
+            for i in range(3):
+                imfns.append( &#39;dtid&#39; + str(i) )
+        for i in imfns:
+            if verbose:
+                print( i + &#34; &#34; + locmod )
+            if i in studycsv.keys():
+                fni=str(studycsv[i].iloc[0])
+                if verbose:
+                    print( i + &#34; &#34; + fni + &#39; exists &#39; + str( exists( fni ) ) )
+                if exists( fni ):
+                    myimgsInput.append( fni )
+                    temp = os.path.basename( fni )
+                    mysplit = temp.split( mysep )
+                    iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
+                    iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
+                    iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
+                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid 
+        if verbose:
+            print(&#34;VERBOSE in docsamson&#34;)
+            print( locmod )
+            print( myimgsInput )
+            print( myoutputPrefix )
+        return { 
+            &#39;modality&#39;: locmod,
+            &#39;outprefix&#39;: myoutputPrefix,
+            &#39;images&#39;: myimgsInput
+            }
+    # hierarchical
+    # NOTE: if there are multiple T1s for this time point, should take
+    # the one with the highest resnetGrade
+    t1fn = filename
+    if not exists( t1fn ):
+        raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
+    t1 = mm_read( t1fn )
+    hierfn = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + iid + mysep
+    hierfnSR = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + iid + mysep
+    hierfntest = hierfn + &#39;snseg.csv&#39;
+    if verbose:
+        print( hierfntest )
+    regout = hierfn + &#34;syn&#34;
+    templateTx = {
+        &#39;fwdtransforms&#39;: [ regout+&#39;1Warp.nii.gz&#39;, regout+&#39;0GenericAffine.mat&#39;],
+        &#39;invtransforms&#39;: [ regout+&#39;0GenericAffine.mat&#39;, regout+&#39;1InverseWarp.nii.gz&#39;]  }
+    if verbose:
+        print( &#34;REGISTRATION EXISTENCE: &#34; +
+            str(exists( templateTx[&#39;fwdtransforms&#39;][0])) + &#34; &#34; +
+            str(exists( templateTx[&#39;fwdtransforms&#39;][1])) + &#34; &#34; +
+            str(exists( templateTx[&#39;invtransforms&#39;][0])) + &#34; &#34; +
+            str(exists( templateTx[&#39;invtransforms&#39;][1])) )
+    if verbose:
+        print( hierfntest )
+    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hier = None
+    if not hierexists and not testloop:
+        subjectpropath = os.path.dirname( hierfn )
+        if verbose:
+            print( subjectpropath )
+        os.makedirs( subjectpropath, exist_ok=True  )
+        hier = antspyt1w.hierarchical( t1, hierfn, labels_to_register=None )
+        antspyt1w.write_hierarchical( hier, hierfn )
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+        t1wide.to_csv( hierfn + &#39;mmwide.csv&#39; )
+    ################# read the hierarchical data ###############################
+    hier = antspyt1w.read_hierarchical( hierfn )
+    if exists( hierfn + &#39;mmwide.csv&#39; ) :
+        t1wide = pd.read_csv( hierfn + &#39;mmwide.csv&#39; )
+    elif not testloop:
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+    if srmodel_T1 is not False :
+        hierfntest = hierfnSR + &#39;mtl.csv&#39;
+        if verbose:
+            print( hierfntest )
+        hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+        if not hierexists:
+            subjectpropath = os.path.dirname( hierfnSR )
+            if verbose:
+                print( subjectpropath )
+            os.makedirs( subjectpropath, exist_ok=True  )
+            # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
+            bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality=&#39;T1&#39; )
+            mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_2chan_featvggL6_postseg_best_mdl.h5&#34;
+            if isinstance( srmodel_T1, str ):
+                mdlfn = os.path.join( ex_pathmm, srmodel_T1 )
+            if verbose:
+                print( mdlfn )
+            if exists( mdlfn ):
+                srmodel_T1_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+            else:
+                print( mdlfn + &#34; does not exist - will not run.&#34;)
+            hierSR = antspyt1w.hierarchical_to_sr( hier, srmodel_T1_mdl, blending=None, tissue_sr=False )
+            antspyt1w.write_hierarchical( hierSR, hierfnSR )
+            t1wideSR = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                    hierSR[&#39;dataframes&#39;], identifier=None )
+            t1wideSR.to_csv( hierfnSR + &#39;mmwide.csv&#39; )
+    hier = antspyt1w.read_hierarchical( hierfn )
+    if exists( hierfn + &#39;mmwide.csv&#39; ) :
+        t1wide = pd.read_csv( hierfn + &#39;mmwide.csv&#39; )
+    elif not testloop:
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+    if not testloop:
+        t1imgbrn = hier[&#39;brain_n4_dnz&#39;]
+        t1atropos = hier[&#39;dkt_parc&#39;][&#39;tissue_segmentation&#39;]
+    # loop over modalities and then unique image IDs
+    # we treat NM in a &#34;special&#34; way -- aggregating repeats
+    # other modalities (beyond T1) are treated individually
+    for overmodX in nrg_modality_list:
+        # define 1. input images 2. output prefix 
+        mydoc = docsamson( overmodX )
+        myimgsr = mydoc[&#39;images&#39;]
+        mymm = mydoc[&#39;outprefix&#39;]
+        mymod = mydoc[&#39;modality&#39;]
+        if verbose:
+            print( mydoc )
+        if len(myimgsr) &gt; 0:
+            dowrite=False
+            if verbose:
+                print( &#39;overmodX is : &#39; + overmodX )
+                print( &#39;example image name is : &#39;  )
+                print( myimgsr )
+            if overmodX == &#39;NM2DMT&#39;:
+                myimgsr2 = myimgsr
+                myimgsr2.sort()
+                is4d = False
+                temp = ants.image_read( myimgsr2[0] )
+                if temp.dimension == 4:
+                    is4d = True
+                if len( myimgsr2 ) == 1 and not is4d: # check dimension
+                    myimgsr2 = myimgsr2 + myimgsr2
+                mymmout = makewideout( mymm )
+                if verbose and not exists( mymmout ):
+                    print( &#34;NM &#34; + mymm  + &#39; execution &#39;)
+                elif verbose and exists( mymmout ) :
+                    print( &#34;NM &#34; + mymm + &#39; complete &#39; )
+                if exists( mymmout ):
+                    continue
+                if is4d:
+                    nmlist = ants.ndimage_to_list( mm_read( myimgsr2[0] ) )
+                else:
+                    nmlist = []
+                    for zz in myimgsr2:
+                        nmlist.append( mm_read( zz ) )
+                srmodel_NM_mdl = None
+                if srmodel_NM is not False:
+                    bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality=&#39;NM&#39;, roundit=True )
+                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                    if isinstance( srmodel_NM, str ):
+                        srmodel_NM = re.sub( &#34;bestup&#34;, bestup, srmodel_NM )
+                        mdlfn = os.path.join( ex_pathmm, srmodel_NM )
+                    if exists( mdlfn ):
+                        if verbose:
+                            print(mdlfn)
+                        srmodel_NM_mdl = tf.keras.models.load_model( mdlfn, compile=False  )
+                    else:
+                        print( mdlfn + &#34; does not exist - wont use SR&#34;)
+                if not testloop:
+                    tabPro, normPro = mm( t1, hier,
+                            nm_image_list = nmlist,
+                            srmodel=srmodel_NM_mdl,
+                            do_tractography=False,
+                            do_kk=False,
+                            do_normalization=templateTx,
+                            test_run=test_run,
+                            verbose=True )
+                    if not test_run:
+                        write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                        nmpro = tabPro[&#39;NM&#39;]
+                        mysl = range( nmpro[&#39;NM_avg&#39;].shape[2] )
+                    if visualize:
+                        mysl = range( nmpro[&#39;NM_avg&#39;].shape[2] )
+                        ants.plot( nmpro[&#39;NM_avg&#39;],  nmpro[&#39;t1_to_NM&#39;], slices=mysl, axis=2, title=&#39;nm + t1&#39;, filename=mymm+mysep+&#34;NMavg.png&#34; )
+                        mysl = range( nmpro[&#39;NM_avg_cropped&#39;].shape[2] )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], axis=2, slices=mysl, overlay_alpha=0.3, title=&#39;nm crop&#39;, filename=mymm+mysep+&#34;NMavgcrop.png&#34; )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], nmpro[&#39;t1_to_NM&#39;], axis=2, slices=mysl, overlay_alpha=0.3, title=&#39;nm crop + t1&#39;, filename=mymm+mysep+&#34;NMavgcropt1.png&#34; )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], nmpro[&#39;NM_labels&#39;], axis=2, slices=mysl, title=&#39;nm crop + labels&#39;, filename=mymm+mysep+&#34;NMavgcroplabels.png&#34; )
+            else :
+                if len( myimgsr ) &gt; 0:
+                    dowrite=False
+                    myimgcount=0
+                    if len( myimgsr ) &gt; 0 :
+                        myimg = myimgsr[myimgcount]
+                        subjectpropath = os.path.dirname( mydoc[&#39;outprefix&#39;] )
+                        if verbose:
+                            print(&#34;subjectpropath is&#34;)
+                            print(subjectpropath)
+                        os.makedirs( subjectpropath, exist_ok=True  )
+                        mymmout = makewideout( mymm )
+                        if verbose and not exists( mymmout ):
+                            print(&#34;Modality specific processing: &#34; + mymod + &#34; execution &#34; )
+                            print( mymm )
+                        elif verbose and exists( mymmout ) :
+                            print(&#34;Modality specific processing: &#34; + mymod + &#34; complete &#34; )
+                        if exists( mymmout ) :
+                            continue
+                        if verbose:
+                            print(subjectpropath)
+                            print( myimg )
+                        if not testloop:
+                            img = mm_read( myimg )
+                            ishapelen = len( img.shape )
+                            if mymod == &#39;T1w&#39; and ishapelen == 3: # for a real run, set to True
+                                if not exists( regout + &#34;logjacobian.nii.gz&#34; ) or not exists( regout+&#39;1Warp.nii.gz&#39; ):
+                                    if verbose:
+                                        print(&#39;start t1 registration&#39;)
+                                    ex_path = os.path.expanduser( &#34;~/.antspyt1w/&#34; )
+                                    templatefn = ex_path + &#39;CIT168_T1w_700um_pad_adni.nii.gz&#39;
+                                    template = mm_read( templatefn )
+                                    template = ants.resample_image( template, [1,1,1], use_voxels=False )
+                                    t1reg = ants.registration( template, hier[&#39;brain_n4_dnz&#39;],
+                                        &#34;antsRegistrationSyNQuickRepro[s]&#34;, outprefix = regout, verbose=False )
+                                    myjac = ants.create_jacobian_determinant_image( template,
+                                        t1reg[&#39;fwdtransforms&#39;][0], do_log=True, geom=True )
+                                    image_write_with_thumbnail( myjac, regout + &#34;logjacobian.nii.gz&#34;, thumb=False )
+                                    if visualize:
+                                        ants.plot( ants.iMath(t1reg[&#39;warpedmovout&#39;],&#34;Normalize&#34;),  axis=2, nslices=21, ncol=7, crop=True, title=&#39;warped to template&#39;, filename=regout+&#34;totemplate.png&#34; )
+                                        ants.plot( ants.iMath(myjac,&#34;Normalize&#34;),  axis=2, nslices=21, ncol=7, crop=True, title=&#39;jacobian&#39;, filename=regout+&#34;jacobian.png&#34; )
+                                if not exists( mymm + mysep + &#34;kk_norm.nii.gz&#34; ):
+                                    dowrite=True
+                                    if verbose:
+                                        print(&#39;start kk&#39;)
+                                    tabPro, normPro = mm( t1, hier,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=True,
+                                        do_normalization=templateTx,
+                                        test_run=test_run,
+                                        verbose=True )
+                                    if visualize:
+                                        maxslice = np.min( [21, hier[&#39;brain_n4_dnz&#39;].shape[2] ] )
+                                        ants.plot( hier[&#39;brain_n4_dnz&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;brain extraction&#39;, filename=mymm+mysep+&#34;brainextraction.png&#34; )
+                                        ants.plot( tabPro[&#39;kk&#39;][&#39;thickness_image&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;kk&#39;,
+                                        cmap=&#39;plasma&#39;, filename=mymm+mysep+&#34;kkthickness.png&#34; )
+                            if mymod == &#39;T2Flair&#39; and ishapelen == 3:
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    flair_image = img,
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                if visualize:
+                                    maxslice = np.min( [21, img.shape[2] ] )
+                                    ants.plot_ortho( img, crop=True, title=&#39;Flair&#39;, filename=mymm+mysep+&#34;flair.png&#34;, flat=True )
+                                    ants.plot_ortho( img, tabPro[&#39;flair&#39;][&#39;WMH_probability_map&#39;], crop=True, title=&#39;Flair + WMH&#39;, filename=mymm+mysep+&#34;flairWMH.png&#34;, flat=True )
+                                    if tabPro[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;] is not None:
+                                        ants.plot_ortho( img, tabPro[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;],  crop=True, title=&#39;Flair + prior WMH&#39;, filename=mymm+mysep+&#34;flairpriorWMH.png&#34;, flat=True )
+                            if ( mymod == &#39;rsfMRI_LR&#39; or mymod == &#39;rsfMRI_RL&#39; or mymod == &#39;rsfMRI&#39; )  and ishapelen == 4:
+                                img2 = None
+                                if len( myimgsr ) &gt; 1:
+                                    img2 = mm_read( myimgsr[myimgcount+1] )
+                                    ishapelen2 = len( img2.shape )
+                                    if ishapelen2 != 4 :
+                                        img2 = None
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    rsf_image=[img,img2],
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                if tabPro[&#39;rsf&#39;] is not None and visualize:
+                                    maxslice = np.min( [21, tabPro[&#39;rsf&#39;][&#39;meanBold&#39;].shape[2] ] )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;meanBOLD&#39;, filename=mymm+mysep+&#34;meanBOLD.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], ants.iMath(tabPro[&#39;rsf&#39;][&#39;alff&#39;],&#34;Normalize&#34;),
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;ALFF&#39;, filename=mymm+mysep+&#34;boldALFF.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], ants.iMath(tabPro[&#39;rsf&#39;][&#39;falff&#39;],&#34;Normalize&#34;),
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;fALFF&#39;, filename=mymm+mysep+&#34;boldfALFF.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;DefaultMode&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;DefaultMode&#39;, filename=mymm+mysep+&#34;boldDefaultMode.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;FrontoparietalTaskControl&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FrontoparietalTaskControl&#39;, filename=mymm+mysep+&#34;boldFrontoparietalTaskControl.png&#34;  )
+                            if ( mymod == &#39;DTI_LR&#39; or mymod == &#39;DTI_RL&#39; or mymod == &#39;DTI&#39; ) and ishapelen == 4:
+                                dowrite=True
+                                bvalfn = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , myimg )
+                                bvecfn = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , myimg )
+                                imgList = [ img ]
+                                bvalfnList = [ bvalfn ]
+                                bvecfnList = [ bvecfn ]
+                                if len( myimgsr ) &gt; 1:  # find DTI_RL
+                                    dtilrfn = myimgsr[myimgcount+1]
+                                    if exists( dtilrfn ):
+                                        bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
+                                        bvecfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgList.append( imgRL )
+                                        bvalfnList.append( bvalfnRL )
+                                        bvecfnList.append( bvecfnRL )
+                                # check existence of all files expected ...
+                                for dtiex in bvalfnList+bvecfnList+myimgsr:
+                                    if not exists(dtiex):
+                                        raise ValueError(&#39;mm_csv dti data &#39; + dtiex )
                                 srmodel_DTI_mdl=None
                                 if srmodel_DTI is not False:
                                     temp = ants.get_spacing(img)
@@ -5854,11 +6381,18 @@ def blind_image_assessment(
     import json
     import re
     mystem=&#39;&#39;
-    isfilename=isinstance( image, str)
+    if isinstance(image,list):
+        isfilename=isinstance( image[0], str)
+        image = image[0]
+    else:
+        isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    image_filename=&#39;&#39;
     if isfilename:
         image_filename = image
+        if isinstance(image,list):
+            image_filename=image[0]
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
             with open(json_name, &#39;r&#39;) as fcc_file:
@@ -6233,10 +6767,10 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
-    clf.fit(df_train)
+    clf.fit(df_train.values)
 
     # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    predictions = clf.predict(df_test.values)
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
     return pd.Series(predictions, index=df_test.index)</code></pre>
@@ -6908,11 +7442,18 @@ produces a png and csv where csv contains:</p>
     import json
     import re
     mystem=&#39;&#39;
-    isfilename=isinstance( image, str)
+    if isinstance(image,list):
+        isfilename=isinstance( image[0], str)
+        image = image[0]
+    else:
+        isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    image_filename=&#39;&#39;
     if isfilename:
         image_filename = image
+        if isinstance(image,list):
+            image_filename=image[0]
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
             with open(json_name, &#39;r&#39;) as fcc_file:
@@ -8683,6 +9224,77 @@ mask is the initial mask minus the eroded mask.</p></div>
     signal = (xbc[ fgmask == 1] ).mean()
     noise = (xbc[ xbkgmask == 1] ).std()
     return signal / noise</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.generate_mm_dataframe"><code class="name flex">
+<span>def <span class="ident">generate_mm_dataframe</span></span>(<span>subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, t1_filename, flair_filename=None, rsf_filenames=[], dti_filenames=[], nm_filenames=[])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def generate_mm_dataframe( 
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename=None,
+        rsf_filenames=[],
+        dti_filenames=[],
+        nm_filenames=[]
+):
+    from os.path import exists
+    valid_modalities = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if not isinstance(t1_filename, str):
+        raise ValueError(&#34;t1_filename is not a string&#34;)
+    if not exists(t1_filename):
+        raise ValueError(&#34;t1_filename does not exist&#34;)
+    if modality not in valid_modalities:
+        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair &#34;)
+    if not exists( output_image_directory ):
+        raise ValueError(&#34;output_image_directory does not exist&#34;)
+    if not exists( source_image_directory ):
+        raise ValueError(&#34;source_image_directory does not exist&#34;)
+    if len( rsf_filenames ) &lt; 2:
+        for k in range(len(rsf_filenames),2):
+            rsf_filenames.append(None)
+    if len( dti_filenames ) &lt; 2:
+        for k in range(len(dti_filenames),2):
+            dti_filenames.append(None)
+    if len( nm_filenames ) &lt; 10:
+        for k in range(len(nm_filenames),10):
+            nm_filenames.append(None)
+    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
+    for k in allfns:
+        if k is not None:
+            if not isinstance(k, str):
+                raise ValueError(str(k) + &#34; is not a string&#34;)            
+            if not exists( k ):
+                raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
+    studycsv = pd.DataFrame([[ 
+        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
+        t1_filename, 
+        flair_filename, 
+        rsf_filenames[0], rsf_filenames[1], 
+        dti_filenames[0], dti_filenames[1], 
+        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
+        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
+        ]], 
+        columns=[
+        &#39;subjectID&#39;, &#39;date&#39;, &#39;imageID&#39;, &#39;modality&#39;, &#39;sourcedir&#39;, 
+        &#39;outputdir&#39;, 
+        &#39;filename&#39;, 
+        &#39;flairid&#39;,
+        &#39;rsfid1&#39;, &#39;rsfid2&#39;, 
+        &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39;,
+        &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
+        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ])
+    return studycsv</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.get_average_dwi_b0"><code class="name flex">
@@ -10514,6 +11126,532 @@ of the network.</dd>
     return output_dict, normalization_dict</code></pre>
 </details>
 </dd>
+<dt id="antspymm.mm.mm_csv"><code class="name flex">
+<span>def <span class="ident">mm_csv</span></span>(<span>studycsv, mysep='-', srmodel_T1=False, srmodel_NM=False, srmodel_DTI=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>too dangerous to document &hellip; use with care.</p>
+<p>processes multiple modality MRI specifically:</p>
+<ul>
+<li>T1w</li>
+<li>T2Flair</li>
+<li>DTI, DTI_LR, DTI_RL</li>
+<li>rsfMRI, rsfMRI_LR, rsfMRI_RL</li>
+<li>NM2DMT (neuromelanin)</li>
+</ul>
+<p>other modalities may be added later &hellip;</p>
+<p>"trust me, i know what i'm doing" - sledgehammer</p>
+<p>convert to pynb via:
+p2j mm.py -o</p>
+<p>convert the ipynb to html via:
+jupyter nbconvert ANTsPyMM/tests/mm.ipynb &ndash;execute &ndash;to html</p>
+<p>this function does not assume NRG format for the input data ....</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>studycsv</code></strong> :&ensp;<code>must have columns:</code></dt>
+<dd>
+<ul>
+<li>subjectID </li>
+<li>date or session</li>
+<li>imageID </li>
+<li>modality </li>
+<li>sourcedir </li>
+<li>outputdir </li>
+<li>filename (path to the t1 image)
+other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
+these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
+rsf=resting state fmri, flair=T2Flair.
+none of these are required. only
+t1 is required. rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+see antspymm.generate_mm_dataframe</li>
+</ul>
+</dd>
+<dt><strong><code>sourcedir</code></strong> :&ensp;<code>a study specific folder containing individual subject folders</code></dt>
+<dd>&nbsp;</dd>
+<dt><strong><code>outputdir</code></strong> :&ensp;<code>a study specific folder where individual output subject folders will go</code></dt>
+<dd>&nbsp;</dd>
+<dt><strong><code>filename</code></strong> :&ensp;<code>the raw image filename (full path)</code></dt>
+<dd>&nbsp;</dd>
+<dt><strong><code>srmodel_T1</code></strong> :&ensp;<code>False (default) - will add a great deal</code> of <code>time -</code> or <code>h5 filename, 2 chan</code></dt>
+<dd>&nbsp;</dd>
+<dt><strong><code>srmodel_NM</code></strong> :&ensp;<code>False (default) - will add a great deal</code> of <code>time -</code> or <code>h5 filename, 1 chan</code></dt>
+<dd>&nbsp;</dd>
+<dt><strong><code>srmodel_DTI</code></strong> :&ensp;<code>False (default) - will add a great deal</code> of <code>time -</code> or <code>h5 filename, 1 chan</code></dt>
+<dd>&nbsp;</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>writes output to disk and produces figures</code></dt>
+<dd>&nbsp;</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def mm_csv(
+    studycsv,   # pandas data frame
+    mysep = &#39;-&#39;, # or &#34;_&#34; for BIDS
+    srmodel_T1 = False, # optional - will add a great deal of time
+    srmodel_NM = False, # optional - will add a great deal of time
+    srmodel_DTI = False, # optional - will add a great deal of time
+):
+    &#34;&#34;&#34;
+    too dangerous to document ... use with care.
+
+    processes multiple modality MRI specifically:
+
+    * T1w
+    * T2Flair
+    * DTI, DTI_LR, DTI_RL
+    * rsfMRI, rsfMRI_LR, rsfMRI_RL
+    * NM2DMT (neuromelanin)
+
+    other modalities may be added later ...
+
+    &#34;trust me, i know what i&#39;m doing&#34; - sledgehammer
+
+    convert to pynb via:
+        p2j mm.py -o
+
+    convert the ipynb to html via:
+        jupyter nbconvert ANTsPyMM/tests/mm.ipynb --execute --to html
+
+    this function does not assume NRG format for the input data ....
+
+    Parameters
+    -------------
+
+    studycsv : must have columns:
+        - subjectID 
+        - date or session
+        - imageID 
+        - modality 
+        - sourcedir 
+        - outputdir 
+        - filename (path to the t1 image)
+        other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
+        these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
+        rsf=resting state fmri, flair=T2Flair.  none of these are required. only
+        t1 is required. rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+        see antspymm.generate_mm_dataframe
+
+    sourcedir : a study specific folder containing individual subject folders
+
+    outputdir : a study specific folder where individual output subject folders will go
+
+    filename : the raw image filename (full path)
+
+    srmodel_T1 : False (default) - will add a great deal of time - or h5 filename, 2 chan
+
+    srmodel_NM : False (default) - will add a great deal of time - or h5 filename, 1 chan
+
+    srmodel_DTI : False (default) - will add a great deal of time - or h5 filename, 1 chan
+
+    Returns
+    ---------
+
+    writes output to disk and produces figures
+
+    &#34;&#34;&#34;
+    visualize = True
+    verbose = True
+    nrg_modality_list = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if studycsv.shape[0] &lt; 1:
+        raise ValueError(&#39;studycsv has no rows&#39;)
+    musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in studycsv.keys():
+            raise ValueError(&#39;studycsv is missing column &#39; +musthavecols[k] )
+    def makewideout( x, separator = mysep ):
+        return x + separator + &#39;mmwide.csv&#39;
+    testloop = False
+    counter=0
+    import glob as glob
+    from os.path import exists
+    ex_path = os.path.expanduser( &#34;~/.antspyt1w/&#34; )
+    ex_pathmm = os.path.expanduser( &#34;~/.antspymm/&#34; )
+    templatefn = ex_path + &#39;CIT168_T1w_700um_pad_adni.nii.gz&#39;
+    if not exists( templatefn ):
+        print( &#34;**missing files** =&gt; call get_data from latest antspyt1w and antspymm.&#34; )
+        antspyt1w.get_data( force_download=True )
+        get_data( force_download=True )
+    template = mm_read( templatefn ) # Read in template
+    test_run = False
+    if test_run:
+        visualize=False
+    # get sid and dtid from studycsv
+    # musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    sid = str(studycsv[&#39;subjectID&#39;].iloc[0])
+    dtid = str(studycsv[&#39;date&#39;].iloc[0])
+    iid = str(studycsv[&#39;imageID&#39;].iloc[0])
+    modality = str(studycsv[&#39;modality&#39;].iloc[0])
+    sourcedir = str(studycsv[&#39;sourcedir&#39;].iloc[0])
+    outputdir = str(studycsv[&#39;outputdir&#39;].iloc[0])
+    filename = str(studycsv[&#39;filename&#39;].iloc[0])
+    if not exists(filename):
+            raise ValueError(&#39;mm_nrg cannot find filename &#39; + filename + &#39; in mm_csv&#39; )
+    def docsamson( locmod, verbose=True ):
+        myimgsInput = []
+        myoutputPrefix = None
+        imfns = [ &#39;filename&#39;, &#39;rsfid1&#39;, &#39;rsfid2&#39;, &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39; ]
+        if locmod == &#39;T1w&#39;:
+            imfns=[&#39;filename&#39;]
+        elif locmod == &#39;T2Flair&#39;:
+            imfns=[&#39;flairid&#39;]
+        elif locmod == &#39;NM2DMT&#39;:
+            imfns=[]
+            for i in range(11):
+                imfns.append( &#39;nmid&#39; + str(i) )
+        elif locmod == &#39;rsfMRI&#39;:
+            imfns=[]
+            for i in range(3):
+                imfns.append( &#39;rsfid&#39; + str(i) )
+        elif locmod == &#39;DTI&#39;:
+            imfns=[]
+            for i in range(3):
+                imfns.append( &#39;dtid&#39; + str(i) )
+        for i in imfns:
+            if verbose:
+                print( i + &#34; &#34; + locmod )
+            if i in studycsv.keys():
+                fni=str(studycsv[i].iloc[0])
+                if verbose:
+                    print( i + &#34; &#34; + fni + &#39; exists &#39; + str( exists( fni ) ) )
+                if exists( fni ):
+                    myimgsInput.append( fni )
+                    temp = os.path.basename( fni )
+                    mysplit = temp.split( mysep )
+                    iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
+                    iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
+                    iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
+                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid 
+        if verbose:
+            print(&#34;VERBOSE in docsamson&#34;)
+            print( locmod )
+            print( myimgsInput )
+            print( myoutputPrefix )
+        return { 
+            &#39;modality&#39;: locmod,
+            &#39;outprefix&#39;: myoutputPrefix,
+            &#39;images&#39;: myimgsInput
+            }
+    # hierarchical
+    # NOTE: if there are multiple T1s for this time point, should take
+    # the one with the highest resnetGrade
+    t1fn = filename
+    if not exists( t1fn ):
+        raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
+    t1 = mm_read( t1fn )
+    hierfn = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + iid + mysep
+    hierfnSR = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + iid + mysep
+    hierfntest = hierfn + &#39;snseg.csv&#39;
+    if verbose:
+        print( hierfntest )
+    regout = hierfn + &#34;syn&#34;
+    templateTx = {
+        &#39;fwdtransforms&#39;: [ regout+&#39;1Warp.nii.gz&#39;, regout+&#39;0GenericAffine.mat&#39;],
+        &#39;invtransforms&#39;: [ regout+&#39;0GenericAffine.mat&#39;, regout+&#39;1InverseWarp.nii.gz&#39;]  }
+    if verbose:
+        print( &#34;REGISTRATION EXISTENCE: &#34; +
+            str(exists( templateTx[&#39;fwdtransforms&#39;][0])) + &#34; &#34; +
+            str(exists( templateTx[&#39;fwdtransforms&#39;][1])) + &#34; &#34; +
+            str(exists( templateTx[&#39;invtransforms&#39;][0])) + &#34; &#34; +
+            str(exists( templateTx[&#39;invtransforms&#39;][1])) )
+    if verbose:
+        print( hierfntest )
+    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hier = None
+    if not hierexists and not testloop:
+        subjectpropath = os.path.dirname( hierfn )
+        if verbose:
+            print( subjectpropath )
+        os.makedirs( subjectpropath, exist_ok=True  )
+        hier = antspyt1w.hierarchical( t1, hierfn, labels_to_register=None )
+        antspyt1w.write_hierarchical( hier, hierfn )
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+        t1wide.to_csv( hierfn + &#39;mmwide.csv&#39; )
+    ################# read the hierarchical data ###############################
+    hier = antspyt1w.read_hierarchical( hierfn )
+    if exists( hierfn + &#39;mmwide.csv&#39; ) :
+        t1wide = pd.read_csv( hierfn + &#39;mmwide.csv&#39; )
+    elif not testloop:
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+    if srmodel_T1 is not False :
+        hierfntest = hierfnSR + &#39;mtl.csv&#39;
+        if verbose:
+            print( hierfntest )
+        hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+        if not hierexists:
+            subjectpropath = os.path.dirname( hierfnSR )
+            if verbose:
+                print( subjectpropath )
+            os.makedirs( subjectpropath, exist_ok=True  )
+            # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
+            bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality=&#39;T1&#39; )
+            mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_2chan_featvggL6_postseg_best_mdl.h5&#34;
+            if isinstance( srmodel_T1, str ):
+                mdlfn = os.path.join( ex_pathmm, srmodel_T1 )
+            if verbose:
+                print( mdlfn )
+            if exists( mdlfn ):
+                srmodel_T1_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+            else:
+                print( mdlfn + &#34; does not exist - will not run.&#34;)
+            hierSR = antspyt1w.hierarchical_to_sr( hier, srmodel_T1_mdl, blending=None, tissue_sr=False )
+            antspyt1w.write_hierarchical( hierSR, hierfnSR )
+            t1wideSR = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                    hierSR[&#39;dataframes&#39;], identifier=None )
+            t1wideSR.to_csv( hierfnSR + &#39;mmwide.csv&#39; )
+    hier = antspyt1w.read_hierarchical( hierfn )
+    if exists( hierfn + &#39;mmwide.csv&#39; ) :
+        t1wide = pd.read_csv( hierfn + &#39;mmwide.csv&#39; )
+    elif not testloop:
+        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+                hier[&#39;dataframes&#39;], identifier=None )
+    if not testloop:
+        t1imgbrn = hier[&#39;brain_n4_dnz&#39;]
+        t1atropos = hier[&#39;dkt_parc&#39;][&#39;tissue_segmentation&#39;]
+    # loop over modalities and then unique image IDs
+    # we treat NM in a &#34;special&#34; way -- aggregating repeats
+    # other modalities (beyond T1) are treated individually
+    for overmodX in nrg_modality_list:
+        # define 1. input images 2. output prefix 
+        mydoc = docsamson( overmodX )
+        myimgsr = mydoc[&#39;images&#39;]
+        mymm = mydoc[&#39;outprefix&#39;]
+        mymod = mydoc[&#39;modality&#39;]
+        if verbose:
+            print( mydoc )
+        if len(myimgsr) &gt; 0:
+            dowrite=False
+            if verbose:
+                print( &#39;overmodX is : &#39; + overmodX )
+                print( &#39;example image name is : &#39;  )
+                print( myimgsr )
+            if overmodX == &#39;NM2DMT&#39;:
+                myimgsr2 = myimgsr
+                myimgsr2.sort()
+                is4d = False
+                temp = ants.image_read( myimgsr2[0] )
+                if temp.dimension == 4:
+                    is4d = True
+                if len( myimgsr2 ) == 1 and not is4d: # check dimension
+                    myimgsr2 = myimgsr2 + myimgsr2
+                mymmout = makewideout( mymm )
+                if verbose and not exists( mymmout ):
+                    print( &#34;NM &#34; + mymm  + &#39; execution &#39;)
+                elif verbose and exists( mymmout ) :
+                    print( &#34;NM &#34; + mymm + &#39; complete &#39; )
+                if exists( mymmout ):
+                    continue
+                if is4d:
+                    nmlist = ants.ndimage_to_list( mm_read( myimgsr2[0] ) )
+                else:
+                    nmlist = []
+                    for zz in myimgsr2:
+                        nmlist.append( mm_read( zz ) )
+                srmodel_NM_mdl = None
+                if srmodel_NM is not False:
+                    bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality=&#39;NM&#39;, roundit=True )
+                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                    if isinstance( srmodel_NM, str ):
+                        srmodel_NM = re.sub( &#34;bestup&#34;, bestup, srmodel_NM )
+                        mdlfn = os.path.join( ex_pathmm, srmodel_NM )
+                    if exists( mdlfn ):
+                        if verbose:
+                            print(mdlfn)
+                        srmodel_NM_mdl = tf.keras.models.load_model( mdlfn, compile=False  )
+                    else:
+                        print( mdlfn + &#34; does not exist - wont use SR&#34;)
+                if not testloop:
+                    tabPro, normPro = mm( t1, hier,
+                            nm_image_list = nmlist,
+                            srmodel=srmodel_NM_mdl,
+                            do_tractography=False,
+                            do_kk=False,
+                            do_normalization=templateTx,
+                            test_run=test_run,
+                            verbose=True )
+                    if not test_run:
+                        write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                        nmpro = tabPro[&#39;NM&#39;]
+                        mysl = range( nmpro[&#39;NM_avg&#39;].shape[2] )
+                    if visualize:
+                        mysl = range( nmpro[&#39;NM_avg&#39;].shape[2] )
+                        ants.plot( nmpro[&#39;NM_avg&#39;],  nmpro[&#39;t1_to_NM&#39;], slices=mysl, axis=2, title=&#39;nm + t1&#39;, filename=mymm+mysep+&#34;NMavg.png&#34; )
+                        mysl = range( nmpro[&#39;NM_avg_cropped&#39;].shape[2] )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], axis=2, slices=mysl, overlay_alpha=0.3, title=&#39;nm crop&#39;, filename=mymm+mysep+&#34;NMavgcrop.png&#34; )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], nmpro[&#39;t1_to_NM&#39;], axis=2, slices=mysl, overlay_alpha=0.3, title=&#39;nm crop + t1&#39;, filename=mymm+mysep+&#34;NMavgcropt1.png&#34; )
+                        ants.plot( nmpro[&#39;NM_avg_cropped&#39;], nmpro[&#39;NM_labels&#39;], axis=2, slices=mysl, title=&#39;nm crop + labels&#39;, filename=mymm+mysep+&#34;NMavgcroplabels.png&#34; )
+            else :
+                if len( myimgsr ) &gt; 0:
+                    dowrite=False
+                    myimgcount=0
+                    if len( myimgsr ) &gt; 0 :
+                        myimg = myimgsr[myimgcount]
+                        subjectpropath = os.path.dirname( mydoc[&#39;outprefix&#39;] )
+                        if verbose:
+                            print(&#34;subjectpropath is&#34;)
+                            print(subjectpropath)
+                        os.makedirs( subjectpropath, exist_ok=True  )
+                        mymmout = makewideout( mymm )
+                        if verbose and not exists( mymmout ):
+                            print(&#34;Modality specific processing: &#34; + mymod + &#34; execution &#34; )
+                            print( mymm )
+                        elif verbose and exists( mymmout ) :
+                            print(&#34;Modality specific processing: &#34; + mymod + &#34; complete &#34; )
+                        if exists( mymmout ) :
+                            continue
+                        if verbose:
+                            print(subjectpropath)
+                            print( myimg )
+                        if not testloop:
+                            img = mm_read( myimg )
+                            ishapelen = len( img.shape )
+                            if mymod == &#39;T1w&#39; and ishapelen == 3: # for a real run, set to True
+                                if not exists( regout + &#34;logjacobian.nii.gz&#34; ) or not exists( regout+&#39;1Warp.nii.gz&#39; ):
+                                    if verbose:
+                                        print(&#39;start t1 registration&#39;)
+                                    ex_path = os.path.expanduser( &#34;~/.antspyt1w/&#34; )
+                                    templatefn = ex_path + &#39;CIT168_T1w_700um_pad_adni.nii.gz&#39;
+                                    template = mm_read( templatefn )
+                                    template = ants.resample_image( template, [1,1,1], use_voxels=False )
+                                    t1reg = ants.registration( template, hier[&#39;brain_n4_dnz&#39;],
+                                        &#34;antsRegistrationSyNQuickRepro[s]&#34;, outprefix = regout, verbose=False )
+                                    myjac = ants.create_jacobian_determinant_image( template,
+                                        t1reg[&#39;fwdtransforms&#39;][0], do_log=True, geom=True )
+                                    image_write_with_thumbnail( myjac, regout + &#34;logjacobian.nii.gz&#34;, thumb=False )
+                                    if visualize:
+                                        ants.plot( ants.iMath(t1reg[&#39;warpedmovout&#39;],&#34;Normalize&#34;),  axis=2, nslices=21, ncol=7, crop=True, title=&#39;warped to template&#39;, filename=regout+&#34;totemplate.png&#34; )
+                                        ants.plot( ants.iMath(myjac,&#34;Normalize&#34;),  axis=2, nslices=21, ncol=7, crop=True, title=&#39;jacobian&#39;, filename=regout+&#34;jacobian.png&#34; )
+                                if not exists( mymm + mysep + &#34;kk_norm.nii.gz&#34; ):
+                                    dowrite=True
+                                    if verbose:
+                                        print(&#39;start kk&#39;)
+                                    tabPro, normPro = mm( t1, hier,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=True,
+                                        do_normalization=templateTx,
+                                        test_run=test_run,
+                                        verbose=True )
+                                    if visualize:
+                                        maxslice = np.min( [21, hier[&#39;brain_n4_dnz&#39;].shape[2] ] )
+                                        ants.plot( hier[&#39;brain_n4_dnz&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;brain extraction&#39;, filename=mymm+mysep+&#34;brainextraction.png&#34; )
+                                        ants.plot( tabPro[&#39;kk&#39;][&#39;thickness_image&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;kk&#39;,
+                                        cmap=&#39;plasma&#39;, filename=mymm+mysep+&#34;kkthickness.png&#34; )
+                            if mymod == &#39;T2Flair&#39; and ishapelen == 3:
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    flair_image = img,
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                if visualize:
+                                    maxslice = np.min( [21, img.shape[2] ] )
+                                    ants.plot_ortho( img, crop=True, title=&#39;Flair&#39;, filename=mymm+mysep+&#34;flair.png&#34;, flat=True )
+                                    ants.plot_ortho( img, tabPro[&#39;flair&#39;][&#39;WMH_probability_map&#39;], crop=True, title=&#39;Flair + WMH&#39;, filename=mymm+mysep+&#34;flairWMH.png&#34;, flat=True )
+                                    if tabPro[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;] is not None:
+                                        ants.plot_ortho( img, tabPro[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;],  crop=True, title=&#39;Flair + prior WMH&#39;, filename=mymm+mysep+&#34;flairpriorWMH.png&#34;, flat=True )
+                            if ( mymod == &#39;rsfMRI_LR&#39; or mymod == &#39;rsfMRI_RL&#39; or mymod == &#39;rsfMRI&#39; )  and ishapelen == 4:
+                                img2 = None
+                                if len( myimgsr ) &gt; 1:
+                                    img2 = mm_read( myimgsr[myimgcount+1] )
+                                    ishapelen2 = len( img2.shape )
+                                    if ishapelen2 != 4 :
+                                        img2 = None
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    rsf_image=[img,img2],
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                if tabPro[&#39;rsf&#39;] is not None and visualize:
+                                    maxslice = np.min( [21, tabPro[&#39;rsf&#39;][&#39;meanBold&#39;].shape[2] ] )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;meanBOLD&#39;, filename=mymm+mysep+&#34;meanBOLD.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], ants.iMath(tabPro[&#39;rsf&#39;][&#39;alff&#39;],&#34;Normalize&#34;),
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;ALFF&#39;, filename=mymm+mysep+&#34;boldALFF.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], ants.iMath(tabPro[&#39;rsf&#39;][&#39;falff&#39;],&#34;Normalize&#34;),
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;fALFF&#39;, filename=mymm+mysep+&#34;boldfALFF.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;DefaultMode&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;DefaultMode&#39;, filename=mymm+mysep+&#34;boldDefaultMode.png&#34; )
+                                    ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;FrontoparietalTaskControl&#39;],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FrontoparietalTaskControl&#39;, filename=mymm+mysep+&#34;boldFrontoparietalTaskControl.png&#34;  )
+                            if ( mymod == &#39;DTI_LR&#39; or mymod == &#39;DTI_RL&#39; or mymod == &#39;DTI&#39; ) and ishapelen == 4:
+                                dowrite=True
+                                bvalfn = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , myimg )
+                                bvecfn = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , myimg )
+                                imgList = [ img ]
+                                bvalfnList = [ bvalfn ]
+                                bvecfnList = [ bvecfn ]
+                                if len( myimgsr ) &gt; 1:  # find DTI_RL
+                                    dtilrfn = myimgsr[myimgcount+1]
+                                    if exists( dtilrfn ):
+                                        bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
+                                        bvecfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgList.append( imgRL )
+                                        bvalfnList.append( bvalfnRL )
+                                        bvecfnList.append( bvecfnRL )
+                                # check existence of all files expected ...
+                                for dtiex in bvalfnList+bvecfnList+myimgsr:
+                                    if not exists(dtiex):
+                                        raise ValueError(&#39;mm_csv dti data &#39; + dtiex )
+                                srmodel_DTI_mdl=None
+                                if srmodel_DTI is not False:
+                                    temp = ants.get_spacing(img)
+                                    dtspc=[temp[0],temp[1],temp[2]]
+                                    bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
+                                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                                    if isinstance( srmodel_DTI, str ):
+                                        srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
+                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                    if exists( mdlfn ):
+                                        if verbose:
+                                            print(mdlfn)
+                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                    else:
+                                        print(mdlfn + &#34; does not exist - wont use SR&#34;)
+                                tabPro, normPro = mm( t1, hier,
+                                    dw_image=imgList,
+                                    bvals = bvalfnList,
+                                    bvecs = bvecfnList,
+                                    srmodel=srmodel_DTI_mdl,
+                                    do_tractography=not test_run,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                mydti = tabPro[&#39;DTI&#39;]
+                                if visualize:
+                                    maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
+                                    ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
+                                    ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
+                                    ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
+                            if dowrite:
+                                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                                for mykey in normPro.keys():
+                                    if normPro[mykey] is not None:
+                                        if visualize:
+                                            ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+&#34;.png&#34;   )
+        if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
+            return
+        if verbose:
+            print(&#34;done with &#34; + overmodX )
+    if verbose:
+        print(&#34;mm_nrg complete.&#34;)
+    return</code></pre>
+</details>
+</dd>
 <dt id="antspymm.mm.mm_nrg"><code class="name flex">
 <span>def <span class="ident">mm_nrg</span></span>(<span>studyid, sourcedir='/Users/stnava/data/PPMI/MV/example_s3_b/images/PPMI/', sourcedatafoldername='images', processDir='processed', mysep='-', srmodel_T1=False, srmodel_NM=False, srmodel_DTI=False, visualize=True, nrg_modality_list=['T1w', 'NM2DMT', 'rsfMRI', 'DTI', 'T2Flair'], verbose=True)</span>
 </code></dt>
@@ -10545,7 +11683,9 @@ NRG = <a href="https://github.com/stnava/biomedicalDataOrganization">https://git
 these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
 rsf=resting state fmri, flair=T2Flair.
 none of these are required. only
-t1 is required.</dd>
+t1 is required.
+rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.
+see antspymm.generate_mm_dataframe</dd>
 <dt><strong><code>sourcedir</code></strong> :&ensp;<code>a study specific folder containing individual subject folders</code></dt>
 <dd>&nbsp;</dd>
 <dt><strong><code>sourcedatafoldername</code></strong> :&ensp;<code>root for source data e.g. "images"</code></dt>
@@ -10627,7 +11767,7 @@ t1 is required.</dd>
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide unique image IDs for these modalities: nm=neuromelanin, dti=diffusion tensor,
         rsf=resting state fmri, flair=T2Flair.  none of these are required. only
-        t1 is required.
+        t1 is required.  rsfid1/rsfid2 will be processed jointly. same for dtid1/dtid2 and nmid*.  see antspymm.generate_mm_dataframe
 
     sourcedir : a study specific folder containing individual subject folders
 
@@ -11538,10 +12678,10 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
-    clf.fit(df_train)
+    clf.fit(df_train.values)
 
     # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    predictions = clf.predict(df_test.values)
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
     return pd.Series(predictions, index=df_test.index)</code></pre>
@@ -13641,6 +14781,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.dwi_streamline_connectivity" href="#antspymm.mm.dwi_streamline_connectivity">dwi_streamline_connectivity</a></code></li>
 <li><code><a title="antspymm.mm.dwi_streamline_pairwise_connectivity" href="#antspymm.mm.dwi_streamline_pairwise_connectivity">dwi_streamline_pairwise_connectivity</a></code></li>
 <li><code><a title="antspymm.mm.foreground_background_snr" href="#antspymm.mm.foreground_background_snr">foreground_background_snr</a></code></li>
+<li><code><a title="antspymm.mm.generate_mm_dataframe" href="#antspymm.mm.generate_mm_dataframe">generate_mm_dataframe</a></code></li>
 <li><code><a title="antspymm.mm.get_average_dwi_b0" href="#antspymm.mm.get_average_dwi_b0">get_average_dwi_b0</a></code></li>
 <li><code><a title="antspymm.mm.get_average_rsf" href="#antspymm.mm.get_average_rsf">get_average_rsf</a></code></li>
 <li><code><a title="antspymm.mm.get_data" href="#antspymm.mm.get_data">get_data</a></code></li>
@@ -13661,6 +14802,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.merge_timeseries_data" href="#antspymm.mm.merge_timeseries_data">merge_timeseries_data</a></code></li>
 <li><code><a title="antspymm.mm.middle_slice_snr" href="#antspymm.mm.middle_slice_snr">middle_slice_snr</a></code></li>
 <li><code><a title="antspymm.mm.mm" href="#antspymm.mm.mm">mm</a></code></li>
+<li><code><a title="antspymm.mm.mm_csv" href="#antspymm.mm.mm_csv">mm_csv</a></code></li>
 <li><code><a title="antspymm.mm.mm_nrg" href="#antspymm.mm.mm_nrg">mm_nrg</a></code></li>
 <li><code><a title="antspymm.mm.mm_read" href="#antspymm.mm.mm_read">mm_read</a></code></li>
 <li><code><a title="antspymm.mm.mm_read_to_3d" href="#antspymm.mm.mm_read_to_3d">mm_read_to_3d</a></code></li>
