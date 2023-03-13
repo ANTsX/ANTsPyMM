@@ -153,7 +153,7 @@ import glob as glob
 fns = glob.glob("imagesBIDS/ANTPD/sub-RC4125/ses-*/*/*gz")
 fns.sort()
 randid='000' # BIDS does not have unique image ids - so we assign one
-studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/imagesBIDS/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/imagesBIDS/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], None, fns[1], None, None, None ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'nmid1', 'flairid' ])
 # see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
 mmrun = antspymm.mm_csv( studycsv, mysep='_' )
 ```
@@ -191,8 +191,7 @@ fns = [
     glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0],
     glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")[0],
     glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")[0] ]
-qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
-studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', '000', 'T1w', '/Users/stnava/data/openneuro/imagesNRG/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], fns[1] ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'dtid1' ])
+studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', '000', 'T1w', '/Users/stnava/data/openneuro/imagesNRG/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], None, fns[1], None, None, None ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'nmid1', 'flairid' ])
 # see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
 mmrun = antspymm.mm_csv( studycsv, mysep='_' )
 ```
