@@ -153,9 +153,18 @@ import glob as glob
 fns = glob.glob("imagesBIDS/ANTPD/sub-RC4125/ses-*/*/*gz")
 fns.sort()
 randid='000' # BIDS does not have unique image ids - so we assign one
-studycsv = pd.DataFrame([[ 'sub-RC4125', 'ses-1', randid, 'T1w', '/Users/stnava/data/openneuro/imagesBIDS/', '/Users/stnava/data/openneuro/processed/', fns[0], fns[2], None, fns[1], None, None, None ]], columns=['subjectID', 'date', 'imageID', 'modality', 'sourcedir', 'outputdir', 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'nmid1', 'flairid' ])
-# see help( antspymm.mm_csv ) to learn more about the possible contents of the studycsv
-mmrun = antspymm.mm_csv( studycsv, mysep='_' )
+studycsv = antspymm.generate_mm_dataframe( 
+    'sub-RC4125', 
+    'ses-1', 
+    randid, 
+    'T1w', 
+    '/Users/stnava/data/openneuro/imagesBIDS/', 
+    '/Users/stnava/data/openneuro/processed/', 
+    t1_filename=fns[0], 
+    dti_filenames=[fns[2]], 
+    rsf_filenames=[fns[1]])
+studycsv2 = studycsv.dropna(axis=1)
+mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 ```
 
 ## NRG example
