@@ -184,7 +184,12 @@ def generate_mm_dataframe(
             if not exists( k ):
                 raise ValueError( "image " + k + " does not exist")
     studycsv = pd.DataFrame([[ 
-        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
+        subjectID, 
+        date, 
+        imageUniqueID, 
+        modality, 
+        source_image_directory, 
+        output_image_directory, 
         t1_filename, 
         flair_filename, 
         rsf_filenames[0], rsf_filenames[1], 
@@ -193,12 +198,16 @@ def generate_mm_dataframe(
         nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
         ]], 
         columns=[
-        'subjectID', 'date', 'imageID', 'modality', 'sourcedir', 
+        'subjectID',
+        'date', 
+        'imageID', 
+        'modality', 
+        'sourcedir', 
         'outputdir', 
         'filename', 
         'flairid',
         'rsfid1', 'rsfid2', 
-        'dtid1', 'dtid2', 'flairid',
+        'dtid1', 'dtid2',
         'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
         'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10' ])
     return studycsv
