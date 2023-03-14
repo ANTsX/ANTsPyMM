@@ -163,8 +163,8 @@ def generate_mm_dataframe(
         raise ValueError("t1_filename does not exist")
     if modality not in valid_modalities:
         raise ValueError('modality ' + str(modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
-    if not exists( output_image_directory ):
-        raise ValueError("output_image_directory does not exist")
+    # if not exists( output_image_directory ):
+    #    raise ValueError("output_image_directory does not exist")
     if not exists( source_image_directory ):
         raise ValueError("source_image_directory does not exist")
     if len( rsf_filenames ) < 2:
@@ -5173,6 +5173,11 @@ def mm_csv(
                 print( 'example image name is : '  )
                 print( myimgsr )
             if overmodX == 'NM2DMT':
+                subjectpropath = os.path.dirname( mydoc['outprefix'] )
+                if verbose:
+                    print("subjectpropath is")
+                    print(subjectpropath)
+                    os.makedirs( subjectpropath, exist_ok=True  )
                 myimgsr2 = myimgsr
                 myimgsr2.sort()
                 is4d = False
