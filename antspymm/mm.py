@@ -183,7 +183,7 @@ def generate_mm_dataframe(
                 raise ValueError(str(k) + " is not a string")            
             if not exists( k ):
                 raise ValueError( "image " + k + " does not exist")
-    studycsv = pd.DataFrame([[ 
+    coredata = [
         subjectID, 
         date, 
         imageUniqueID, 
@@ -191,13 +191,10 @@ def generate_mm_dataframe(
         source_image_directory, 
         output_image_directory, 
         t1_filename, 
-        flair_filename, 
-        rsf_filenames[0], rsf_filenames[1], 
-        dti_filenames[0], dti_filenames[1], 
-        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
-        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
-        ]], 
-        columns=[
+        flair_filename] 
+    mydata0 = coredata +  rsf_filenames + dti_filenames
+    mydata = mydata0 + nm_filenames
+    corecols = [
         'subjectID',
         'date', 
         'imageID', 
@@ -205,11 +202,21 @@ def generate_mm_dataframe(
         'sourcedir', 
         'outputdir', 
         'filename', 
-        'flairid',
+        'flairid']
+    mycols0 = corecols + [
         'rsfid1', 'rsfid2', 
-        'dtid1', 'dtid2',
+        'dtid1', 'dtid2']
+    nmext = [
         'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
-        'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10' ])
+        'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10', 'nmid11'
+    ]
+    mycols = mycols0 + nmext
+    print(len(mydata0))
+    print(len(nm_filenames))
+    print(len(mycols0))
+    print(len(nmext))
+    studycsv = pd.DataFrame([ mydata ], 
+        columns=mycols)
     return studycsv
 
 def parse_nrg_filename( x, separator='-' ):
