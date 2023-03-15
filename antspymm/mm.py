@@ -180,7 +180,8 @@ def generate_mm_dataframe(
     if not "T1w" in t1_filename:
         raise ValueError("T1w is not in t1 filename " + t1_filename)
     if not "lair" in flair_filename:
-        raise ValueError("flair is not flair filename " + flair_filename)
+        if flair_filename is not None:
+            raise ValueError("flair is not flair filename " + flair_filename)
     for k in nm_filenames:
         if k is not None:
             if not "NM" in k:
