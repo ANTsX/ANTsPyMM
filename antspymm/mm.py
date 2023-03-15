@@ -176,6 +176,23 @@ def generate_mm_dataframe(
     if len( nm_filenames ) < 10:
         for k in range(len(nm_filenames),10):
             nm_filenames.append(None)
+    # check modality names
+    if not "T1w" in t1_filename:
+        raise ValueError("T1w is not in t1 filename " + t1_filename)
+    if not "lair" in flair_filename:
+        raise ValueError("flair is not flair filename " + flair_filename)
+    for k in nm_filenames:
+        if k is not None:
+            if not "NM" in k:
+                raise ValueError("NM is not flair filename " + k)
+    for k in dti_filenames:
+        if k is not None:
+            if not "DTI" in k and not "dwi" in k:
+                raise ValueError("DTI/DWI is not dti filename " + k)
+    for k in rsf_filenames:
+        if k is not None:
+            if not "fMRI" in k and not "func" in k:
+                raise ValueError("rsfMRI/func is not rsfmri filename " + k)
     allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
     for k in allfns:
         if k is not None:
@@ -234,8 +251,6 @@ def parse_nrg_filename( x, separator='-' ):
         'imageID':temp[4]
     }
 
-
-import os
 
 
 def nrg_2_bids( nrg_filename ):
