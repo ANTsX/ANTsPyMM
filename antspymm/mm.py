@@ -235,52 +235,106 @@ def parse_nrg_filename( x, separator='-' ):
     }
 
 
-def nrg_2_bids( x ):
-    """
-    convert nrg filename to bids path / filename
-    """
-    temp = parse_nrg_filename( os.path.basename(x) )
-    bidsmod='anat'
-    if "DTI" in temp['modality'] :
-        bidsmod='dwi'
-    elif "rsfMRI" in temp['modality']:
-        bidsmod='func'
-    return {
-        'project':temp['project'],
-        'subjectID':'sub-'+temp['subjectID'],
-        'session':'ses-'+temp['date'],
-        'modality':bidsmod
-    }
+import os
 
-def bids_2_nrg( x, project=None ):
+
+def nrg_2_bids( nrg_filename ):
     """
-    convert bids path / filename to something like nrg path / filename structure
+    Convert an NRG filename to BIDS path/filename.
+
+    Parameters:
+    nrg_filename (str): The NRG filename to convert.
+
+    Returns:
+    str: The BIDS path/filename.
     """
-    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
-    import os
-    # Split the path into directories
-    subid=None
-    modality=None
-    session=None
-    imagename=os.path.basename(x)
-    while True:
-        head, tail = os.path.split(x)
-        if not tail:
-            break
-        if "sub-" in tail:
-            subid=tail
-        elif "ses-" in tail:
-            session=tail
-        elif tail == 'anat' or tail == 'func' or tail == 'dwi' :
-            modality=tail
-        x = head
-    return {
-        'project':project,
-        'subjectID':subid,
-        'date':session,
-        'modality':modality,
-        'imageID':imagename
-    }
+    
+    # Split the NRG filename into its components
+    nrg_dirname, nrg_basename = os.path.split(nrg_filename)
+    nrg_suffix = '.' + nrg_basename.split('.',1)[-1]
+    nrg_basename = nrg_basename.replace(nrg_suffix, '') # remove ext 
+    nrg_parts = nrg_basename.split('-')
+    nrg_subject_id = nrg_parts[1]
+    nrg_modality = nrg_parts[3]
+    nrg_repeat= nrg_parts[4]
+    
+    # Build the BIDS path/filename
+    bids_dirname = os.path.join(nrg_dirname, 'bids')
+    bids_subject = f'sub-{nrg_subject_id}'
+    bids_session = f'ses-{nrg_repeat}'
+    
+    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+
+    if nrg_modality == 'T1w' : 
+        bids_modality_folder = 'anat'
+        bids_modality_filename = 'T1w'
+
+    if nrg_modality == 'T2Flair' : 
+        bids_modality_folder = 'anat'
+        bids_modality_filename = 'flair'
+
+    if nrg_modality == 'NM2DMT' : 
+        bids_modality_folder = 'anat'
+        bids_modality_filename = 'nm2dmt'
+
+    if nrg_modality == 'DTI' or nrg_modality == 'DTI_RL' or nrg_modality == 'DTI_LR' : 
+        bids_modality_folder = 'dwi'
+        bids_modality_filename = 'dwi'
+        
+    if nrg_modality == 'rsfMRI' or nrg_modality == 'rsfMRI_RL' or nrg_modality == 'rsfMRI_LR' : 
+        bids_modality_folder = 'func'
+        bids_modality_filename = 'func'
+        
+    bids_suffix = nrg_suffix[1:] 
+    bids_filename = f'{bids_subject}_{bids_session}_{bids_modality_filename}.{bids_suffix}'
+
+    # Return bids filepath/filename
+    return os.path.join(bids_dirname, bids_subject, bids_session, bids_modality_folder, bids_filename)
+
+
+def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
+    """
+    Convert a BIDS filename to NRG path/filename.
+
+    Parameters:
+    bids_filename (str): The BIDS filename to convert
+    project_name (str) : Name of project (i.e. PPMI)
+    date (str) : Date of image acquisition
+
+
+    Returns:
+    str: The NRG path/filename.
+    """
+    
+    bids_dirname, bids_basename = os.path.split(bids_filename)
+    bids_suffix = '.'+ bids_basename.split('.',1)[-1]
+    bids_basename = bids_basename.replace(bids_suffix, '') # remove ext 
+    bids_parts = bids_basename.split('_')
+    nrg_subject_id = bids_parts[0].replace('sub-','')
+    nrg_image_id = bids_parts[1].replace('ses-', '')
+    bids_modality = bids_parts[2]
+    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+
+    if bids_modality == 'anat' and nrg_modality is None : 
+        nrg_modality = 'T1w'
+    
+    if bids_modality == 'dwi' and nrg_modality is None  : 
+        nrg_modality = 'DTI'
+        
+    if bids_modality == 'func' and nrg_modality is None  : 
+        nrg_modality = 'rsfMRI'
+       
+    nrg_suffix = bids_suffix[1:]  
+    nrg_filename = f'{project_name}-{nrg_subject_id}-{date}-{nrg_modality}-{nrg_image_id}.{nrg_suffix}'
+
+    return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)   
+
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
