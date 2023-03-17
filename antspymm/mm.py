@@ -426,15 +426,16 @@ def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 
             print(mod)
         locsel = qcdf["modality"] == mod
         rr = qcdf[locsel][outlier_columns]
-        temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=16, cluster_labels=None)
-        qcdf.loc[locsel,'ol_loop']=temp
-        yhat = lof.fit_predict(rr)
-        temp = lof.negative_outlier_factor_*(-1.0)
-        temp = temp - temp.min()
-        yhat[ yhat == 1] = 0
-        yhat[ yhat == -1] = 1 # these are outliers
-        qcdf.loc[locsel,'ol_lof_decision']=yhat
-        qcdf.loc[locsel,'ol_lof']=temp/temp.max()
+        if rr.shape[0] > 1:
+            temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=-1, cluster_labels=None)
+            qcdf.loc[locsel,'ol_loop']=temp
+            yhat = lof.fit_predict(rr)
+            temp = lof.negative_outlier_factor_*(-1.0)
+            temp = temp - temp.min()
+            yhat[ yhat == 1] = 0
+            yhat[ yhat == -1] = 1 # these are outliers
+            qcdf.loc[locsel,'ol_lof_decision']=yhat
+            qcdf.loc[locsel,'ol_lof']=temp/temp.max()
     return qcdf
 
 
