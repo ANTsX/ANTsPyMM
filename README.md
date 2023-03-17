@@ -130,7 +130,7 @@ or just get modality-specific outlierness:
 
 ```python
 import antspymm
-mymods = antspymm.get_valid_modalities( qc=True )
+mymods = antspymm.get_valid_modalities( )
 for n in range(len(mymods)):
     m=mymods[n]
     jj=antspymm.collect_blind_qc_by_modality("qc/*"+m+"*csv")
