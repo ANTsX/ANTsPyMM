@@ -53,14 +53,14 @@ ANTsPyMM will process several types of brain MRI into tabular form as well as no
 * T2Flair: flair for white matter hyperintensity
 
     * https://pubmed.ncbi.nlm.nih.gov/30908194/
-    
+
     * https://pubmed.ncbi.nlm.nih.gov/30125711/
 
     * https://pubmed.ncbi.nlm.nih.gov/35088930/
 
 * T1w: voxel-based cortical thickness (DiReCT) 10.1016/j.neuroimage.2008.12.016
 
-Results of these processes are plentiful; processing for a single subject 
+Results of these processes are plentiful; processing for a single subject
 will all modalities will take around 2 hours on an average laptop.
 
 documentation of functions [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/antspymm/mm.html).
@@ -92,18 +92,18 @@ import ants
 
 ... i/o code here ...
 
-tabPro, normPro = antspymm.mm( 
-    t1, 
-    hier, 
+tabPro, normPro = antspymm.mm(
+    t1,
+    hier,
     nm_image_list = mynm,
     rsf_image = rsf,
     dw_image = dwi,
     bvals = bval_fname,
     bvecs = bvec_fname,
     flair_image = flair,
-    do_tractography=False, 
-    do_kk=False, 
-    do_normalization=True, 
+    do_tractography=False,
+    do_kk=False,
+    do_normalization=True,
     verbose=True )
 
 antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
@@ -115,12 +115,29 @@ antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
 automatically qc, filter and match multiple modality images at each time point.
 
 ```python
-qcdf=antspymm.blind_image_assessment(fns) ## run the qc on all images - requires a relatively large sample per modality to be effective
+## run the qc on all images - requires a relatively large sample per modality to be effective
+## then aggregate
+for fn in fns:
+  qcdf=pd.concat( [qcdf,antspymm.blind_image_assessment(fn)], axis=0)
 qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
 qcdfaol=antspymm.outlierness_by_modality(qcdfa) # estimate outlier scores
 print( qcdfaol.shape )
 print( qcdfaol.keys )
 matched_mm_data=antspymm.match_modalities( qcdfaol  )
+```
+
+or just get modality-specific outlierness:
+
+```python
+import antspymm
+mymods = antspymm.get_valid_modalities( qc=True )
+for n in range(len(mymods)):
+    m=mymods[n]
+    jj=antspymm.collect_blind_qc_by_modality("qc/*"+m+"*csv")
+    jjj=antspymm.average_blind_qc_by_modality(jj,verbose=False).dropna(axis=1) ## reduce the time series qc
+    jjj=antspymm.outlierness_by_modality( jjj, verbose=False)
+    jjj.to_csv( "mm_outlierness_"+m+".csv")
+    print(m+" done")
 ```
 
 ## an example on open neuro (BIDS) data
@@ -153,15 +170,15 @@ import glob as glob
 fns = glob.glob("imagesBIDS/ANTPD/sub-RC4125/ses-*/*/*gz")
 fns.sort()
 randid='000' # BIDS does not have unique image ids - so we assign one
-studycsv = antspymm.generate_mm_dataframe( 
-    'sub-RC4125', 
-    'ses-1', 
-    randid, 
-    'T1w', 
-    '/Users/stnava/data/openneuro/imagesBIDS/', 
-    '/Users/stnava/data/openneuro/processed/', 
-    t1_filename=fns[0], 
-    dti_filenames=[fns[2]], 
+studycsv = antspymm.generate_mm_dataframe(
+    'sub-RC4125',
+    'ses-1',
+    randid,
+    'T1w',
+    '/Users/stnava/data/openneuro/imagesBIDS/',
+    '/Users/stnava/data/openneuro/processed/',
+    t1_filename=fns[0],
+    dti_filenames=[fns[2]],
     rsf_filenames=[fns[1]])
 studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
@@ -199,13 +216,13 @@ import glob as glob
 t1fn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0]
 dtfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")
 rsfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")
-studycsv = antspymm.generate_mm_dataframe( 
-    'sub-RC4125', 
-    'ses-1', 
-    '000', 
-    'T1w', 
-    '/Users/stnava/data/openneuro/imagesNRG/', 
-    '/Users/stnava/data/openneuro/processed/', 
+studycsv = antspymm.generate_mm_dataframe(
+    'sub-RC4125',
+    'ses-1',
+    '000',
+    'T1w',
+    '/Users/stnava/data/openneuro/imagesNRG/',
+    '/Users/stnava/data/openneuro/processed/',
     t1fn,
     rsf_filenames=rsfn,
     dti_filenames=dtfn
@@ -217,7 +234,7 @@ mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 ## build docs
 
 ```
-pdoc -o ./docs antspymm --html 
+pdoc -o ./docs antspymm --html
 ```
 
 ## to publish a release
