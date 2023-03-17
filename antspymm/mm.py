@@ -17,6 +17,7 @@ __all__ = ['version',
     'mc_reg',
     'get_data',
     'get_models',
+    'get_valid_modalities',
     'dewarp_imageset',
     'super_res_mcimage',
     'segment_timeseries_by_meanvalue',
@@ -51,6 +52,7 @@ __all__ = ['version',
     'write_mm',
     'mm_nrg',
     'mm_csv',
+    'collect_blind_qc_by_modality',
     'alffmap',
     'alff_image',
     'down2iso',
@@ -142,7 +144,28 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
-def generate_mm_dataframe( 
+def get_valid_modalities( long=False, asString=False ):
+    """
+    return a list of valid modality identifiers used in NRG modality designation
+    and that can be processed by this package.
+
+    long - return the long version
+
+    asString - concat list to string
+    """
+    if long:
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func" ]
+    else:
+        mymod = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    if not asString:
+        return mymod
+    else:
+        mymodchar=""
+        for x in mymod:
+            mymodchar = mymodchar + " " + str(x)
+        return mymodchar
+
+def generate_mm_dataframe(
         subjectID,
         date,
         imageUniqueID,
@@ -156,13 +179,13 @@ def generate_mm_dataframe(
         nm_filenames=[]
 ):
     from os.path import exists
-    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    valid_modalities = get_valid_modalities()
     if not isinstance(t1_filename, str):
         raise ValueError("t1_filename is not a string")
     if not exists(t1_filename):
         raise ValueError("t1_filename does not exist")
     if modality not in valid_modalities:
-        raise ValueError('modality ' + str(modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+        raise ValueError('modality ' + str(modality) + " not a valid mm modality:  " + get_valid_modalities(asString=True))
     # if not exists( output_image_directory ):
     #    raise ValueError("output_image_directory does not exist")
     if not exists( source_image_directory ):
@@ -197,31 +220,31 @@ def generate_mm_dataframe(
     for k in allfns:
         if k is not None:
             if not isinstance(k, str):
-                raise ValueError(str(k) + " is not a string")            
+                raise ValueError(str(k) + " is not a string")
             if not exists( k ):
                 raise ValueError( "image " + k + " does not exist")
     coredata = [
-        subjectID, 
-        date, 
-        imageUniqueID, 
-        modality, 
-        source_image_directory, 
-        output_image_directory, 
-        t1_filename, 
-        flair_filename] 
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename]
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
         'subjectID',
-        'date', 
-        'imageID', 
-        'modality', 
-        'sourcedir', 
-        'outputdir', 
-        'filename', 
+        'date',
+        'imageID',
+        'modality',
+        'sourcedir',
+        'outputdir',
+        'filename',
         'flairid']
     mycols0 = corecols + [
-        'rsfid1', 'rsfid2', 
+        'rsfid1', 'rsfid2',
         'dtid1', 'dtid2']
     nmext = [
         'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
@@ -232,7 +255,7 @@ def generate_mm_dataframe(
     print(len(nm_filenames))
     print(len(mycols0))
     print(len(nmext))
-    studycsv = pd.DataFrame([ mydata ], 
+    studycsv = pd.DataFrame([ mydata ],
         columns=mycols)
     return studycsv
 
@@ -263,47 +286,47 @@ def nrg_2_bids( nrg_filename ):
     Returns:
     str: The BIDS path/filename.
     """
-    
+
     # Split the NRG filename into its components
     nrg_dirname, nrg_basename = os.path.split(nrg_filename)
     nrg_suffix = '.' + nrg_basename.split('.',1)[-1]
-    nrg_basename = nrg_basename.replace(nrg_suffix, '') # remove ext 
+    nrg_basename = nrg_basename.replace(nrg_suffix, '') # remove ext
     nrg_parts = nrg_basename.split('-')
     nrg_subject_id = nrg_parts[1]
     nrg_modality = nrg_parts[3]
     nrg_repeat= nrg_parts[4]
-    
+
     # Build the BIDS path/filename
     bids_dirname = os.path.join(nrg_dirname, 'bids')
     bids_subject = f'sub-{nrg_subject_id}'
     bids_session = f'ses-{nrg_repeat}'
-    
-    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+
+    valid_modalities = get_valid_modalities()
     if nrg_modality is not None:
         if not nrg_modality in valid_modalities:
-            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality:  " + get_valid_modalities(asString=True))
 
-    if nrg_modality == 'T1w' : 
+    if nrg_modality == 'T1w' :
         bids_modality_folder = 'anat'
         bids_modality_filename = 'T1w'
 
-    if nrg_modality == 'T2Flair' : 
+    if nrg_modality == 'T2Flair' :
         bids_modality_folder = 'anat'
         bids_modality_filename = 'flair'
 
-    if nrg_modality == 'NM2DMT' : 
+    if nrg_modality == 'NM2DMT' :
         bids_modality_folder = 'anat'
         bids_modality_filename = 'nm2dmt'
 
-    if nrg_modality == 'DTI' or nrg_modality == 'DTI_RL' or nrg_modality == 'DTI_LR' : 
+    if nrg_modality == 'DTI' or nrg_modality == 'DTI_RL' or nrg_modality == 'DTI_LR' :
         bids_modality_folder = 'dwi'
         bids_modality_filename = 'dwi'
-        
-    if nrg_modality == 'rsfMRI' or nrg_modality == 'rsfMRI_RL' or nrg_modality == 'rsfMRI_LR' : 
+
+    if nrg_modality == 'rsfMRI' or nrg_modality == 'rsfMRI_RL' or nrg_modality == 'rsfMRI_LR' :
         bids_modality_folder = 'func'
         bids_modality_filename = 'func'
-        
-    bids_suffix = nrg_suffix[1:] 
+
+    bids_suffix = nrg_suffix[1:]
     bids_filename = f'{bids_subject}_{bids_session}_{bids_modality_filename}.{bids_suffix}'
 
     # Return bids filepath/filename
@@ -323,32 +346,51 @@ def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
     Returns:
     str: The NRG path/filename.
     """
-    
+
     bids_dirname, bids_basename = os.path.split(bids_filename)
     bids_suffix = '.'+ bids_basename.split('.',1)[-1]
-    bids_basename = bids_basename.replace(bids_suffix, '') # remove ext 
+    bids_basename = bids_basename.replace(bids_suffix, '') # remove ext
     bids_parts = bids_basename.split('_')
     nrg_subject_id = bids_parts[0].replace('sub-','')
     nrg_image_id = bids_parts[1].replace('ses-', '')
     bids_modality = bids_parts[2]
-    valid_modalities = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    valid_modalities = get_valid_modalities()
     if nrg_modality is not None:
         if not nrg_modality in valid_modalities:
-            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair ")
+            raise ValueError('nrg_modality ' + str(nrg_modality) + " not a valid mm modality: " + get_valid_modalities(asString=True))
 
-    if bids_modality == 'anat' and nrg_modality is None : 
+    if bids_modality == 'anat' and nrg_modality is None :
         nrg_modality = 'T1w'
-    
-    if bids_modality == 'dwi' and nrg_modality is None  : 
+
+    if bids_modality == 'dwi' and nrg_modality is None  :
         nrg_modality = 'DTI'
-        
-    if bids_modality == 'func' and nrg_modality is None  : 
+
+    if bids_modality == 'func' and nrg_modality is None  :
         nrg_modality = 'rsfMRI'
-       
-    nrg_suffix = bids_suffix[1:]  
+
+    nrg_suffix = bids_suffix[1:]
     nrg_filename = f'{project_name}-{nrg_subject_id}-{date}-{nrg_modality}-{nrg_image_id}.{nrg_suffix}'
 
-    return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)   
+    return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)
+
+def collect_blind_qc_by_modality( modality_path ):
+    """
+    Collects blind QC data from multiple CSV files with the same modality.
+
+    Args:
+
+    modality_path (str): The path to the folder containing the CSV files.
+
+    Returns:
+    Pandas DataFrame: A DataFrame containing all the blind QC data from the CSV files.
+    """
+    import glob as glob
+    fns = glob.glob( modality_path )
+    jdf = pd.DataFrame()
+    for k in range(len(fns)):
+        temp=pd.read_csv(fns[k])
+        jdf=pd.concat( [jdf,temp])
+    return jdf
 
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
@@ -428,7 +470,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     """
     This function returns a subset of the input dataframe that retains only the rows
     that correspond to the highest quality observation for each combination of ID and visit.
-    
+
     Parameters:
     ----------
     mxdfin: pandas.DataFrame
@@ -439,7 +481,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
         The name of the column that contains the visit variable.
     qualityvar: str
         The name of the column that contains the quality variable.
-        
+
     Returns:
     -------
     pandas.DataFrame
@@ -452,20 +494,20 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
         raise ValueError("idvar not in dataframe")
     if qualityvar not in mxdfin.columns:
         raise ValueError("qualityvar not in dataframe")
-    
+
     vizzes = mxdfin[visitvar].unique()
     uids = mxdfin[idvar].unique()
     useit = np.zeros(mxdfin.shape[0], dtype=bool)
-    
+
     for u in uids:
         losel = mxdfin[idvar] == u
         vizzesloc = mxdfin[losel][visitvar].unique()
-        
+
         for v in vizzesloc:
             losel = (mxdfin[idvar] == u) & (mxdfin[visitvar] == v)
             mysnr = mxdfin.loc[losel, qualityvar]
             myw = np.where(losel)[0]
-            
+
             if len(myw) > 1:
                 if any(~np.isnan(mysnr)):
                     useit[myw[np.argmax(mysnr)]] = True
@@ -473,7 +515,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
                     useit[myw] = True
             else:
                 useit[myw] = True
-                
+
     return mxdfin[useit]
 
 
@@ -481,7 +523,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
     """
     Find the best multiple modality dataset at each time point
 
-    :param qc_dataframe: quality control data frame with 
+    :param qc_dataframe: quality control data frame with
     :param unique_identifier : the unique NRG filename for each image
     :param outlier_column: outlierness score used to identify the best image (pair) at a given date
     :param verbose: boolean
@@ -552,7 +594,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                     mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1]
-        if rsdf is not None:        
+        if rsdf is not None:
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
@@ -575,7 +617,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = locdf['ol_lof_decision'].values[1]
 
-        if fldf is not None:        
+        if fldf is not None:
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = fldf['imageID'][locsel].values[0]
@@ -583,7 +625,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = fldf['ol_lof_decision'][locsel].values[0]
 
-        if nmdf is not None:        
+        if nmdf is not None:
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
             if locsel.sum() > 0:
                 locdf = nmdf[locsel]
@@ -602,16 +644,16 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
 def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     """
     Selects the best repeats per modality.
-    
+
     Args:
     wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DTI')
 
     mysep (str, optional): the separator used in the image file names. Defaults to '-'.
 
     outlier_name : column name for outlier score
-    
+
     verbose (bool, optional): default True
-    
+
     Returns:
 
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
@@ -619,13 +661,13 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     """
     msel = mmdf['modality'] == wmod
     if wmod == 'rsfMRI':
-        msel1 = mmdf['modality'] == 'rsfMRI' 
+        msel1 = mmdf['modality'] == 'rsfMRI'
         msel2 = mmdf['modality'] == 'rsfMRI_LR'
         msel3 = mmdf['modality'] == 'rsfMRI_RL'
-        msel = msel1 | msel2 
-        msel = msel | msel3 
+        msel = msel1 | msel2
+        msel = msel | msel3
     if wmod == 'DTI':
-        msel1 = mmdf['modality'] == 'DTI' 
+        msel1 = mmdf['modality'] == 'DTI'
         msel2 = mmdf['modality'] == 'DTI_LR'
         msel3 = mmdf['modality'] == 'DTI_RL'
         msel4 = mmdf['modality'] == 'DTIdwi'
@@ -634,10 +676,10 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         return {'raw': None, 'filt': None}
     uids = list(mmdf['fn'][msel])
     metasub = mmdf[msel]
-    
+
     if verbose:
         print(f"{wmod} {(metasub.shape[0])} pre")
-    
+
     metasub['subjectID']=math.nan
     metasub['date']=math.nan
     metasub['subjectIDdate']=math.nan
@@ -648,15 +690,15 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         metasub['date'].iloc[k] = temp[2]
         metasub['subjectIDdate'].iloc[k] = temp[1] + mysep + temp[2]
         metasub['imageID'].iloc[k] = temp[4]
-    
+
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
         metasub['date']='NA'
     metasubq = highest_quality_repeat(metasub, 'fn', 'date', 'negol')
-    
+
     if verbose:
         print(f"{wmod} {metasubq.shape[0]} post")
-    
+
     return {'raw': metasub, 'filt': metasubq}
 
 def mm_read( x, modality='' ):
@@ -5049,12 +5091,12 @@ def mm_csv(
     -------------
 
     studycsv : must have columns:
-        - subjectID 
+        - subjectID
         - date or session
-        - imageID 
-        - modality 
-        - sourcedir 
-        - outputdir 
+        - imageID
+        - modality
+        - sourcedir
+        - outputdir
         - filename (path to the t1 image)
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
@@ -5082,7 +5124,7 @@ def mm_csv(
     """
     visualize = True
     verbose = True
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+    nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] < 1:
         raise ValueError('studycsv has no rows')
     musthavecols = ['subjectID','date','imageID','modality','sourcedir','outputdir','filename']
@@ -5151,13 +5193,13 @@ def mm_csv(
                     iid = re.sub( ".nii.gz", "", mysplit[len(mysplit)-1] )
                     iid = re.sub( ".mha", "", iid )
                     iid = re.sub( ".nii", "", iid )
-                    myoutputPrefix = outputdir + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + sid + mysep + dtid + mysep + locmod + mysep + iid 
+                    myoutputPrefix = outputdir + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print("VERBOSE in docsamson")
             print( locmod )
             print( myimgsInput )
             print( myoutputPrefix )
-        return { 
+        return {
             'modality': locmod,
             'outprefix': myoutputPrefix,
             'images': myimgsInput
@@ -5244,7 +5286,7 @@ def mm_csv(
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for overmodX in nrg_modality_list:
-        # define 1. input images 2. output prefix 
+        # define 1. input images 2. output prefix
         mydoc = docsamson( overmodX )
         myimgsr = mydoc['images']
         mymm = mydoc['outprefix']
@@ -6187,7 +6229,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
     # 2nd - get rid of duplicated u_hier_id
     jmmUniq = jmm.drop_duplicates( subset="u_hier_id" ) # fast and easy
     # for each modality, count which ids have more than one
-    mod_names = ['T2Flair', 'NM2DMT', 'T1w', 'rsfMRI', 'DTI']
+    mod_names = get_valid_modalities()
     for mod_name in mod_names:
         fl_names = get_names_from_data_frame([mod_name], jmm,
             exclusions=['Unnamed',"DTI_LR","DTI_RL","rsfMRI_RL","rsfMRI_LR"])
