@@ -144,7 +144,7 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
-def get_valid_modalities( long=False, asString=False ):
+def get_valid_modalities( long=False, asString=False, qc=False ):
     """
     return a list of valid modality identifiers used in NRG modality designation
     and that can be processed by this package.
@@ -155,6 +155,8 @@ def get_valid_modalities( long=False, asString=False ):
     """
     if long:
         mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func" ]
+    elif qc:
+        mymod = [ 'T1w', 'T2Flair', 'rsfMRI', 'NM2DMT','DTIdwi','DTIb0']
     else:
         mymod = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
     if not asString:
@@ -420,14 +422,15 @@ def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 
         qcdf['ol_loop']=math.nan
     if 'ol_lof' not in qcdf.keys():
         qcdf['ol_lof']=math.nan
-    for mod in [ 'T1w', 'T2Flair', 'rsfMRI', 'NM2DMT','DTIdwi','DTIb0']:
+    for mod in get_valid_modalities( qc=True ):
         lof = LocalOutlierFactor()
-        if verbose:
-            print(mod)
         locsel = qcdf["modality"] == mod
         rr = qcdf[locsel][outlier_columns]
         if rr.shape[0] > 1:
-            temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=-1, cluster_labels=None)
+            if verbose:
+                print(mod)
+            myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
+            temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
             qcdf.loc[locsel,'ol_loop']=temp
             yhat = lof.fit_predict(rr)
             temp = lof.negative_outlier_factor_*(-1.0)
