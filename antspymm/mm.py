@@ -415,31 +415,33 @@ def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 
     >>> df = pd.read_csv('data.csv')
     >>> outlierness_by_modality(df)
     """
+    from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
-    if uid not in qcdf.keys():
+    qcdfout = qcdf.copy()
+    if uid not in qcdfout.keys():
         raise ValueError(uid + " not in dataframe")
-    if 'ol_loop' not in qcdf.keys():
-        qcdf['ol_loop']=math.nan
-    if 'ol_lof' not in qcdf.keys():
-        qcdf['ol_lof']=math.nan
+    if 'ol_loop' not in qcdfout.keys():
+        qcdfout['ol_loop']=math.nan
+    if 'ol_lof' not in qcdfout.keys():
+        qcdfout['ol_lof']=math.nan
     for mod in get_valid_modalities( qc=True ):
         lof = LocalOutlierFactor()
-        locsel = qcdf["modality"] == mod
-        rr = qcdf[locsel][outlier_columns]
+        locsel = qcdfout["modality"] == mod
+        rr = qcdfout[locsel][outlier_columns]
         if rr.shape[0] > 1:
             if verbose:
                 print(mod)
             myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
-            temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
-            qcdf.loc[locsel,'ol_loop']=temp
+            temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
+            qcdfout.loc[locsel,'ol_loop']=temp
             yhat = lof.fit_predict(rr)
             temp = lof.negative_outlier_factor_*(-1.0)
             temp = temp - temp.min()
             yhat[ yhat == 1] = 0
             yhat[ yhat == -1] = 1 # these are outliers
-            qcdf.loc[locsel,'ol_lof_decision']=yhat
-            qcdf.loc[locsel,'ol_lof']=temp/temp.max()
-    return qcdf
+            qcdfout.loc[locsel,'ol_lof_decision']=yhat
+            qcdfout.loc[locsel,'ol_lof']=temp/temp.max()
+    return qcdfout
 
 
 def nrg_format_path( projectID, subjectID, date, modality, imageID, separator='-' ):
