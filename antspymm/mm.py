@@ -388,6 +388,7 @@ def collect_blind_qc_by_modality( modality_path ):
     """
     import glob as glob
     fns = glob.glob( modality_path )
+    fns.sort()
     jdf = pd.DataFrame()
     for k in range(len(fns)):
         temp=pd.read_csv(fns[k])
