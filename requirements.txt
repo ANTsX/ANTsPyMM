@@ -9,3 +9,4 @@ dipy
 nibabel
 scipy
 siq
+sklearn
