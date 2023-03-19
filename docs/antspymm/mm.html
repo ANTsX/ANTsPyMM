@@ -44,6 +44,7 @@
     &#39;mc_reg&#39;,
     &#39;get_data&#39;,
     &#39;get_models&#39;,
+    &#39;get_valid_modalities&#39;,
     &#39;dewarp_imageset&#39;,
     &#39;super_res_mcimage&#39;,
     &#39;segment_timeseries_by_meanvalue&#39;,
@@ -78,6 +79,7 @@
     &#39;write_mm&#39;,
     &#39;mm_nrg&#39;,
     &#39;mm_csv&#39;,
+    &#39;collect_blind_qc_by_modality&#39;,
     &#39;alffmap&#39;,
     &#39;alff_image&#39;,
     &#39;down2iso&#39;,
@@ -100,6 +102,7 @@
     &#39;novelty_detection_svm&#39;,
     &#39;novelty_detection_ee&#39;,
     &#39;novelty_detection_lof&#39;,
+    &#39;novelty_detection_loop&#39;,
     &#39;generate_mm_dataframe&#39;,
     &#39;wmh&#39;]
 
@@ -169,7 +172,30 @@ def version( ):
               &#39;antspymm&#39;: pkg_resources.require(&#34;antspymm&#34;)[0].version
               }
 
-def generate_mm_dataframe( 
+def get_valid_modalities( long=False, asString=False, qc=False ):
+    &#34;&#34;&#34;
+    return a list of valid modality identifiers used in NRG modality designation
+    and that can be processed by this package.
+
+    long - return the long version
+
+    asString - concat list to string
+    &#34;&#34;&#34;
+    if long:
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;func&#34; ]
+    elif qc:
+        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;]
+    else:
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if not asString:
+        return mymod
+    else:
+        mymodchar=&#34;&#34;
+        for x in mymod:
+            mymodchar = mymodchar + &#34; &#34; + str(x)
+        return mymodchar
+
+def generate_mm_dataframe(
         subjectID,
         date,
         imageUniqueID,
@@ -183,15 +209,15 @@ def generate_mm_dataframe(
         nm_filenames=[]
 ):
     from os.path import exists
-    valid_modalities = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    valid_modalities = get_valid_modalities()
     if not isinstance(t1_filename, str):
         raise ValueError(&#34;t1_filename is not a string&#34;)
     if not exists(t1_filename):
         raise ValueError(&#34;t1_filename does not exist&#34;)
     if modality not in valid_modalities:
-        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair &#34;)
-    if not exists( output_image_directory ):
-        raise ValueError(&#34;output_image_directory does not exist&#34;)
+        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality:  &#34; + get_valid_modalities(asString=True))
+    # if not exists( output_image_directory ):
+    #    raise ValueError(&#34;output_image_directory does not exist&#34;)
     if not exists( source_image_directory ):
         raise ValueError(&#34;source_image_directory does not exist&#34;)
     if len( rsf_filenames ) &lt; 2:
@@ -203,31 +229,64 @@ def generate_mm_dataframe(
     if len( nm_filenames ) &lt; 10:
         for k in range(len(nm_filenames),10):
             nm_filenames.append(None)
+    # check modality names
+    if not &#34;T1w&#34; in t1_filename:
+        raise ValueError(&#34;T1w is not in t1 filename &#34; + t1_filename)
+    if flair_filename is not None and not &#34;lair&#34; in flair_filename:
+            raise ValueError(&#34;flair is not flair filename &#34; + flair_filename)
+    for k in nm_filenames:
+        if k is not None:
+            if not &#34;NM&#34; in k:
+                raise ValueError(&#34;NM is not flair filename &#34; + k)
+    for k in dti_filenames:
+        if k is not None:
+            if not &#34;DTI&#34; in k and not &#34;dwi&#34; in k:
+                raise ValueError(&#34;DTI/DWI is not dti filename &#34; + k)
+    for k in rsf_filenames:
+        if k is not None:
+            if not &#34;fMRI&#34; in k and not &#34;func&#34; in k:
+                raise ValueError(&#34;rsfMRI/func is not rsfmri filename &#34; + k)
     allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
     for k in allfns:
         if k is not None:
             if not isinstance(k, str):
-                raise ValueError(str(k) + &#34; is not a string&#34;)            
+                raise ValueError(str(k) + &#34; is not a string&#34;)
             if not exists( k ):
                 raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
-    studycsv = pd.DataFrame([[ 
-        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
-        t1_filename, 
-        flair_filename, 
-        rsf_filenames[0], rsf_filenames[1], 
-        dti_filenames[0], dti_filenames[1], 
-        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
-        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
-        ]], 
-        columns=[
-        &#39;subjectID&#39;, &#39;date&#39;, &#39;imageID&#39;, &#39;modality&#39;, &#39;sourcedir&#39;, 
-        &#39;outputdir&#39;, 
-        &#39;filename&#39;, 
-        &#39;flairid&#39;,
-        &#39;rsfid1&#39;, &#39;rsfid2&#39;, 
-        &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39;,
+    coredata = [
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename]
+    mydata0 = coredata +  rsf_filenames + dti_filenames
+    mydata = mydata0 + nm_filenames
+    corecols = [
+        &#39;subjectID&#39;,
+        &#39;date&#39;,
+        &#39;imageID&#39;,
+        &#39;modality&#39;,
+        &#39;sourcedir&#39;,
+        &#39;outputdir&#39;,
+        &#39;filename&#39;,
+        &#39;flairid&#39;]
+    mycols0 = corecols + [
+        &#39;rsfid1&#39;, &#39;rsfid2&#39;,
+        &#39;dtid1&#39;, &#39;dtid2&#39;]
+    nmext = [
         &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
-        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ])
+        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39;, &#39;nmid11&#39;
+    ]
+    mycols = mycols0 + nmext
+    print(len(mydata0))
+    print(len(nm_filenames))
+    print(len(mycols0))
+    print(len(nmext))
+    studycsv = pd.DataFrame([ mydata ],
+        columns=mycols)
     return studycsv
 
 def parse_nrg_filename( x, separator=&#39;-&#39; ):
@@ -246,52 +305,133 @@ def parse_nrg_filename( x, separator=&#39;-&#39; ):
     }
 
 
-def nrg_2_bids( x ):
-    &#34;&#34;&#34;
-    convert nrg filename to bids path / filename
-    &#34;&#34;&#34;
-    temp = parse_nrg_filename( os.path.basename(x) )
-    bidsmod=&#39;anat&#39;
-    if &#34;DTI&#34; in temp[&#39;modality&#39;] :
-        bidsmod=&#39;dwi&#39;
-    elif &#34;rsfMRI&#34; in temp[&#39;modality&#39;]:
-        bidsmod=&#39;func&#39;
-    return {
-        &#39;project&#39;:temp[&#39;project&#39;],
-        &#39;subjectID&#39;:&#39;sub-&#39;+temp[&#39;subjectID&#39;],
-        &#39;session&#39;:&#39;ses-&#39;+temp[&#39;date&#39;],
-        &#39;modality&#39;:bidsmod
-    }
 
-def bids_2_nrg( x, project=None ):
+def nrg_2_bids( nrg_filename ):
     &#34;&#34;&#34;
-    convert bids path / filename to something like nrg path / filename structure
+    Convert an NRG filename to BIDS path/filename.
+
+    Parameters:
+    nrg_filename (str): The NRG filename to convert.
+
+    Returns:
+    str: The BIDS path/filename.
     &#34;&#34;&#34;
-    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
-    import os
-    # Split the path into directories
-    subid=None
-    modality=None
-    session=None
-    imagename=os.path.basename(x)
-    while True:
-        head, tail = os.path.split(x)
-        if not tail:
-            break
-        if &#34;sub-&#34; in tail:
-            subid=tail
-        elif &#34;ses-&#34; in tail:
-            session=tail
-        elif tail == &#39;anat&#39; or tail == &#39;func&#39; or tail == &#39;dwi&#39; :
-            modality=tail
-        x = head
-    return {
-        &#39;project&#39;:project,
-        &#39;subjectID&#39;:subid,
-        &#39;date&#39;:session,
-        &#39;modality&#39;:modality,
-        &#39;imageID&#39;:imagename
-    }
+
+    # Split the NRG filename into its components
+    nrg_dirname, nrg_basename = os.path.split(nrg_filename)
+    nrg_suffix = &#39;.&#39; + nrg_basename.split(&#39;.&#39;,1)[-1]
+    nrg_basename = nrg_basename.replace(nrg_suffix, &#39;&#39;) # remove ext
+    nrg_parts = nrg_basename.split(&#39;-&#39;)
+    nrg_subject_id = nrg_parts[1]
+    nrg_modality = nrg_parts[3]
+    nrg_repeat= nrg_parts[4]
+
+    # Build the BIDS path/filename
+    bids_dirname = os.path.join(nrg_dirname, &#39;bids&#39;)
+    bids_subject = f&#39;sub-{nrg_subject_id}&#39;
+    bids_session = f&#39;ses-{nrg_repeat}&#39;
+
+    valid_modalities = get_valid_modalities()
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError(&#39;nrg_modality &#39; + str(nrg_modality) + &#34; not a valid mm modality:  &#34; + get_valid_modalities(asString=True))
+
+    if nrg_modality == &#39;T1w&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;T1w&#39;
+
+    if nrg_modality == &#39;T2Flair&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;flair&#39;
+
+    if nrg_modality == &#39;NM2DMT&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;nm2dmt&#39;
+
+    if nrg_modality == &#39;DTI&#39; or nrg_modality == &#39;DTI_RL&#39; or nrg_modality == &#39;DTI_LR&#39; :
+        bids_modality_folder = &#39;dwi&#39;
+        bids_modality_filename = &#39;dwi&#39;
+
+    if nrg_modality == &#39;rsfMRI&#39; or nrg_modality == &#39;rsfMRI_RL&#39; or nrg_modality == &#39;rsfMRI_LR&#39; :
+        bids_modality_folder = &#39;func&#39;
+        bids_modality_filename = &#39;func&#39;
+
+    bids_suffix = nrg_suffix[1:]
+    bids_filename = f&#39;{bids_subject}_{bids_session}_{bids_modality_filename}.{bids_suffix}&#39;
+
+    # Return bids filepath/filename
+    return os.path.join(bids_dirname, bids_subject, bids_session, bids_modality_folder, bids_filename)
+
+
+def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
+    &#34;&#34;&#34;
+    Convert a BIDS filename to NRG path/filename.
+
+    Parameters:
+    bids_filename (str): The BIDS filename to convert
+    project_name (str) : Name of project (i.e. PPMI)
+    date (str) : Date of image acquisition
+
+
+    Returns:
+    str: The NRG path/filename.
+    &#34;&#34;&#34;
+
+    bids_dirname, bids_basename = os.path.split(bids_filename)
+    bids_suffix = &#39;.&#39;+ bids_basename.split(&#39;.&#39;,1)[-1]
+    bids_basename = bids_basename.replace(bids_suffix, &#39;&#39;) # remove ext
+    bids_parts = bids_basename.split(&#39;_&#39;)
+    nrg_subject_id = bids_parts[0].replace(&#39;sub-&#39;,&#39;&#39;)
+    nrg_image_id = bids_parts[1].replace(&#39;ses-&#39;, &#39;&#39;)
+    bids_modality = bids_parts[2]
+    valid_modalities = get_valid_modalities()
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError(&#39;nrg_modality &#39; + str(nrg_modality) + &#34; not a valid mm modality: &#34; + get_valid_modalities(asString=True))
+
+    if bids_modality == &#39;anat&#39; and nrg_modality is None :
+        nrg_modality = &#39;T1w&#39;
+
+    if bids_modality == &#39;dwi&#39; and nrg_modality is None  :
+        nrg_modality = &#39;DTI&#39;
+
+    if bids_modality == &#39;func&#39; and nrg_modality is None  :
+        nrg_modality = &#39;rsfMRI&#39;
+
+    nrg_suffix = bids_suffix[1:]
+    nrg_filename = f&#39;{project_name}-{nrg_subject_id}-{date}-{nrg_modality}-{nrg_image_id}.{nrg_suffix}&#39;
+
+    return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)
+
+def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
+    &#34;&#34;&#34;
+    Collects blind QC data from multiple CSV files with the same modality.
+
+    Args:
+
+    modality_path (str): The path to the folder containing the CSV files.
+
+    set_index_to_fn: boolean
+
+    Returns:
+    Pandas DataFrame: A DataFrame containing all the blind QC data from the CSV files.
+    &#34;&#34;&#34;
+    import glob as glob
+    fns = glob.glob( modality_path )
+    fns.sort()
+    jdf = pd.DataFrame()
+    for k in range(len(fns)):
+        temp=pd.read_csv(fns[k])
+        if not &#39;fn&#39; in temp.keys():
+            temp[&#39;fn&#39;]=fns[k]
+        jdf=pd.concat( [jdf,temp])
+    if set_index_to_fn:
+        jdf.reset_index(drop=True)
+        if &#34;Unnamed: 0&#34; in jdf.columns:
+            holder=jdf.pop( &#34;Unnamed: 0&#34; )
+        jdf.set_index(&#39;fn&#39;)
+    return jdf
+
 
 def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;], verbose=False ):
     &#34;&#34;&#34;
@@ -313,29 +453,33 @@ def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noi
     &gt;&gt;&gt; df = pd.read_csv(&#39;data.csv&#39;)
     &gt;&gt;&gt; outlierness_by_modality(df)
     &#34;&#34;&#34;
+    from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
-    if uid not in qcdf.keys():
+    qcdfout = qcdf.copy()
+    if uid not in qcdfout.keys():
         raise ValueError(uid + &#34; not in dataframe&#34;)
-    if &#39;ol_loop&#39; not in qcdf.keys():
-        qcdf[&#39;ol_loop&#39;]=math.nan
-    if &#39;ol_lof&#39; not in qcdf.keys():
-        qcdf[&#39;ol_lof&#39;]=math.nan
-    for mod in [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;]:
+    if &#39;ol_loop&#39; not in qcdfout.keys():
+        qcdfout[&#39;ol_loop&#39;]=math.nan
+    if &#39;ol_lof&#39; not in qcdfout.keys():
+        qcdfout[&#39;ol_lof&#39;]=math.nan
+    for mod in get_valid_modalities( qc=True ):
         lof = LocalOutlierFactor()
-        if verbose:
-            print(mod)
-        locsel = qcdf[&#34;modality&#34;] == mod
-        rr = qcdf[locsel][outlier_columns]
-        temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=16, cluster_labels=None)
-        qcdf.loc[locsel,&#39;ol_loop&#39;]=temp
-        yhat = lof.fit_predict(rr)
-        temp = lof.negative_outlier_factor_*(-1.0)
-        temp = temp - temp.min()
-        yhat[ yhat == 1] = 0
-        yhat[ yhat == -1] = 1 # these are outliers
-        qcdf.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
-        qcdf.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
-    return qcdf
+        locsel = qcdfout[&#34;modality&#34;] == mod
+        rr = qcdfout[locsel][outlier_columns]
+        if rr.shape[0] &gt; 1:
+            if verbose:
+                print(mod)
+            myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
+            temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
+            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp
+            yhat = lof.fit_predict(rr)
+            temp = lof.negative_outlier_factor_*(-1.0)
+            temp = temp - temp.min()
+            yhat[ yhat == 1] = 0
+            yhat[ yhat == -1] = 1 # these are outliers
+            qcdfout.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
+            qcdfout.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
+    return qcdfout
 
 
 def nrg_format_path( projectID, subjectID, date, modality, imageID, separator=&#39;-&#39; ):
@@ -370,7 +514,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     &#34;&#34;&#34;
     This function returns a subset of the input dataframe that retains only the rows
     that correspond to the highest quality observation for each combination of ID and visit.
-    
+
     Parameters:
     ----------
     mxdfin: pandas.DataFrame
@@ -381,7 +525,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
         The name of the column that contains the visit variable.
     qualityvar: str
         The name of the column that contains the quality variable.
-        
+
     Returns:
     -------
     pandas.DataFrame
@@ -394,20 +538,20 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
         raise ValueError(&#34;idvar not in dataframe&#34;)
     if qualityvar not in mxdfin.columns:
         raise ValueError(&#34;qualityvar not in dataframe&#34;)
-    
+
     vizzes = mxdfin[visitvar].unique()
     uids = mxdfin[idvar].unique()
     useit = np.zeros(mxdfin.shape[0], dtype=bool)
-    
+
     for u in uids:
         losel = mxdfin[idvar] == u
         vizzesloc = mxdfin[losel][visitvar].unique()
-        
+
         for v in vizzesloc:
             losel = (mxdfin[idvar] == u) &amp; (mxdfin[visitvar] == v)
             mysnr = mxdfin.loc[losel, qualityvar]
             myw = np.where(losel)[0]
-            
+
             if len(myw) &gt; 1:
                 if any(~np.isnan(mysnr)):
                     useit[myw[np.argmax(mysnr)]] = True
@@ -415,7 +559,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
                     useit[myw] = True
             else:
                 useit[myw] = True
-                
+
     return mxdfin[useit]
 
 
@@ -423,7 +567,7 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
     &#34;&#34;&#34;
     Find the best multiple modality dataset at each time point
 
-    :param qc_dataframe: quality control data frame with 
+    :param qc_dataframe: quality control data frame with
     :param unique_identifier : the unique NRG filename for each image
     :param outlier_column: outlierness score used to identify the best image (pair) at a given date
     :param verbose: boolean
@@ -494,7 +638,7 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
-        if rsdf is not None:        
+        if rsdf is not None:
             locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
@@ -517,7 +661,7 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
 
-        if fldf is not None:        
+        if fldf is not None:
             locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
@@ -525,7 +669,7 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
 
-        if nmdf is not None:        
+        if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() &gt; 0:
                 locdf = nmdf[locsel]
@@ -544,16 +688,16 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
 def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, verbose=False):
     &#34;&#34;&#34;
     Selects the best repeats per modality.
-    
+
     Args:
     wmod (str): the modality of the image ( &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39; &#39;rsfMRI&#39;, &#39;DTI&#39;)
 
     mysep (str, optional): the separator used in the image file names. Defaults to &#39;-&#39;.
 
     outlier_name : column name for outlier score
-    
+
     verbose (bool, optional): default True
-    
+
     Returns:
 
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
@@ -561,13 +705,13 @@ def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, v
     &#34;&#34;&#34;
     msel = mmdf[&#39;modality&#39;] == wmod
     if wmod == &#39;rsfMRI&#39;:
-        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39; 
+        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39;
         msel2 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_RL&#39;
-        msel = msel1 | msel2 
-        msel = msel | msel3 
+        msel = msel1 | msel2
+        msel = msel | msel3
     if wmod == &#39;DTI&#39;:
-        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39; 
+        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39;
         msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
         msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
@@ -576,10 +720,10 @@ def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, v
         return {&#39;raw&#39;: None, &#39;filt&#39;: None}
     uids = list(mmdf[&#39;fn&#39;][msel])
     metasub = mmdf[msel]
-    
+
     if verbose:
         print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
-    
+
     metasub[&#39;subjectID&#39;]=math.nan
     metasub[&#39;date&#39;]=math.nan
     metasub[&#39;subjectIDdate&#39;]=math.nan
@@ -590,15 +734,15 @@ def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, v
         metasub[&#39;date&#39;].iloc[k] = temp[2]
         metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
         metasub[&#39;imageID&#39;].iloc[k] = temp[4]
-    
+
     metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
     if &#39;date&#39; not in metasub.keys():
         metasub[&#39;date&#39;]=&#39;NA&#39;
     metasubq = highest_quality_repeat(metasub, &#39;fn&#39;, &#39;date&#39;, &#39;negol&#39;)
-    
+
     if verbose:
         print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
-    
+
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}
 
 def mm_read( x, modality=&#39;&#39; ):
@@ -4991,12 +5135,12 @@ def mm_csv(
     -------------
 
     studycsv : must have columns:
-        - subjectID 
+        - subjectID
         - date or session
-        - imageID 
-        - modality 
-        - sourcedir 
-        - outputdir 
+        - imageID
+        - modality
+        - sourcedir
+        - outputdir
         - filename (path to the t1 image)
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
@@ -5024,7 +5168,7 @@ def mm_csv(
     &#34;&#34;&#34;
     visualize = True
     verbose = True
-    nrg_modality_list = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] &lt; 1:
         raise ValueError(&#39;studycsv has no rows&#39;)
     musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
@@ -5093,13 +5237,13 @@ def mm_csv(
                     iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
                     iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
                     iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
-                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid 
+                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print(&#34;VERBOSE in docsamson&#34;)
             print( locmod )
             print( myimgsInput )
             print( myoutputPrefix )
-        return { 
+        return {
             &#39;modality&#39;: locmod,
             &#39;outprefix&#39;: myoutputPrefix,
             &#39;images&#39;: myimgsInput
@@ -5186,7 +5330,7 @@ def mm_csv(
     # we treat NM in a &#34;special&#34; way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for overmodX in nrg_modality_list:
-        # define 1. input images 2. output prefix 
+        # define 1. input images 2. output prefix
         mydoc = docsamson( overmodX )
         myimgsr = mydoc[&#39;images&#39;]
         mymm = mydoc[&#39;outprefix&#39;]
@@ -5200,6 +5344,11 @@ def mm_csv(
                 print( &#39;example image name is : &#39;  )
                 print( myimgsr )
             if overmodX == &#39;NM2DMT&#39;:
+                subjectpropath = os.path.dirname( mydoc[&#39;outprefix&#39;] )
+                if verbose:
+                    print(&#34;subjectpropath is&#34;)
+                    print(subjectpropath)
+                    os.makedirs( subjectpropath, exist_ok=True  )
                 myimgsr2 = myimgsr
                 myimgsr2.sort()
                 is4d = False
@@ -6124,7 +6273,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
     # 2nd - get rid of duplicated u_hier_id
     jmmUniq = jmm.drop_duplicates( subset=&#34;u_hier_id&#34; ) # fast and easy
     # for each modality, count which ids have more than one
-    mod_names = [&#39;T2Flair&#39;, &#39;NM2DMT&#39;, &#39;T1w&#39;, &#39;rsfMRI&#39;, &#39;DTI&#39;]
+    mod_names = get_valid_modalities()
     for mod_name in mod_names:
         fl_names = get_names_from_data_frame([mod_name], jmm,
             exclusions=[&#39;Unnamed&#39;,&#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;rsfMRI_RL&#34;,&#34;rsfMRI_LR&#34;])
@@ -6699,11 +6848,15 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     This function performs novelty detection using Elliptic Envelope.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+    
+    - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     import pandas as pd
@@ -6712,13 +6865,17 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
 
 
 
@@ -6727,12 +6884,17 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel=&#39;rbf&#39;):
     This function performs novelty detection using One-Class SVM.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
-    kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
+
+    - df_train (pandas dataframe): training data used to fit the model
+
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+
+    - kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     from sklearn.svm import OneClassSVM
@@ -6740,13 +6902,17 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel=&#39;rbf&#39;):
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = OneClassSVM(nu=nu, kernel=kernel)
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
 
 
 
@@ -6755,25 +6921,66 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
 
     Returns:
-    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
     &#34;&#34;&#34;
     from sklearn.neighbors import LocalOutlierFactor
     # Fit the model on the training data
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
-    clf.fit(df_train.values)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test.values)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)</code></pre>
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
+
+
+def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric=&#39;minkowski&#39;):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
+
+    - distance_metric : default minkowski
+
+    Returns:
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    
+    &#34;&#34;&#34;
+    from PyNomaly import loop
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    data = np.vstack( [scaler.transform(df_test),scaler.transform(df_train)])
+    neigh = NearestNeighbors(n_neighbors=n_neighbors, metric=distance_metric)
+    neigh.fit(data)
+    d, idx = neigh.kneighbors(data, return_distance=True)
+    m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
+    return m.local_outlier_probabilities[range(df_test.shape[0])]</code></pre>
 </details>
 </section>
 <section>
@@ -7116,7 +7323,7 @@ pandas dataframe containing the processed qc data.</p></div>
     # 2nd - get rid of duplicated u_hier_id
     jmmUniq = jmm.drop_duplicates( subset=&#34;u_hier_id&#34; ) # fast and easy
     # for each modality, count which ids have more than one
-    mod_names = [&#39;T2Flair&#39;, &#39;NM2DMT&#39;, &#39;T1w&#39;, &#39;rsfMRI&#39;, &#39;DTI&#39;]
+    mod_names = get_valid_modalities()
     for mod_name in mod_names:
         fl_names = get_names_from_data_frame([mod_name], jmm,
             exclusions=[&#39;Unnamed&#39;,&#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;rsfMRI_RL&#34;,&#34;rsfMRI_LR&#34;])
@@ -7187,16 +7394,16 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
 <pre><code class="python">def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, verbose=False):
     &#34;&#34;&#34;
     Selects the best repeats per modality.
-    
+
     Args:
     wmod (str): the modality of the image ( &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39; &#39;rsfMRI&#39;, &#39;DTI&#39;)
 
     mysep (str, optional): the separator used in the image file names. Defaults to &#39;-&#39;.
 
     outlier_name : column name for outlier score
-    
+
     verbose (bool, optional): default True
-    
+
     Returns:
 
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
@@ -7204,13 +7411,13 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
     &#34;&#34;&#34;
     msel = mmdf[&#39;modality&#39;] == wmod
     if wmod == &#39;rsfMRI&#39;:
-        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39; 
+        msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39;
         msel2 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;rsfMRI_RL&#39;
-        msel = msel1 | msel2 
-        msel = msel | msel3 
+        msel = msel1 | msel2
+        msel = msel | msel3
     if wmod == &#39;DTI&#39;:
-        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39; 
+        msel1 = mmdf[&#39;modality&#39;] == &#39;DTI&#39;
         msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
         msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
@@ -7219,10 +7426,10 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
         return {&#39;raw&#39;: None, &#39;filt&#39;: None}
     uids = list(mmdf[&#39;fn&#39;][msel])
     metasub = mmdf[msel]
-    
+
     if verbose:
         print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
-    
+
     metasub[&#39;subjectID&#39;]=math.nan
     metasub[&#39;date&#39;]=math.nan
     metasub[&#39;subjectIDdate&#39;]=math.nan
@@ -7233,56 +7440,72 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
         metasub[&#39;date&#39;].iloc[k] = temp[2]
         metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
         metasub[&#39;imageID&#39;].iloc[k] = temp[4]
-    
+
     metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
     if &#39;date&#39; not in metasub.keys():
         metasub[&#39;date&#39;]=&#39;NA&#39;
     metasubq = highest_quality_repeat(metasub, &#39;fn&#39;, &#39;date&#39;, &#39;negol&#39;)
-    
+
     if verbose:
         print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
-    
+
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.bids_2_nrg"><code class="name flex">
-<span>def <span class="ident">bids_2_nrg</span></span>(<span>x, project=None)</span>
+<span>def <span class="ident">bids_2_nrg</span></span>(<span>bids_filename, project_name, date, nrg_modality=None)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>convert bids path / filename to something like nrg path / filename structure</p></div>
+<div class="desc"><p>Convert a BIDS filename to NRG path/filename.</p>
+<p>Parameters:
+bids_filename (str): The BIDS filename to convert
+project_name (str) : Name of project (i.e. PPMI)
+date (str) : Date of image acquisition</p>
+<p>Returns:
+str: The NRG path/filename.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def bids_2_nrg( x, project=None ):
+<pre><code class="python">def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
     &#34;&#34;&#34;
-    convert bids path / filename to something like nrg path / filename structure
+    Convert a BIDS filename to NRG path/filename.
+
+    Parameters:
+    bids_filename (str): The BIDS filename to convert
+    project_name (str) : Name of project (i.e. PPMI)
+    date (str) : Date of image acquisition
+
+
+    Returns:
+    str: The NRG path/filename.
     &#34;&#34;&#34;
-    # ./ds000206-download/sub-THP0001/ses-THP0001IOWA1/dwi/sub-THP0001_ses-THP0001IOWA1_acq-GD31_run-02_dwi.nii.gz
-    import os
-    # Split the path into directories
-    subid=None
-    modality=None
-    session=None
-    imagename=os.path.basename(x)
-    while True:
-        head, tail = os.path.split(x)
-        if not tail:
-            break
-        if &#34;sub-&#34; in tail:
-            subid=tail
-        elif &#34;ses-&#34; in tail:
-            session=tail
-        elif tail == &#39;anat&#39; or tail == &#39;func&#39; or tail == &#39;dwi&#39; :
-            modality=tail
-        x = head
-    return {
-        &#39;project&#39;:project,
-        &#39;subjectID&#39;:subid,
-        &#39;date&#39;:session,
-        &#39;modality&#39;:modality,
-        &#39;imageID&#39;:imagename
-    }</code></pre>
+
+    bids_dirname, bids_basename = os.path.split(bids_filename)
+    bids_suffix = &#39;.&#39;+ bids_basename.split(&#39;.&#39;,1)[-1]
+    bids_basename = bids_basename.replace(bids_suffix, &#39;&#39;) # remove ext
+    bids_parts = bids_basename.split(&#39;_&#39;)
+    nrg_subject_id = bids_parts[0].replace(&#39;sub-&#39;,&#39;&#39;)
+    nrg_image_id = bids_parts[1].replace(&#39;ses-&#39;, &#39;&#39;)
+    bids_modality = bids_parts[2]
+    valid_modalities = get_valid_modalities()
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError(&#39;nrg_modality &#39; + str(nrg_modality) + &#34; not a valid mm modality: &#34; + get_valid_modalities(asString=True))
+
+    if bids_modality == &#39;anat&#39; and nrg_modality is None :
+        nrg_modality = &#39;T1w&#39;
+
+    if bids_modality == &#39;dwi&#39; and nrg_modality is None  :
+        nrg_modality = &#39;DTI&#39;
+
+    if bids_modality == &#39;func&#39; and nrg_modality is None  :
+        nrg_modality = &#39;rsfMRI&#39;
+
+    nrg_suffix = bids_suffix[1:]
+    nrg_filename = f&#39;{project_name}-{nrg_subject_id}-{date}-{nrg_modality}-{nrg_image_id}.{nrg_suffix}&#39;
+
+    return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.bind_wide_mm_csvs"><code class="name flex">
@@ -7693,6 +7916,50 @@ produces a png and csv where csv contains:</p>
                     Rinv = inv( txparam )
                 bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
     return bvecs</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.collect_blind_qc_by_modality"><code class="name flex">
+<span>def <span class="ident">collect_blind_qc_by_modality</span></span>(<span>modality_path, set_index_to_fn=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Collects blind QC data from multiple CSV files with the same modality.</p>
+<p>Args:</p>
+<p>modality_path (str): The path to the folder containing the CSV files.</p>
+<p>set_index_to_fn: boolean</p>
+<p>Returns:
+Pandas DataFrame: A DataFrame containing all the blind QC data from the CSV files.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
+    &#34;&#34;&#34;
+    Collects blind QC data from multiple CSV files with the same modality.
+
+    Args:
+
+    modality_path (str): The path to the folder containing the CSV files.
+
+    set_index_to_fn: boolean
+
+    Returns:
+    Pandas DataFrame: A DataFrame containing all the blind QC data from the CSV files.
+    &#34;&#34;&#34;
+    import glob as glob
+    fns = glob.glob( modality_path )
+    fns.sort()
+    jdf = pd.DataFrame()
+    for k in range(len(fns)):
+        temp=pd.read_csv(fns[k])
+        if not &#39;fn&#39; in temp.keys():
+            temp[&#39;fn&#39;]=fns[k]
+        jdf=pd.concat( [jdf,temp])
+    if set_index_to_fn:
+        jdf.reset_index(drop=True)
+        if &#34;Unnamed: 0&#34; in jdf.columns:
+            holder=jdf.pop( &#34;Unnamed: 0&#34; )
+        jdf.set_index(&#39;fn&#39;)
+    return jdf</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.concat_dewarp"><code class="name flex">
@@ -9235,7 +9502,7 @@ mask is the initial mask minus the eroded mask.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def generate_mm_dataframe( 
+<pre><code class="python">def generate_mm_dataframe(
         subjectID,
         date,
         imageUniqueID,
@@ -9249,15 +9516,15 @@ mask is the initial mask minus the eroded mask.</p></div>
         nm_filenames=[]
 ):
     from os.path import exists
-    valid_modalities = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    valid_modalities = get_valid_modalities()
     if not isinstance(t1_filename, str):
         raise ValueError(&#34;t1_filename is not a string&#34;)
     if not exists(t1_filename):
         raise ValueError(&#34;t1_filename does not exist&#34;)
     if modality not in valid_modalities:
-        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality: T1w, NM2DMT, rsfMRI, DTI, T2Flair &#34;)
-    if not exists( output_image_directory ):
-        raise ValueError(&#34;output_image_directory does not exist&#34;)
+        raise ValueError(&#39;modality &#39; + str(modality) + &#34; not a valid mm modality:  &#34; + get_valid_modalities(asString=True))
+    # if not exists( output_image_directory ):
+    #    raise ValueError(&#34;output_image_directory does not exist&#34;)
     if not exists( source_image_directory ):
         raise ValueError(&#34;source_image_directory does not exist&#34;)
     if len( rsf_filenames ) &lt; 2:
@@ -9269,31 +9536,64 @@ mask is the initial mask minus the eroded mask.</p></div>
     if len( nm_filenames ) &lt; 10:
         for k in range(len(nm_filenames),10):
             nm_filenames.append(None)
+    # check modality names
+    if not &#34;T1w&#34; in t1_filename:
+        raise ValueError(&#34;T1w is not in t1 filename &#34; + t1_filename)
+    if flair_filename is not None and not &#34;lair&#34; in flair_filename:
+            raise ValueError(&#34;flair is not flair filename &#34; + flair_filename)
+    for k in nm_filenames:
+        if k is not None:
+            if not &#34;NM&#34; in k:
+                raise ValueError(&#34;NM is not flair filename &#34; + k)
+    for k in dti_filenames:
+        if k is not None:
+            if not &#34;DTI&#34; in k and not &#34;dwi&#34; in k:
+                raise ValueError(&#34;DTI/DWI is not dti filename &#34; + k)
+    for k in rsf_filenames:
+        if k is not None:
+            if not &#34;fMRI&#34; in k and not &#34;func&#34; in k:
+                raise ValueError(&#34;rsfMRI/func is not rsfmri filename &#34; + k)
     allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
     for k in allfns:
         if k is not None:
             if not isinstance(k, str):
-                raise ValueError(str(k) + &#34; is not a string&#34;)            
+                raise ValueError(str(k) + &#34; is not a string&#34;)
             if not exists( k ):
                 raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
-    studycsv = pd.DataFrame([[ 
-        subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, 
-        t1_filename, 
-        flair_filename, 
-        rsf_filenames[0], rsf_filenames[1], 
-        dti_filenames[0], dti_filenames[1], 
-        nm_filenames[0], nm_filenames[1],nm_filenames[2], nm_filenames[3],nm_filenames[4], 
-        nm_filenames[5], nm_filenames[6],nm_filenames[7], nm_filenames[8],nm_filenames[9] 
-        ]], 
-        columns=[
-        &#39;subjectID&#39;, &#39;date&#39;, &#39;imageID&#39;, &#39;modality&#39;, &#39;sourcedir&#39;, 
-        &#39;outputdir&#39;, 
-        &#39;filename&#39;, 
-        &#39;flairid&#39;,
-        &#39;rsfid1&#39;, &#39;rsfid2&#39;, 
-        &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;flairid&#39;,
+    coredata = [
+        subjectID,
+        date,
+        imageUniqueID,
+        modality,
+        source_image_directory,
+        output_image_directory,
+        t1_filename,
+        flair_filename]
+    mydata0 = coredata +  rsf_filenames + dti_filenames
+    mydata = mydata0 + nm_filenames
+    corecols = [
+        &#39;subjectID&#39;,
+        &#39;date&#39;,
+        &#39;imageID&#39;,
+        &#39;modality&#39;,
+        &#39;sourcedir&#39;,
+        &#39;outputdir&#39;,
+        &#39;filename&#39;,
+        &#39;flairid&#39;]
+    mycols0 = corecols + [
+        &#39;rsfid1&#39;, &#39;rsfid2&#39;,
+        &#39;dtid1&#39;, &#39;dtid2&#39;]
+    nmext = [
         &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
-        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ])
+        &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39;, &#39;nmid11&#39;
+    ]
+    mycols = mycols0 + nmext
+    print(len(mydata0))
+    print(len(nm_filenames))
+    print(len(mycols0))
+    print(len(nmext))
+    studycsv = pd.DataFrame([ mydata ],
+        columns=mycols)
     return studycsv</code></pre>
 </details>
 </dd>
@@ -9583,6 +9883,42 @@ antspymm.get_names_from_data_frame( ['e'], df, exclusions='N' )</p></div>
         if len(toexclude) &gt; 0:
             outnames = [name for name in outnames if name not in toexclude]
     return outnames</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.get_valid_modalities"><code class="name flex">
+<span>def <span class="ident">get_valid_modalities</span></span>(<span>long=False, asString=False, qc=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>return a list of valid modality identifiers used in NRG modality designation
+and that can be processed by this package.</p>
+<p>long - return the long version</p>
+<p>asString - concat list to string</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_valid_modalities( long=False, asString=False, qc=False ):
+    &#34;&#34;&#34;
+    return a list of valid modality identifiers used in NRG modality designation
+    and that can be processed by this package.
+
+    long - return the long version
+
+    asString - concat list to string
+    &#34;&#34;&#34;
+    if long:
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;func&#34; ]
+    elif qc:
+        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;]
+    else:
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    if not asString:
+        return mymod
+    else:
+        mymodchar=&#34;&#34;
+        for x in mymod:
+            mymodchar = mymodchar + &#34; &#34; + str(x)
+        return mymodchar</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.hierarchical_modality_summary"><code class="name flex">
@@ -10216,7 +10552,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
     &#34;&#34;&#34;
     Find the best multiple modality dataset at each time point
 
-    :param qc_dataframe: quality control data frame with 
+    :param qc_dataframe: quality control data frame with
     :param unique_identifier : the unique NRG filename for each image
     :param outlier_column: outlierness score used to identify the best image (pair) at a given date
     :param verbose: boolean
@@ -10287,7 +10623,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
-        if rsdf is not None:        
+        if rsdf is not None:
             locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
@@ -10310,7 +10646,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
 
-        if fldf is not None:        
+        if fldf is not None:
             locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
@@ -10318,7 +10654,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
 
-        if nmdf is not None:        
+        if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() &gt; 0:
                 locdf = nmdf[locsel]
@@ -11151,12 +11487,12 @@ jupyter nbconvert ANTsPyMM/tests/mm.ipynb &ndash;execute &ndash;to html</p>
 <dt><strong><code>studycsv</code></strong> :&ensp;<code>must have columns:</code></dt>
 <dd>
 <ul>
-<li>subjectID </li>
+<li>subjectID</li>
 <li>date or session</li>
-<li>imageID </li>
-<li>modality </li>
-<li>sourcedir </li>
-<li>outputdir </li>
+<li>imageID</li>
+<li>modality</li>
+<li>sourcedir</li>
+<li>outputdir</li>
 <li>filename (path to the t1 image)
 other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
 these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
@@ -11222,12 +11558,12 @@ see antspymm.generate_mm_dataframe</li>
     -------------
 
     studycsv : must have columns:
-        - subjectID 
+        - subjectID
         - date or session
-        - imageID 
-        - modality 
-        - sourcedir 
-        - outputdir 
+        - imageID
+        - modality
+        - sourcedir
+        - outputdir
         - filename (path to the t1 image)
         other relevant columns include nmid1-10, rsfid1, rsfid2, dtid1, dtid2, flairid;
         these provide filenames for these modalities: nm=neuromelanin, dti=diffusion tensor,
@@ -11255,7 +11591,7 @@ see antspymm.generate_mm_dataframe</li>
     &#34;&#34;&#34;
     visualize = True
     verbose = True
-    nrg_modality_list = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;,&#34;DTI&#34;,&#34;T2Flair&#34; ]
+    nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] &lt; 1:
         raise ValueError(&#39;studycsv has no rows&#39;)
     musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
@@ -11324,13 +11660,13 @@ see antspymm.generate_mm_dataframe</li>
                     iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
                     iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
                     iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
-                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid 
+                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print(&#34;VERBOSE in docsamson&#34;)
             print( locmod )
             print( myimgsInput )
             print( myoutputPrefix )
-        return { 
+        return {
             &#39;modality&#39;: locmod,
             &#39;outprefix&#39;: myoutputPrefix,
             &#39;images&#39;: myimgsInput
@@ -11417,7 +11753,7 @@ see antspymm.generate_mm_dataframe</li>
     # we treat NM in a &#34;special&#34; way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
     for overmodX in nrg_modality_list:
-        # define 1. input images 2. output prefix 
+        # define 1. input images 2. output prefix
         mydoc = docsamson( overmodX )
         myimgsr = mydoc[&#39;images&#39;]
         mymm = mydoc[&#39;outprefix&#39;]
@@ -11431,6 +11767,11 @@ see antspymm.generate_mm_dataframe</li>
                 print( &#39;example image name is : &#39;  )
                 print( myimgsr )
             if overmodX == &#39;NM2DMT&#39;:
+                subjectpropath = os.path.dirname( mydoc[&#39;outprefix&#39;] )
+                if verbose:
+                    print(&#34;subjectpropath is&#34;)
+                    print(subjectpropath)
+                    os.makedirs( subjectpropath, exist_ok=True  )
                 myimgsr2 = myimgsr
                 myimgsr2.sort()
                 is4d = False
@@ -12609,12 +12950,20 @@ by histogram matching - ants.histogram_match_image</dd>
 </code></dt>
 <dd>
 <div class="desc"><p>This function performs novelty detection using Elliptic Envelope.</p>
-<p>Parameters:
-df_train (pandas dataframe): training data used to fit the model
-df_test (pandas dataframe): test data used to predict novelties
-contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)</p>
-<p>Returns:
-predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<p>Parameters:</p>
+<ul>
+<li>
+<p>df_train (pandas dataframe): training data used to fit the model</p>
+</li>
+<li>
+<p>df_test (pandas dataframe): test data used to predict novelties</p>
+</li>
+<li>
+<p>contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)</p>
+</li>
+</ul>
+<p>Returns:</p>
+<p>predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -12624,11 +12973,15 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     This function performs novelty detection using Elliptic Envelope.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+    
+    - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     import pandas as pd
@@ -12637,13 +12990,17 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)</code></pre>
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.novelty_detection_lof"><code class="name flex">
@@ -12651,12 +13008,22 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
 </code></dt>
 <dd>
 <div class="desc"><p>This function performs novelty detection using Local Outlier Factor (LOF).</p>
-<p>Parameters:
-df_train (pandas dataframe): training data used to fit the model
-df_test (pandas dataframe): test data used to predict novelties
-n_neighbors (int): number of neighbors used to compute the LOF (default: 20)</p>
-<p>Returns:
-predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<p>Parameters:</p>
+<ul>
+<li>
+<p>df_train (pandas dataframe): training data used to fit the model</p>
+</li>
+<li>
+<p>df_test (pandas dataframe): test data used to predict novelties</p>
+</li>
+<li>
+<p>n_neighbors (int): number of neighbors used to compute the LOF (default: 20)</p>
+</li>
+</ul>
+<p>Returns:</p>
+<ul>
+<li>predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</li>
+</ul></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -12666,25 +13033,94 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
 
     Returns:
-    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
     &#34;&#34;&#34;
     from sklearn.neighbors import LocalOutlierFactor
     # Fit the model on the training data
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm=&#39;auto&#39;,contamination=&#39;auto&#39;, novelty=True)
-    clf.fit(df_train.values)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test.values)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)</code></pre>
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.novelty_detection_loop"><code class="name flex">
+<span>def <span class="ident">novelty_detection_loop</span></span>(<span>df_train, df_test, n_neighbors=20, distance_metric='minkowski')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function performs novelty detection using Local Outlier Factor (LOF).</p>
+<p>Parameters:</p>
+<ul>
+<li>
+<p>df_train (pandas dataframe): training data used to fit the model</p>
+</li>
+<li>
+<p>df_test (pandas dataframe): test data used to predict novelties</p>
+</li>
+<li>
+<p>n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)</p>
+</li>
+<li>
+<p>distance_metric : default minkowski</p>
+</li>
+</ul>
+<p>Returns:</p>
+<ul>
+<li>predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric=&#39;minkowski&#39;):
+    &#34;&#34;&#34;
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
+
+    - distance_metric : default minkowski
+
+    Returns:
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    
+    &#34;&#34;&#34;
+    from PyNomaly import loop
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    data = np.vstack( [scaler.transform(df_test),scaler.transform(df_train)])
+    neigh = NearestNeighbors(n_neighbors=n_neighbors, metric=distance_metric)
+    neigh.fit(data)
+    d, idx = neigh.kneighbors(data, return_distance=True)
+    m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
+    return m.local_outlier_probabilities[range(df_test.shape[0])]</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.novelty_detection_svm"><code class="name flex">
@@ -12692,13 +13128,23 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
 </code></dt>
 <dd>
 <div class="desc"><p>This function performs novelty detection using One-Class SVM.</p>
-<p>Parameters:
-df_train (pandas dataframe): training data used to fit the model
-df_test (pandas dataframe): test data used to predict novelties
-nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
-kernel (str): kernel type used in the SVM algorithm (default: 'rbf')</p>
-<p>Returns:
-predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
+<p>Parameters:</p>
+<ul>
+<li>
+<p>df_train (pandas dataframe): training data used to fit the model</p>
+</li>
+<li>
+<p>df_test (pandas dataframe): test data used to predict novelties</p>
+</li>
+<li>
+<p>nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)</p>
+</li>
+<li>
+<p>kernel (str): kernel type used in the SVM algorithm (default: 'rbf')</p>
+</li>
+</ul>
+<p>Returns:</p>
+<p>predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -12708,12 +13154,17 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     This function performs novelty detection using One-Class SVM.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
-    kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
+
+    - df_train (pandas dataframe): training data used to fit the model
+
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+
+    - kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     from sklearn.svm import OneClassSVM
@@ -12721,40 +13172,87 @@ predictions (pandas series): predicted labels for the test data (1 for novelties
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = OneClassSVM(nu=nu, kernel=kernel)
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)</code></pre>
+    if str(type(df_train))==&#34;&lt;class &#39;pandas.core.frame.DataFrame&#39;&gt;&#34;:
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.nrg_2_bids"><code class="name flex">
-<span>def <span class="ident">nrg_2_bids</span></span>(<span>x)</span>
+<span>def <span class="ident">nrg_2_bids</span></span>(<span>nrg_filename)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>convert nrg filename to bids path / filename</p></div>
+<div class="desc"><p>Convert an NRG filename to BIDS path/filename.</p>
+<p>Parameters:
+nrg_filename (str): The NRG filename to convert.</p>
+<p>Returns:
+str: The BIDS path/filename.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def nrg_2_bids( x ):
+<pre><code class="python">def nrg_2_bids( nrg_filename ):
     &#34;&#34;&#34;
-    convert nrg filename to bids path / filename
+    Convert an NRG filename to BIDS path/filename.
+
+    Parameters:
+    nrg_filename (str): The NRG filename to convert.
+
+    Returns:
+    str: The BIDS path/filename.
     &#34;&#34;&#34;
-    temp = parse_nrg_filename( os.path.basename(x) )
-    bidsmod=&#39;anat&#39;
-    if &#34;DTI&#34; in temp[&#39;modality&#39;] :
-        bidsmod=&#39;dwi&#39;
-    elif &#34;rsfMRI&#34; in temp[&#39;modality&#39;]:
-        bidsmod=&#39;func&#39;
-    return {
-        &#39;project&#39;:temp[&#39;project&#39;],
-        &#39;subjectID&#39;:&#39;sub-&#39;+temp[&#39;subjectID&#39;],
-        &#39;session&#39;:&#39;ses-&#39;+temp[&#39;date&#39;],
-        &#39;modality&#39;:bidsmod
-    }</code></pre>
+
+    # Split the NRG filename into its components
+    nrg_dirname, nrg_basename = os.path.split(nrg_filename)
+    nrg_suffix = &#39;.&#39; + nrg_basename.split(&#39;.&#39;,1)[-1]
+    nrg_basename = nrg_basename.replace(nrg_suffix, &#39;&#39;) # remove ext
+    nrg_parts = nrg_basename.split(&#39;-&#39;)
+    nrg_subject_id = nrg_parts[1]
+    nrg_modality = nrg_parts[3]
+    nrg_repeat= nrg_parts[4]
+
+    # Build the BIDS path/filename
+    bids_dirname = os.path.join(nrg_dirname, &#39;bids&#39;)
+    bids_subject = f&#39;sub-{nrg_subject_id}&#39;
+    bids_session = f&#39;ses-{nrg_repeat}&#39;
+
+    valid_modalities = get_valid_modalities()
+    if nrg_modality is not None:
+        if not nrg_modality in valid_modalities:
+            raise ValueError(&#39;nrg_modality &#39; + str(nrg_modality) + &#34; not a valid mm modality:  &#34; + get_valid_modalities(asString=True))
+
+    if nrg_modality == &#39;T1w&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;T1w&#39;
+
+    if nrg_modality == &#39;T2Flair&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;flair&#39;
+
+    if nrg_modality == &#39;NM2DMT&#39; :
+        bids_modality_folder = &#39;anat&#39;
+        bids_modality_filename = &#39;nm2dmt&#39;
+
+    if nrg_modality == &#39;DTI&#39; or nrg_modality == &#39;DTI_RL&#39; or nrg_modality == &#39;DTI_LR&#39; :
+        bids_modality_folder = &#39;dwi&#39;
+        bids_modality_filename = &#39;dwi&#39;
+
+    if nrg_modality == &#39;rsfMRI&#39; or nrg_modality == &#39;rsfMRI_RL&#39; or nrg_modality == &#39;rsfMRI_LR&#39; :
+        bids_modality_folder = &#39;func&#39;
+        bids_modality_filename = &#39;func&#39;
+
+    bids_suffix = nrg_suffix[1:]
+    bids_filename = f&#39;{bids_subject}_{bids_session}_{bids_modality_filename}.{bids_suffix}&#39;
+
+    # Return bids filepath/filename
+    return os.path.join(bids_dirname, bids_subject, bids_session, bids_modality_folder, bids_filename)</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.nrg_filelist_to_dataframe"><code class="name flex">
@@ -12915,29 +13413,33 @@ Higher values near 1 are more outlying.</p>
     &gt;&gt;&gt; df = pd.read_csv(&#39;data.csv&#39;)
     &gt;&gt;&gt; outlierness_by_modality(df)
     &#34;&#34;&#34;
+    from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
-    if uid not in qcdf.keys():
+    qcdfout = qcdf.copy()
+    if uid not in qcdfout.keys():
         raise ValueError(uid + &#34; not in dataframe&#34;)
-    if &#39;ol_loop&#39; not in qcdf.keys():
-        qcdf[&#39;ol_loop&#39;]=math.nan
-    if &#39;ol_lof&#39; not in qcdf.keys():
-        qcdf[&#39;ol_lof&#39;]=math.nan
-    for mod in [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;]:
+    if &#39;ol_loop&#39; not in qcdfout.keys():
+        qcdfout[&#39;ol_loop&#39;]=math.nan
+    if &#39;ol_lof&#39; not in qcdfout.keys():
+        qcdfout[&#39;ol_lof&#39;]=math.nan
+    for mod in get_valid_modalities( qc=True ):
         lof = LocalOutlierFactor()
-        if verbose:
-            print(mod)
-        locsel = qcdf[&#34;modality&#34;] == mod
-        rr = qcdf[locsel][outlier_columns]
-        temp = antspyt1w.loop_outlierness(rr, standardize=True, extent=3, n_neighbors=16, cluster_labels=None)
-        qcdf.loc[locsel,&#39;ol_loop&#39;]=temp
-        yhat = lof.fit_predict(rr)
-        temp = lof.negative_outlier_factor_*(-1.0)
-        temp = temp - temp.min()
-        yhat[ yhat == 1] = 0
-        yhat[ yhat == -1] = 1 # these are outliers
-        qcdf.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
-        qcdf.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
-    return qcdf</code></pre>
+        locsel = qcdfout[&#34;modality&#34;] == mod
+        rr = qcdfout[locsel][outlier_columns]
+        if rr.shape[0] &gt; 1:
+            if verbose:
+                print(mod)
+            myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
+            temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
+            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp
+            yhat = lof.fit_predict(rr)
+            temp = lof.negative_outlier_factor_*(-1.0)
+            temp = temp - temp.min()
+            yhat[ yhat == 1] = 0
+            yhat[ yhat == -1] = 1 # these are outliers
+            qcdfout.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
+            qcdfout.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
+    return qcdfout</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.parse_nrg_filename"><code class="name flex">
@@ -14768,6 +15270,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.blind_image_assessment" href="#antspymm.mm.blind_image_assessment">blind_image_assessment</a></code></li>
 <li><code><a title="antspymm.mm.boot_wmh" href="#antspymm.mm.boot_wmh">boot_wmh</a></code></li>
 <li><code><a title="antspymm.mm.bvec_reorientation" href="#antspymm.mm.bvec_reorientation">bvec_reorientation</a></code></li>
+<li><code><a title="antspymm.mm.collect_blind_qc_by_modality" href="#antspymm.mm.collect_blind_qc_by_modality">collect_blind_qc_by_modality</a></code></li>
 <li><code><a title="antspymm.mm.concat_dewarp" href="#antspymm.mm.concat_dewarp">concat_dewarp</a></code></li>
 <li><code><a title="antspymm.mm.crop_mcimage" href="#antspymm.mm.crop_mcimage">crop_mcimage</a></code></li>
 <li><code><a title="antspymm.mm.dewarp_imageset" href="#antspymm.mm.dewarp_imageset">dewarp_imageset</a></code></li>
@@ -14787,6 +15290,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.get_data" href="#antspymm.mm.get_data">get_data</a></code></li>
 <li><code><a title="antspymm.mm.get_models" href="#antspymm.mm.get_models">get_models</a></code></li>
 <li><code><a title="antspymm.mm.get_names_from_data_frame" href="#antspymm.mm.get_names_from_data_frame">get_names_from_data_frame</a></code></li>
+<li><code><a title="antspymm.mm.get_valid_modalities" href="#antspymm.mm.get_valid_modalities">get_valid_modalities</a></code></li>
 <li><code><a title="antspymm.mm.hierarchical_modality_summary" href="#antspymm.mm.hierarchical_modality_summary">hierarchical_modality_summary</a></code></li>
 <li><code><a title="antspymm.mm.higest_quality_repeat" href="#antspymm.mm.higest_quality_repeat">higest_quality_repeat</a></code></li>
 <li><code><a title="antspymm.mm.image_write_with_thumbnail" href="#antspymm.mm.image_write_with_thumbnail">image_write_with_thumbnail</a></code></li>
@@ -14809,6 +15313,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.neuromelanin" href="#antspymm.mm.neuromelanin">neuromelanin</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_ee" href="#antspymm.mm.novelty_detection_ee">novelty_detection_ee</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_lof" href="#antspymm.mm.novelty_detection_lof">novelty_detection_lof</a></code></li>
+<li><code><a title="antspymm.mm.novelty_detection_loop" href="#antspymm.mm.novelty_detection_loop">novelty_detection_loop</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_svm" href="#antspymm.mm.novelty_detection_svm">novelty_detection_svm</a></code></li>
 <li><code><a title="antspymm.mm.nrg_2_bids" href="#antspymm.mm.nrg_2_bids">nrg_2_bids</a></code></li>
 <li><code><a title="antspymm.mm.nrg_filelist_to_dataframe" href="#antspymm.mm.nrg_filelist_to_dataframe">nrg_filelist_to_dataframe</a></code></li>

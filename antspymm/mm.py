@@ -75,6 +75,7 @@ __all__ = ['version',
     'novelty_detection_svm',
     'novelty_detection_ee',
     'novelty_detection_lof',
+    'novelty_detection_loop',
     'generate_mm_dataframe',
     'wmh']
 
@@ -6820,11 +6821,15 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     This function performs novelty detection using Elliptic Envelope.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
+
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+    
+    - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     """
     import pandas as pd
@@ -6833,13 +6838,17 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     clf = EllipticEnvelope(contamination=contamination,support_fraction=1)
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)
+    if str(type(df_train))=="<class 'pandas.core.frame.DataFrame'>":
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
 
 
 
@@ -6848,12 +6857,17 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel='rbf'):
     This function performs novelty detection using One-Class SVM.
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
-    kernel (str): kernel type used in the SVM algorithm (default: 'rbf')
+
+    - df_train (pandas dataframe): training data used to fit the model
+
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - nu (float): parameter controlling the fraction of training errors and the fraction of support vectors (default: 0.05)
+
+    - kernel (str): kernel type used in the SVM algorithm (default: 'rbf')
 
     Returns:
+    
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     """
     from sklearn.svm import OneClassSVM
@@ -6861,13 +6875,17 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel='rbf'):
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = OneClassSVM(nu=nu, kernel=kernel)
-    clf.fit(df_train)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)
+    if str(type(df_train))=="<class 'pandas.core.frame.DataFrame'>":
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
 
 
 
@@ -6876,22 +6894,63 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    df_train (pandas dataframe): training data used to fit the model
-    df_test (pandas dataframe): test data used to predict novelties
-    n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
 
     Returns:
-    predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+
     """
     from sklearn.neighbors import LocalOutlierFactor
     # Fit the model on the training data
     df_train[ df_train == math.inf ] = 0
     df_test[ df_test == math.inf ] = 0
     clf = LocalOutlierFactor(n_neighbors=n_neighbors, algorithm='auto',contamination='auto', novelty=True)
-    clf.fit(df_train.values)
-
-    # Predict novelties on the test data
-    predictions = clf.predict(df_test.values)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    clf.fit(scaler.transform(df_train))
+    predictions = clf.predict(scaler.transform(df_test))
     predictions[predictions==1]=0
     predictions[predictions==-1]=1
-    return pd.Series(predictions, index=df_test.index)
+    if str(type(df_train))=="<class 'pandas.core.frame.DataFrame'>":
+        return pd.Series(predictions, index=df_test.index)
+    else:
+        return pd.Series(predictions)
+
+
+def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric='minkowski'):
+    """
+    This function performs novelty detection using Local Outlier Factor (LOF).
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
+
+    - distance_metric : default minkowski
+
+    Returns:
+
+    - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
+    
+    """
+    from PyNomaly import loop
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    scaler.fit(df_train)
+    data = np.vstack( [scaler.transform(df_test),scaler.transform(df_train)])
+    neigh = NearestNeighbors(n_neighbors=n_neighbors, metric=distance_metric)
+    neigh.fit(data)
+    d, idx = neigh.kneighbors(data, return_distance=True)
+    m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
+    return m.local_outlier_probabilities[range(df_test.shape[0])]
