@@ -375,13 +375,15 @@ def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
 
     return os.path.join(project_name, nrg_subject_id, date, nrg_modality, nrg_image_id,nrg_filename)
 
-def collect_blind_qc_by_modality( modality_path ):
+def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
     """
     Collects blind QC data from multiple CSV files with the same modality.
 
     Args:
 
     modality_path (str): The path to the folder containing the CSV files.
+
+    set_index_to_fn: boolean
 
     Returns:
     Pandas DataFrame: A DataFrame containing all the blind QC data from the CSV files.
@@ -392,7 +394,14 @@ def collect_blind_qc_by_modality( modality_path ):
     jdf = pd.DataFrame()
     for k in range(len(fns)):
         temp=pd.read_csv(fns[k])
+        if not 'fn' in temp.keys():
+            temp['fn']=fns[k]
         jdf=pd.concat( [jdf,temp])
+    if set_index_to_fn:
+        jdf.reset_index(drop=True)
+        if "Unnamed: 0" in jdf.columns:
+            holder=jdf.pop( "Unnamed: 0" )
+        jdf.set_index('fn')
     return jdf
 
 
