@@ -103,6 +103,7 @@
     &#39;novelty_detection_ee&#39;,
     &#39;novelty_detection_lof&#39;,
     &#39;novelty_detection_loop&#39;,
+    &#39;novelty_detection_quantile&#39;,
     &#39;generate_mm_dataframe&#39;,
     &#39;wmh&#39;]
 
@@ -6980,7 +6981,34 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric=&#
     neigh.fit(data)
     d, idx = neigh.kneighbors(data, return_distance=True)
     m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
-    return m.local_outlier_probabilities[range(df_test.shape[0])]</code></pre>
+    return m.local_outlier_probabilities[range(df_test.shape[0])]
+
+
+
+def novelty_detection_quantile(df_train, df_test):
+    &#34;&#34;&#34;
+    This function performs novelty detection using quantiles for each column.
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    Returns:
+
+    - quantiles for the test sample at each column where values range in [0,1] 
+        and higher values mean the column is closer to the edge of the distribution
+    
+    &#34;&#34;&#34;
+    myqs = df_test.copy()
+    n = df_train.shape[0]
+    df_trainkeys = df_train.keys()
+    for k in range( df_train.shape[1] ):
+        mykey = df_trainkeys[k]
+        temp = (myqs[mykey][0] &gt;  df_train[mykey]).sum() / n
+        myqs[mykey] = abs( temp - 0.5 ) / 0.5
+    return myqs</code></pre>
 </details>
 </section>
 <section>
@@ -13123,6 +13151,55 @@ by histogram matching - ants.histogram_match_image</dd>
     return m.local_outlier_probabilities[range(df_test.shape[0])]</code></pre>
 </details>
 </dd>
+<dt id="antspymm.mm.novelty_detection_quantile"><code class="name flex">
+<span>def <span class="ident">novelty_detection_quantile</span></span>(<span>df_train, df_test)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function performs novelty detection using quantiles for each column.</p>
+<p>Parameters:</p>
+<ul>
+<li>
+<p>df_train (pandas dataframe): training data used to fit the model</p>
+</li>
+<li>
+<p>df_test (pandas dataframe): test data used to predict novelties</p>
+</li>
+</ul>
+<p>Returns:</p>
+<ul>
+<li>quantiles for the test sample at each column where values range in [0,1]
+and higher values mean the column is closer to the edge of the distribution</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def novelty_detection_quantile(df_train, df_test):
+    &#34;&#34;&#34;
+    This function performs novelty detection using quantiles for each column.
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    Returns:
+
+    - quantiles for the test sample at each column where values range in [0,1] 
+        and higher values mean the column is closer to the edge of the distribution
+    
+    &#34;&#34;&#34;
+    myqs = df_test.copy()
+    n = df_train.shape[0]
+    df_trainkeys = df_train.keys()
+    for k in range( df_train.shape[1] ):
+        mykey = df_trainkeys[k]
+        temp = (myqs[mykey][0] &gt;  df_train[mykey]).sum() / n
+        myqs[mykey] = abs( temp - 0.5 ) / 0.5
+    return myqs</code></pre>
+</details>
+</dd>
 <dt id="antspymm.mm.novelty_detection_svm"><code class="name flex">
 <span>def <span class="ident">novelty_detection_svm</span></span>(<span>df_train, df_test, nu=0.05, kernel='rbf')</span>
 </code></dt>
@@ -15314,6 +15391,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.novelty_detection_ee" href="#antspymm.mm.novelty_detection_ee">novelty_detection_ee</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_lof" href="#antspymm.mm.novelty_detection_lof">novelty_detection_lof</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_loop" href="#antspymm.mm.novelty_detection_loop">novelty_detection_loop</a></code></li>
+<li><code><a title="antspymm.mm.novelty_detection_quantile" href="#antspymm.mm.novelty_detection_quantile">novelty_detection_quantile</a></code></li>
 <li><code><a title="antspymm.mm.novelty_detection_svm" href="#antspymm.mm.novelty_detection_svm">novelty_detection_svm</a></code></li>
 <li><code><a title="antspymm.mm.nrg_2_bids" href="#antspymm.mm.nrg_2_bids">nrg_2_bids</a></code></li>
 <li><code><a title="antspymm.mm.nrg_filelist_to_dataframe" href="#antspymm.mm.nrg_filelist_to_dataframe">nrg_filelist_to_dataframe</a></code></li>

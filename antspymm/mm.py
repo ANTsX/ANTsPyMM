@@ -76,6 +76,7 @@ __all__ = ['version',
     'novelty_detection_ee',
     'novelty_detection_lof',
     'novelty_detection_loop',
+    'novelty_detection_quantile',
     'generate_mm_dataframe',
     'wmh']
 
@@ -6954,3 +6955,30 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric='m
     d, idx = neigh.kneighbors(data, return_distance=True)
     m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
     return m.local_outlier_probabilities[range(df_test.shape[0])]
+
+
+
+def novelty_detection_quantile(df_train, df_test):
+    """
+    This function performs novelty detection using quantiles for each column.
+
+    Parameters:
+    
+    - df_train (pandas dataframe): training data used to fit the model
+    
+    - df_test (pandas dataframe): test data used to predict novelties
+
+    Returns:
+
+    - quantiles for the test sample at each column where values range in [0,1] 
+        and higher values mean the column is closer to the edge of the distribution
+    
+    """
+    myqs = df_test.copy()
+    n = df_train.shape[0]
+    df_trainkeys = df_train.keys()
+    for k in range( df_train.shape[1] ):
+        mykey = df_trainkeys[k]
+        temp = (myqs[mykey][0] >  df_train[mykey]).sum() / n
+        myqs[mykey] = abs( temp - 0.5 ) / 0.5
+    return myqs
