@@ -252,6 +252,8 @@ pdoc -o ./docs antspymm --html
 ## to publish a release
 
 ```
-python3 -m build
-python -m twine upload -u username -p password  dist/*
+rm -r -f build/ antspymm.egg-info/ dist/
+python3 setup.py sdist bdist_wheel
+python3 -m twine upload -u username -p password  dist/*
 ```
+
