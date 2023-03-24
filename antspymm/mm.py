@@ -94,7 +94,7 @@ import random
 import functools
 from operator import mul
 from scipy.sparse.linalg import svds
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, zscore
 import re
 import datetime as dt
 from collections import Counter
@@ -3987,6 +3987,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['brainmask'] = bmask
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
+  outdict['alff_raw'] = myfalff['alff_raw']
+  outdict['falff_raw'] = myfalff['falff_raw']
   for k in range(1,270):
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
@@ -4011,6 +4013,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
   outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
+  outdict['high_motion_pct'] = (rsfNuisance['FD'] > 0.5 ).sum() / rsfNuisance.shape[0]
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
@@ -4534,6 +4537,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
         mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
+        mm_wide['rsf_high_motion_pct'] = rsfpro['rsf_high_motion_pct']
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
@@ -5850,9 +5854,13 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
         temp = alffmap( xmat[:,n], flo=flo, fhi=fhi, tr=mytr )
         alffvec[n]=temp['alff']
         falffvec[n]=temp['falff']
-    alffi=ants.make_image( mask, alffvec )
-    falffi=ants.make_image( mask, falffvec )
-    return {  'alff':alffi, 'falff': falffi }
+    alffvecZ=zscore(alffvec)
+    falffvecZ=zscore(falffvec)
+    alffi=ants.make_image( mask, alffvecZ )
+    falffi=ants.make_image( mask, falffvecZ )
+    alffi_raw=ants.make_image( mask, alffvec )
+    falffi_raw=ants.make_image( mask, falffvec )
+    return {  'alff': alffi, 'falff': falffi, 'alff_raw': alffi_raw , 'falff_raw': falffi_raw }
 
 
 def down2iso( x, interpolation='linear', takemin=False ):
