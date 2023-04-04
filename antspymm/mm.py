@@ -94,7 +94,7 @@ import random
 import functools
 from operator import mul
 from scipy.sparse.linalg import svds
-from scipy.stats import pearsonr, zscore
+from scipy.stats import pearsonr
 import re
 import datetime as dt
 from collections import Counter
@@ -3779,7 +3779,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN',
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN',
     verbose=False ):
 
   """
@@ -3987,8 +3987,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['brainmask'] = bmask
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
-  outdict['alff_raw'] = myfalff['alff_raw']
-  outdict['falff_raw'] = myfalff['falff_raw']
+  # add global mean and standard deviation for post-hoc z-scoring
+  outdict['alff_mean'] = (myfalff['alff'][myfalff['alff']!=0]).mean()
+  outdict['alff_sd'] = (myfalff['alff'][myfalff['alff']!=0]).std()
+  outdict['falff_mean'] = (myfalff['falff'][myfalff['falff']!=0]).mean()
+  outdict['falff_sd'] = (myfalff['falff'][myfalff['falff']!=0]).std()
+
   for k in range(1,270):
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
@@ -4012,8 +4016,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
-  outdict['high_motion_count'] = (rsfNuisance['FD'] > 0.5 ).sum()
-  outdict['high_motion_pct'] = (rsfNuisance['FD'] > 0.5 ).sum() / rsfNuisance.shape[0]
+  outdict['high_motion_count'] = (rsfNuisance['FD'] > FD_threshold ).sum()
+  outdict['high_motion_pct'] = (rsfNuisance['FD'] > FD_threshold ).sum() / rsfNuisance.shape[0]
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
@@ -4541,6 +4545,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
+        mm_wide['rsf_alff_mean'] = rsfpro['alff_mean']
+        mm_wide['rsf_alff_sd'] = rsfpro['alff_sd']
+        mm_wide['rsf_falff_mean'] = rsfpro['falff_mean']
+        mm_wide['rsf_falff_sd'] = rsfpro['falff_sd']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
         # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
@@ -5854,13 +5862,9 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
         temp = alffmap( xmat[:,n], flo=flo, fhi=fhi, tr=mytr )
         alffvec[n]=temp['alff']
         falffvec[n]=temp['falff']
-    alffvecZ=zscore(alffvec)
-    falffvecZ=zscore(falffvec)
-    alffi=ants.make_image( mask, alffvecZ )
-    falffi=ants.make_image( mask, falffvecZ )
-    alffi_raw=ants.make_image( mask, alffvec )
-    falffi_raw=ants.make_image( mask, falffvec )
-    return {  'alff': alffi, 'falff': falffi, 'alff_raw': alffi_raw , 'falff_raw': falffi_raw }
+    alffi=ants.make_image( mask, alffvec )
+    falffi=ants.make_image( mask, falffvec )
+    return {  'alff': alffi, 'falff': falffi }
 
 
 def down2iso( x, interpolation='linear', takemin=False ):
@@ -6832,13 +6836,13 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     Parameters:
 
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
-    
+
     - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     """
     import pandas as pd
@@ -6876,7 +6880,7 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel='rbf'):
     - kernel (str): kernel type used in the SVM algorithm (default: 'rbf')
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     """
     from sklearn.svm import OneClassSVM
@@ -6903,9 +6907,9 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
@@ -6938,9 +6942,9 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric='m
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
@@ -6950,7 +6954,7 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric='m
     Returns:
 
     - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
-    
+
     """
     from PyNomaly import loop
     from sklearn.neighbors import NearestNeighbors
@@ -6971,16 +6975,16 @@ def novelty_detection_quantile(df_train, df_test):
     This function performs novelty detection using quantiles for each column.
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     Returns:
 
-    - quantiles for the test sample at each column where values range in [0,1] 
+    - quantiles for the test sample at each column where values range in [0,1]
         and higher values mean the column is closer to the edge of the distribution
-    
+
     """
     myqs = df_test.copy()
     n = df_train.shape[0]
