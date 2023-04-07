@@ -5241,8 +5241,8 @@ def mm_csv(
     if not exists( t1fn ):
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
     t1 = mm_read( t1fn )
-    hierfn = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchical" + iid + mysep
-    hierfnSR = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + iid + mysep
+    hierfn = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
+    hierfnSR = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
     hierfntest = hierfn + 'snseg.csv'
     if verbose:
         print( hierfntest )
