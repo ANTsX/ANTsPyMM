@@ -862,7 +862,7 @@ def timeseries_reg(
     avg_b0,
     type_of_transform="Rigid",
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 0,
     output_directory=None,
     verbose=False, **kwargs
@@ -1116,7 +1116,7 @@ def dti_reg(
     b0_idx=None,
     type_of_transform="Rigid",
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -1341,7 +1341,7 @@ def mc_reg(
     type_of_transform="Rigid",
     mask=None,
     total_sigma=3.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -3829,7 +3829,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fmri, fmri_template,
     type_of_transform=type_of_transform,
     total_sigma=0.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 8,
     output_directory=None,
     verbose=False,
@@ -4541,7 +4541,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
         mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
         mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
-        mm_wide['rsf_high_motion_pct'] = rsfpro['rsf_high_motion_pct']
+        # mm_wide['rsf_high_motion_pct'] = rsfpro['rsf_high_motion_pct'] # BUG : rsf_high_motion_pct does not exist
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
