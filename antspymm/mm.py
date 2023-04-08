@@ -5227,7 +5227,7 @@ def mm_csv(
                     iid = re.sub( ".nii.gz", "", mysplit[len(mysplit)-1] )
                     iid = re.sub( ".mha", "", iid )
                     iid = re.sub( ".nii", "", iid )
-                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
+                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print("VERBOSE in docsamson")
             print( locmod )
