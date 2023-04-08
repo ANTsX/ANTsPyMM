@@ -183,6 +183,7 @@ fns = glob.glob("imagesBIDS/ANTPD/sub-RC4125/ses-*/*/*gz")
 fns.sort()
 randid='000' # BIDS does not have unique image ids - so we assign one
 studycsv = antspymm.generate_mm_dataframe(
+    'ANTPD',
     'sub-RC4125',
     'ses-1',
     randid,
@@ -226,9 +227,11 @@ import antspymm
 import pandas as pd
 import glob as glob
 t1fn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*T1w*gz")[0]
+# flair also takes a single image
 dtfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*DTI*gz")
 rsfn=glob.glob("imagesNRG/ANTPD/sub-RC4125/ses-*/*/*/*rsfMRI*gz")
 studycsv = antspymm.generate_mm_dataframe(
+    'ANTPD',
     'sub-RC4125',
     'ses-1',
     '000',
@@ -256,4 +259,3 @@ rm -r -f build/ antspymm.egg-info/ dist/
 python3 setup.py sdist bdist_wheel
 python3 -m twine upload -u username -p password  dist/*
 ```
-

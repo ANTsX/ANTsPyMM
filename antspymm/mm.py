@@ -170,6 +170,7 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
         return mymodchar
 
 def generate_mm_dataframe(
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -228,6 +229,7 @@ def generate_mm_dataframe(
             if not exists( k ):
                 raise ValueError( "image " + k + " does not exist")
     coredata = [
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -239,6 +241,7 @@ def generate_mm_dataframe(
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
+        'projectID',
         'subjectID',
         'date',
         'imageID',
@@ -5157,7 +5160,7 @@ def mm_csv(
     nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] < 1:
         raise ValueError('studycsv has no rows')
-    musthavecols = ['subjectID','date','imageID','modality','sourcedir','outputdir','filename']
+    musthavecols = ['projectID', 'subjectID','date','imageID','modality','sourcedir','outputdir','filename']
     for k in range(len(musthavecols)):
         if not musthavecols[k] in studycsv.keys():
             raise ValueError('studycsv is missing column ' +musthavecols[k] )
@@ -5179,7 +5182,8 @@ def mm_csv(
     if test_run:
         visualize=False
     # get sid and dtid from studycsv
-    # musthavecols = ['subjectID','date','imageID','modality','sourcedir','outputdir','filename']
+    # musthavecols = ['projectID','subjectID','date','imageID','modality','sourcedir','outputdir','filename']
+    projid = str(studycsv['projectID'].iloc[0])
     sid = str(studycsv['subjectID'].iloc[0])
     dtid = str(studycsv['date'].iloc[0])
     iid = str(studycsv['imageID'].iloc[0])
@@ -5223,7 +5227,7 @@ def mm_csv(
                     iid = re.sub( ".nii.gz", "", mysplit[len(mysplit)-1] )
                     iid = re.sub( ".mha", "", iid )
                     iid = re.sub( ".nii", "", iid )
-                    myoutputPrefix = outputdir + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + sid + mysep + dtid + mysep + locmod + mysep + iid
+                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print("VERBOSE in docsamson")
             print( locmod )
@@ -5241,8 +5245,8 @@ def mm_csv(
     if not exists( t1fn ):
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
     t1 = mm_read( t1fn )
-    hierfn = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
-    hierfnSR = outputdir + "/" + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
+    hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
+    hierfnSR = outputdir + "/" + projid + "/"  + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
     hierfntest = hierfn + 'snseg.csv'
     if verbose:
         print( hierfntest )
@@ -5948,7 +5952,7 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
         xdf.columns=colprefix + xdf.columns
     return pd.concat( [df,xdf], axis=1 )
 
-def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
+def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator='-', progress=None, verbose=False ):
     moddersub = re.sub( "[*]","",nrg_modality)
     nmdf=pd.DataFrame()
     for k in range( hierdfin.shape[0] ):
@@ -5963,12 +5967,12 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
         fnsnm = glob.glob(myparts+"/" + nrg_modality + "/*/*" + t1iid + "*wide.csv")
         if len( fnsnm ) > 0 :
             for y in fnsnm:
-                temp=read_mm_csv( y, colprefix=moddersub+'_', is_t1=False, verbose=verbose )
+                temp=read_mm_csv( y, colprefix=moddersub+'_', is_t1=False, separator=separator, verbose=verbose )
                 if temp is not None:
                     nmdf=pd.concat( [nmdf, temp], axis=0)
     return nmdf
 
-def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
+def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator='-', verbose = 0 ) :
     """
     will convert a list of t1w hierarchical csv filenames to a merged dataframe
 
@@ -5988,7 +5992,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
     # 3. merge the modalities by the keys
     hierdf = pd.DataFrame()
     for y in mm_wide_csvs:
-        temp=read_mm_csv( y, colprefix='T1Hier_', is_t1=True )
+        temp=read_mm_csv( y, colprefix='T1Hier_', separator=separator, is_t1=True )
         if temp is not None:
             hierdf=pd.concat( [hierdf, temp], axis=0)
     if verbose > 0:
