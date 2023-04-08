@@ -197,6 +197,7 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
         return mymodchar
 
 def generate_mm_dataframe(
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -255,6 +256,7 @@ def generate_mm_dataframe(
             if not exists( k ):
                 raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
     coredata = [
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -266,6 +268,7 @@ def generate_mm_dataframe(
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
+        &#39;projectID&#39;,
         &#39;subjectID&#39;,
         &#39;date&#39;,
         &#39;imageID&#39;,
@@ -889,7 +892,7 @@ def timeseries_reg(
     avg_b0,
     type_of_transform=&#34;Rigid&#34;,
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 0,
     output_directory=None,
     verbose=False, **kwargs
@@ -1143,7 +1146,7 @@ def dti_reg(
     b0_idx=None,
     type_of_transform=&#34;Rigid&#34;,
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -1368,7 +1371,7 @@ def mc_reg(
     type_of_transform=&#34;Rigid&#34;,
     mask=None,
     total_sigma=3.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -3806,7 +3809,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
     verbose=False ):
 
   &#34;&#34;&#34;
@@ -3856,7 +3859,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fmri, fmri_template,
     type_of_transform=type_of_transform,
     total_sigma=0.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 8,
     output_directory=None,
     verbose=False,
@@ -4014,6 +4017,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict[&#39;brainmask&#39;] = bmask
   outdict[&#39;alff&#39;] = myfalff[&#39;alff&#39;]
   outdict[&#39;falff&#39;] = myfalff[&#39;falff&#39;]
+  # add global mean and standard deviation for post-hoc z-scoring
+  outdict[&#39;alff_mean&#39;] = (myfalff[&#39;alff&#39;][myfalff[&#39;alff&#39;]!=0]).mean()
+  outdict[&#39;alff_sd&#39;] = (myfalff[&#39;alff&#39;][myfalff[&#39;alff&#39;]!=0]).std()
+  outdict[&#39;falff_mean&#39;] = (myfalff[&#39;falff&#39;][myfalff[&#39;falff&#39;]!=0]).mean()
+  outdict[&#39;falff_sd&#39;] = (myfalff[&#39;falff&#39;][myfalff[&#39;falff&#39;]!=0]).std()
+
   for k in range(1,270):
     anatname=( pts2bold[&#39;AAL&#39;][k] )
     if isinstance(anatname, str):
@@ -4037,7 +4046,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict[&#39;tsnr&#39;] = mytsnr
   outdict[&#39;ssnr&#39;] = slice_snr( corrmo[&#39;motion_corrected&#39;], csfAndWM, gmseg )
   outdict[&#39;dvars&#39;] = dvars( corrmo[&#39;motion_corrected&#39;], gmseg )
-  outdict[&#39;high_motion_count&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; 0.5 ).sum()
+  outdict[&#39;high_motion_count&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; FD_threshold ).sum()
+  outdict[&#39;high_motion_pct&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; FD_threshold ).sum() / rsfNuisance.shape[0]
   outdict[&#39;FD_max&#39;] = rsfNuisance[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = rsfNuisance[&#39;FD&#39;].mean()
   outdict[&#39;bold_evr&#39;] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
@@ -4561,9 +4571,14 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator=&#39;_&#39
         mm_wide[&#39;rsf_dvars_mean&#39;] =  rsfpro[&#39;dvars&#39;].mean()
         mm_wide[&#39;rsf_ssnr_mean&#39;] =  rsfpro[&#39;ssnr&#39;].mean()
         mm_wide[&#39;rsf_high_motion_count&#39;] =  rsfpro[&#39;high_motion_count&#39;]
+        # mm_wide[&#39;rsf_high_motion_pct&#39;] = rsfpro[&#39;rsf_high_motion_pct&#39;] # BUG : rsf_high_motion_pct does not exist
         mm_wide[&#39;rsf_evr&#39;] =  rsfpro[&#39;bold_evr&#39;]
         mm_wide[&#39;rsf_FD_mean&#39;] = rsfpro[&#39;FD_mean&#39;]
         mm_wide[&#39;rsf_FD_max&#39;] = rsfpro[&#39;FD_max&#39;]
+        mm_wide[&#39;rsf_alff_mean&#39;] = rsfpro[&#39;alff_mean&#39;]
+        mm_wide[&#39;rsf_alff_sd&#39;] = rsfpro[&#39;alff_sd&#39;]
+        mm_wide[&#39;rsf_falff_mean&#39;] = rsfpro[&#39;falff_mean&#39;]
+        mm_wide[&#39;rsf_falff_sd&#39;] = rsfpro[&#39;falff_sd&#39;]
         ofn = output_prefix + separator + &#39;rsfcorr.csv&#39;
         rsfpro[&#39;corr&#39;].to_csv( ofn )
         # apply same principle to new correlation matrix, doesn&#39;t need to be incorporated with mm_wide
@@ -5172,7 +5187,7 @@ def mm_csv(
     nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] &lt; 1:
         raise ValueError(&#39;studycsv has no rows&#39;)
-    musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
     for k in range(len(musthavecols)):
         if not musthavecols[k] in studycsv.keys():
             raise ValueError(&#39;studycsv is missing column &#39; +musthavecols[k] )
@@ -5194,7 +5209,8 @@ def mm_csv(
     if test_run:
         visualize=False
     # get sid and dtid from studycsv
-    # musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    # musthavecols = [&#39;projectID&#39;,&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    projid = str(studycsv[&#39;projectID&#39;].iloc[0])
     sid = str(studycsv[&#39;subjectID&#39;].iloc[0])
     dtid = str(studycsv[&#39;date&#39;].iloc[0])
     iid = str(studycsv[&#39;imageID&#39;].iloc[0])
@@ -5238,7 +5254,7 @@ def mm_csv(
                     iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
                     iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
                     iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
-                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid
+                    myoutputPrefix = outputdir + &#34;/&#34; + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print(&#34;VERBOSE in docsamson&#34;)
             print( locmod )
@@ -5256,8 +5272,8 @@ def mm_csv(
     if not exists( t1fn ):
         raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
     t1 = mm_read( t1fn )
-    hierfn = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + iid + mysep
-    hierfnSR = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + iid + mysep
+    hierfn = outputdir + &#34;/&#34;  + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + mysep + iid + mysep
+    hierfnSR = outputdir + &#34;/&#34; + projid + &#34;/&#34;  + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + mysep + iid + mysep
     hierfntest = hierfn + &#39;snseg.csv&#39;
     if verbose:
         print( hierfntest )
@@ -5879,7 +5895,7 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
         falffvec[n]=temp[&#39;falff&#39;]
     alffi=ants.make_image( mask, alffvec )
     falffi=ants.make_image( mask, falffvec )
-    return {  &#39;alff&#39;:alffi, &#39;falff&#39;: falffi }
+    return {  &#39;alff&#39;: alffi, &#39;falff&#39;: falffi }
 
 
 def down2iso( x, interpolation=&#39;linear&#39;, takemin=False ):
@@ -5963,7 +5979,7 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator=&#39;-&#39;, verbose=
         xdf.columns=colprefix + xdf.columns
     return pd.concat( [df,xdf], axis=1 )
 
-def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
+def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator=&#39;-&#39;, progress=None, verbose=False ):
     moddersub = re.sub( &#34;[*]&#34;,&#34;&#34;,nrg_modality)
     nmdf=pd.DataFrame()
     for k in range( hierdfin.shape[0] ):
@@ -5978,12 +5994,12 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
         fnsnm = glob.glob(myparts+&#34;/&#34; + nrg_modality + &#34;/*/*&#34; + t1iid + &#34;*wide.csv&#34;)
         if len( fnsnm ) &gt; 0 :
             for y in fnsnm:
-                temp=read_mm_csv( y, colprefix=moddersub+&#39;_&#39;, is_t1=False, verbose=verbose )
+                temp=read_mm_csv( y, colprefix=moddersub+&#39;_&#39;, is_t1=False, separator=separator, verbose=verbose )
                 if temp is not None:
                     nmdf=pd.concat( [nmdf, temp], axis=0)
     return nmdf
 
-def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
+def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator=&#39;-&#39;, verbose = 0 ) :
     &#34;&#34;&#34;
     will convert a list of t1w hierarchical csv filenames to a merged dataframe
 
@@ -6003,7 +6019,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
     # 3. merge the modalities by the keys
     hierdf = pd.DataFrame()
     for y in mm_wide_csvs:
-        temp=read_mm_csv( y, colprefix=&#39;T1Hier_&#39;, is_t1=True )
+        temp=read_mm_csv( y, colprefix=&#39;T1Hier_&#39;, separator=separator, is_t1=True )
         if temp is not None:
             hierdf=pd.concat( [hierdf, temp], axis=0)
     if verbose &gt; 0:
@@ -6851,13 +6867,13 @@ def novelty_detection_ee(df_train, df_test, contamination=0.05):
     Parameters:
 
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
-    
+
     - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     import pandas as pd
@@ -6895,7 +6911,7 @@ def novelty_detection_svm(df_train, df_test, nu=0.05, kernel=&#39;rbf&#39;):
     - kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     from sklearn.svm import OneClassSVM
@@ -6922,9 +6938,9 @@ def novelty_detection_lof(df_train, df_test, n_neighbors=20):
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
@@ -6957,9 +6973,9 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric=&#
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
@@ -6969,7 +6985,7 @@ def novelty_detection_loop(df_train, df_test, n_neighbors=20, distance_metric=&#
     Returns:
 
     - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
-    
+
     &#34;&#34;&#34;
     from PyNomaly import loop
     from sklearn.neighbors import NearestNeighbors
@@ -6990,16 +7006,16 @@ def novelty_detection_quantile(df_train, df_test):
     This function performs novelty detection using quantiles for each column.
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     Returns:
 
-    - quantiles for the test sample at each column where values range in [0,1] 
+    - quantiles for the test sample at each column where values range in [0,1]
         and higher values mean the column is closer to the edge of the distribution
-    
+
     &#34;&#34;&#34;
     myqs = df_test.copy()
     n = df_train.shape[0]
@@ -7064,7 +7080,7 @@ nuisance - optional nuisance matrix</p>
         falffvec[n]=temp[&#39;falff&#39;]
     alffi=ants.make_image( mask, alffvec )
     falffi=ants.make_image( mask, falffvec )
-    return {  &#39;alff&#39;:alffi, &#39;falff&#39;: falffi }</code></pre>
+    return {  &#39;alff&#39;: alffi, &#39;falff&#39;: falffi }</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.alffmap"><code class="name flex">
@@ -7111,7 +7127,7 @@ detrend detrend the input time series</p>
 </details>
 </dd>
 <dt id="antspymm.mm.assemble_modality_specific_dataframes"><code class="name flex">
-<span>def <span class="ident">assemble_modality_specific_dataframes</span></span>(<span>mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False)</span>
+<span>def <span class="ident">assemble_modality_specific_dataframes</span></span>(<span>mm_wide_csvs, hierdfin, nrg_modality, separator='-', progress=None, verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -7119,7 +7135,7 @@ detrend detrend the input time series</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, progress=None, verbose=False ):
+<pre><code class="python">def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator=&#39;-&#39;, progress=None, verbose=False ):
     moddersub = re.sub( &#34;[*]&#34;,&#34;&#34;,nrg_modality)
     nmdf=pd.DataFrame()
     for k in range( hierdfin.shape[0] ):
@@ -7134,7 +7150,7 @@ detrend detrend the input time series</p>
         fnsnm = glob.glob(myparts+&#34;/&#34; + nrg_modality + &#34;/*/*&#34; + t1iid + &#34;*wide.csv&#34;)
         if len( fnsnm ) &gt; 0 :
             for y in fnsnm:
-                temp=read_mm_csv( y, colprefix=moddersub+&#39;_&#39;, is_t1=False, verbose=verbose )
+                temp=read_mm_csv( y, colprefix=moddersub+&#39;_&#39;, is_t1=False, separator=separator, verbose=verbose )
                 if temp is not None:
                     nmdf=pd.concat( [nmdf, temp], axis=0)
     return nmdf</code></pre>
@@ -7537,7 +7553,7 @@ str: The NRG path/filename.</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.bind_wide_mm_csvs"><code class="name flex">
-<span>def <span class="ident">bind_wide_mm_csvs</span></span>(<span>mm_wide_csvs, merge=True, verbose=0)</span>
+<span>def <span class="ident">bind_wide_mm_csvs</span></span>(<span>mm_wide_csvs, merge=True, separator='-', verbose=0)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>will convert a list of t1w hierarchical csv filenames to a merged dataframe</p>
@@ -7549,7 +7565,7 @@ right side having row averaged entries i.e. unique values for each visit</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def bind_wide_mm_csvs( mm_wide_csvs, merge=True, verbose = 0 ) :
+<pre><code class="python">def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator=&#39;-&#39;, verbose = 0 ) :
     &#34;&#34;&#34;
     will convert a list of t1w hierarchical csv filenames to a merged dataframe
 
@@ -7569,7 +7585,7 @@ right side having row averaged entries i.e. unique values for each visit</p>
     # 3. merge the modalities by the keys
     hierdf = pd.DataFrame()
     for y in mm_wide_csvs:
-        temp=read_mm_csv( y, colprefix=&#39;T1Hier_&#39;, is_t1=True )
+        temp=read_mm_csv( y, colprefix=&#39;T1Hier_&#39;, separator=separator, is_t1=True )
         if temp is not None:
             hierdf=pd.concat( [hierdf, temp], axis=0)
     if verbose &gt; 0:
@@ -8470,7 +8486,7 @@ could lead to problems if the inputs are really incorrect.</dd>
 </details>
 </dd>
 <dt id="antspymm.mm.dti_reg"><code class="name flex">
-<span>def <span class="ident">dti_reg</span></span>(<span>image, avg_b0, avg_dwi, bvals=None, bvecs=None, b0_idx=None, type_of_transform='Rigid', total_sigma=1.0, fdOffset=10.0, output_directory=None, verbose=False, **kwargs)</span>
+<span>def <span class="ident">dti_reg</span></span>(<span>image, avg_b0, avg_dwi, bvals=None, bvecs=None, b0_idx=None, type_of_transform='Rigid', total_sigma=1.0, fdOffset=2.0, output_directory=None, verbose=False, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Correct time-series data for motion - with deformation.</p>
@@ -8526,7 +8542,7 @@ kwargs: keyword args
     b0_idx=None,
     type_of_transform=&#34;Rigid&#34;,
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -9522,7 +9538,7 @@ mask is the initial mask minus the eroded mask.</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.generate_mm_dataframe"><code class="name flex">
-<span>def <span class="ident">generate_mm_dataframe</span></span>(<span>subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, t1_filename, flair_filename=None, rsf_filenames=[], dti_filenames=[], nm_filenames=[])</span>
+<span>def <span class="ident">generate_mm_dataframe</span></span>(<span>projectID, subjectID, date, imageUniqueID, modality, source_image_directory, output_image_directory, t1_filename, flair_filename=None, rsf_filenames=[], dti_filenames=[], nm_filenames=[])</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -9531,6 +9547,7 @@ mask is the initial mask minus the eroded mask.</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def generate_mm_dataframe(
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -9589,6 +9606,7 @@ mask is the initial mask minus the eroded mask.</p></div>
             if not exists( k ):
                 raise ValueError( &#34;image &#34; + k + &#34; does not exist&#34;)
     coredata = [
+        projectID,
         subjectID,
         date,
         imageUniqueID,
@@ -9600,6 +9618,7 @@ mask is the initial mask minus the eroded mask.</p></div>
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
+        &#39;projectID&#39;,
         &#39;subjectID&#39;,
         &#39;date&#39;,
         &#39;imageID&#39;,
@@ -10744,7 +10763,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
 </details>
 </dd>
 <dt id="antspymm.mm.mc_reg"><code class="name flex">
-<span>def <span class="ident">mc_reg</span></span>(<span>image, fixed=None, type_of_transform='Rigid', mask=None, total_sigma=3.0, fdOffset=10.0, output_directory=None, verbose=False, **kwargs)</span>
+<span>def <span class="ident">mc_reg</span></span>(<span>image, fixed=None, type_of_transform='Rigid', mask=None, total_sigma=3.0, fdOffset=2.0, output_directory=None, verbose=False, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Correct time-series data for motion - with deformation.</p>
@@ -10792,7 +10811,7 @@ kwargs: keyword args
     type_of_transform=&#34;Rigid&#34;,
     mask=None,
     total_sigma=3.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -11622,7 +11641,7 @@ see antspymm.generate_mm_dataframe</li>
     nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] &lt; 1:
         raise ValueError(&#39;studycsv has no rows&#39;)
-    musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
     for k in range(len(musthavecols)):
         if not musthavecols[k] in studycsv.keys():
             raise ValueError(&#39;studycsv is missing column &#39; +musthavecols[k] )
@@ -11644,7 +11663,8 @@ see antspymm.generate_mm_dataframe</li>
     if test_run:
         visualize=False
     # get sid and dtid from studycsv
-    # musthavecols = [&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    # musthavecols = [&#39;projectID&#39;,&#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;modality&#39;,&#39;sourcedir&#39;,&#39;outputdir&#39;,&#39;filename&#39;]
+    projid = str(studycsv[&#39;projectID&#39;].iloc[0])
     sid = str(studycsv[&#39;subjectID&#39;].iloc[0])
     dtid = str(studycsv[&#39;date&#39;].iloc[0])
     iid = str(studycsv[&#39;imageID&#39;].iloc[0])
@@ -11688,7 +11708,7 @@ see antspymm.generate_mm_dataframe</li>
                     iid = re.sub( &#34;.nii.gz&#34;, &#34;&#34;, mysplit[len(mysplit)-1] )
                     iid = re.sub( &#34;.mha&#34;, &#34;&#34;, iid )
                     iid = re.sub( &#34;.nii&#34;, &#34;&#34;, iid )
-                    myoutputPrefix = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + locmod + mysep + iid
+                    myoutputPrefix = outputdir + &#34;/&#34; + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + locmod + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
         if verbose:
             print(&#34;VERBOSE in docsamson&#34;)
             print( locmod )
@@ -11706,8 +11726,8 @@ see antspymm.generate_mm_dataframe</li>
     if not exists( t1fn ):
         raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
     t1 = mm_read( t1fn )
-    hierfn = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + iid + mysep
-    hierfnSR = outputdir + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + iid + mysep
+    hierfn = outputdir + &#34;/&#34;  + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + mysep + iid + mysep
+    hierfnSR = outputdir + &#34;/&#34; + projid + &#34;/&#34;  + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + mysep + iid + mysep
     hierfntest = hierfn + &#39;snseg.csv&#39;
     if verbose:
         print( hierfntest )
@@ -13003,13 +13023,13 @@ by histogram matching - ants.histogram_match_image</dd>
     Parameters:
 
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
-    
+
     - contamination (float): parameter controlling the proportion of outliers in the data (default: 0.05)
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     import pandas as pd
@@ -13061,9 +13081,9 @@ by histogram matching - ants.histogram_match_image</dd>
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOF (default: 20)
@@ -13124,9 +13144,9 @@ by histogram matching - ants.histogram_match_image</dd>
     This function performs novelty detection using Local Outlier Factor (LOF).
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     - n_neighbors (int): number of neighbors used to compute the LOOP (default: 20)
@@ -13136,7 +13156,7 @@ by histogram matching - ants.histogram_match_image</dd>
     Returns:
 
     - predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
-    
+
     &#34;&#34;&#34;
     from PyNomaly import loop
     from sklearn.neighbors import NearestNeighbors
@@ -13179,16 +13199,16 @@ and higher values mean the column is closer to the edge of the distribution</li>
     This function performs novelty detection using quantiles for each column.
 
     Parameters:
-    
+
     - df_train (pandas dataframe): training data used to fit the model
-    
+
     - df_test (pandas dataframe): test data used to predict novelties
 
     Returns:
 
-    - quantiles for the test sample at each column where values range in [0,1] 
+    - quantiles for the test sample at each column where values range in [0,1]
         and higher values mean the column is closer to the edge of the distribution
-    
+
     &#34;&#34;&#34;
     myqs = df_test.copy()
     n = df_train.shape[0]
@@ -13241,7 +13261,7 @@ and higher values mean the column is closer to the edge of the distribution</li>
     - kernel (str): kernel type used in the SVM algorithm (default: &#39;rbf&#39;)
 
     Returns:
-    
+
     predictions (pandas series): predicted labels for the test data (1 for novelties, 0 for inliers)
     &#34;&#34;&#34;
     from sklearn.svm import OneClassSVM
@@ -13845,7 +13865,7 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
 </details>
 </dd>
 <dt id="antspymm.mm.resting_state_fmri_networks"><code class="name flex">
-<span>def <span class="ident">resting_state_fmri_networks</span></span>(<span>fmri, fmri_template, t1, t1segmentation, f=[0.03, 0.08], spa=1.5, spt=0.5, nc=6, type_of_transform='SyN', verbose=False)</span>
+<span>def <span class="ident">resting_state_fmri_networks</span></span>(<span>fmri, fmri_template, t1, t1segmentation, f=[0.03, 0.08], FD_threshold=0.5, spa=1.5, spt=0.5, nc=6, type_of_transform='SyN', verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Compute resting state network correlation maps based on the J Power labels.
@@ -13891,7 +13911,7 @@ This will output a map for each of the major network systems.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08],   spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
     verbose=False ):
 
   &#34;&#34;&#34;
@@ -13941,7 +13961,7 @@ This will output a map for each of the major network systems.</p>
     fmri, fmri_template,
     type_of_transform=type_of_transform,
     total_sigma=0.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 8,
     output_directory=None,
     verbose=False,
@@ -14099,6 +14119,12 @@ This will output a map for each of the major network systems.</p>
   outdict[&#39;brainmask&#39;] = bmask
   outdict[&#39;alff&#39;] = myfalff[&#39;alff&#39;]
   outdict[&#39;falff&#39;] = myfalff[&#39;falff&#39;]
+  # add global mean and standard deviation for post-hoc z-scoring
+  outdict[&#39;alff_mean&#39;] = (myfalff[&#39;alff&#39;][myfalff[&#39;alff&#39;]!=0]).mean()
+  outdict[&#39;alff_sd&#39;] = (myfalff[&#39;alff&#39;][myfalff[&#39;alff&#39;]!=0]).std()
+  outdict[&#39;falff_mean&#39;] = (myfalff[&#39;falff&#39;][myfalff[&#39;falff&#39;]!=0]).mean()
+  outdict[&#39;falff_sd&#39;] = (myfalff[&#39;falff&#39;][myfalff[&#39;falff&#39;]!=0]).std()
+
   for k in range(1,270):
     anatname=( pts2bold[&#39;AAL&#39;][k] )
     if isinstance(anatname, str):
@@ -14122,7 +14148,8 @@ This will output a map for each of the major network systems.</p>
   outdict[&#39;tsnr&#39;] = mytsnr
   outdict[&#39;ssnr&#39;] = slice_snr( corrmo[&#39;motion_corrected&#39;], csfAndWM, gmseg )
   outdict[&#39;dvars&#39;] = dvars( corrmo[&#39;motion_corrected&#39;], gmseg )
-  outdict[&#39;high_motion_count&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; 0.5 ).sum()
+  outdict[&#39;high_motion_count&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; FD_threshold ).sum()
+  outdict[&#39;high_motion_pct&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; FD_threshold ).sum() / rsfNuisance.shape[0]
   outdict[&#39;FD_max&#39;] = rsfNuisance[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = rsfNuisance[&#39;FD&#39;].mean()
   outdict[&#39;bold_evr&#39;] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
@@ -14495,7 +14522,7 @@ of the network.</dd>
 </details>
 </dd>
 <dt id="antspymm.mm.timeseries_reg"><code class="name flex">
-<span>def <span class="ident">timeseries_reg</span></span>(<span>image, avg_b0, type_of_transform='Rigid', total_sigma=1.0, fdOffset=10.0, trim=0, output_directory=None, verbose=False, **kwargs)</span>
+<span>def <span class="ident">timeseries_reg</span></span>(<span>image, avg_b0, type_of_transform='Rigid', total_sigma=1.0, fdOffset=2.0, trim=0, output_directory=None, verbose=False, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Correct time-series data for motion - with deformation.</p>
@@ -14539,7 +14566,7 @@ See ants registration for details.</dd>
     avg_b0,
     type_of_transform=&#34;Rigid&#34;,
     total_sigma=1.0,
-    fdOffset=10.0,
+    fdOffset=2.0,
     trim = 0,
     output_directory=None,
     verbose=False, **kwargs
@@ -15286,9 +15313,14 @@ the primary outputs will be</code></dt>
         mm_wide[&#39;rsf_dvars_mean&#39;] =  rsfpro[&#39;dvars&#39;].mean()
         mm_wide[&#39;rsf_ssnr_mean&#39;] =  rsfpro[&#39;ssnr&#39;].mean()
         mm_wide[&#39;rsf_high_motion_count&#39;] =  rsfpro[&#39;high_motion_count&#39;]
+        # mm_wide[&#39;rsf_high_motion_pct&#39;] = rsfpro[&#39;rsf_high_motion_pct&#39;] # BUG : rsf_high_motion_pct does not exist
         mm_wide[&#39;rsf_evr&#39;] =  rsfpro[&#39;bold_evr&#39;]
         mm_wide[&#39;rsf_FD_mean&#39;] = rsfpro[&#39;FD_mean&#39;]
         mm_wide[&#39;rsf_FD_max&#39;] = rsfpro[&#39;FD_max&#39;]
+        mm_wide[&#39;rsf_alff_mean&#39;] = rsfpro[&#39;alff_mean&#39;]
+        mm_wide[&#39;rsf_alff_sd&#39;] = rsfpro[&#39;alff_sd&#39;]
+        mm_wide[&#39;rsf_falff_mean&#39;] = rsfpro[&#39;falff_mean&#39;]
+        mm_wide[&#39;rsf_falff_sd&#39;] = rsfpro[&#39;falff_sd&#39;]
         ofn = output_prefix + separator + &#39;rsfcorr.csv&#39;
         rsfpro[&#39;corr&#39;].to_csv( ofn )
         # apply same principle to new correlation matrix, doesn&#39;t need to be incorporated with mm_wide
