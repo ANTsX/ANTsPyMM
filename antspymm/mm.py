@@ -5194,13 +5194,14 @@ def mm_csv(
     sid = str(studycsv['subjectID'].iloc[0])
     dtid = str(studycsv['date'].iloc[0])
     iid = str(studycsv['imageID'].iloc[0])
+    t1iidUse=iid
     modality = str(studycsv['modality'].iloc[0])
     sourcedir = str(studycsv['sourcedir'].iloc[0])
     outputdir = str(studycsv['outputdir'].iloc[0])
     filename = str(studycsv['filename'].iloc[0])
     if not exists(filename):
             raise ValueError('mm_nrg cannot find filename ' + filename + ' in mm_csv' )
-    def docsamson( locmod, verbose=True ):
+    def docsamson( locmod, t1iid=None, verbose=True ):
         myimgsInput = []
         myoutputPrefix = None
         imfns = [ 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'flairid' ]
@@ -5234,7 +5235,10 @@ def mm_csv(
                     iid = re.sub( ".nii.gz", "", mysplit[len(mysplit)-1] )
                     iid = re.sub( ".mha", "", iid )
                     iid = re.sub( ".nii", "", iid )
-                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid
+                    iid2 = iid
+                    if locmod != 'T1w' and t1iid is not None:
+                        iid2=iid+"_"+t1iid
+                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid2
         if verbose:
             print("VERBOSE in docsamson")
             print( locmod )
@@ -5328,7 +5332,7 @@ def mm_csv(
     # other modalities (beyond T1) are treated individually
     for overmodX in nrg_modality_list:
         # define 1. input images 2. output prefix
-        mydoc = docsamson( overmodX )
+        mydoc = docsamson( overmodX, t1iid=t1iidUse )
         myimgsr = mydoc['images']
         mymm = mydoc['outprefix']
         mymod = mydoc['modality']
