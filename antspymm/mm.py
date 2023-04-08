@@ -178,7 +178,7 @@ def generate_mm_dataframe(
         source_image_directory,
         output_image_directory,
         t1_filename,
-        flair_filename=None,
+        flair_filename=[],
         rsf_filenames=[],
         dti_filenames=[],
         nm_filenames=[]
@@ -207,6 +207,13 @@ def generate_mm_dataframe(
     # check modality names
     if not "T1w" in t1_filename:
         raise ValueError("T1w is not in t1 filename " + t1_filename)
+    if flair_filename is not None:
+        if isinstance(flair_filename,list):
+            if (len(flair_filename) == 0):
+                flair_filename=None
+            else:
+                print("Take first entry from flair_filename list")
+                flair_filename=flair_filename[0]
     if flair_filename is not None and not "lair" in flair_filename:
             raise ValueError("flair is not flair filename " + flair_filename)
     for k in nm_filenames:
