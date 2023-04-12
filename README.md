@@ -8,13 +8,17 @@ as well for interrogating hypotheses.
 this package also keeps track of the latest preferred algorithm variations for
 production environments.
 
-install by calling (within the source directory):
+install the `dev` version by calling (within the source directory):
 
 ```
 python setup.py install
 ```
 
-or install via `pip install antspymm` **FIXME**
+or install the latest release via 
+
+```
+pip install antspymm
+```
 
 # what this will do
 
