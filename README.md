@@ -201,8 +201,8 @@ studycsv = antspymm.generate_mm_dataframe(
     '/Users/stnava/data/openneuro/imagesBIDS/',
     '/Users/stnava/data/openneuro/processed/',
     t1_filename=fns[0],
-    dti_filenames=[fns[2]],
-    rsf_filenames=[fns[1]])
+    dti_filenames=[fns[1]],
+    rsf_filenames=[fns[2]])
 studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 ```
