@@ -72,12 +72,16 @@ documentation of functions [here](http://htmlpreview.github.io/?https://github.c
 # first time setup
 
 ```python
+import antspyt1w
 import antspymm
-antspymm.get_data()
+antspyt1w.get_data(force_download=True)
+antspymm.get_data(force_download=True)
 ```
 
 NOTE: `get_data` has a `force_download` option to make sure the latest
 package data is installed.
+
+NOTE: some functions in `antspynet` will download deep network model weights on the fly.  if one is containerizing, then it would be worth running a test case through in the container to make sure all the relevant weights are pre-downloaded.
 
 # example processing
 
@@ -116,11 +120,14 @@ antspymm.write_mm( '/tmp/test_output', t1wide, tabPro, normPro )
 
 ## blind quality control
 
-automatically qc, filter and match multiple modality images at each time point.
+this package also provides tools to identify the *best* multi-modality image set at a given visit.
+
+the code below provides guidance on how to automatically qc, filter and match multiple modality images at each time point.  these tools are based on standard unsupervised approaches and are not perfect so we recommend using the associated plotting/visualization techniques to check the quality characterizations for each modality.
 
 ```python
 ## run the qc on all images - requires a relatively large sample per modality to be effective
 ## then aggregate
+qcdf=pd.DataFrame()
 for fn in fns:
   qcdf=pd.concat( [qcdf,antspymm.blind_image_assessment(fn)], axis=0)
 qcdfa=antspymm.average_blind_qc_by_modality(qcdf,verbose=True) ## reduce the time series qc
@@ -149,7 +156,6 @@ for n in range(len(mymods)):
 alldf.to_csv( "mm_outlierness.csv", index=False )
 # find the best mm collection
 matched_mm_data=antspymm.match_modalities( alldf, verbose=True )
-matched_mm_data
 matched_mm_data.to_csv( "matched_mm_data.csv", index=False )
 matched_mm_data['negative_outlier_factor'] = 1.0 - matched_mm_data['ol_loop'].astype("float")
 matched_mm_data2 = antspymm.highest_quality_repeat( matched_mm_data, 'subjectID', 'date', qualityvar='negative_outlier_factor')
@@ -248,6 +254,58 @@ studycsv = antspymm.generate_mm_dataframe(
 )
 studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
+```
+
+## useful tools for converting dicom to nifti
+
+* [dcm2niix](https://github.com/rordenlab/dcm2niix)
+
+* [dicom2nifti](https://dicom2nifti.readthedocs.io/en/latest/)
+
+```python
+import dicom2nifti
+
+dicom2nifti.convert_directory(dicom_directory, output_folder, compression=True, reorient=True)
+```
+
+* [simpleitk](https://pypi.org/project/SimpleITK/)
+
+```python
+import SimpleITK as sitk
+import sys
+import os
+import glob as glob
+import ants
+dd='dicom'
+oo='dicom2nifti'
+folders=glob.glob('dicom/*')
+k=0
+for f in folders:
+    print(f)    
+    reader = sitk.ImageSeriesReader()
+    ff=glob.glob(f+"/*")
+    dicom_names = reader.GetGDCMSeriesFileNames(ff[0])
+    if len(ff) > 0:
+        fnout='dicom2nifti/image_'+str(k).zfill(4)+'.nii.gz'
+        if not exists(fnout):
+            failed=False
+            reader.SetFileNames(dicom_names)
+            try:
+                image = reader.Execute()
+            except:
+                failed=True
+                pass
+            if not failed:
+                size = image.GetSpacing()
+                print( image.GetMetaDataKeys( ) )
+                print( size )
+                sitk.WriteImage(image, fnout )
+                img=ants.image_read( fnout )
+                img=ants.iMath(img,'TruncateIntensity',0.02,0.98)
+                ants.plot( img, nslices=21,ncol=7,axis=2, crop=True )
+        else:
+            print(f+ ": "+'empty')
+    k=k+1
 ```
 
 ## build docs
