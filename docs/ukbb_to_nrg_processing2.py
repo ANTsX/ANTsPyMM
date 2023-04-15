@@ -53,34 +53,23 @@ else:
         os.symlink( rfn, nrgrsfn )
     else: 
         ants.image_write( t1, nrgrsfn )
-dfn=glob.glob("original/dMRI/raw/*gz")
-if not exists(dfn[0]):
+dfn="original/dMRI/dMRI/data_ud.nii.gz"
+bvalfn="original/dMRI/dMRI/bvals"
+bvecfn="original/dMRI/dMRI/data.eddy_rotated_bvecs"
+if not exists(dfn):
     print("dti does not exist")
 else:
-    t1 = ants.image_read( dfn[0] )
+    t1 = ants.image_read( dfn )
     t1fno=antspymm.nrg_format_path(projectID, subjectID, date, 'DTI', imageID+str(3), separator='-')
     subjectpropath = os.path.join( "nrg", t1fno )
     os.makedirs( os.path.dirname(subjectpropath), exist_ok=True  )
     nrgdtfn0 = subjectpropath+ext
     if symlink:
-        os.symlink( dfn[0], nrgdtfn0 )
+        os.symlink( dfn, nrgdtfn0 )
     else:
         ants.image_write( t1, nrgdtfn0 )
-    t1 = ants.image_read( dfn[1] )
-    t1fno=antspymm.nrg_format_path(projectID, subjectID, date, 'DTI_RL', imageID+str(4), separator='-')
-    subjectpropath = os.path.join( "nrg", t1fno )
-    os.makedirs( os.path.dirname(subjectpropath), exist_ok=True  )
-    nrgdtfn1 = subjectpropath+ext
-    if symlink:
-        os.symlink( dfn[0], nrgdtfn1 )
-    else:
-        ants.image_write( t1, nrgdtfn1 )
-    bvals, bvecs = read_bvals_bvecs(
-        re.sub("nii.gz","bval",dfn[0]), re.sub("nii.gz","bvec",dfn[0]))
+    bvals, bvecs = read_bvals_bvecs( bvalfn, bvecfn )
     antspymm.write_bvals_bvecs( bvals, bvecs, re.sub(".nii.gz","",nrgdtfn0) )
-    bvals, bvecs = read_bvals_bvecs(
-        re.sub("nii.gz","bval",dfn[1]), re.sub("nii.gz","bvec",dfn[1]))
-    antspymm.write_bvals_bvecs( bvals, bvecs, re.sub(".nii.gz","",nrgdtfn1) )
 studycsv = antspymm.generate_mm_dataframe(
     projectID,
     subjectID,
@@ -91,6 +80,7 @@ studycsv = antspymm.generate_mm_dataframe(
     './processed/',
     t1_filename=nrgt1fn,
     flair_filename=[nrgt2fn],
+#    dti_filenames=[nrgdtfn0,nrgdtfn1],
     dti_filenames=[nrgdtfn0],
     rsf_filenames=[nrgrsfn])
 studycsv2 = studycsv.dropna(axis=1)
@@ -105,4 +95,5 @@ antspymm.quick_viz_mm_nrg(
     show_it = "viz_it",
     verbose = True )
 
-mmrun = antspymm.mm_csv( studycsv2, dti_motion_correct='SyN', dti_denoise=False   )
+mmrun = antspymm.mm_csv( studycsv2, dti_motion_correct=None, dti_denoise=False )
+
