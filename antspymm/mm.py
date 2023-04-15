@@ -1125,13 +1125,14 @@ def dti_reg(
     bvecs=None,
     b0_idx=None,
     type_of_transform="Rigid",
-    total_sigma=1.0,
+    total_sigma=3.0,
     fdOffset=2.0,
+    mask_csf=False,
     output_directory=None,
     verbose=False, **kwargs
 ):
     """
-    Correct time-series data for motion - with deformation.
+    Correct time-series data for motion - with optional deformation.
 
     Arguments
     ---------
@@ -1152,6 +1153,8 @@ def dti_reg(
             See ants registration for details.
 
         fdOffset: offset value to use in framewise displacement calculation
+
+        mask_csf: boolean
 
         output_directory : string
             output will be placed in this directory plus a numeric extension.
@@ -1264,7 +1267,7 @@ def dti_reg(
                 myreg = ants.registration(
                     fixed, temp,
                     type_of_transform='SyNOnly',
-                    total_sigma=total_sigma,
+                    total_sigma=total_sigma, grad_step=0.1,
                     initial_transform=myrig['fwdtransforms'][0],
                     outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
@@ -1289,11 +1292,16 @@ def dti_reg(
     if verbose:
         print("begin global distortion correction")
     # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=['rigid'], verbose=verbose)
-    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
-    deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
+    if mask_csf:
+        bcsf = ants.threshold_image( avg_b0,"Otsu",2).threshold_image(1,1).morphology("open",1).iMath("GetLargestComponent")
+    else:
+        bcsf = avg_b0[0] * 0 + 1
+
+    initrig = ants.registration( avg_b0, ab0*bcsf,'BOLDRigid',outprefix=ofnG)
+    deftx = ants.registration( avg_dwi, adw*bcsf, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
-        multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
+        multivariate_extras=[ [ "CC", avg_b0, ab0*bcsf, 1, 2 ]],
         initial_transform=initrig['fwdtransforms'][0],
         outprefix=ofnG
         )['fwdtransforms']
@@ -1854,7 +1862,8 @@ def get_average_rsf( x ):
 
 def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
     """
-    automatically generates the average b0 and dwi and outputs both
+    automatically generates the average b0 and dwi and outputs both;
+    maps dwi to b0 space at end.
 
     x : input image
 
@@ -1901,13 +1910,18 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
     xavg = ants.iMath( xavg, 'Normalize' )
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True )
-    return ants.n4_bias_field_correction(bavg), ants.n4_bias_field_correction(xavg)
+    avgb0=ants.n4_bias_field_correction(bavg)
+    avgdwi=ants.n4_bias_field_correction(xavg)
+    avgdwi=ants.registration( avgb0, avgdwi, 'Rigid' )['warpedmovout']
+    return avgb0, avgdwi
 
 def dti_template(
     b_image_list=None,
     w_image_list=None,
     iterations=5,
     gradient_step=0.5,
+    mask_csf=False,
+    average_both=True,
     verbose=False
 ):
     """
@@ -1928,13 +1942,24 @@ def dti_template(
     b_initial_template = b_image_list[0]
     b_initial_template = ants.iMath(b_initial_template,"Normalize")
     w_initial_template = ants.iMath(w_initial_template,"Normalize")
-    bavg = b_initial_template.clone()
-    wavg = w_initial_template.clone()
+    if mask_csf:
+        bcsf0 = ants.threshold_image( b_image_list[0],"Otsu",2).threshold_image(1,1).morphology("open",1).iMath("GetLargestComponent")
+        bcsf1 = ants.threshold_image( b_image_list[1],"Otsu",2).threshold_image(1,1).morphology("open",1).iMath("GetLargestComponent")
+    else:
+        bcsf0 = b_image_list[0] * 0 + 1
+        bcsf1 = b_image_list[1] * 0 + 1
+    bavg = b_initial_template.clone() * bcsf0
+    wavg = w_initial_template.clone() * bcsf0
+    bcsf = [ bcsf0, bcsf1 ]
     for i in range(iterations):
         for k in range(len(w_image_list)):
+            fimg=wavg
+            mimg=w_image_list[k] * bcsf[k]
+            fimg2=bavg
+            mimg2=b_image_list[k] * bcsf[k]
             w1 = ants.registration(
-                wavg, w_image_list[k], type_of_transform='antsRegistrationSyNQuick[s]',
-                    multivariate_extras= [ [ "mattes", bavg, b_image_list[k], 1, 32 ]],
+                fimg, mimg, type_of_transform='antsRegistrationSyNQuick[s]',
+                    multivariate_extras= [ [ "mattes", fimg2, mimg2, 1, 32 ]],
                     outprefix=mydeftx,
                     verbose=0 )
             txname = ants.apply_transforms(wavg, wavg,
@@ -1942,16 +1967,16 @@ def dti_template(
             if k == 0:
                 txavg = ants.image_read(txname) * weights[k]
                 wavgnew = ants.apply_transforms( wavg,
-                    w_image_list[k], txname ).iMath("Normalize")
+                    w_image_list[k] * bcsf[k], txname ).iMath("Normalize")
                 bavgnew = ants.apply_transforms( wavg,
-                    b_image_list[k], txname ).iMath("Normalize")
+                    b_image_list[k] * bcsf[k], txname ).iMath("Normalize")
             else:
                 txavg = txavg + ants.image_read(txname) * weights[k]
-                if i >= (iterations-2):
+                if i >= (iterations-2) and average_both:
                     wavgnew = wavgnew+ants.apply_transforms( wavg,
-                        w_image_list[k], txname ).iMath("Normalize")
+                        w_image_list[k] * bcsf[k], txname ).iMath("Normalize")
                     bavgnew = bavgnew+ants.apply_transforms( wavg,
-                        b_image_list[k], txname ).iMath("Normalize")
+                        b_image_list[k] * bcsf[k], txname ).iMath("Normalize")
         if verbose:
             print("iteration:",str(i),str(txavg.abs().mean()))
         wscl = (-1.0) * gradient_step
@@ -4106,6 +4131,8 @@ def mm(
     do_kk = False,
     do_normalization = None,
     target_range = [0,1],
+    dti_motion_correct = 'Rigid',
+    dti_denoise = False,
     test_run = False,
     verbose = False ):
     """
@@ -4146,6 +4173,12 @@ def mm(
         (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
         intensity. This range should match the mapping used in the training
         of the network.
+    
+    dti_motion_correct : None Rigid or SyN
+
+    dti_denoise : boolean
+
+    test_run : boolean 
 
     verbose : boolean
 
@@ -4299,14 +4332,14 @@ def mm(
                 reference_B0 = btpB0,
                 reference_DWI = btpDW,
                 srmodel=srmodel,
-                motion_correct='SyN', # set to False if using input from qsiprep
-                denoise=True,
+                motion_correct=dti_motion_correct, # set to False if using input from qsiprep
+                denoise=dti_denoise,
                 verbose = verbose)
         else :  # use phase encoding acquisitions for distortion correction and T1 for brain extraction
             if verbose:
                 print("We have both DTI_LR and DTI_RL: " + str(len(dw_image)))
-            a1b,a1w=get_average_dwi_b0(dw_image[0])
-            a2b,a2w=get_average_dwi_b0(dw_image[1])
+            a1b,a1w=antspymm.get_average_dwi_b0(dw_image[0])
+            a2b,a2w=antspymm.get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
             btpB0, btpDW = dti_template(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
@@ -5103,6 +5136,8 @@ def mm_csv(
     srmodel_T1 = False, # optional - will add a great deal of time
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
+    dti_motion_correct = 'Rigid',
+    dti_denoise = False
 ):
     """
     too dangerous to document ... use with care.
@@ -5155,6 +5190,10 @@ def mm_csv(
     srmodel_NM : False (default) - will add a great deal of time - or h5 filename, 1 chan
 
     srmodel_DTI : False (default) - will add a great deal of time - or h5 filename, 1 chan
+
+    dti_motion_correct : None, Rigid or SyN
+
+    dti_denoise : boolean
 
     Returns
     ---------
@@ -5548,6 +5587,8 @@ def mm_csv(
                                     do_tractography=not test_run,
                                     do_kk=False,
                                     do_normalization=templateTx,
+                                    dti_motion_correct = dti_motion_correct,
+                                    dti_denoise = dti_denoise,
                                     test_run=test_run,
                                     verbose=True )
                                 mydti = tabPro['DTI']
@@ -6328,15 +6369,40 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
 
 
 def quick_viz_mm_nrg(
-    sourcedir, # folder
+    sourcedir, # root folder
+    projectid, # project name
     sid , # subject unique id
     dtid, # date
-    sourcedatafoldername = 'images', # root for source data
     extract_brain=True,
     slice_factor = 0.55,
-    show_it = None,
+    show_it = None, # output path
     verbose = True
 ):
+    """
+    This function creates visualizations of brain images for a specific subject in a project using ANTsPy.
+
+    Args:
+
+    sourcedir (str): Root folder.
+    
+    projectid (str): Project name.
+    
+    sid (str): Subject unique id.
+    
+    dtid (str): Date.
+    
+    extract_brain (bool): If True, the function extracts the brain from the T1w image. Default is True.
+    
+    slice_factor (float): The slice to be visualized is determined by multiplying the image size by this factor. Default is 0.55.
+    
+    show_it (str): Output path. If not None, the visualizations will be saved at this location. Default is None.
+    
+    verbose (bool): If True, information will be printed while running the function. Default is True.
+
+    Returns:
+    vizlist (list): List of image visualizations.
+
+    """
     iid='*'
     import glob as glob
     from os.path import exists
@@ -6351,7 +6417,7 @@ def quick_viz_mm_nrg(
     temp = sourcedir.split( "/" )
     splitCount = len( temp )
     template = mm_read( templatefn ) # Read in template
-    subjectrootpath = os.path.join(sourcedir,sid, dtid)
+    subjectrootpath = os.path.join(sourcedir, projectid, sid, dtid)
     myimgsInput = glob.glob( subjectrootpath+"/*" )
     myimgsInput.sort( )
     if verbose:
