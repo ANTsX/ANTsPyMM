@@ -729,11 +729,19 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
 
     return {'raw': metasub, 'filt': metasubq}
 
-def mm_read( x, modality='' ):
+def mm_read( x, standardize_intensity=False, modality='' ):
     """
     read an image from a filename - same as ants.image_read (for now)
+
+    standardize_intensity : boolean ; if True will set negative values to zero and normalize into the range of zero to one
+
+    modality : not used
     """
-    return ants.image_read( x, reorient=False )
+    img = ants.image_read( x, reorient=False )
+    if standardize_intensity:
+        img[img<0.0]=0.0
+        img=ants.iMath(img,'Normalize')
+    return img
 
 def mm_read_to_3d( x, slice=None, modality='' ):
     """
