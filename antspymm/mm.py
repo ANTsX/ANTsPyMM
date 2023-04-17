@@ -5145,7 +5145,8 @@ def mm_csv(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     dti_motion_correct = 'Rigid',
-    dti_denoise = False
+    dti_denoise = False,
+    nrg_modality_list = None
 ):
     """
     too dangerous to document ... use with care.
@@ -5203,6 +5204,8 @@ def mm_csv(
 
     dti_denoise : boolean
 
+    nrg_modality_list : optional; defaults to None; use to focus on a given modality
+
     Returns
     ---------
 
@@ -5211,7 +5214,8 @@ def mm_csv(
     """
     visualize = True
     verbose = True
-    nrg_modality_list = get_valid_modalities()
+    if nrg_modality_list is None:
+        nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] < 1:
         raise ValueError('studycsv has no rows')
     musthavecols = ['projectID', 'subjectID','date','imageID','modality','sourcedir','outputdir','filename']
