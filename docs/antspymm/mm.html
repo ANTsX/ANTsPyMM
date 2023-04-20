@@ -31,7 +31,7 @@
     &#39;mm_read_to_3d&#39;,
     &#39;image_write_with_thumbnail&#39;,
     &#39;nrg_format_path&#39;,
-    &#39;higest_quality_repeat&#39;,
+    &#39;highest_quality_repeat&#39;,
     &#39;match_modalities&#39;,
     &#39;mc_resample_image_to_target&#39;,
     &#39;nrg_filelist_to_dataframe&#39;,
@@ -10202,62 +10202,80 @@ and that can be processed by this package.</p>
     return dfout</code></pre>
 </details>
 </dd>
-<dt id="antspymm.mm.higest_quality_repeat"><code class="name flex">
-<span>def <span class="ident">higest_quality_repeat</span></span>(<span>projectID, subjectID, date, modality, imageID, separator='-')</span>
+<dt id="antspymm.mm.highest_quality_repeat"><code class="name flex">
+<span>def <span class="ident">highest_quality_repeat</span></span>(<span>mxdfin, idvar, visitvar, qualityvar)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>create the NRG path on disk given the project, subject id, date, modality and image id</p>
-<h2 id="arguments">Arguments</h2>
-<dl>
-<dt><strong><code>projectID</code></strong> :&ensp;<code>string for the project e.g. PPMI</code></dt>
-<dd>&nbsp;</dd>
-<dt><strong><code>subjectID</code></strong> :&ensp;<code>string uniquely identifying the subject e.g. 0001</code></dt>
-<dd>&nbsp;</dd>
-<dt><strong><code>date</code></strong> :&ensp;<code>string for the date usually 20550228 ie YYYYMMDD format</code></dt>
-<dd>&nbsp;</dd>
-<dt><strong><code>modality</code></strong> :&ensp;<code>string should be one</code> of <code>T1w, T2Flair, rsfMRI, NM2DMT and DTI ... rsfMRI and DTI may also be DTI_LR, DTI_RL, rsfMRI_LR and rsfMRI_RL where the RL / LR relates to phase encoding direction (even if it is AP/PA)</code></dt>
-<dd>&nbsp;</dd>
-<dt><strong><code>imageID</code></strong> :&ensp;<code>string uniquely identifying the specific image</code></dt>
-<dd>&nbsp;</dd>
-<dt><strong><code>separator</code></strong> :&ensp;<code>default to -</code></dt>
-<dd>&nbsp;</dd>
-</dl>
-<h2 id="returns">Returns</h2>
-<dl>
-<dt><code>the path where one would write the image on disk</code></dt>
-<dd>&nbsp;</dd>
-</dl></div>
+<div class="desc"><p>This function returns a subset of the input dataframe that retains only the rows
+that correspond to the highest quality observation for each combination of ID and visit.</p>
+<h2 id="parameters">Parameters:</h2>
+<p>mxdfin: pandas.DataFrame
+The input dataframe.
+idvar: str
+The name of the column that contains the ID variable.
+visitvar: str
+The name of the column that contains the visit variable.
+qualityvar: str
+The name of the column that contains the quality variable.</p>
+<h2 id="returns">Returns:</h2>
+<p>pandas.DataFrame
+A subset of the input dataframe that retains only the rows that correspond
+to the highest quality observation for each combination of ID and visit.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def nrg_format_path( projectID, subjectID, date, modality, imageID, separator=&#39;-&#39; ):
+<pre><code class="python">def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     &#34;&#34;&#34;
-    create the NRG path on disk given the project, subject id, date, modality and image id
+    This function returns a subset of the input dataframe that retains only the rows
+    that correspond to the highest quality observation for each combination of ID and visit.
 
-    Arguments
-    ---------
+    Parameters:
+    ----------
+    mxdfin: pandas.DataFrame
+        The input dataframe.
+    idvar: str
+        The name of the column that contains the ID variable.
+    visitvar: str
+        The name of the column that contains the visit variable.
+    qualityvar: str
+        The name of the column that contains the quality variable.
 
-    projectID : string for the project e.g. PPMI
-
-    subjectID : string uniquely identifying the subject e.g. 0001
-
-    date : string for the date usually 20550228 ie YYYYMMDD format
-
-    modality : string should be one of T1w, T2Flair, rsfMRI, NM2DMT and DTI ... rsfMRI and DTI may also be DTI_LR, DTI_RL, rsfMRI_LR and rsfMRI_RL where the RL / LR relates to phase encoding direction (even if it is AP/PA)
-
-    imageID : string uniquely identifying the specific image
-
-    separator : default to -
-
-    Returns
+    Returns:
     -------
-    the path where one would write the image on disk
-
+    pandas.DataFrame
+        A subset of the input dataframe that retains only the rows that correspond
+        to the highest quality observation for each combination of ID and visit.
     &#34;&#34;&#34;
-    thedirectory = os.path.join( str(projectID), str(subjectID), str(date), str(modality), str(imageID) )
-    thefilename = str(projectID) + separator + str(subjectID) + separator + str(date) + separator + str(modality) + separator + str(imageID)
-    return os.path.join( thedirectory, thefilename )</code></pre>
+    if visitvar not in mxdfin.columns:
+        raise ValueError(&#34;visitvar not in dataframe&#34;)
+    if idvar not in mxdfin.columns:
+        raise ValueError(&#34;idvar not in dataframe&#34;)
+    if qualityvar not in mxdfin.columns:
+        raise ValueError(&#34;qualityvar not in dataframe&#34;)
+
+    vizzes = mxdfin[visitvar].unique()
+    uids = mxdfin[idvar].unique()
+    useit = np.zeros(mxdfin.shape[0], dtype=bool)
+
+    for u in uids:
+        losel = mxdfin[idvar] == u
+        vizzesloc = mxdfin[losel][visitvar].unique()
+
+        for v in vizzesloc:
+            losel = (mxdfin[idvar] == u) &amp; (mxdfin[visitvar] == v)
+            mysnr = mxdfin.loc[losel, qualityvar]
+            myw = np.where(losel)[0]
+
+            if len(myw) &gt; 1:
+                if any(~np.isnan(mysnr)):
+                    useit[myw[np.argmax(mysnr)]] = True
+                else:
+                    useit[myw] = True
+            else:
+                useit[myw] = True
+
+    return mxdfin[useit]</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.image_write_with_thumbnail"><code class="name flex">
@@ -15607,7 +15625,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.get_names_from_data_frame" href="#antspymm.mm.get_names_from_data_frame">get_names_from_data_frame</a></code></li>
 <li><code><a title="antspymm.mm.get_valid_modalities" href="#antspymm.mm.get_valid_modalities">get_valid_modalities</a></code></li>
 <li><code><a title="antspymm.mm.hierarchical_modality_summary" href="#antspymm.mm.hierarchical_modality_summary">hierarchical_modality_summary</a></code></li>
-<li><code><a title="antspymm.mm.higest_quality_repeat" href="#antspymm.mm.higest_quality_repeat">higest_quality_repeat</a></code></li>
+<li><code><a title="antspymm.mm.highest_quality_repeat" href="#antspymm.mm.highest_quality_repeat">highest_quality_repeat</a></code></li>
 <li><code><a title="antspymm.mm.image_write_with_thumbnail" href="#antspymm.mm.image_write_with_thumbnail">image_write_with_thumbnail</a></code></li>
 <li><code><a title="antspymm.mm.impute_fa" href="#antspymm.mm.impute_fa">impute_fa</a></code></li>
 <li><code><a title="antspymm.mm.joint_dti_recon" href="#antspymm.mm.joint_dti_recon">joint_dti_recon</a></code></li>
