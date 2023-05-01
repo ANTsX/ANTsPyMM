@@ -984,11 +984,12 @@ def timeseries_reg(
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, "Normalize")
+        txprefix = ofnL+str(k % 2).zfill(4)+"_"
         if temp.numpy().var() > 0:
             myrig = ants.registration(
                     avg_b0, temp,
                     type_of_transform='BOLDRigid',
-                    outprefix=ofnL+str(k).zfill(4)+"_"
+                    outprefix=txprefix
                 )
             if type_of_transform == 'SyN':
                 myreg = ants.registration(
@@ -996,7 +997,7 @@ def timeseries_reg(
                     type_of_transform='SyNOnly',
                     total_sigma=total_sigma,
                     initial_transform=myrig['fwdtransforms'][0],
-                    outprefix=ofnL+str(k).zfill(4)+"_",
+                    outprefix=txprefix,
                     **kwargs
                 )
             else:
@@ -1016,7 +1017,6 @@ def timeseries_reg(
         else:
             motion_parameters.append("NA")
 
-    for k in range(nTimePoints):
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if temp.numpy().var() > 0:
             img1w = ants.apply_transforms( avg_b0,
