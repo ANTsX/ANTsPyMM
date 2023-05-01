@@ -1250,52 +1250,7 @@ def dti_reg(
             useinds.append(k)
         myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
     fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
-    if verbose:
-        print("Progress:")
-    counter = round( nTimePoints / 10 )
-    for k in range(nTimePoints):
-        if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
-            myperc = round( k / nTimePoints * 100)
-            print(myperc, end="%.", flush=True)
-        if k in b0_idx:
-            fixed=ants.image_clone( ab0 )
-        else:
-            fixed=ants.image_clone( adw )
-        temp = ants.slice_image(image, axis=idim - 1, idx=k)
-        temp = ants.n4_bias_field_correction( temp )
-        temp = ants.iMath(temp, "Normalize")
-        if temp.numpy().var() > 0:
-            myrig = ants.registration(
-                    fixed, temp,
-                    type_of_transform='BOLDRigid',
-                    outprefix=ofnL+str(k).zfill(4)+"_",
-                    **kwargs
-                )
-            if type_of_transform == 'SyN':
-                myreg = ants.registration(
-                    fixed, temp,
-                    type_of_transform='SyNOnly',
-                    total_sigma=total_sigma, grad_step=0.1,
-                    initial_transform=myrig['fwdtransforms'][0],
-                    outprefix=ofnL+str(k).zfill(4)+"_",
-                    **kwargs
-                )
-            else:
-                myreg = myrig
-            fdptsTxI = ants.apply_transforms_to_points(
-                idim - 1, fdpts, myrig["fwdtransforms"]
-            )
-            if k > 0 and motion_parameters[k - 1] != "NA":
-                fdptsTxIminus1 = ants.apply_transforms_to_points(
-                    idim - 1, fdpts, motion_parameters[k - 1]
-                )
-            else:
-                fdptsTxIminus1 = fdptsTxI
-            # take the absolute value, then the mean across columns, then the sum
-            FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
-            motion_parameters.append(myreg["fwdtransforms"])
-        else:
-            motion_parameters.append("NA")
+
 
     if verbose:
         print("begin global distortion correction")
@@ -1316,7 +1271,54 @@ def dti_reg(
     if verbose:
         print("end global distortion correction")
 
+    if verbose:
+        print("Progress:")
+    counter = round( nTimePoints / 10 )
     for k in range(nTimePoints):
+        if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
+            myperc = round( k / nTimePoints * 100)
+            print(myperc, end="%.", flush=True)
+        if k in b0_idx:
+            fixed=ants.image_clone( ab0 )
+        else:
+            fixed=ants.image_clone( adw )
+        temp = ants.slice_image(image, axis=idim - 1, idx=k)
+        temp = ants.n4_bias_field_correction( temp )
+        temp = ants.iMath(temp, "Normalize")
+        txprefix = ofnL+str(k % 2).zfill(4)+"_"
+        if temp.numpy().var() > 0:
+            myrig = ants.registration(
+                    fixed, temp,
+                    type_of_transform='BOLDRigid',
+                    outprefix=txprefix,
+                    **kwargs
+                )
+            if type_of_transform == 'SyN':
+                myreg = ants.registration(
+                    fixed, temp,
+                    type_of_transform='SyNOnly',
+                    total_sigma=total_sigma, grad_step=0.1,
+                    initial_transform=myrig['fwdtransforms'][0],
+                    outprefix=txprefix,
+                    **kwargs
+                )
+            else:
+                myreg = myrig
+            fdptsTxI = ants.apply_transforms_to_points(
+                idim - 1, fdpts, myrig["fwdtransforms"]
+            )
+            if k > 0 and motion_parameters[k - 1] != "NA":
+                fdptsTxIminus1 = ants.apply_transforms_to_points(
+                    idim - 1, fdpts, motion_parameters[k - 1]
+                )
+            else:
+                fdptsTxIminus1 = fdptsTxI
+            # take the absolute value, then the mean across columns, then the sum
+            FD[k] = (fdptsTxIminus1 - fdptsTxI).abs().mean().sum()
+            motion_parameters.append(myreg["fwdtransforms"])
+        else:
+            motion_parameters.append("NA")
+
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
