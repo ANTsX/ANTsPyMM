@@ -43,3 +43,6 @@ dtireg = antspymm.dti_reg(
     bvecs=img_LR_bvec,
     type_of_transform='SyN',
     verbose=True )
+
+if False:
+    ants.image_write( dtireg['motion_corrected'], '/tmp/temp.nii.gz' )

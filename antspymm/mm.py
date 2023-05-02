@@ -1285,7 +1285,8 @@ def dti_reg(
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, "Normalize")
-        txprefix = ofnL+str(k % 2).zfill(4)+"_"
+        txprefix = ofnL+str(k).zfill(4)+"rig_"
+        txprefix2 = ofnL+str(k % 2).zfill(4)+"def_"
         if temp.numpy().var() > 0:
             myrig = ants.registration(
                     fixed, temp,
@@ -1299,7 +1300,7 @@ def dti_reg(
                     type_of_transform='SyNOnly',
                     total_sigma=total_sigma, grad_step=0.1,
                     initial_transform=myrig['fwdtransforms'][0],
-                    outprefix=txprefix,
+                    outprefix=txprefix2,
                     **kwargs
                 )
             else:
