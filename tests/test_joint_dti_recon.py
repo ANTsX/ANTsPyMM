@@ -72,3 +72,27 @@ if True:
     ants.image_write( myoutx['recon_md'], '/tmp/temp1md.nii.gz'  )
     ants.image_write( myoutx['dwi_LR_dewarped'], '/tmp/temp1moco.nii.gz'  )
     ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp1rgb.nii.gz'  )
+
+
+myoutx = antspymm.joint_dti_recon(
+        img_LR_in,
+        img_LR_bval,
+        img_LR_bvec,
+        jhu_atlas = JHU_atlas,
+        jhu_labels = JHU_labels,
+        reference_B0=btpB0,
+        reference_DWI=btpDW,
+        srmodel = None,
+        img_RL = img_RL_in,
+        bval_RL = img_RL_bval,
+        bvec_RL = img_RL_bvec,
+        motion_correct = 'SyN',
+        brain_mask = mask,
+        denoise = False,
+        verbose = True )
+
+if True:
+    ants.image_write( myoutx['recon_fa'], '/tmp/temp1fas.nii.gz'  )
+    ants.image_write( myoutx['recon_md'], '/tmp/temp1mds.nii.gz'  )
+    ants.image_write( myoutx['dwi_LR_dewarped'], '/tmp/temp1mocos.nii.gz'  )
+    ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp1rgbs.nii.gz'  )
