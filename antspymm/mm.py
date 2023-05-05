@@ -1846,7 +1846,7 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     'highermeans':higherindices }
 
 
-def get_average_rsf( x ):
+def get_average_rsf( x, min_t=10, max_t=35 ):
     """
     automatically generates the average bold image with quick registration
 
@@ -1857,13 +1857,17 @@ def get_average_rsf( x ):
     ofn = output_directory + "/w"
     bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
     oavg = ants.slice_image( x, axis=3, idx=0 )
-    for myidx in range(x.shape[3]):
+    if x.shape[3] < min_t:
+        min_t=0
+    if x.shape[3] < max_t:
+        max_t=x.shape[3]
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     oavg = ants.image_clone( bavg )
     bavg = oavg * 0.0
-    for myidx in range(x.shape[3]):
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
     import shutil
@@ -3825,7 +3829,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='SyN',
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid',
     verbose=False ):
 
   """
@@ -3878,7 +3882,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fdOffset=2.0,
     trim = 8,
     output_directory=None,
-    verbose=False,
+    verbose=verbose,
     syn_metric='cc',
     syn_sampling=2,
     reg_iterations=[40,20,5] )
