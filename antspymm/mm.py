@@ -1258,13 +1258,13 @@ def dti_reg(
     if mask_csf:
         bcsf = ants.threshold_image( avg_b0,"Otsu",2).threshold_image(1,1).morphology("open",1).iMath("GetLargestComponent")
     else:
-        bcsf = avg_b0[0] * 0 + 1
+        bcsf = ab0 * 0 + 1
 
-    initrig = ants.registration( avg_b0, ab0*bcsf,'BOLDRigid',outprefix=ofnG)
-    deftx = ants.registration( avg_dwi, adw*bcsf, 'SyNOnly',
+    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
+    deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
-        multivariate_extras=[ [ "CC", avg_b0, ab0*bcsf, 1, 2 ]],
+        multivariate_extras=[ [ "CC", avg_b0, ab0, 1, 2 ]],
         initial_transform=initrig['fwdtransforms'][0],
         outprefix=ofnG
         )['fwdtransforms']
