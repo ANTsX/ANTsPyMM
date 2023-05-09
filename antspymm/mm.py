@@ -5431,7 +5431,7 @@ def mm_csv(
             str(exists( templateTx['invtransforms'][1])) )
     if verbose:
         print( hierfntest )
-    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hierexists = exists( hierfntest ) and exists( templateTx['fwdtransforms'][0]) and exists( templateTx['fwdtransforms'][1]) and exists( templateTx['invtransforms'][0]) and exists( templateTx['invtransforms'][1])
     hier = None
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
