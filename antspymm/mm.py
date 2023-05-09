@@ -741,6 +741,12 @@ def mm_read( x, standardize_intensity=False, modality='' ):
     if standardize_intensity:
         img[img<0.0]=0.0
         img=ants.iMath(img,'Normalize')
+    if modality == "T1w" and img.dimension == 4:
+        i1=ants.slice_image(img,3,0)
+        i2=ants.slice_image(img,3,1)
+        kk=np.concatenate( [i1.numpy(),i2.numpy()], axis=2 )
+        kk=ants.from_numpy(kk)
+        img=ants.copy_image_info(i1,kk)
     return img
 
 def mm_read_to_3d( x, slice=None, modality='' ):
@@ -5313,7 +5319,7 @@ def mm_csv(
     t1fn = filename
     if not exists( t1fn ):
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
-    t1 = mm_read( t1fn )
+    t1 = mm_read( t1fn, modality='T1w' )
     hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
     hierfnSR = outputdir + "/" + projid + "/"  + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
     hierfntest = hierfn + 'snseg.csv'
