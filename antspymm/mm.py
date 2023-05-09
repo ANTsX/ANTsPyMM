@@ -4353,8 +4353,8 @@ def mm(
         else :  # use phase encoding acquisitions for distortion correction and T1 for brain extraction
             if verbose:
                 print("We have both DTI_LR and DTI_RL: " + str(len(dw_image)))
-            a1b,a1w=antspymm.get_average_dwi_b0(dw_image[0])
-            a2b,a2w=antspymm.get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
+            a1b,a1w=get_average_dwi_b0(dw_image[0])
+            a2b,a2w=get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
             btpB0, btpDW = dti_template(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
