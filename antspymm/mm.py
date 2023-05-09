@@ -742,6 +742,7 @@ def mm_read( x, standardize_intensity=False, modality='' ):
         img[img<0.0]=0.0
         img=ants.iMath(img,'Normalize')
     if modality == "T1w" and img.dimension == 4:
+        print("WARNING: input image is 4D - we attempt a hack fix that works in some odd cases of PPMI data - please check this image: " + x, flush=True )
         i1=ants.slice_image(img,3,0)
         i2=ants.slice_image(img,3,1)
         kk=np.concatenate( [i1.numpy(),i2.numpy()], axis=2 )
