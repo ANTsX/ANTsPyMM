@@ -78,6 +78,7 @@ __all__ = ['version',
     'novelty_detection_loop',
     'novelty_detection_quantile',
     'generate_mm_dataframe',
+    'study_dataframe_from_matched_dataframe',
     'wmh']
 
 from pathlib import Path
@@ -493,6 +494,98 @@ def nrg_format_path( projectID, subjectID, date, modality, imageID, separator='-
     thedirectory = os.path.join( str(projectID), str(subjectID), str(date), str(modality), str(imageID) )
     thefilename = str(projectID) + separator + str(subjectID) + separator + str(date) + separator + str(modality) + separator + str(imageID)
     return os.path.join( thedirectory, thefilename )
+
+
+def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
+    """
+    converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
+
+    matched_dataframe : output of antspymm.match_modalities
+
+    rootdir : location for the input data root folder (in e.g. NRG format)
+
+    outputdir : location for the output data
+
+    verbose : boolean
+    """
+    iext='.nii.gz'
+    from os.path import exists
+    musthavecols = ['projectID', 'subjectID','date','imageID','fn']
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in matched_dataframe.keys():
+            raise ValueError('matched_dataframe is missing column ' +musthavecols[k] + ' in study_dataframe_from_qc_dataframe' )
+    csvrow=matched_dataframe.dropna(axis=1)
+    pid=str(csvrow['projectID'].iloc[0] )
+    sid=str(csvrow['subjectID'].iloc[0] )
+    dt=str(csvrow['date'].iloc[0])
+    iid=str(csvrow['imageID'].iloc[0])
+    nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['fn'].iloc[0]+iext) )
+    if not exists( nrgt1fn ):
+        raise ValueError("T1 " + nrgt1fn + " does not exist in study_dataframe_from_qc_dataframe")
+    flList=[]
+    dtList=[]
+    rsfList=[]
+    nmList=[]
+    if 'flairfn' in csvrow.keys():
+        flid=str(int(csvrow['flairid'].iloc[0]))
+        nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'T2Flair', flid, str(csvrow['flairfn'].iloc[0]+iext) )
+        if exists( nrgt2fn ):
+            flList.append( nrgt2fn )
+    if 'dtfn1' in csvrow.keys():
+        dtid=str(int(csvrow['dtid1'].iloc[0]))
+        dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))[0]
+        if exists( dtfn1 ):
+            dtList.append( dtfn1 )
+    if 'dtfn2' in csvrow.keys():
+        dtid=str(int(csvrow['dtid2'].iloc[0]))
+        dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))[0]
+        if exists( dtfn2 ):
+            dtList.append( dtfn2 )
+    if 'rsffn1' in csvrow.keys():
+        rsid=str(int(csvrow['rsfid1'].iloc[0]))
+        rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))[0]
+        if exists( rsfn1 ):
+            rsfList.append( rsfn1 )
+    if 'rsffn2' in csvrow.keys():
+        rsid=str(int(csvrow['rsfid2'].iloc[0]))
+        rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn2'].iloc[0]+iext) ))[0]
+        if exists( rsfn2 ):
+            rsfList.append( rsfn2 )
+    for j in range(11):
+        keyname="nmfn"+str(j)
+        keynameid="nmid"+str(j)
+        if keyname in csvrow.keys() and keynameid in csvrow.keys():
+            nmid=str(int(csvrow[keynameid].iloc[0]))
+            nmsearchpath=os.path.join( rootdir, pid, sid, dt, 'NM2DMT', nmid, "*"+nmid+iext)
+            nmfn=glob.glob( nmsearchpath )
+            nmfn=nmfn[0]
+            if exists( nmfn ):
+                nmList.append( nmfn )
+    if verbose:
+        print("assembled the image lists mapping to ....")
+        print(nrgt1fn)
+        print("NM")
+        print(nmList)
+        print("FLAIR")
+        print(flList)
+        print("DTI")
+        print(dtList)
+        print("rsfMRI")
+        print(rsfList)
+    studycsv = generate_mm_dataframe(
+        pid,
+        sid,
+        dt,
+        iid, # the T1 id
+        'T1w',
+        rootdir,
+        outputdir,
+        t1_filename=nrgt1fn,
+        flair_filename=flList,
+        dti_filenames=dtList,
+        rsf_filenames=rsfList,
+        nm_filenames=nmList)
+    return studycsv.dropna(axis=1)
 
 def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     """
@@ -5158,8 +5251,8 @@ def mm_csv(
     srmodel_T1 = False, # optional - will add a great deal of time
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
-    dti_motion_correct = 'Rigid',
-    dti_denoise = False,
+    dti_motion_correct = 'SyN',
+    dti_denoise = True,
     nrg_modality_list = None
 ):
     """
