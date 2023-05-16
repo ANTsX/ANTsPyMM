@@ -6887,9 +6887,7 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     uid = qc_full['fn'] + "_" + qc_full['modality'].astype(str)
     to_average = uid.unique()
     # Define column indices
-    contcols = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi',
-       'reflection_err', 'EVR', 'msk_vol', 'spc0', 'spc1', 'spc2', 'dimx',
-       'dimy', 'dimz', 'slice']
+    contcols = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol', 'spc0', 'spc1', 'spc2', 'org0','org1','org2', 'dimx', 'dimy', 'dimz', 'slice']
     ocols = ['fn','modality', 'mriseries', 'mrimfg', 'mrimodel']
     # restrict to columns we "know"
     qc_full = qc_full[ocols+contcols]
