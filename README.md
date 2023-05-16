@@ -69,6 +69,17 @@ will all modalities will take around 2 hours on an average laptop.
 
 documentation of functions [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/antspymm/mm.html).
 
+
+achieved through four steps (recommended approach):
+
+1. organize data in NRG format
+
+2. perform blind QC
+
+3. compute outlierness per modality and select optimally matched modalities ( steps 3.1 and 3.2 )
+
+4. run the main antspymm function
+
 # first time setup
 
 ```python
