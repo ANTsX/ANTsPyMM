@@ -79,6 +79,7 @@ __all__ = ['version',
     'novelty_detection_quantile',
     'generate_mm_dataframe',
     'study_dataframe_from_matched_dataframe',
+    'merge_wides_to_study_dataframe',
     'wmh']
 
 from pathlib import Path
@@ -6122,6 +6123,106 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
     if colprefix is not None:
         xdf.columns=colprefix + xdf.columns
     return pd.concat( [df,xdf], axis=1 )
+
+def merge_wides_to_study_dataframe( sdf, processing_dir, separator='-', sid_is_int=True, id_is_int=True, date_is_int=True, report_missing=False,
+progress=False, verbose=False ):
+    """
+    extend a study data frame with wide outputs
+
+    sdf : the input study dataframe
+
+    processing_dir:  the directory location of the processed data 
+
+    separator : string usually '-' or '_'
+
+    sid_is_int : boolean set to True to cast unique subject ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    date_is_int : boolean set to True to cast date to int; can be useful if they are inadvertently stored as float by pandas
+
+    id_is_int : boolean set to True to cast unique image ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    report_missing : boolean combined with verbose will report missing modalities
+
+    progress : integer reports percent progress modulo progress value 
+
+    verbose : boolean
+    """
+    from os.path import exists
+    musthavecols = ['projectID', 'subjectID','date','imageID','fn']
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in sdf.keys():
+            raise ValueError('sdf is missing column ' +musthavecols[k] + ' in merge_wides_to_study_dataframe' )
+    possible_iids = [ 'imageID', 'imageID', 'imageID', 'flairid', 'dtid1', 'dtid2', 'rsfid1', 'rsfid2', 'nmid1', 'nmid2', 'nmid3', 'nmid4', 'nmid5', 'nmid6', 'nmid7', 'nmid8', 'nmid9', 'nmid10' ]
+    modality_ids = [ 'T1wHierarchical', 'T1wHierarchicalSR', 'T1w', 'T2Flair', 'DTI', 'DTI', 'rsfMRI', 'rsfMRI', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT']
+    alldf=pd.DataFrame()
+    for myk in sdf.index:
+        if progress > 0 and int(myk) % int(progress) == 0:
+            print( str( round( myk/sdf.shape[0]*100.0)) + "%...", end='', flush=True)
+        if verbose:
+            print( "DOROW " + str(myk) + ' of ' + str( sdf.shape[0] ) )
+        csvrow = sdf.loc[sdf.index == myk].dropna(axis=1)
+        ct=-1
+        for iidkey in possible_iids:
+            ct=ct+1
+            mod_name = modality_ids[ct]
+            if iidkey in csvrow.keys():
+                if id_is_int:
+                    iid = str( int( csvrow[iidkey].iloc[0] ) )
+                else:
+                    iid = str( csvrow[iidkey].iloc[0] )
+                if verbose:
+                    print( "iidkey " + iidkey + " modality " + mod_name + ' iid '+ iid )
+                pid=str(csvrow['projectID'].iloc[0] )
+                if sid_is_int:
+                    sid=str(int(csvrow['subjectID'].iloc[0] ))
+                else:
+                    sid=str(csvrow['subjectID'].iloc[0] )
+                if date_is_int:
+                    dt=str(int(csvrow['date'].iloc[0]))
+                else:
+                    dt=str(csvrow['date'].iloc[0])
+                if id_is_int:
+                    t1iid=str(int(csvrow['imageID'].iloc[0]))
+                else:
+                    t1iid=str(csvrow['imageID'].iloc[0])
+                if t1iid != iid:
+                    iidj=iid+"_"+t1iid
+                else:
+                    iidj=iid
+                rootid = pid +separator+ sid +separator+dt+separator+mod_name+separator+iidj
+                myext = rootid +separator+'mmwide.csv'
+                nrgwidefn=os.path.join( processing_dir, pid, sid, dt, mod_name, iid, myext )
+                moddersub = mod_name
+                if mod_name == 'T1wHierarchical':
+                    is_t1=True
+                    moddersub='T1Hier'
+                elif mod_name == 'T1wHierarchicalSR':
+                    is_t1=True
+                    moddersub='T1HSR'
+                if exists( nrgwidefn ):
+                    if verbose:
+                        print( nrgwidefn + " exists")
+                    mm=read_mm_csv( nrgwidefn, colprefix=moddersub+'_', is_t1=is_t1, separator=separator, verbose=verbose )
+                    if mod_name == 'T1wHierarchical':
+                        a=list( csvrow.keys() )
+                        b=list( mm.keys() )
+                        abintersect=list(set(b).intersection( set(a) ) )
+                        if len( abintersect  ) > 0 :
+                            for qq in abintersect:
+                                mm.pop( qq )
+                    mm.index=csvrow.index
+                    csvrow=pd.concat( [csvrow,mm], axis=1 )
+                else:
+                    if verbose and report_missing:
+                        print( nrgwidefn + " absent")
+        if alldf.shape[0] == 0:
+            alldf = csvrow.copy()
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+        else:
+            csvrow=csvrow.loc[:,~csvrow.columns.duplicated()]
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+            alldf = pd.concat( [alldf, csvrow], axis=0, ignore_index=True)
+    return alldf
 
 def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator='-', progress=None, verbose=False ):
     moddersub = re.sub( "[*]","",nrg_modality)
