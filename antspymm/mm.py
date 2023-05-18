@@ -6204,15 +6204,16 @@ progress=False, verbose=False ):
                     if verbose:
                         print( nrgwidefn + " exists")
                     mm=read_mm_csv( nrgwidefn, colprefix=moddersub+'_', is_t1=is_t1, separator=separator, verbose=verbose )
-                    if mod_name == 'T1wHierarchical':
-                        a=list( csvrow.keys() )
-                        b=list( mm.keys() )
-                        abintersect=list(set(b).intersection( set(a) ) )
-                        if len( abintersect  ) > 0 :
-                            for qq in abintersect:
-                                mm.pop( qq )
-                    mm.index=csvrow.index
-                    csvrow=pd.concat( [csvrow,mm], axis=1 )
+                    if mm is not None:
+                        if mod_name == 'T1wHierarchical':
+                            a=list( csvrow.keys() )
+                            b=list( mm.keys() )
+                            abintersect=list(set(b).intersection( set(a) ) )
+                            if len( abintersect  ) > 0 :
+                                for qq in abintersect:
+                                    mm.pop( qq )
+                        mm.index=csvrow.index
+                        csvrow=pd.concat( [csvrow,mm], axis=1 )
                 else:
                     if verbose and report_missing:
                         print( nrgwidefn + " absent")
