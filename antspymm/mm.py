@@ -6193,6 +6193,7 @@ progress=False, verbose=False ):
                 myext = rootid +separator+'mmwide.csv'
                 nrgwidefn=os.path.join( processing_dir, pid, sid, dt, mod_name, iid, myext )
                 moddersub = mod_name
+                is_t1=False
                 if mod_name == 'T1wHierarchical':
                     is_t1=True
                     moddersub='T1Hier'
