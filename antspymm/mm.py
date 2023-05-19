@@ -6213,6 +6213,8 @@ progress=False, verbose=False ):
                                 for qq in abintersect:
                                     mm.pop( qq )
                         mm.index=csvrow.index
+                        uidname = mod_name + '_mmwide_filename'
+                        mm[ uidname ] = rootid
                         csvrow=pd.concat( [csvrow,mm], axis=1 )
                 else:
                     if verbose and report_missing:
