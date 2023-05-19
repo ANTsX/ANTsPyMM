@@ -5665,12 +5665,12 @@ def mm_csv(
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
-                                dowrite=True
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
                                 imgList = [ img ]
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
+                                missing_dti_data=False # bval, bvec or images
                                 if len( myimgsr ) > 1:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
@@ -5683,40 +5683,44 @@ def mm_csv(
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
-                                        raise ValueError('mm_csv dti data ' + dtiex )
-                                srmodel_DTI_mdl=None
-                                if srmodel_DTI is not False:
-                                    temp = ants.get_spacing(img)
-                                    dtspc=[temp[0],temp[1],temp[2]]
-                                    bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
-                                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
-                                    if isinstance( srmodel_DTI, str ):
-                                        srmodel_DTI = re.sub( "bestup", bestup, srmodel_DTI )
-                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
-                                    if exists( mdlfn ):
-                                        if verbose:
-                                            print(mdlfn)
-                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
-                                    else:
-                                        print(mdlfn + " does not exist - wont use SR")
-                                tabPro, normPro = mm( t1, hier,
-                                    dw_image=imgList,
-                                    bvals = bvalfnList,
-                                    bvecs = bvecfnList,
-                                    srmodel=srmodel_DTI_mdl,
-                                    do_tractography=not test_run,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    dti_motion_correct = dti_motion_correct,
-                                    dti_denoise = dti_denoise,
-                                    test_run=test_run,
-                                    verbose=True )
-                                mydti = tabPro['DTI']
-                                if visualize:
-                                    maxslice = np.min( [21, mydti['recon_fa'] ] )
-                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
-                                    ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
-                                    ants.plot( mydti['recon_md'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='MD', filename=mymm+mysep+"MD.png"  )
+                                        print('mm_csv: missing dti data ' + dtiex )
+                                        missing_dti_data=True
+                                        dowrite=False
+                                if not missing_dti_data:
+                                    dowrite=True
+                                    srmodel_DTI_mdl=None
+                                    if srmodel_DTI is not False:
+                                        temp = ants.get_spacing(img)
+                                        dtspc=[temp[0],temp[1],temp[2]]
+                                        bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
+                                        mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                                        if isinstance( srmodel_DTI, str ):
+                                            srmodel_DTI = re.sub( "bestup", bestup, srmodel_DTI )
+                                            mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                        if exists( mdlfn ):
+                                            if verbose:
+                                                print(mdlfn)
+                                            srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                        else:
+                                            print(mdlfn + " does not exist - wont use SR")
+                                    tabPro, normPro = mm( t1, hier,
+                                        dw_image=imgList,
+                                        bvals = bvalfnList,
+                                        bvecs = bvecfnList,
+                                        srmodel=srmodel_DTI_mdl,
+                                        do_tractography=not test_run,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        dti_motion_correct = dti_motion_correct,
+                                        dti_denoise = dti_denoise,
+                                        test_run=test_run,
+                                        verbose=True )
+                                    mydti = tabPro['DTI']
+                                    if visualize:
+                                        maxslice = np.min( [21, mydti['recon_fa'] ] )
+                                        ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
+                                        ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
+                                        ants.plot( mydti['recon_md'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='MD', filename=mymm+mysep+"MD.png"  )
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():

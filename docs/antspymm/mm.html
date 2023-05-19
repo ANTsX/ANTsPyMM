@@ -105,6 +105,8 @@
     &#39;novelty_detection_loop&#39;,
     &#39;novelty_detection_quantile&#39;,
     &#39;generate_mm_dataframe&#39;,
+    &#39;study_dataframe_from_matched_dataframe&#39;,
+    &#39;merge_wides_to_study_dataframe&#39;,
     &#39;wmh&#39;]
 
 from pathlib import Path
@@ -521,6 +523,98 @@ def nrg_format_path( projectID, subjectID, date, modality, imageID, separator=&#
     thefilename = str(projectID) + separator + str(subjectID) + separator + str(date) + separator + str(modality) + separator + str(imageID)
     return os.path.join( thedirectory, thefilename )
 
+
+def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
+    &#34;&#34;&#34;
+    converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
+
+    matched_dataframe : output of antspymm.match_modalities
+
+    rootdir : location for the input data root folder (in e.g. NRG format)
+
+    outputdir : location for the output data
+
+    verbose : boolean
+    &#34;&#34;&#34;
+    iext=&#39;.nii.gz&#39;
+    from os.path import exists
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;fn&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in matched_dataframe.keys():
+            raise ValueError(&#39;matched_dataframe is missing column &#39; +musthavecols[k] + &#39; in study_dataframe_from_qc_dataframe&#39; )
+    csvrow=matched_dataframe.dropna(axis=1)
+    pid=str(csvrow[&#39;projectID&#39;].iloc[0] )
+    sid=str(csvrow[&#39;subjectID&#39;].iloc[0] )
+    dt=str(csvrow[&#39;date&#39;].iloc[0])
+    iid=str(csvrow[&#39;imageID&#39;].iloc[0])
+    nrgt1fn=os.path.join( rootdir, pid, sid, dt, &#39;T1w&#39;, iid, str(csvrow[&#39;fn&#39;].iloc[0]+iext) )
+    if not exists( nrgt1fn ):
+        raise ValueError(&#34;T1 &#34; + nrgt1fn + &#34; does not exist in study_dataframe_from_qc_dataframe&#34;)
+    flList=[]
+    dtList=[]
+    rsfList=[]
+    nmList=[]
+    if &#39;flairfn&#39; in csvrow.keys():
+        flid=str(int(csvrow[&#39;flairid&#39;].iloc[0]))
+        nrgt2fn=os.path.join( rootdir, pid, sid, dt, &#39;T2Flair&#39;, flid, str(csvrow[&#39;flairfn&#39;].iloc[0]+iext) )
+        if exists( nrgt2fn ):
+            flList.append( nrgt2fn )
+    if &#39;dtfn1&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid1&#39;].iloc[0]))
+        dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn1&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn1 ):
+            dtList.append( dtfn1 )
+    if &#39;dtfn2&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid2&#39;].iloc[0]))
+        dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn2&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn2 ):
+            dtList.append( dtfn2 )
+    if &#39;rsffn1&#39; in csvrow.keys():
+        rsid=str(int(csvrow[&#39;rsfid1&#39;].iloc[0]))
+        rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn1&#39;].iloc[0]+iext) ))[0]
+        if exists( rsfn1 ):
+            rsfList.append( rsfn1 )
+    if &#39;rsffn2&#39; in csvrow.keys():
+        rsid=str(int(csvrow[&#39;rsfid2&#39;].iloc[0]))
+        rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn2&#39;].iloc[0]+iext) ))[0]
+        if exists( rsfn2 ):
+            rsfList.append( rsfn2 )
+    for j in range(11):
+        keyname=&#34;nmfn&#34;+str(j)
+        keynameid=&#34;nmid&#34;+str(j)
+        if keyname in csvrow.keys() and keynameid in csvrow.keys():
+            nmid=str(int(csvrow[keynameid].iloc[0]))
+            nmsearchpath=os.path.join( rootdir, pid, sid, dt, &#39;NM2DMT&#39;, nmid, &#34;*&#34;+nmid+iext)
+            nmfn=glob.glob( nmsearchpath )
+            nmfn=nmfn[0]
+            if exists( nmfn ):
+                nmList.append( nmfn )
+    if verbose:
+        print(&#34;assembled the image lists mapping to ....&#34;)
+        print(nrgt1fn)
+        print(&#34;NM&#34;)
+        print(nmList)
+        print(&#34;FLAIR&#34;)
+        print(flList)
+        print(&#34;DTI&#34;)
+        print(dtList)
+        print(&#34;rsfMRI&#34;)
+        print(rsfList)
+    studycsv = generate_mm_dataframe(
+        pid,
+        sid,
+        dt,
+        iid, # the T1 id
+        &#39;T1w&#39;,
+        rootdir,
+        outputdir,
+        t1_filename=nrgt1fn,
+        flair_filename=flList,
+        dti_filenames=dtList,
+        rsf_filenames=rsfList,
+        nm_filenames=nmList)
+    return studycsv.dropna(axis=1)
+
 def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     &#34;&#34;&#34;
     This function returns a subset of the input dataframe that retains only the rows
@@ -768,6 +862,13 @@ def mm_read( x, standardize_intensity=False, modality=&#39;&#39; ):
     if standardize_intensity:
         img[img&lt;0.0]=0.0
         img=ants.iMath(img,&#39;Normalize&#39;)
+    if modality == &#34;T1w&#34; and img.dimension == 4:
+        print(&#34;WARNING: input image is 4D - we attempt a hack fix that works in some odd cases of PPMI data - please check this image: &#34; + x, flush=True )
+        i1=ants.slice_image(img,3,0)
+        i2=ants.slice_image(img,3,1)
+        kk=np.concatenate( [i1.numpy(),i2.numpy()], axis=2 )
+        kk=ants.from_numpy(kk)
+        img=ants.copy_image_info(i1,kk)
     return img
 
 def mm_read_to_3d( x, slice=None, modality=&#39;&#39; ):
@@ -1011,11 +1112,12 @@ def timeseries_reg(
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, &#34;Normalize&#34;)
+        txprefix = ofnL+str(k % 2).zfill(4)+&#34;_&#34;
         if temp.numpy().var() &gt; 0:
             myrig = ants.registration(
                     avg_b0, temp,
                     type_of_transform=&#39;BOLDRigid&#39;,
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;
+                    outprefix=txprefix
                 )
             if type_of_transform == &#39;SyN&#39;:
                 myreg = ants.registration(
@@ -1023,7 +1125,7 @@ def timeseries_reg(
                     type_of_transform=&#39;SyNOnly&#39;,
                     total_sigma=total_sigma,
                     initial_transform=myrig[&#39;fwdtransforms&#39;][0],
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix,
                     **kwargs
                 )
             else:
@@ -1043,7 +1145,6 @@ def timeseries_reg(
         else:
             motion_parameters.append(&#34;NA&#34;)
 
-    for k in range(nTimePoints):
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if temp.numpy().var() &gt; 0:
             img1w = ants.apply_transforms( avg_b0,
@@ -1277,6 +1378,27 @@ def dti_reg(
             useinds.append(k)
         myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
     fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
+
+
+    if verbose:
+        print(&#34;begin global distortion correction&#34;)
+    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=[&#39;rigid&#39;], verbose=verbose)
+    if mask_csf:
+        bcsf = ants.threshold_image( avg_b0,&#34;Otsu&#34;,2).threshold_image(1,1).morphology(&#34;open&#34;,1).iMath(&#34;GetLargestComponent&#34;)
+    else:
+        bcsf = ab0 * 0 + 1
+
+    initrig = ants.registration( avg_b0, ab0,&#39;BOLDRigid&#39;,outprefix=ofnG)
+    deftx = ants.registration( avg_dwi, adw, &#39;SyNOnly&#39;,
+        syn_metric=&#39;CC&#39;, syn_sampling=2,
+        reg_iterations=[50,50,20],
+        multivariate_extras=[ [ &#34;CC&#34;, avg_b0, ab0, 1, 2 ]],
+        initial_transform=initrig[&#39;fwdtransforms&#39;][0],
+        outprefix=ofnG
+        )[&#39;fwdtransforms&#39;]
+    if verbose:
+        print(&#34;end global distortion correction&#34;)
+
     if verbose:
         print(&#34;Progress:&#34;)
     counter = round( nTimePoints / 10 )
@@ -1291,11 +1413,13 @@ def dti_reg(
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, &#34;Normalize&#34;)
+        txprefix = ofnL+str(k).zfill(4)+&#34;rig_&#34;
+        txprefix2 = ofnL+str(k % 2).zfill(4)+&#34;def_&#34;
         if temp.numpy().var() &gt; 0:
             myrig = ants.registration(
                     fixed, temp,
                     type_of_transform=&#39;BOLDRigid&#39;,
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix,
                     **kwargs
                 )
             if type_of_transform == &#39;SyN&#39;:
@@ -1304,7 +1428,7 @@ def dti_reg(
                     type_of_transform=&#39;SyNOnly&#39;,
                     total_sigma=total_sigma, grad_step=0.1,
                     initial_transform=myrig[&#39;fwdtransforms&#39;][0],
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix2,
                     **kwargs
                 )
             else:
@@ -1324,26 +1448,6 @@ def dti_reg(
         else:
             motion_parameters.append(&#34;NA&#34;)
 
-    if verbose:
-        print(&#34;begin global distortion correction&#34;)
-    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=[&#39;rigid&#39;], verbose=verbose)
-    if mask_csf:
-        bcsf = ants.threshold_image( avg_b0,&#34;Otsu&#34;,2).threshold_image(1,1).morphology(&#34;open&#34;,1).iMath(&#34;GetLargestComponent&#34;)
-    else:
-        bcsf = avg_b0[0] * 0 + 1
-
-    initrig = ants.registration( avg_b0, ab0*bcsf,&#39;BOLDRigid&#39;,outprefix=ofnG)
-    deftx = ants.registration( avg_dwi, adw*bcsf, &#39;SyNOnly&#39;,
-        syn_metric=&#39;CC&#39;, syn_sampling=2,
-        reg_iterations=[50,50,20],
-        multivariate_extras=[ [ &#34;CC&#34;, avg_b0, ab0*bcsf, 1, 2 ]],
-        initial_transform=initrig[&#39;fwdtransforms&#39;][0],
-        outprefix=ofnG
-        )[&#39;fwdtransforms&#39;]
-    if verbose:
-        print(&#34;end global distortion correction&#34;)
-
-    for k in range(nTimePoints):
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
@@ -1870,7 +1974,7 @@ def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     &#39;highermeans&#39;:higherindices }
 
 
-def get_average_rsf( x ):
+def get_average_rsf( x, min_t=10, max_t=35 ):
     &#34;&#34;&#34;
     automatically generates the average bold image with quick registration
 
@@ -1881,13 +1985,17 @@ def get_average_rsf( x ):
     ofn = output_directory + &#34;/w&#34;
     bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
     oavg = ants.slice_image( x, axis=3, idx=0 )
-    for myidx in range(x.shape[3]):
+    if x.shape[3] &lt;= min_t:
+        min_t=0
+    if x.shape[3] &lt;= max_t:
+        max_t=x.shape[3]-1
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
     bavg = ants.iMath( bavg, &#39;Normalize&#39; )
     oavg = ants.image_clone( bavg )
     bavg = oavg * 0.0
-    for myidx in range(x.shape[3]):
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
     import shutil
@@ -3849,7 +3957,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;Rigid&#39;,
     verbose=False ):
 
   &#34;&#34;&#34;
@@ -3902,7 +4010,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fdOffset=2.0,
     trim = 8,
     output_directory=None,
-    verbose=False,
+    verbose=verbose,
     syn_metric=&#39;cc&#39;,
     syn_sampling=2,
     reg_iterations=[40,20,5] )
@@ -4373,8 +4481,8 @@ def mm(
         else :  # use phase encoding acquisitions for distortion correction and T1 for brain extraction
             if verbose:
                 print(&#34;We have both DTI_LR and DTI_RL: &#34; + str(len(dw_image)))
-            a1b,a1w=antspymm.get_average_dwi_b0(dw_image[0])
-            a2b,a2w=antspymm.get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
+            a1b,a1w=get_average_dwi_b0(dw_image[0])
+            a2b,a2w=get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
             btpB0, btpDW = dti_template(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
@@ -5171,8 +5279,8 @@ def mm_csv(
     srmodel_T1 = False, # optional - will add a great deal of time
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
-    dti_motion_correct = &#39;Rigid&#39;,
-    dti_denoise = False,
+    dti_motion_correct = &#39;SyN&#39;,
+    dti_denoise = True,
     nrg_modality_list = None
 ):
     &#34;&#34;&#34;
@@ -5333,7 +5441,7 @@ def mm_csv(
     t1fn = filename
     if not exists( t1fn ):
         raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
-    t1 = mm_read( t1fn )
+    t1 = mm_read( t1fn, modality=&#39;T1w&#39; )
     hierfn = outputdir + &#34;/&#34;  + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + mysep + iid + mysep
     hierfnSR = outputdir + &#34;/&#34; + projid + &#34;/&#34;  + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + mysep + iid + mysep
     hierfntest = hierfn + &#39;snseg.csv&#39;
@@ -5351,7 +5459,7 @@ def mm_csv(
             str(exists( templateTx[&#39;invtransforms&#39;][1])) )
     if verbose:
         print( hierfntest )
-    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hierexists = exists( hierfntest ) and exists( templateTx[&#39;fwdtransforms&#39;][0]) and exists( templateTx[&#39;fwdtransforms&#39;][1]) and exists( templateTx[&#39;invtransforms&#39;][0]) and exists( templateTx[&#39;invtransforms&#39;][1])
     hier = None
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
@@ -6042,6 +6150,110 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator=&#39;-&#39;, verbose=
     if colprefix is not None:
         xdf.columns=colprefix + xdf.columns
     return pd.concat( [df,xdf], axis=1 )
+
+def merge_wides_to_study_dataframe( sdf, processing_dir, separator=&#39;-&#39;, sid_is_int=True, id_is_int=True, date_is_int=True, report_missing=False,
+progress=False, verbose=False ):
+    &#34;&#34;&#34;
+    extend a study data frame with wide outputs
+
+    sdf : the input study dataframe
+
+    processing_dir:  the directory location of the processed data 
+
+    separator : string usually &#39;-&#39; or &#39;_&#39;
+
+    sid_is_int : boolean set to True to cast unique subject ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    date_is_int : boolean set to True to cast date to int; can be useful if they are inadvertently stored as float by pandas
+
+    id_is_int : boolean set to True to cast unique image ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    report_missing : boolean combined with verbose will report missing modalities
+
+    progress : integer reports percent progress modulo progress value 
+
+    verbose : boolean
+    &#34;&#34;&#34;
+    from os.path import exists
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;fn&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in sdf.keys():
+            raise ValueError(&#39;sdf is missing column &#39; +musthavecols[k] + &#39; in merge_wides_to_study_dataframe&#39; )
+    possible_iids = [ &#39;imageID&#39;, &#39;imageID&#39;, &#39;imageID&#39;, &#39;flairid&#39;, &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;rsfid1&#39;, &#39;rsfid2&#39;, &#39;nmid1&#39;, &#39;nmid2&#39;, &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;, &#39;nmid6&#39;, &#39;nmid7&#39;, &#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ]
+    modality_ids = [ &#39;T1wHierarchical&#39;, &#39;T1wHierarchicalSR&#39;, &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;DTI&#39;, &#39;DTI&#39;, &#39;rsfMRI&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;]
+    alldf=pd.DataFrame()
+    for myk in sdf.index:
+        if progress &gt; 0 and int(myk) % int(progress) == 0:
+            print( str( round( myk/sdf.shape[0]*100.0)) + &#34;%...&#34;, end=&#39;&#39;, flush=True)
+        if verbose:
+            print( &#34;DOROW &#34; + str(myk) + &#39; of &#39; + str( sdf.shape[0] ) )
+        csvrow = sdf.loc[sdf.index == myk].dropna(axis=1)
+        ct=-1
+        for iidkey in possible_iids:
+            ct=ct+1
+            mod_name = modality_ids[ct]
+            if iidkey in csvrow.keys():
+                if id_is_int:
+                    iid = str( int( csvrow[iidkey].iloc[0] ) )
+                else:
+                    iid = str( csvrow[iidkey].iloc[0] )
+                if verbose:
+                    print( &#34;iidkey &#34; + iidkey + &#34; modality &#34; + mod_name + &#39; iid &#39;+ iid )
+                pid=str(csvrow[&#39;projectID&#39;].iloc[0] )
+                if sid_is_int:
+                    sid=str(int(csvrow[&#39;subjectID&#39;].iloc[0] ))
+                else:
+                    sid=str(csvrow[&#39;subjectID&#39;].iloc[0] )
+                if date_is_int:
+                    dt=str(int(csvrow[&#39;date&#39;].iloc[0]))
+                else:
+                    dt=str(csvrow[&#39;date&#39;].iloc[0])
+                if id_is_int:
+                    t1iid=str(int(csvrow[&#39;imageID&#39;].iloc[0]))
+                else:
+                    t1iid=str(csvrow[&#39;imageID&#39;].iloc[0])
+                if t1iid != iid:
+                    iidj=iid+&#34;_&#34;+t1iid
+                else:
+                    iidj=iid
+                rootid = pid +separator+ sid +separator+dt+separator+mod_name+separator+iidj
+                myext = rootid +separator+&#39;mmwide.csv&#39;
+                nrgwidefn=os.path.join( processing_dir, pid, sid, dt, mod_name, iid, myext )
+                moddersub = mod_name
+                is_t1=False
+                if mod_name == &#39;T1wHierarchical&#39;:
+                    is_t1=True
+                    moddersub=&#39;T1Hier&#39;
+                elif mod_name == &#39;T1wHierarchicalSR&#39;:
+                    is_t1=True
+                    moddersub=&#39;T1HSR&#39;
+                if exists( nrgwidefn ):
+                    if verbose:
+                        print( nrgwidefn + &#34; exists&#34;)
+                    mm=read_mm_csv( nrgwidefn, colprefix=moddersub+&#39;_&#39;, is_t1=is_t1, separator=separator, verbose=verbose )
+                    if mm is not None:
+                        if mod_name == &#39;T1wHierarchical&#39;:
+                            a=list( csvrow.keys() )
+                            b=list( mm.keys() )
+                            abintersect=list(set(b).intersection( set(a) ) )
+                            if len( abintersect  ) &gt; 0 :
+                                for qq in abintersect:
+                                    mm.pop( qq )
+                        mm.index=csvrow.index
+                        uidname = mod_name + &#39;_mmwide_filename&#39;
+                        mm[ uidname ] = rootid
+                        csvrow=pd.concat( [csvrow,mm], axis=1 )
+                else:
+                    if verbose and report_missing:
+                        print( nrgwidefn + &#34; absent&#34;)
+        if alldf.shape[0] == 0:
+            alldf = csvrow.copy()
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+        else:
+            csvrow=csvrow.loc[:,~csvrow.columns.duplicated()]
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+            alldf = pd.concat( [alldf, csvrow], axis=0, ignore_index=True)
+    return alldf
 
 def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator=&#39;-&#39;, progress=None, verbose=False ):
     moddersub = re.sub( &#34;[*]&#34;,&#34;&#34;,nrg_modality)
@@ -6749,6 +6961,7 @@ def blind_image_assessment(
 #        obj = BRISQUE(url=False)
 #        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
         spc = ants.get_spacing( image )
+        org = ants.get_origin( image )
         msk_vol = msk.sum() * np.prod( spc )
         bgstd = image[ bgmsk == 1 ].std()
         fgmean = image[ msk == 1 ].mean()
@@ -6777,7 +6990,7 @@ def blind_image_assessment(
         if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
             viz_filename_use = re.sub( &#34;.png&#34;, &#34;_slice&#34;+str(jjj).zfill(4)+&#34;.png&#34;, viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor=&#39;red&#39; )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;fn&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;fn&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
         outdf = pd.concat( [outdf, df ], axis=0 )
         if verbose:
             print( outdf )
@@ -6806,9 +7019,7 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     uid = qc_full[&#39;fn&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
     to_average = uid.unique()
     # Define column indices
-    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,
-       &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;dimx&#39;,
-       &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
+    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;, &#39;dimx&#39;, &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
     ocols = [&#39;fn&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
     # restrict to columns we &#34;know&#34;
     qc_full = qc_full[ocols+contcols]
@@ -7295,9 +7506,7 @@ pandas dataframe containing the processed qc data.</p></div>
     uid = qc_full[&#39;fn&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
     to_average = uid.unique()
     # Define column indices
-    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,
-       &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;dimx&#39;,
-       &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
+    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;, &#39;dimx&#39;, &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
     ocols = [&#39;fn&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
     # restrict to columns we &#34;know&#34;
     qc_full = qc_full[ocols+contcols]
@@ -7911,6 +8120,7 @@ produces a png and csv where csv contains:</p>
 #        obj = BRISQUE(url=False)
 #        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
         spc = ants.get_spacing( image )
+        org = ants.get_origin( image )
         msk_vol = msk.sum() * np.prod( spc )
         bgstd = image[ bgmsk == 1 ].std()
         fgmean = image[ msk == 1 ].mean()
@@ -7939,7 +8149,7 @@ produces a png and csv where csv contains:</p>
         if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
             viz_filename_use = re.sub( &#34;.png&#34;, &#34;_slice&#34;+str(jjj).zfill(4)+&#34;.png&#34;, viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor=&#39;red&#39; )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;fn&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;fn&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
         outdf = pd.concat( [outdf, df ], axis=0 )
         if verbose:
             print( outdf )
@@ -8749,6 +8959,27 @@ kwargs: keyword args
             useinds.append(k)
         myoffsets[k, :] = myoffsets[k, :] * fdOffset / 2.0 + centerOfMass
     fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
+
+
+    if verbose:
+        print(&#34;begin global distortion correction&#34;)
+    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=[&#39;rigid&#39;], verbose=verbose)
+    if mask_csf:
+        bcsf = ants.threshold_image( avg_b0,&#34;Otsu&#34;,2).threshold_image(1,1).morphology(&#34;open&#34;,1).iMath(&#34;GetLargestComponent&#34;)
+    else:
+        bcsf = ab0 * 0 + 1
+
+    initrig = ants.registration( avg_b0, ab0,&#39;BOLDRigid&#39;,outprefix=ofnG)
+    deftx = ants.registration( avg_dwi, adw, &#39;SyNOnly&#39;,
+        syn_metric=&#39;CC&#39;, syn_sampling=2,
+        reg_iterations=[50,50,20],
+        multivariate_extras=[ [ &#34;CC&#34;, avg_b0, ab0, 1, 2 ]],
+        initial_transform=initrig[&#39;fwdtransforms&#39;][0],
+        outprefix=ofnG
+        )[&#39;fwdtransforms&#39;]
+    if verbose:
+        print(&#34;end global distortion correction&#34;)
+
     if verbose:
         print(&#34;Progress:&#34;)
     counter = round( nTimePoints / 10 )
@@ -8763,11 +8994,13 @@ kwargs: keyword args
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, &#34;Normalize&#34;)
+        txprefix = ofnL+str(k).zfill(4)+&#34;rig_&#34;
+        txprefix2 = ofnL+str(k % 2).zfill(4)+&#34;def_&#34;
         if temp.numpy().var() &gt; 0:
             myrig = ants.registration(
                     fixed, temp,
                     type_of_transform=&#39;BOLDRigid&#39;,
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix,
                     **kwargs
                 )
             if type_of_transform == &#39;SyN&#39;:
@@ -8776,7 +9009,7 @@ kwargs: keyword args
                     type_of_transform=&#39;SyNOnly&#39;,
                     total_sigma=total_sigma, grad_step=0.1,
                     initial_transform=myrig[&#39;fwdtransforms&#39;][0],
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix2,
                     **kwargs
                 )
             else:
@@ -8796,26 +9029,6 @@ kwargs: keyword args
         else:
             motion_parameters.append(&#34;NA&#34;)
 
-    if verbose:
-        print(&#34;begin global distortion correction&#34;)
-    # initrig = tra_initializer(avg_b0, ab0, max_rotation=60, transform=[&#39;rigid&#39;], verbose=verbose)
-    if mask_csf:
-        bcsf = ants.threshold_image( avg_b0,&#34;Otsu&#34;,2).threshold_image(1,1).morphology(&#34;open&#34;,1).iMath(&#34;GetLargestComponent&#34;)
-    else:
-        bcsf = avg_b0[0] * 0 + 1
-
-    initrig = ants.registration( avg_b0, ab0*bcsf,&#39;BOLDRigid&#39;,outprefix=ofnG)
-    deftx = ants.registration( avg_dwi, adw*bcsf, &#39;SyNOnly&#39;,
-        syn_metric=&#39;CC&#39;, syn_sampling=2,
-        reg_iterations=[50,50,20],
-        multivariate_extras=[ [ &#34;CC&#34;, avg_b0, ab0*bcsf, 1, 2 ]],
-        initial_transform=initrig[&#39;fwdtransforms&#39;][0],
-        outprefix=ofnG
-        )[&#39;fwdtransforms&#39;]
-    if verbose:
-        print(&#34;end global distortion correction&#34;)
-
-    for k in range(nTimePoints):
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if k in b0_idx:
             fixed=ants.image_clone( ab0 )
@@ -9836,7 +10049,7 @@ avg_b0, avg_dwi</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.get_average_rsf"><code class="name flex">
-<span>def <span class="ident">get_average_rsf</span></span>(<span>x)</span>
+<span>def <span class="ident">get_average_rsf</span></span>(<span>x, min_t=10, max_t=35)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>automatically generates the average bold image with quick registration</p>
@@ -9846,7 +10059,7 @@ avg_bold</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_average_rsf( x ):
+<pre><code class="python">def get_average_rsf( x, min_t=10, max_t=35 ):
     &#34;&#34;&#34;
     automatically generates the average bold image with quick registration
 
@@ -9857,13 +10070,17 @@ avg_bold</p></div>
     ofn = output_directory + &#34;/w&#34;
     bavg = ants.slice_image( x, axis=3, idx=0 ) * 0.0
     oavg = ants.slice_image( x, axis=3, idx=0 )
-    for myidx in range(x.shape[3]):
+    if x.shape[3] &lt;= min_t:
+        min_t=0
+    if x.shape[3] &lt;= max_t:
+        max_t=x.shape[3]-1
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
     bavg = ants.iMath( bavg, &#39;Normalize&#39; )
     oavg = ants.image_clone( bavg )
     bavg = oavg * 0.0
-    for myidx in range(x.shape[3]):
+    for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
     import shutil
@@ -11225,6 +11442,130 @@ kwargs: keyword args
     return ants.list_to_ndimage( img_LR, mimg )</code></pre>
 </details>
 </dd>
+<dt id="antspymm.mm.merge_wides_to_study_dataframe"><code class="name flex">
+<span>def <span class="ident">merge_wides_to_study_dataframe</span></span>(<span>sdf, processing_dir, separator='-', sid_is_int=True, id_is_int=True, date_is_int=True, report_missing=False, progress=False, verbose=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>extend a study data frame with wide outputs</p>
+<p>sdf : the input study dataframe</p>
+<p>processing_dir:
+the directory location of the processed data </p>
+<p>separator : string usually '-' or '_'</p>
+<p>sid_is_int : boolean set to True to cast unique subject ids to int; can be useful if they are inadvertently stored as float by pandas</p>
+<p>date_is_int : boolean set to True to cast date to int; can be useful if they are inadvertently stored as float by pandas</p>
+<p>id_is_int : boolean set to True to cast unique image ids to int; can be useful if they are inadvertently stored as float by pandas</p>
+<p>report_missing : boolean combined with verbose will report missing modalities</p>
+<p>progress : integer reports percent progress modulo progress value </p>
+<p>verbose : boolean</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def merge_wides_to_study_dataframe( sdf, processing_dir, separator=&#39;-&#39;, sid_is_int=True, id_is_int=True, date_is_int=True, report_missing=False,
+progress=False, verbose=False ):
+    &#34;&#34;&#34;
+    extend a study data frame with wide outputs
+
+    sdf : the input study dataframe
+
+    processing_dir:  the directory location of the processed data 
+
+    separator : string usually &#39;-&#39; or &#39;_&#39;
+
+    sid_is_int : boolean set to True to cast unique subject ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    date_is_int : boolean set to True to cast date to int; can be useful if they are inadvertently stored as float by pandas
+
+    id_is_int : boolean set to True to cast unique image ids to int; can be useful if they are inadvertently stored as float by pandas
+
+    report_missing : boolean combined with verbose will report missing modalities
+
+    progress : integer reports percent progress modulo progress value 
+
+    verbose : boolean
+    &#34;&#34;&#34;
+    from os.path import exists
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;fn&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in sdf.keys():
+            raise ValueError(&#39;sdf is missing column &#39; +musthavecols[k] + &#39; in merge_wides_to_study_dataframe&#39; )
+    possible_iids = [ &#39;imageID&#39;, &#39;imageID&#39;, &#39;imageID&#39;, &#39;flairid&#39;, &#39;dtid1&#39;, &#39;dtid2&#39;, &#39;rsfid1&#39;, &#39;rsfid2&#39;, &#39;nmid1&#39;, &#39;nmid2&#39;, &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;, &#39;nmid6&#39;, &#39;nmid7&#39;, &#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39; ]
+    modality_ids = [ &#39;T1wHierarchical&#39;, &#39;T1wHierarchicalSR&#39;, &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;DTI&#39;, &#39;DTI&#39;, &#39;rsfMRI&#39;, &#39;rsfMRI&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;, &#39;NM2DMT&#39;]
+    alldf=pd.DataFrame()
+    for myk in sdf.index:
+        if progress &gt; 0 and int(myk) % int(progress) == 0:
+            print( str( round( myk/sdf.shape[0]*100.0)) + &#34;%...&#34;, end=&#39;&#39;, flush=True)
+        if verbose:
+            print( &#34;DOROW &#34; + str(myk) + &#39; of &#39; + str( sdf.shape[0] ) )
+        csvrow = sdf.loc[sdf.index == myk].dropna(axis=1)
+        ct=-1
+        for iidkey in possible_iids:
+            ct=ct+1
+            mod_name = modality_ids[ct]
+            if iidkey in csvrow.keys():
+                if id_is_int:
+                    iid = str( int( csvrow[iidkey].iloc[0] ) )
+                else:
+                    iid = str( csvrow[iidkey].iloc[0] )
+                if verbose:
+                    print( &#34;iidkey &#34; + iidkey + &#34; modality &#34; + mod_name + &#39; iid &#39;+ iid )
+                pid=str(csvrow[&#39;projectID&#39;].iloc[0] )
+                if sid_is_int:
+                    sid=str(int(csvrow[&#39;subjectID&#39;].iloc[0] ))
+                else:
+                    sid=str(csvrow[&#39;subjectID&#39;].iloc[0] )
+                if date_is_int:
+                    dt=str(int(csvrow[&#39;date&#39;].iloc[0]))
+                else:
+                    dt=str(csvrow[&#39;date&#39;].iloc[0])
+                if id_is_int:
+                    t1iid=str(int(csvrow[&#39;imageID&#39;].iloc[0]))
+                else:
+                    t1iid=str(csvrow[&#39;imageID&#39;].iloc[0])
+                if t1iid != iid:
+                    iidj=iid+&#34;_&#34;+t1iid
+                else:
+                    iidj=iid
+                rootid = pid +separator+ sid +separator+dt+separator+mod_name+separator+iidj
+                myext = rootid +separator+&#39;mmwide.csv&#39;
+                nrgwidefn=os.path.join( processing_dir, pid, sid, dt, mod_name, iid, myext )
+                moddersub = mod_name
+                is_t1=False
+                if mod_name == &#39;T1wHierarchical&#39;:
+                    is_t1=True
+                    moddersub=&#39;T1Hier&#39;
+                elif mod_name == &#39;T1wHierarchicalSR&#39;:
+                    is_t1=True
+                    moddersub=&#39;T1HSR&#39;
+                if exists( nrgwidefn ):
+                    if verbose:
+                        print( nrgwidefn + &#34; exists&#34;)
+                    mm=read_mm_csv( nrgwidefn, colprefix=moddersub+&#39;_&#39;, is_t1=is_t1, separator=separator, verbose=verbose )
+                    if mm is not None:
+                        if mod_name == &#39;T1wHierarchical&#39;:
+                            a=list( csvrow.keys() )
+                            b=list( mm.keys() )
+                            abintersect=list(set(b).intersection( set(a) ) )
+                            if len( abintersect  ) &gt; 0 :
+                                for qq in abintersect:
+                                    mm.pop( qq )
+                        mm.index=csvrow.index
+                        uidname = mod_name + &#39;_mmwide_filename&#39;
+                        mm[ uidname ] = rootid
+                        csvrow=pd.concat( [csvrow,mm], axis=1 )
+                else:
+                    if verbose and report_missing:
+                        print( nrgwidefn + &#34; absent&#34;)
+        if alldf.shape[0] == 0:
+            alldf = csvrow.copy()
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+        else:
+            csvrow=csvrow.loc[:,~csvrow.columns.duplicated()]
+            alldf = alldf.loc[:,~alldf.columns.duplicated()]
+            alldf = pd.concat( [alldf, csvrow], axis=0, ignore_index=True)
+    return alldf</code></pre>
+</details>
+</dd>
 <dt id="antspymm.mm.middle_slice_snr"><code class="name flex">
 <span>def <span class="ident">middle_slice_snr</span></span>(<span>x, background_dilation=5)</span>
 </code></dt>
@@ -11546,8 +11887,8 @@ of the network.</dd>
         else :  # use phase encoding acquisitions for distortion correction and T1 for brain extraction
             if verbose:
                 print(&#34;We have both DTI_LR and DTI_RL: &#34; + str(len(dw_image)))
-            a1b,a1w=antspymm.get_average_dwi_b0(dw_image[0])
-            a2b,a2w=antspymm.get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
+            a1b,a1w=get_average_dwi_b0(dw_image[0])
+            a2b,a2w=get_average_dwi_b0(dw_image[1],fixed_b0=a1b,fixed_dwi=a1w)
             btpB0, btpDW = dti_template(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
@@ -11666,7 +12007,7 @@ of the network.</dd>
 </details>
 </dd>
 <dt id="antspymm.mm.mm_csv"><code class="name flex">
-<span>def <span class="ident">mm_csv</span></span>(<span>studycsv, mysep='-', srmodel_T1=False, srmodel_NM=False, srmodel_DTI=False, dti_motion_correct='Rigid', dti_denoise=False, nrg_modality_list=None)</span>
+<span>def <span class="ident">mm_csv</span></span>(<span>studycsv, mysep='-', srmodel_T1=False, srmodel_NM=False, srmodel_DTI=False, dti_motion_correct='SyN', dti_denoise=True, nrg_modality_list=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>too dangerous to document &hellip; use with care.</p>
@@ -11739,8 +12080,8 @@ see antspymm.generate_mm_dataframe</li>
     srmodel_T1 = False, # optional - will add a great deal of time
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
-    dti_motion_correct = &#39;Rigid&#39;,
-    dti_denoise = False,
+    dti_motion_correct = &#39;SyN&#39;,
+    dti_denoise = True,
     nrg_modality_list = None
 ):
     &#34;&#34;&#34;
@@ -11901,7 +12242,7 @@ see antspymm.generate_mm_dataframe</li>
     t1fn = filename
     if not exists( t1fn ):
         raise ValueError(&#39;mm_nrg cannot find the T1w with uid &#39; + t1fn )
-    t1 = mm_read( t1fn )
+    t1 = mm_read( t1fn, modality=&#39;T1w&#39; )
     hierfn = outputdir + &#34;/&#34;  + projid + &#34;/&#34; + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchical&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchical&#34; + mysep + iid + mysep
     hierfnSR = outputdir + &#34;/&#34; + projid + &#34;/&#34;  + sid + &#34;/&#34; + dtid + &#34;/&#34; + &#34;T1wHierarchicalSR&#34; + &#39;/&#39; + iid + &#34;/&#34; + projid + mysep + sid + mysep + dtid + mysep + &#34;T1wHierarchicalSR&#34; + mysep + iid + mysep
     hierfntest = hierfn + &#39;snseg.csv&#39;
@@ -11919,7 +12260,7 @@ see antspymm.generate_mm_dataframe</li>
             str(exists( templateTx[&#39;invtransforms&#39;][1])) )
     if verbose:
         print( hierfntest )
-    hierexists = exists( hierfntest ) # FIXME should test this explicitly but we assume it here
+    hierexists = exists( hierfntest ) and exists( templateTx[&#39;fwdtransforms&#39;][0]) and exists( templateTx[&#39;fwdtransforms&#39;][1]) and exists( templateTx[&#39;invtransforms&#39;][0]) and exists( templateTx[&#39;invtransforms&#39;][1])
     hier = None
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
@@ -12818,6 +13159,13 @@ see antspymm.generate_mm_dataframe</dd>
     if standardize_intensity:
         img[img&lt;0.0]=0.0
         img=ants.iMath(img,&#39;Normalize&#39;)
+    if modality == &#34;T1w&#34; and img.dimension == 4:
+        print(&#34;WARNING: input image is 4D - we attempt a hack fix that works in some odd cases of PPMI data - please check this image: &#34; + x, flush=True )
+        i1=ants.slice_image(img,3,0)
+        i2=ants.slice_image(img,3,1)
+        kk=np.concatenate( [i1.numpy(),i2.numpy()], axis=2 )
+        kk=ants.from_numpy(kk)
+        img=ants.copy_image_info(i1,kk)
     return img</code></pre>
 </details>
 </dd>
@@ -14089,7 +14437,7 @@ vizlist (list): List of image visualizations.</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.resting_state_fmri_networks"><code class="name flex">
-<span>def <span class="ident">resting_state_fmri_networks</span></span>(<span>fmri, fmri_template, t1, t1segmentation, f=[0.03, 0.08], FD_threshold=0.5, spa=1.5, spt=0.5, nc=6, type_of_transform='SyN', verbose=False)</span>
+<span>def <span class="ident">resting_state_fmri_networks</span></span>(<span>fmri, fmri_template, t1, t1segmentation, f=[0.03, 0.08], FD_threshold=0.5, spa=1.5, spt=0.5, nc=6, type_of_transform='Rigid', verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Compute resting state network correlation maps based on the J Power labels.
@@ -14135,7 +14483,7 @@ This will output a map for each of the major network systems.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;SyN&#39;,
+    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform=&#39;Rigid&#39;,
     verbose=False ):
 
   &#34;&#34;&#34;
@@ -14188,7 +14536,7 @@ This will output a map for each of the major network systems.</p>
     fdOffset=2.0,
     trim = 8,
     output_directory=None,
-    verbose=False,
+    verbose=verbose,
     syn_metric=&#39;cc&#39;,
     syn_sampling=2,
     reg_iterations=[40,20,5] )
@@ -14491,6 +14839,111 @@ in DWI timeseries.</p>
         ssnr[i]=MF[i,:].mean()/MB[i,:].std()
     ssnr[np.isnan(ssnr)] = 0
     return ssnr</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.study_dataframe_from_matched_dataframe"><code class="name flex">
+<span>def <span class="ident">study_dataframe_from_matched_dataframe</span></span>(<span>matched_dataframe, rootdir, outputdir, verbose=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv</p>
+<p>matched_dataframe : output of antspymm.match_modalities</p>
+<p>rootdir : location for the input data root folder (in e.g. NRG format)</p>
+<p>outputdir : location for the output data</p>
+<p>verbose : boolean</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
+    &#34;&#34;&#34;
+    converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
+
+    matched_dataframe : output of antspymm.match_modalities
+
+    rootdir : location for the input data root folder (in e.g. NRG format)
+
+    outputdir : location for the output data
+
+    verbose : boolean
+    &#34;&#34;&#34;
+    iext=&#39;.nii.gz&#39;
+    from os.path import exists
+    musthavecols = [&#39;projectID&#39;, &#39;subjectID&#39;,&#39;date&#39;,&#39;imageID&#39;,&#39;fn&#39;]
+    for k in range(len(musthavecols)):
+        if not musthavecols[k] in matched_dataframe.keys():
+            raise ValueError(&#39;matched_dataframe is missing column &#39; +musthavecols[k] + &#39; in study_dataframe_from_qc_dataframe&#39; )
+    csvrow=matched_dataframe.dropna(axis=1)
+    pid=str(csvrow[&#39;projectID&#39;].iloc[0] )
+    sid=str(csvrow[&#39;subjectID&#39;].iloc[0] )
+    dt=str(csvrow[&#39;date&#39;].iloc[0])
+    iid=str(csvrow[&#39;imageID&#39;].iloc[0])
+    nrgt1fn=os.path.join( rootdir, pid, sid, dt, &#39;T1w&#39;, iid, str(csvrow[&#39;fn&#39;].iloc[0]+iext) )
+    if not exists( nrgt1fn ):
+        raise ValueError(&#34;T1 &#34; + nrgt1fn + &#34; does not exist in study_dataframe_from_qc_dataframe&#34;)
+    flList=[]
+    dtList=[]
+    rsfList=[]
+    nmList=[]
+    if &#39;flairfn&#39; in csvrow.keys():
+        flid=str(int(csvrow[&#39;flairid&#39;].iloc[0]))
+        nrgt2fn=os.path.join( rootdir, pid, sid, dt, &#39;T2Flair&#39;, flid, str(csvrow[&#39;flairfn&#39;].iloc[0]+iext) )
+        if exists( nrgt2fn ):
+            flList.append( nrgt2fn )
+    if &#39;dtfn1&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid1&#39;].iloc[0]))
+        dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn1&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn1 ):
+            dtList.append( dtfn1 )
+    if &#39;dtfn2&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid2&#39;].iloc[0]))
+        dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn2&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn2 ):
+            dtList.append( dtfn2 )
+    if &#39;rsffn1&#39; in csvrow.keys():
+        rsid=str(int(csvrow[&#39;rsfid1&#39;].iloc[0]))
+        rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn1&#39;].iloc[0]+iext) ))[0]
+        if exists( rsfn1 ):
+            rsfList.append( rsfn1 )
+    if &#39;rsffn2&#39; in csvrow.keys():
+        rsid=str(int(csvrow[&#39;rsfid2&#39;].iloc[0]))
+        rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn2&#39;].iloc[0]+iext) ))[0]
+        if exists( rsfn2 ):
+            rsfList.append( rsfn2 )
+    for j in range(11):
+        keyname=&#34;nmfn&#34;+str(j)
+        keynameid=&#34;nmid&#34;+str(j)
+        if keyname in csvrow.keys() and keynameid in csvrow.keys():
+            nmid=str(int(csvrow[keynameid].iloc[0]))
+            nmsearchpath=os.path.join( rootdir, pid, sid, dt, &#39;NM2DMT&#39;, nmid, &#34;*&#34;+nmid+iext)
+            nmfn=glob.glob( nmsearchpath )
+            nmfn=nmfn[0]
+            if exists( nmfn ):
+                nmList.append( nmfn )
+    if verbose:
+        print(&#34;assembled the image lists mapping to ....&#34;)
+        print(nrgt1fn)
+        print(&#34;NM&#34;)
+        print(nmList)
+        print(&#34;FLAIR&#34;)
+        print(flList)
+        print(&#34;DTI&#34;)
+        print(dtList)
+        print(&#34;rsfMRI&#34;)
+        print(rsfList)
+    studycsv = generate_mm_dataframe(
+        pid,
+        sid,
+        dt,
+        iid, # the T1 id
+        &#39;T1w&#39;,
+        rootdir,
+        outputdir,
+        t1_filename=nrgt1fn,
+        flair_filename=flList,
+        dti_filenames=dtList,
+        rsf_filenames=rsfList,
+        nm_filenames=nmList)
+    return studycsv.dropna(axis=1)</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.super_res_mcimage"><code class="name flex">
@@ -14894,11 +15347,12 @@ See ants registration for details.</dd>
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, &#34;Normalize&#34;)
+        txprefix = ofnL+str(k % 2).zfill(4)+&#34;_&#34;
         if temp.numpy().var() &gt; 0:
             myrig = ants.registration(
                     avg_b0, temp,
                     type_of_transform=&#39;BOLDRigid&#39;,
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;
+                    outprefix=txprefix
                 )
             if type_of_transform == &#39;SyN&#39;:
                 myreg = ants.registration(
@@ -14906,7 +15360,7 @@ See ants registration for details.</dd>
                     type_of_transform=&#39;SyNOnly&#39;,
                     total_sigma=total_sigma,
                     initial_transform=myrig[&#39;fwdtransforms&#39;][0],
-                    outprefix=ofnL+str(k).zfill(4)+&#34;_&#34;,
+                    outprefix=txprefix,
                     **kwargs
                 )
             else:
@@ -14926,7 +15380,6 @@ See ants registration for details.</dd>
         else:
             motion_parameters.append(&#34;NA&#34;)
 
-    for k in range(nTimePoints):
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
         if temp.numpy().var() &gt; 0:
             img1w = ants.apply_transforms( avg_b0,
@@ -15637,6 +16090,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.merge_dwi_data" href="#antspymm.mm.merge_dwi_data">merge_dwi_data</a></code></li>
 <li><code><a title="antspymm.mm.merge_mm_dataframe" href="#antspymm.mm.merge_mm_dataframe">merge_mm_dataframe</a></code></li>
 <li><code><a title="antspymm.mm.merge_timeseries_data" href="#antspymm.mm.merge_timeseries_data">merge_timeseries_data</a></code></li>
+<li><code><a title="antspymm.mm.merge_wides_to_study_dataframe" href="#antspymm.mm.merge_wides_to_study_dataframe">merge_wides_to_study_dataframe</a></code></li>
 <li><code><a title="antspymm.mm.middle_slice_snr" href="#antspymm.mm.middle_slice_snr">middle_slice_snr</a></code></li>
 <li><code><a title="antspymm.mm.mm" href="#antspymm.mm.mm">mm</a></code></li>
 <li><code><a title="antspymm.mm.mm_csv" href="#antspymm.mm.mm_csv">mm_csv</a></code></li>
@@ -15660,6 +16114,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.resting_state_fmri_networks" href="#antspymm.mm.resting_state_fmri_networks">resting_state_fmri_networks</a></code></li>
 <li><code><a title="antspymm.mm.segment_timeseries_by_meanvalue" href="#antspymm.mm.segment_timeseries_by_meanvalue">segment_timeseries_by_meanvalue</a></code></li>
 <li><code><a title="antspymm.mm.slice_snr" href="#antspymm.mm.slice_snr">slice_snr</a></code></li>
+<li><code><a title="antspymm.mm.study_dataframe_from_matched_dataframe" href="#antspymm.mm.study_dataframe_from_matched_dataframe">study_dataframe_from_matched_dataframe</a></code></li>
 <li><code><a title="antspymm.mm.super_res_mcimage" href="#antspymm.mm.super_res_mcimage">super_res_mcimage</a></code></li>
 <li><code><a title="antspymm.mm.t1_based_dwi_brain_extraction" href="#antspymm.mm.t1_based_dwi_brain_extraction">t1_based_dwi_brain_extraction</a></code></li>
 <li><code><a title="antspymm.mm.threaded_bind_wide_mm_csvs" href="#antspymm.mm.threaded_bind_wide_mm_csvs">threaded_bind_wide_mm_csvs</a></code></li>
