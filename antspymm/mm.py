@@ -4097,15 +4097,18 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     netname = re.sub( "-", "", netname )
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-    dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
-    dfnmat = ants.regress_components( dfnmat, nuisance )
-    dfnsignal = dfnmat.mean( axis = 1 )
-    gmmatDFNCorr = np.zeros( gmmat.shape[1] )
-    for k in range( gmmat.shape[1] ):
-      gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
-    corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
-    outdict[ netname ] = corrImg
+    if dfnImg.max() >= 1:
+        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
+        dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
+        dfnmat = ants.regress_components( dfnmat, nuisance )
+        dfnsignal = dfnmat.mean( axis = 1 )
+        gmmatDFNCorr = np.zeros( gmmat.shape[1] )
+        for k in range( gmmat.shape[1] ):
+        gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+        corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
+        outdict[ netname ] = corrImg
+    else:
+        outdict[ netname ] = None
     ct = ct + 1
 
   A = np.zeros( ( len( numofnets ) , len( numofnets ) ) )
