@@ -2410,6 +2410,8 @@ def dipy_dti_recon(
         RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
         return tenfit, FA, MD1, RGB
 
+    import numpy as np
+    np.linalg.norm(bvecs, axis=1)  
     gtab = gradient_table(bvals, bvecs)
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
@@ -2944,6 +2946,8 @@ def dwi_deterministic_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
+    import numpy as np
+    np.linalg.norm(bvecs, axis=1)  
     gtab = gradient_table(bvals, bvecs)
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -3112,6 +3116,8 @@ def dwi_closest_peak_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
+    import numpy as np
+    np.linalg.norm(bvecs, axis=1)  
     gtab = gradient_table(bvals, bvecs)
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
