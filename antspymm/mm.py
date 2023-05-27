@@ -4104,7 +4104,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         dfnsignal = dfnmat.mean( axis = 1 )
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
         for k in range( gmmat.shape[1] ):
-        gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+            gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
         corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
         outdict[ netname ] = corrImg
     else:
