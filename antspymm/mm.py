@@ -2580,11 +2580,11 @@ def joint_dti_recon(
             return( img )
 
     img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
-    if denoise and srmodel is None:
+    if denoise :
         img_LR = mc_denoise( img_LR )
     if img_RL is not None:
         img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
-        if denoise and srmodel is None:
+        if denoise :
             img_RL = mc_denoise( img_RL )
 
     if brain_mask is not None:
