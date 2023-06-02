@@ -6350,7 +6350,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
     if prior_probability is not None:
         augprob_prior = flair * 0.0
     for n in range(n_simulations):
-        augflair, tx, itx = augment_image( flair, 5 )
+        augflair, tx, itx = augment_image( ants.iMath(flair,"Normalize"), 5, 0.01 )
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
             strict=strict, probability_mask=None, prior_probability=prior_probability )
         if verbose:
