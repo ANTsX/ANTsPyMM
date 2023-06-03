@@ -746,6 +746,16 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
                 mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['fn'][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = fldf['ol_lof_decision'][locsel].values[0]
+            elif sum(locsel) > 1:
+                locdf = fldf[locsel]
+                dedupe = locdf[["snr","cnr"]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] > 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = locdf["imageID"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = locdf['ol_lof_decision'].values[0]
 
         if nmdf is not None:
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
