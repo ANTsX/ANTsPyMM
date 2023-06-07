@@ -6805,7 +6805,7 @@ def blind_image_assessment(
     viz_filename=None,
     title=False,
     pull_rank=False,
-    resample='max',
+    resample=None,
     verbose=False
 ):
     """
@@ -6905,16 +6905,30 @@ def blind_image_assessment(
             else:
                 image_compare = ants.image_clone( image_b0 )
         image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
             if resample == 'min':
-                newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
+                if minspc < 1e-12:
+                    minspc = np.max(ants.get_spacing(image))
+                newspc = np.repeat( minspc, 3 )
             elif resample == 'max':
-                newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+                newspc = np.repeat( maxspc, 3 )
             else:
                 newspc = np.repeat( resample, 3 )
             image = ants.resample_image( image, newspc )
             image_compare = ants.resample_image( image_compare, newspc )
+        else:
+            # check for spc close to zero
+            spc = list(ants.get_spacing(image))
+            for spck in range(len(spc)):
+                if spc[spck] < 1e-12:
+                    spc[spck]=1
+            ants.set_spacing( image, spc )
+            ants.set_spacing( image_compare, spc )
         # if "NM2DMT" in image_filename or "FIXME" in image_filename or "SPECT" in image_filename or "UNKNOWN" in image_filename:
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         msk = ants.threshold_image( ants.iMath(image,'Normalize'), 0.15, 1.0 )
         # else:
         #    msk = ants.get_mask( image )
@@ -6954,7 +6968,9 @@ def blind_image_assessment(
         nocrop=False
         if image.dimension == 3:
             if image.shape[2] == 1:
-                nocrop=True                
+                nocrop=True        
+        if maxspc/minspc > 10:
+            nocrop=True
         if nocrop:
             mycc = ants.image_clone( image )
         else:
