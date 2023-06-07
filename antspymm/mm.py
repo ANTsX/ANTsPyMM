@@ -6951,8 +6951,15 @@ def blind_image_assessment(
         imagereflect = ants.reflect_image(image, axis=0)
         asym_err = ( image - imagereflect ).abs().mean()
         # estimate noise by center cropping, denoizing and taking magnitude of difference
-        mycc = antspyt1w.special_crop( image,
-            ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+        nocrop=False
+        if image.dimension == 3:
+            if image.shape[2] == 1:
+                nocrop=True                
+        if nocrop:
+            mycc = ants.image_clone( image )
+        else:
+            mycc = antspyt1w.special_crop( image,
+                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
         myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
         noizlevel = ( mycc - myccd ).abs().mean()
 #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
@@ -6969,7 +6976,10 @@ def blind_image_assessment(
         cnrref = ( fgmean - bgmean ) / bgstd
         psnrref = antspynet.psnr(  image_compare, image  )
         ssimref = antspynet.ssim(  image_compare, image  )
-        mymi = ants.image_mutual_information( image_compare, image )
+        if nocrop:
+            mymi = math.inf
+        else:
+            mymi = ants.image_mutual_information( image_compare, image )
         mriseries='NA'
         mrimfg='NA'
         mrimodel='NA'
