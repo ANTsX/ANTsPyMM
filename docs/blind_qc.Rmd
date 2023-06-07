@@ -1,0 +1,126 @@
+---
+title: antspymm blind QC summary
+output: html_document
+---
+
+```{r,echo=FALSE,include=FALSE}
+library(plyr)
+library(data.table)
+library(ztable)
+library(moonBook)
+library(kableExtra)
+library(flextable)
+library(plotly)
+library( ztable )
+options(digits=3)
+options( ztable.type="html" )
+tblcmd = ztable
+```
+
+
+example images and qc run
+
+```{python}
+import siq
+import ants
+import antspynet
+import antspymm
+eximg = siq.simulate_image( )
+ants.plot( eximg, nslices=8, ncol=4 )
+exfn0 = '/tmp/project-sid-date-T1w-uid.nii.gz'
+ants.image_write( eximg, exfn0 )
+qc = antspymm.blind_image_assessment( exfn0 )
+qc2 = antspymm.blind_image_assessment( eximg )
+print( qc.keys() )
+exfns = [ exfn0 ]
+```
+
+simulated images with high noise and high smoothing
+
+```{python}
+# gaussian noise
+exfnroot = '/tmp/project-sid-date-T1w-'
+nzimg = siq.simulate_image( ).add_noise_to_image( 'additivegaussian', [0,1] )
+exfn = exfnroot+'gaussiannoise.nii.gz'
+ants.image_write( nzimg, exfn )
+exfns.append( exfn )
+ants.plot( nzimg )
+# salt+pepper
+nzimg2 = siq.simulate_image( )
+nzimg2 = ants.add_noise_to_image( nzimg2, 'saltandpepper', [0.2,-1,1] )
+exfn = exfnroot+'saltpepper.nii.gz'
+ants.image_write( nzimg2, exfn )
+exfns.append( exfn )
+ants.plot( nzimg2 )
+# smooth
+smimg = siq.simulate_image( ).smooth_image( 3 )
+exfn = exfnroot+'smooth.nii.gz'
+ants.image_write( smimg, exfn )
+exfns.append( exfn )
+ants.plot( smimg )
+# time series
+tsimg = siq.simulate_image( [16,16,16,4] )
+exfn = exfnroot+'timeseries.nii.gz'
+ants.image_write( tsimg, exfn )
+exfns.append( exfn )
+```
+
+
+qc on all these
+
+```{python}
+import pandas as pd
+qcdf = pd.DataFrame()
+for k in range(len(exfns)):
+    myqc = antspymm.blind_image_assessment( exfns[k] )
+    qcdf = pd.concat(  [ qcdf, myqc ], axis=0 )
+
+qcdf.to_csv("/tmp/qc.csv")    
+
+```
+
+
+```{r}
+qc = read.csv( "/tmp/qc.csv" )[,-1]
+DT::datatable( qc )
+# knitr::kable( qc, caption='qc data frame')
+```
+
+
+## list of entries and their meaning
+
+* `fn` - filename
+
+* `noise` - estimated noise level; just the mean absolute error between the original image and a smoothed version of that image
+
+* `snr` - signal to noise ratio;  defined from an automatically generated background and foreground mask `fgmean / bgstd`
+
+* `cnr` - contrast to noise ratio;  defined from an automatically generated background and foreground mask `( fgmean - bgmean ) / bgstd`
+
+* `psnr` - peak signal to noise ratio between original and smoothed image
+
+* `ssim` - structural similarity between original and smoothed image
+
+* `mi` - mutual information between original and smoothed image
+
+* `reflection_error` - mean absolute error between original and reflected image
+
+* `EVR` - eigenvalue ratio - towards zero for smooth images; toward 1 for pure noise; most reasonable medical images around 0.6 to 0.7
+
+* `msk_vol` - volume of the foreground mask
+
+* spc\* - image spacing
+
+* org\* - image origin
+
+* dim\* - image dimensions
+
+* slice - image slice index (useful for time series)
+
+* modality - inferred image modality - based on filename (could change in future)
+
+* mriseries - series description read from json if available
+
+* mrimfg - manufacturer read from json if available
+
+* mrimodel - read from json if available
