@@ -6862,7 +6862,7 @@ def blind_image_assessment(
         json_name = re.sub(".nii.gz",".json",image_filename)
         if exists( json_name ):
             with open(json_name, 'r') as fcc_file:
-                mymeta = json.load(fcc_file)
+                mymeta = json.load(fcc_file, strict=False)
                 if verbose:
                     print(json.dumps(mymeta, indent=4))
         mystem=Path( image ).stem
