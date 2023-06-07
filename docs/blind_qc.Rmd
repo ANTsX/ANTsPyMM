@@ -68,7 +68,7 @@ exfns.append( exfn )
 
 qc on all these
 
-```{python}
+```{python,warning=FALSE,message=FALSE}
 import pandas as pd
 qcdf = pd.DataFrame()
 for k in range(len(exfns)):
@@ -80,10 +80,18 @@ qcdf.to_csv("/tmp/qc.csv")
 ```
 
 
+## dynamic sortable table (if rendering available)
 ```{r}
 qc = read.csv( "/tmp/qc.csv" )[,-1]
 DT::datatable( qc )
 # knitr::kable( qc, caption='qc data frame')
+```
+
+
+
+## regular table view
+```{r,results='asis',echo=FALSE}
+pander::pander( qc )
 ```
 
 
