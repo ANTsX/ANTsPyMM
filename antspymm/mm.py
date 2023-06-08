@@ -421,7 +421,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
 
 def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.  This function will impute missing columns with the mean.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -452,6 +452,9 @@ def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 
         lof = LocalOutlierFactor()
         locsel = qcdfout["modality"] == mod
         rr = qcdfout[locsel][outlier_columns]
+        with pd.option_context('mode.use_inf_as_na', True):
+            for myolcol in outlier_columns:
+                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
         if rr.shape[0] > 1:
             if verbose:
                 print(mod)
