@@ -448,7 +448,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
 
 def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;], verbose=False ):
     &#34;&#34;&#34;
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.  This function will impute missing columns with the mean.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -479,6 +479,9 @@ def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noi
         lof = LocalOutlierFactor()
         locsel = qcdfout[&#34;modality&#34;] == mod
         rr = qcdfout[locsel][outlier_columns]
+        with pd.option_context(&#39;mode.use_inf_as_na&#39;, True):
+            for myolcol in outlier_columns:
+                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
         if rr.shape[0] &gt; 1:
             if verbose:
                 print(mod)
@@ -773,6 +776,16 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;fn&#39;, outlier_colu
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;fn&#39;][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = fldf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
 
         if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
@@ -2437,7 +2450,10 @@ def dipy_dti_recon(
         RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
         return tenfit, FA, MD1, RGB
 
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
         print(&#34;recon dti.TensorModel done&#34;,flush=True)
@@ -2604,11 +2620,11 @@ def joint_dti_recon(
             return( img )
 
     img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
-    if denoise and srmodel is None:
+    if denoise :
         img_LR = mc_denoise( img_LR )
     if img_RL is not None:
         img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
-        if denoise and srmodel is None:
+        if denoise :
             img_RL = mc_denoise( img_RL )
 
     if brain_mask is not None:
@@ -2971,7 +2987,10 @@ def dwi_deterministic_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath(&#34;GetLargestComponent&#34;)
     dwi_data = dwi_img.get_fdata()
@@ -3139,7 +3158,10 @@ def dwi_closest_peak_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath(&#34;GetLargestComponent&#34;)
     dwi_data = dwi_img.get_fdata()
@@ -4124,15 +4146,18 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     netname = re.sub( &#34;-&#34;, &#34;&#34;, netname )
     ww = np.where( powers_areal_mni_itk[&#39;SystemName&#39;] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-    dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
-    dfnmat = ants.regress_components( dfnmat, nuisance )
-    dfnsignal = dfnmat.mean( axis = 1 )
-    gmmatDFNCorr = np.zeros( gmmat.shape[1] )
-    for k in range( gmmat.shape[1] ):
-      gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
-    corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
-    outdict[ netname ] = corrImg
+    if dfnImg.max() &gt;= 1:
+        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
+        dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
+        dfnmat = ants.regress_components( dfnmat, nuisance )
+        dfnsignal = dfnmat.mean( axis = 1 )
+        gmmatDFNCorr = np.zeros( gmmat.shape[1] )
+        for k in range( gmmat.shape[1] ):
+            gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+        corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
+        outdict[ netname ] = corrImg
+    else:
+        outdict[ netname ] = None
     ct = ct + 1
 
   A = np.zeros( ( len( numofnets ) , len( numofnets ) ) )
@@ -5692,12 +5717,12 @@ def mm_csv(
                                     ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;FrontoparietalTaskControl&#39;],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FrontoparietalTaskControl&#39;, filename=mymm+mysep+&#34;boldFrontoparietalTaskControl.png&#34;  )
                             if ( mymod == &#39;DTI_LR&#39; or mymod == &#39;DTI_RL&#39; or mymod == &#39;DTI&#39; ) and ishapelen == 4:
-                                dowrite=True
                                 bvalfn = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , myimg )
                                 bvecfn = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , myimg )
                                 imgList = [ img ]
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
+                                missing_dti_data=False # bval, bvec or images
                                 if len( myimgsr ) &gt; 1:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
@@ -5710,40 +5735,44 @@ def mm_csv(
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
-                                        raise ValueError(&#39;mm_csv dti data &#39; + dtiex )
-                                srmodel_DTI_mdl=None
-                                if srmodel_DTI is not False:
-                                    temp = ants.get_spacing(img)
-                                    dtspc=[temp[0],temp[1],temp[2]]
-                                    bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
-                                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
-                                    if isinstance( srmodel_DTI, str ):
-                                        srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
-                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
-                                    if exists( mdlfn ):
-                                        if verbose:
-                                            print(mdlfn)
-                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
-                                    else:
-                                        print(mdlfn + &#34; does not exist - wont use SR&#34;)
-                                tabPro, normPro = mm( t1, hier,
-                                    dw_image=imgList,
-                                    bvals = bvalfnList,
-                                    bvecs = bvecfnList,
-                                    srmodel=srmodel_DTI_mdl,
-                                    do_tractography=not test_run,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    dti_motion_correct = dti_motion_correct,
-                                    dti_denoise = dti_denoise,
-                                    test_run=test_run,
-                                    verbose=True )
-                                mydti = tabPro[&#39;DTI&#39;]
-                                if visualize:
-                                    maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
-                                    ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
-                                    ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
-                                    ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
+                                        print(&#39;mm_csv: missing dti data &#39; + dtiex )
+                                        missing_dti_data=True
+                                        dowrite=False
+                                if not missing_dti_data:
+                                    dowrite=True
+                                    srmodel_DTI_mdl=None
+                                    if srmodel_DTI is not False:
+                                        temp = ants.get_spacing(img)
+                                        dtspc=[temp[0],temp[1],temp[2]]
+                                        bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
+                                        mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                                        if isinstance( srmodel_DTI, str ):
+                                            srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
+                                            mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                        if exists( mdlfn ):
+                                            if verbose:
+                                                print(mdlfn)
+                                            srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                        else:
+                                            print(mdlfn + &#34; does not exist - wont use SR&#34;)
+                                    tabPro, normPro = mm( t1, hier,
+                                        dw_image=imgList,
+                                        bvals = bvalfnList,
+                                        bvecs = bvecfnList,
+                                        srmodel=srmodel_DTI_mdl,
+                                        do_tractography=not test_run,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        dti_motion_correct = dti_motion_correct,
+                                        dti_denoise = dti_denoise,
+                                        test_run=test_run,
+                                        verbose=True )
+                                    mydti = tabPro[&#39;DTI&#39;]
+                                    if visualize:
+                                        maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
+                                        ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
+                                        ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
+                                        ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
@@ -6361,7 +6390,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
     if prior_probability is not None:
         augprob_prior = flair * 0.0
     for n in range(n_simulations):
-        augflair, tx, itx = augment_image( flair, 5 )
+        augflair, tx, itx = augment_image( ants.iMath(flair,&#34;Normalize&#34;), 5, 0.01 )
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
             strict=strict, probability_mask=None, prior_probability=prior_probability )
         if verbose:
@@ -6806,7 +6835,7 @@ def blind_image_assessment(
     viz_filename=None,
     title=False,
     pull_rank=False,
-    resample=&#39;max&#39;,
+    resample=None,
     verbose=False
 ):
     &#34;&#34;&#34;
@@ -6863,7 +6892,7 @@ def blind_image_assessment(
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
             with open(json_name, &#39;r&#39;) as fcc_file:
-                mymeta = json.load(fcc_file)
+                mymeta = json.load(fcc_file, strict=False)
                 if verbose:
                     print(json.dumps(mymeta, indent=4))
         mystem=Path( image ).stem
@@ -6906,16 +6935,30 @@ def blind_image_assessment(
             else:
                 image_compare = ants.image_clone( image_b0 )
         image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
             if resample == &#39;min&#39;:
-                newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
+                if minspc &lt; 1e-12:
+                    minspc = np.max(ants.get_spacing(image))
+                newspc = np.repeat( minspc, 3 )
             elif resample == &#39;max&#39;:
-                newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+                newspc = np.repeat( maxspc, 3 )
             else:
                 newspc = np.repeat( resample, 3 )
             image = ants.resample_image( image, newspc )
             image_compare = ants.resample_image( image_compare, newspc )
+        else:
+            # check for spc close to zero
+            spc = list(ants.get_spacing(image))
+            for spck in range(len(spc)):
+                if spc[spck] &lt; 1e-12:
+                    spc[spck]=1
+            ants.set_spacing( image, spc )
+            ants.set_spacing( image_compare, spc )
         # if &#34;NM2DMT&#34; in image_filename or &#34;FIXME&#34; in image_filename or &#34;SPECT&#34; in image_filename or &#34;UNKNOWN&#34; in image_filename:
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         msk = ants.threshold_image( ants.iMath(image,&#39;Normalize&#39;), 0.15, 1.0 )
         # else:
         #    msk = ants.get_mask( image )
@@ -6952,8 +6995,17 @@ def blind_image_assessment(
         imagereflect = ants.reflect_image(image, axis=0)
         asym_err = ( image - imagereflect ).abs().mean()
         # estimate noise by center cropping, denoizing and taking magnitude of difference
-        mycc = antspyt1w.special_crop( image,
-            ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+        nocrop=False
+        if image.dimension == 3:
+            if image.shape[2] == 1:
+                nocrop=True        
+        if maxspc/minspc &gt; 10:
+            nocrop=True
+        if nocrop:
+            mycc = ants.image_clone( image )
+        else:
+            mycc = antspyt1w.special_crop( image,
+                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
         myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
         noizlevel = ( mycc - myccd ).abs().mean()
 #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
@@ -6970,7 +7022,10 @@ def blind_image_assessment(
         cnrref = ( fgmean - bgmean ) / bgstd
         psnrref = antspynet.psnr(  image_compare, image  )
         ssimref = antspynet.ssim(  image_compare, image  )
-        mymi = ants.image_mutual_information( image_compare, image )
+        if nocrop:
+            mymi = math.inf
+        else:
+            mymi = ants.image_mutual_information( image_compare, image )
         mriseries=&#39;NA&#39;
         mrimfg=&#39;NA&#39;
         mrimodel=&#39;NA&#39;
@@ -7922,7 +7977,7 @@ right side having row averaged entries i.e. unique values for each visit</p>
 </details>
 </dd>
 <dt id="antspymm.mm.blind_image_assessment"><code class="name flex">
-<span>def <span class="ident">blind_image_assessment</span></span>(<span>image, viz_filename=None, title=False, pull_rank=False, resample='max', verbose=False)</span>
+<span>def <span class="ident">blind_image_assessment</span></span>(<span>image, viz_filename=None, title=False, pull_rank=False, resample=None, verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>quick blind image assessment and triplanar visualization of an image &hellip; 4D input will be visualized and assessed in 3D.
@@ -7965,7 +8020,7 @@ produces a png and csv where csv contains:</p>
     viz_filename=None,
     title=False,
     pull_rank=False,
-    resample=&#39;max&#39;,
+    resample=None,
     verbose=False
 ):
     &#34;&#34;&#34;
@@ -8022,7 +8077,7 @@ produces a png and csv where csv contains:</p>
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
             with open(json_name, &#39;r&#39;) as fcc_file:
-                mymeta = json.load(fcc_file)
+                mymeta = json.load(fcc_file, strict=False)
                 if verbose:
                     print(json.dumps(mymeta, indent=4))
         mystem=Path( image ).stem
@@ -8065,16 +8120,30 @@ produces a png and csv where csv contains:</p>
             else:
                 image_compare = ants.image_clone( image_b0 )
         image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
             if resample == &#39;min&#39;:
-                newspc = np.repeat( np.min(ants.get_spacing(image)), 3 )
+                if minspc &lt; 1e-12:
+                    minspc = np.max(ants.get_spacing(image))
+                newspc = np.repeat( minspc, 3 )
             elif resample == &#39;max&#39;:
-                newspc = np.repeat( np.max(ants.get_spacing(image)), 3 )
+                newspc = np.repeat( maxspc, 3 )
             else:
                 newspc = np.repeat( resample, 3 )
             image = ants.resample_image( image, newspc )
             image_compare = ants.resample_image( image_compare, newspc )
+        else:
+            # check for spc close to zero
+            spc = list(ants.get_spacing(image))
+            for spck in range(len(spc)):
+                if spc[spck] &lt; 1e-12:
+                    spc[spck]=1
+            ants.set_spacing( image, spc )
+            ants.set_spacing( image_compare, spc )
         # if &#34;NM2DMT&#34; in image_filename or &#34;FIXME&#34; in image_filename or &#34;SPECT&#34; in image_filename or &#34;UNKNOWN&#34; in image_filename:
+        minspc = np.min(ants.get_spacing(image))
+        maxspc = np.max(ants.get_spacing(image))
         msk = ants.threshold_image( ants.iMath(image,&#39;Normalize&#39;), 0.15, 1.0 )
         # else:
         #    msk = ants.get_mask( image )
@@ -8111,8 +8180,17 @@ produces a png and csv where csv contains:</p>
         imagereflect = ants.reflect_image(image, axis=0)
         asym_err = ( image - imagereflect ).abs().mean()
         # estimate noise by center cropping, denoizing and taking magnitude of difference
-        mycc = antspyt1w.special_crop( image,
-            ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+        nocrop=False
+        if image.dimension == 3:
+            if image.shape[2] == 1:
+                nocrop=True        
+        if maxspc/minspc &gt; 10:
+            nocrop=True
+        if nocrop:
+            mycc = ants.image_clone( image )
+        else:
+            mycc = antspyt1w.special_crop( image,
+                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
         myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
         noizlevel = ( mycc - myccd ).abs().mean()
 #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
@@ -8129,7 +8207,10 @@ produces a png and csv where csv contains:</p>
         cnrref = ( fgmean - bgmean ) / bgstd
         psnrref = antspynet.psnr(  image_compare, image  )
         ssimref = antspynet.ssim(  image_compare, image  )
-        mymi = ants.image_mutual_information( image_compare, image )
+        if nocrop:
+            mymi = math.inf
+        else:
+            mymi = ants.image_mutual_information( image_compare, image )
         mriseries=&#39;NA&#39;
         mrimfg=&#39;NA&#39;
         mrimodel=&#39;NA&#39;
@@ -8182,7 +8263,7 @@ produces a png and csv where csv contains:</p>
     if prior_probability is not None:
         augprob_prior = flair * 0.0
     for n in range(n_simulations):
-        augflair, tx, itx = augment_image( flair, 5 )
+        augflair, tx, itx = augment_image( ants.iMath(flair,&#34;Normalize&#34;), 5, 0.01 )
         locwmh = wmh( augflair, t1, t1seg, mmfromconvexhull = mmfromconvexhull,
             strict=strict, probability_mask=None, prior_probability=prior_probability )
         if verbose:
@@ -8725,7 +8806,10 @@ could lead to problems if the inputs are really incorrect.</dd>
         RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
         return tenfit, FA, MD1, RGB
 
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
         print(&#34;recon dti.TensorModel done&#34;,flush=True)
@@ -9328,7 +9412,10 @@ otherwise, will</code></dt>
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath(&#34;GetLargestComponent&#34;)
     dwi_data = dwi_img.get_fdata()
@@ -9502,7 +9589,10 @@ otherwise, will</code></dt>
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    gtab = gradient_table(bvals, bvecs)
+    import numpy as np
+    if abs(np.linalg.norm(bvecs)-1) &gt; 0.009 and False:
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )  
+    gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath(&#34;GetLargestComponent&#34;)
     dwi_data = dwi_img.get_fdata()
@@ -10732,11 +10822,11 @@ dti reconstruction dictionaries.</dd>
             return( img )
 
     img_LR = fix_dwi_shape( img_LR, bval_LR, bvec_LR )
-    if denoise and srmodel is None:
+    if denoise :
         img_LR = mc_denoise( img_LR )
     if img_RL is not None:
         img_RL = fix_dwi_shape( img_RL, bval_RL, bvec_RL )
-        if denoise and srmodel is None:
+        if denoise :
             img_RL = mc_denoise( img_RL )
 
     if brain_mask is not None:
@@ -11059,6 +11149,16 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;fn&#39;][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
+            elif sum(locsel) &gt; 1:
+                locdf = fldf[locsel]
+                dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
+                locdf = locdf[~dedupe]
+                if locdf.shape[0] &gt; 1:
+                    locdf = locdf.sort_values(outlier_column).iloc[:2]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = locdf[&#34;imageID&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = locdf[outlier_column].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
 
         if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
@@ -12493,12 +12593,12 @@ see antspymm.generate_mm_dataframe</li>
                                     ants.plot( tabPro[&#39;rsf&#39;][&#39;meanBold&#39;], tabPro[&#39;rsf&#39;][&#39;FrontoparietalTaskControl&#39;],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FrontoparietalTaskControl&#39;, filename=mymm+mysep+&#34;boldFrontoparietalTaskControl.png&#34;  )
                             if ( mymod == &#39;DTI_LR&#39; or mymod == &#39;DTI_RL&#39; or mymod == &#39;DTI&#39; ) and ishapelen == 4:
-                                dowrite=True
                                 bvalfn = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , myimg )
                                 bvecfn = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , myimg )
                                 imgList = [ img ]
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
+                                missing_dti_data=False # bval, bvec or images
                                 if len( myimgsr ) &gt; 1:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
@@ -12511,40 +12611,44 @@ see antspymm.generate_mm_dataframe</li>
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
-                                        raise ValueError(&#39;mm_csv dti data &#39; + dtiex )
-                                srmodel_DTI_mdl=None
-                                if srmodel_DTI is not False:
-                                    temp = ants.get_spacing(img)
-                                    dtspc=[temp[0],temp[1],temp[2]]
-                                    bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
-                                    mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
-                                    if isinstance( srmodel_DTI, str ):
-                                        srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
-                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
-                                    if exists( mdlfn ):
-                                        if verbose:
-                                            print(mdlfn)
-                                        srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
-                                    else:
-                                        print(mdlfn + &#34; does not exist - wont use SR&#34;)
-                                tabPro, normPro = mm( t1, hier,
-                                    dw_image=imgList,
-                                    bvals = bvalfnList,
-                                    bvecs = bvecfnList,
-                                    srmodel=srmodel_DTI_mdl,
-                                    do_tractography=not test_run,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    dti_motion_correct = dti_motion_correct,
-                                    dti_denoise = dti_denoise,
-                                    test_run=test_run,
-                                    verbose=True )
-                                mydti = tabPro[&#39;DTI&#39;]
-                                if visualize:
-                                    maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
-                                    ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
-                                    ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
-                                    ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
+                                        print(&#39;mm_csv: missing dti data &#39; + dtiex )
+                                        missing_dti_data=True
+                                        dowrite=False
+                                if not missing_dti_data:
+                                    dowrite=True
+                                    srmodel_DTI_mdl=None
+                                    if srmodel_DTI is not False:
+                                        temp = ants.get_spacing(img)
+                                        dtspc=[temp[0],temp[1],temp[2]]
+                                        bestup = siq.optimize_upsampling_shape( dtspc, modality=&#39;DTI&#39; )
+                                        mdlfn = ex_pathmm + &#34;siq_default_sisr_&#34; + bestup + &#34;_1chan_featvggL6_best_mdl.h5&#34;
+                                        if isinstance( srmodel_DTI, str ):
+                                            srmodel_DTI = re.sub( &#34;bestup&#34;, bestup, srmodel_DTI )
+                                            mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                        if exists( mdlfn ):
+                                            if verbose:
+                                                print(mdlfn)
+                                            srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
+                                        else:
+                                            print(mdlfn + &#34; does not exist - wont use SR&#34;)
+                                    tabPro, normPro = mm( t1, hier,
+                                        dw_image=imgList,
+                                        bvals = bvalfnList,
+                                        bvecs = bvecfnList,
+                                        srmodel=srmodel_DTI_mdl,
+                                        do_tractography=not test_run,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        dti_motion_correct = dti_motion_correct,
+                                        dti_denoise = dti_denoise,
+                                        test_run=test_run,
+                                        verbose=True )
+                                    mydti = tabPro[&#39;DTI&#39;]
+                                    if visualize:
+                                        maxslice = np.min( [21, mydti[&#39;recon_fa&#39;] ] )
+                                        ants.plot( mydti[&#39;recon_fa&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA (supposed to be better)&#39;, filename=mymm+mysep+&#34;FAbetter.png&#34;  )
+                                        ants.plot( mydti[&#39;recon_fa&#39;], mydti[&#39;jhu_labels&#39;], axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;FA + JHU&#39;, filename=mymm+mysep+&#34;FAJHU.png&#34;  )
+                                        ants.plot( mydti[&#39;recon_md&#39;],  axis=2, nslices=maxslice, ncol=7, crop=True, title=&#39;MD&#39;, filename=mymm+mysep+&#34;MD.png&#34;  )
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
@@ -14007,7 +14111,8 @@ str: The BIDS path/filename.</p></div>
 </code></dt>
 <dd>
 <div class="desc"><p>Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.
-LOF appears to be more conservative.</p>
+LOF appears to be more conservative.
+This function will impute missing columns with the mean.</p>
 <p>Args:
 - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
 - uid: (str) Unique identifier for a subject. Default is 'fn'.
@@ -14028,7 +14133,7 @@ Higher values near 1 are more outlying.</p>
 </summary>
 <pre><code class="python">def outlierness_by_modality( qcdf, uid=&#39;fn&#39;, outlier_columns = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;], verbose=False ):
     &#34;&#34;&#34;
-    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.
+    Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.  This function will impute missing columns with the mean.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
@@ -14059,6 +14164,9 @@ Higher values near 1 are more outlying.</p>
         lof = LocalOutlierFactor()
         locsel = qcdfout[&#34;modality&#34;] == mod
         rr = qcdfout[locsel][outlier_columns]
+        with pd.option_context(&#39;mode.use_inf_as_na&#39;, True):
+            for myolcol in outlier_columns:
+                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
         if rr.shape[0] &gt; 1:
             if verbose:
                 print(mod)
@@ -14650,15 +14758,18 @@ This will output a map for each of the major network systems.</p>
     netname = re.sub( &#34;-&#34;, &#34;&#34;, netname )
     ww = np.where( powers_areal_mni_itk[&#39;SystemName&#39;] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-    dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
-    dfnmat = ants.regress_components( dfnmat, nuisance )
-    dfnsignal = dfnmat.mean( axis = 1 )
-    gmmatDFNCorr = np.zeros( gmmat.shape[1] )
-    for k in range( gmmat.shape[1] ):
-      gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
-    corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
-    outdict[ netname ] = corrImg
+    if dfnImg.max() &gt;= 1:
+        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
+        dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
+        dfnmat = ants.regress_components( dfnmat, nuisance )
+        dfnsignal = dfnmat.mean( axis = 1 )
+        gmmatDFNCorr = np.zeros( gmmat.shape[1] )
+        for k in range( gmmat.shape[1] ):
+            gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+        corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
+        outdict[ netname ] = corrImg
+    else:
+        outdict[ netname ] = None
     ct = ct + 1
 
   A = np.zeros( ( len( numofnets ) , len( numofnets ) ) )
