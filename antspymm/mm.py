@@ -5442,7 +5442,7 @@ def mm_csv(
     t1 = mm_read( t1fn, modality='T1w' )
     hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
     hierfnSR = outputdir + "/" + projid + "/"  + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
-    hierfntest = hierfn + 'snseg.csv'
+    hierfntest = hierfn + 'cerebellum.csv'
     if verbose:
         print( hierfntest )
     regout = hierfn + "syn"
