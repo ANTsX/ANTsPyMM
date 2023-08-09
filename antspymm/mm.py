@@ -1237,6 +1237,7 @@ def bvec_reorientation( motion_parameters, bvecs, rebase=None ):
                     Rinv = inv( txparam )
                 bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
                 if rebase is not None:
+                    # FIXME - should combine these operations
                     bvecs[myidx,:] = np.dot( rebase, bvecs[myidx,:] )
     return bvecs
 
