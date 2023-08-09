@@ -1195,7 +1195,7 @@ def merge_dwi_data( img_LRdwp, bval_LR, bvec_LR, img_RLdwp, bval_RL, bvec_RL ):
     img_LRdwp = ants.list_to_ndimage( img_LRdwp, mimg )
     return img_LRdwp, bval_LR, bvec_LR
 
-def bvec_reorientation( motion_parameters, bvecs ):
+def bvec_reorientation( motion_parameters, bvecs, rebase=None ):
     if motion_parameters is None:
         return bvecs
     n = len(motion_parameters)
@@ -1236,6 +1236,8 @@ def bvec_reorientation( motion_parameters, bvecs ):
                     txparam = ants.get_ants_transform_parameters(txparam)[0:9].reshape( [3,3])
                     Rinv = inv( txparam )
                 bvecs[myidx,:] = np.dot( Rinv, bvecs[myidx,:] )
+                if rebase is not None:
+                    bvecs[myidx,:] = np.dot( rebase, bvecs[myidx,:] )
     return bvecs
 
 
@@ -1451,7 +1453,9 @@ def dti_reg(
     if verbose:
         print("Reorient bvecs")
     if bvecs is not None:
-        bvecs = bvec_reorientation( motion_parameters, bvecs )
+        #    direction = target->GetDirection().GetTranspose() * img_mov->GetDirection().GetVnlMatrix();
+        rebase = np.dot( np.transpose( avg_b0.direction  ), ab0.direction )
+        bvecs = bvec_reorientation( motion_parameters, bvecs, rebase )
 
     if remove_it:
         import shutil
