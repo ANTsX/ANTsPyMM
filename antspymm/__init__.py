@@ -5,6 +5,7 @@ except:
     pass
 
 from .mm import get_data
+from .mm import get_dti
 from .mm import get_models
 from .mm import nrg_format_path
 from .mm import highest_quality_repeat

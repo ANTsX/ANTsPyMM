@@ -13,6 +13,7 @@ __all__ = ['version',
     'merge_dwi_data',
     'outlierness_by_modality',
     'bvec_reorientation',
+    'get_dti',
     'dti_reg',
     'mc_reg',
     'get_data',
@@ -1241,6 +1242,65 @@ def bvec_reorientation( motion_parameters, bvecs, rebase=None ):
                     bvecs[myidx,:] = np.dot( rebase, bvecs[myidx,:] )
     return bvecs
 
+def get_dti( reference_image, tensormodel, upper_triangular=True, return_image=False ):
+    """
+    extract DTI data from a dipy tensormodel
+
+    reference_image : antsImage defining physical space (3D)
+
+    tensormodel : from dipy e.g. the variable myoutx['dtrecon_LR_dewarp']['tensormodel'] if myoutx is produced my joint_dti_recon
+
+    upper_triangular: boolean otherwise use lower triangular coding
+
+    return_image : boolean return the ANTsImage form of DTI otherwise return an array
+
+    Returns
+    -------
+    either an ANTsImage (dim=X.Y.Z with 6 component voxels, upper triangular form)
+        or a 5D NumPy array (dim=X.Y.Z.3.3)
+
+    Notes
+    -----
+    DiPy returns lower triangular form but ANTs expects upper triangular.
+        Here, we default to the ANTs standard but could generalize in the future 
+        because not much here depends on ANTs standards of tensor data.
+        ANTs xx,xy,xz,yy,yz,zz
+        DiPy Dxx, Dxy, Dyy, Dxz, Dyz, Dzz
+
+    """
+    # make the DTI - see 
+    # https://dipy.org/documentation/1.7.0/examples_built/07_reconstruction/reconst_dti/#sphx-glr-examples-built-07-reconstruction-reconst-dti-py
+    # By default, in DIPY, values are ordered as (Dxx, Dxy, Dyy, Dxz, Dyz, Dzz)
+    # in ANTs - we have: [xx,xy,xz,yy,yz,zz]
+    reoind = np.array([0,1,3,2,4,5]) # arrays are faster than lists
+    import dipy.reconst.dti as dti
+    dtiut = dti.lower_triangular(tensormodel.quadratic_form)
+    it = np.ndindex( reference_image.shape )
+    yyind=2
+    xzind=3
+    if upper_triangular:
+        yyind=3
+        xzind=2
+        for i in it: # convert to upper triangular
+            dtiut[i] = dtiut[i][ reoind ] # do we care if this is doing extra work?
+    if return_image:
+        dtiAnts = ants.from_numpy(dtiut,has_components=True)
+        ants.copy_image_info( reference_image, dtiAnts )
+        return dtiAnts
+    # copy these data into a tensor 
+    dtinp = np.zeros(reference_image.shape + (3,3), dtype=float)  
+    dtix = np.zeros((3,3), dtype=float)  
+    it = np.ndindex( reference_image.shape )
+    for i in it:
+        dtivec = dtiut[i] # in ANTs - we have: [xx,xy,xz,yy,yz,zz]
+        dtix[0,0]=dtivec[0]
+        dtix[1,1]=dtivec[yyind] # 2 for LT
+        dtix[2,2]=dtivec[5] 
+        dtix[0,1]=dtix[1,0]=dtivec[1]
+        dtix[0,2]=dtix[2,0]=dtivec[xzind] # 3 for LT
+        dtix[1,2]=dtix[2,1]=dtivec[4]
+        dtinp[i]=dtix
+    return dtinp
 
 def dti_reg(
     image,
