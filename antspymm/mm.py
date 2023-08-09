@@ -1302,6 +1302,42 @@ def get_dti( reference_image, tensormodel, upper_triangular=True, return_image=F
         dtinp[i]=dtix
     return dtinp
 
+def triangular_to_tensor( image, upper_triangular=True ):
+    """
+    convert triangular tensor image to a full tensor form (in numpy)
+
+    image : antsImage holding dti in either upper or lower triangular format 
+
+    upper_triangular: boolean
+
+    Note
+    --------
+    see get_dti function for more details
+    """
+    reoind = np.array([0,1,3,2,4,5]) # arrays are faster than lists
+    it = np.ndindex( image.shape )
+    yyind=2
+    xzind=3
+    if upper_triangular:
+        yyind=3
+        xzind=2
+    # copy these data into a tensor 
+    dtinp = np.zeros(image.shape + (3,3), dtype=float)
+    dtix = np.zeros((3,3), dtype=float)
+    it = np.ndindex( image.shape )
+    dtiut = image.numpy()
+    for i in it:
+        dtivec = dtiut[i] # in ANTs - we have: [xx,xy,xz,yy,yz,zz]
+        dtix[0,0]=dtivec[0]
+        dtix[1,1]=dtivec[yyind] # 2 for LT
+        dtix[2,2]=dtivec[5] 
+        dtix[0,1]=dtix[1,0]=dtivec[1]
+        dtix[0,2]=dtix[2,0]=dtivec[xzind] # 3 for LT
+        dtix[1,2]=dtix[2,1]=dtivec[4]
+        dtinp[i]=dtix
+    return dtinp
+
+
 def dti_reg(
     image,
     avg_b0,

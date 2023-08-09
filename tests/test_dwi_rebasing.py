@@ -42,10 +42,12 @@ a1b,a1w=antspymm.get_average_dwi_b0(img_LR_in)
 
 print("bxt the DTI template space")
 mybxt = ants.get_mask( template )
-reg = ants.registration( a1b, template, 'SyN', verbose=False)
+reg = ants.registration( a1b, template, 'Rigid', verbose=False)
+reg = ants.registration( a1b, template, 'SyNOnly', verbose=False, 
+    initial_transform = reg['fwdtransforms'][0], total_sigma=5. )
 mask = ants.apply_transforms( a1b, mybxt, reg['fwdtransforms'], interpolator='nearestNeighbor')
-mask = ants.iMath(mask,"ME",2)
-# ants.plot(a1b,mask,axis=2)
+mask = ants.iMath(mask,"MD",1)
+ants.plot(a1b,mask,axis=2)
 
 a1brot = ants.apply_transforms( template, a1b, reg['invtransforms'] )
 a1wrot = ants.apply_transforms( template, a1w, reg['invtransforms'] )
@@ -69,6 +71,32 @@ myoutx = antspymm.joint_dti_recon(
 
 dti0 = antspymm.get_dti( a1b, myoutx['dtrecon_LR_dewarp']['tensormodel'], return_image=True )
 dti1 = antspymm.get_dti( a1b, myoutx['dtrecon_LR_dewarp']['tensormodel'], return_image=False )
+
+
+# now apply the transform to the template
+# 1. transform the tensor components
+dtsplit = dti0.split_channels()
+dtiw = []
+for k in range(len(dtsplit)):
+    dtiw.append( ants.apply_transforms( template, dtsplit[k], reg['invtransforms'] ) )
+ants.plot( template, dtiw[0], axis=1, crop=True )
+dtiw=ants.merge_channels(dtiw)
+# reorient them locally: compose and get reo image
+comptx = ants.apply_transforms( template, template, reg['invtransforms'], 
+                                compose='/tmp/XXX' )
+locrot = ants.deformation_gradient( ants.image_read(comptx), 
+    to_rotation = True, py_based=True )
+# rebase them to new space
+### just test rebase first
+rebaser = np.dot( np.transpose( template.direction  ), a1b.direction )
+it = np.ndindex( template.shape )
+dtiw2tensor = antspymm.triangular_to_tensor( dtiw )
+for i in it:
+    mmm = dtiw2tensor[i]
+    # direction * dt * direction.transpose();
+    
+    derka
+
 
 derka
 
@@ -128,8 +156,3 @@ for i in it:
     dtinp[i]=dtix
 
 
-# now apply the transform to the template
-# a1brot = ants.apply_transforms( template, a1b, reg['invtransforms'] )
-# transform the tensor components
-# reorient them locally
-# rebase them to new space
