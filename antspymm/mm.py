@@ -2556,7 +2556,7 @@ def joint_dti_recon(
 
     t1w : antsimage t1w neuroimage (brain-extracted)
 
-    brain_mask : mask for the DWI - just 3D
+    brain_mask : mask for the DWI - just 3D - provided brain mask should be in reference_B0 space
 
     motion_correct : None Rigid or SyN
 
