@@ -1338,6 +1338,51 @@ def triangular_to_tensor( image, upper_triangular=True ):
     return dtinp
 
 
+def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
+    """
+    convert numpy DTI data to antsImage
+
+    reference_image : antsImage defining physical space (3D)
+
+    tensorarray : numpy array X,Y,Z,3,3 shape
+
+    upper_triangular: boolean otherwise use lower triangular coding
+
+    Returns
+    -------
+    ANTsImage
+
+    Notes
+    -----
+    DiPy returns lower triangular form but ANTs expects upper triangular.
+        Here, we default to the ANTs standard but could generalize in the future 
+        because not much here depends on ANTs standards of tensor data.
+        ANTs xx,xy,xz,yy,yz,zz
+        DiPy Dxx, Dxy, Dyy, Dxz, Dyz, Dzz
+
+    """
+    dtiut = np.zeros(reference_image.shape + (6,), dtype=float)  
+    dtivec = np.zeros(6, dtype=float)  
+    it = np.ndindex( reference_image.shape )
+    yyind=2
+    xzind=3
+    if upper_triangular:
+        yyind=3
+        xzind=2
+    for i in it:
+        dtix = tensorarray[i] # in ANTs - we have: [xx,xy,xz,yy,yz,zz]
+        dtivec[0]=dtix[0,0]
+        dtivec[yyind]=dtix[1,1] # 2 for LT
+        dtivec[5]=dtix[2,2]
+        dtivec[1]=dtix[0,1]
+        dtivec[xzind]=dtix[2,0] # 3 for LT
+        dtivec[4]=dtix[1,2]
+        dtiut[i]=dtivec
+    dtiAnts = ants.from_numpy( dtiut, has_components=True )
+    ants.copy_image_info( reference_image, dtiAnts )
+    return dtiAnts
+
+
 def dti_reg(
     image,
     avg_b0,

@@ -92,13 +92,17 @@ rebaser = np.dot( np.transpose( template.direction  ), a1b.direction )
 it = np.ndindex( template.shape )
 dtiw2tensor = antspymm.triangular_to_tensor( dtiw )
 for i in it:
-    mmm = dtiw2tensor[i]
     # direction * dt * direction.transpose();
-    
-    derka
+    mmm = dtiw2tensor[i]
+    mmm = np.dot( mmm, np.transpose( rebaser ) )
+    mmm = np.dot( rebaser, mmm )
+    dtiw2tensor[i] = mmm
 
+xxx=antspymm.dti_numpy_to_image( template, dtiw2tensor )
+ants.image_write( xxx, '/tmp/dtiw.nii.gz' )
+ants.image_write( template, '/tmp/template.nii.gz' )
+# these results look correct ... 
 
-derka
 
 # the 2nd test looks at reorienting the tensor reconstruction itself
 # ie evaluating whether the reconstruction is correct when performed 
