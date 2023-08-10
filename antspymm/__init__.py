@@ -8,6 +8,7 @@ from .mm import get_data
 from .mm import get_dti
 from .mm import triangular_to_tensor
 from .mm import dti_numpy_to_image
+from .mm import transform_and_reorient_dti
 from .mm import get_models
 from .mm import nrg_format_path
 from .mm import highest_quality_repeat

@@ -1382,6 +1382,53 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
     ants.copy_image_info( reference_image, dtiAnts )
     return dtiAnts
 
+def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, **kwargs)
+    """
+    apply a transform to DTI in the style of ants.apply_transforms. this function
+        will create a composite transform in order to reorient the DTI.
+    
+    fixed : antsImage reference space
+
+    moving_dti : antsImage DTI in upper triangular format
+
+    composite_transform : should be a composition of all transforms to be applied stored on disk ( a filename ) ... might change this in the future.
+
+    py_based : boolean
+
+    **kwargs : passed to ants.apply_transforms
+
+    """
+    if moving_dti.dimension != 3:
+        raise ValueError('moving image should have 3 dimensions')
+    if moving_dti.components != 6:
+        raise ValueError('moving image should have 6 components')
+    # now apply the transform to the template
+    # 1. transform the tensor components
+    dtsplit = moving_dti.split_channels()
+    dtiw = []
+    for k in range(len(dtsplit)):
+        dtiw.append( ants.apply_transforms( fixed, dtsplit[k], composite_transform ) )
+    dtiw=ants.merge_channels(dtiw)
+    # reorient them locally: compose and get reo image
+    locrot = ants.deformation_gradient( ants.image_read(composite_transform), 
+        to_rotation = True, py_based=py_based )
+    # rebase them to new space
+    rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
+    dtiw2tensor = antspymm.triangular_to_tensor( dtiw )
+    it = np.ndindex( fixed.shape )
+    for i in it:
+        # direction * dt * direction.transpose();
+        mmm = dtiw2tensor[i]
+        # transform rebase
+        locrotx = np.reshape( locrot[i], [3,3] )
+        mmm = np.dot( mmm, np.transpose( locrotx ) )
+        mmm = np.dot( locrotx, mmm )
+        # physical space rebase
+        mmm = np.dot( mmm, np.transpose( rebaser ) )
+        mmm = np.dot( rebaser, mmm )
+        dtiw2tensor[i] = mmm
+    return dti_numpy_to_image( fixed, dtiw2tensor )
+
 
 def dti_reg(
     image,

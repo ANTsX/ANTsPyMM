@@ -87,10 +87,26 @@ comptx = ants.apply_transforms( template, template, reg['invtransforms'],
 locrot = ants.deformation_gradient( ants.image_read(comptx), 
     to_rotation = True, py_based=True )
 # rebase them to new space
-### just test rebase first
 rebaser = np.dot( np.transpose( template.direction  ), a1b.direction )
-it = np.ndindex( template.shape )
 dtiw2tensor = antspymm.triangular_to_tensor( dtiw )
+it = np.ndindex( template.shape )
+for i in it:
+    # direction * dt * direction.transpose();
+    mmm = dtiw2tensor[i]
+    # transform rebase
+    locrotx = np.reshape( locrot[i], [3,3] )
+    mmm = np.dot( mmm, np.transpose( locrotx ) )
+    mmm = np.dot( locrotx, mmm )
+    # physical space rebase
+    mmm = np.dot( mmm, np.transpose( rebaser ) )
+    mmm = np.dot( rebaser, mmm )
+    dtiw2tensor[i] = mmm
+
+xxx=antspymm.dti_numpy_to_image( template, dtiw2tensor )
+ants.image_write( xxx, '/tmp/dtiw.nii.gz' )
+
+### just test rebase first
+it = np.ndindex( template.shape )
 for i in it:
     # direction * dt * direction.transpose();
     mmm = dtiw2tensor[i]
