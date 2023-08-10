@@ -2912,7 +2912,10 @@ def joint_dti_recon(
     fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
     fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
+    # def get_dti( reference_image, tensormodel, upper_triangular=True, return_image=False ):
+    dti_itself = get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
     return {
+        'dti': dti_itself,
         'recon_fa':reconFA,
         'recon_fa_summary':df_FA_JHU_ORRL_bfwide,
         'recon_md':reconMD,
