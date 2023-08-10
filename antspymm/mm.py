@@ -4563,6 +4563,7 @@ def mm(
     normalization_dict = {
         'kk_norm': None,
         'NM_norm' : None,
+        'DTI_norm': None,
         'FA_norm' : None,
         'MD_norm' : None,
         'alff_norm' : None,
@@ -4775,6 +4776,14 @@ def mm(
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
             normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+            output_directory = tempfile.mkdtemp()
+            comptx = ants.apply_transforms( template, template, 
+                t1reg['fwdtransforms']+dtirig['fwdtransforms'], 
+                compose = output_directory + '/xxx' )
+            normalization_dict['DTI_norm'] = antspymm.transform_and_reorient_dti(
+                template, mydti['dti'], comptx, py_based=True )
+            import shutil
+            shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
             rsfpro = output_dict['rsf']
             rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
@@ -5097,7 +5106,8 @@ def mm_nrg(
         'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat'],
         'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
     if verbose:
-        print( "REGISTRATION EXISTENCE: " +
+        print( "-<REGISTRATION EXISTENCE>-: \n" + 
+              "NAMING: " + regout+'0GenericAffine.mat' + " \n " +
             str(exists( templateTx['fwdtransforms'][0])) + " " +
             str(exists( templateTx['fwdtransforms'][1])) + " " +
             str(exists( templateTx['invtransforms'][0])) + " " +
@@ -5642,12 +5652,13 @@ def mm_csv(
     hierfntest = hierfn + 'cerebellum.csv'
     if verbose:
         print( hierfntest )
-    regout = hierfn + "syn"
+    regout = re.sub("T1wHierarchical","T1w",hierfn) + "syn"
     templateTx = {
         'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat'],
         'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
     if verbose:
-        print( "REGISTRATION EXISTENCE: " +
+        print( "-<REGISTRATION EXISTENCE>-: \n" + 
+              "NAMING: " + regout+'0GenericAffine.mat' + " \n " +
             str(exists( templateTx['fwdtransforms'][0])) + " " +
             str(exists( templateTx['fwdtransforms'][1])) + " " +
             str(exists( templateTx['invtransforms'][0])) + " " +
