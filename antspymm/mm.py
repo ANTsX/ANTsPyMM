@@ -4467,6 +4467,8 @@ def mm(
     do_tractography = False,
     do_kk = False,
     do_normalization = None,
+    group_template = None,
+    group_transform = None,
     target_range = [0,1],
     dti_motion_correct = 'Rigid',
     dti_denoise = False,
@@ -4505,6 +4507,10 @@ def mm(
 
     do_normalization : template transformation if available
 
+    group_template : optional reference template corresponding to the group_transform
+
+    group_transform : optional transforms corresponding to the group_template
+
     target_range : 2-element tuple
         a tuple or array defining the (min, max) of the input image
         (e.g., [-127.5, 127.5] or [0,1]).  Output images will be scaled back to original
@@ -4540,6 +4546,9 @@ def mm(
     JHU_atlas = mm_read( JHU_atlasfn ) # Read in JHU atlas
     JHU_labels = mm_read( JHU_labelsfn ) # Read in JHU labels
     template = mm_read( templatefn ) # Read in template
+    if group_template is None:
+        group_template = template
+        group_transform = do_normalization['fwdtransforms']
     #####################
     #  T1 hierarchical  #
     #####################
@@ -4770,18 +4779,18 @@ def mm(
         # t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
         t1reg = do_normalization
         if do_kk:
-            normalization_dict['kk_norm'] = ants.apply_transforms( template, output_dict['kk']['thickness_image'], t1reg['fwdtransforms'])
+            normalization_dict['kk_norm'] = ants.apply_transforms( group_template, output_dict['kk']['thickness_image'], group_transform )
         if output_dict['DTI'] is not None:
             mydti = output_dict['DTI']
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
-            normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
-            normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+            normalization_dict['MD_norm'] = ants.apply_transforms( group_template, mydti['recon_md'],group_transform+dtirig['fwdtransforms'] )
+            normalization_dict['FA_norm'] = ants.apply_transforms( group_template, mydti['recon_fa'],group_transform+dtirig['fwdtransforms'] )
             output_directory = tempfile.mkdtemp()
-            comptx = ants.apply_transforms( template, template, 
-                t1reg['fwdtransforms']+dtirig['fwdtransforms'], 
+            comptx = ants.apply_transforms( group_template, group_template, 
+                group_transform+dtirig['fwdtransforms'], 
                 compose = output_directory + '/xxx' )
             normalization_dict['DTI_norm'] = transform_and_reorient_dti(
-                template, mydti['dti'], comptx, py_based=True )
+                group_template, mydti['dti'], comptx, py_based=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
@@ -4790,12 +4799,12 @@ def mm(
             for netid in mynets:
                 rsfkey = netid + "_norm"
                 normalization_dict[rsfkey] = ants.apply_transforms(
-                    template, rsfpro[netid],
-                    t1reg['fwdtransforms']+rsfrig['fwdtransforms'] )
+                    group_template, rsfpro[netid],
+                    group_transform+rsfrig['fwdtransforms'] )
         if nm_image_list is not None:
             nmpro = output_dict['NM']
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
-            normalization_dict['NM_norm'] = ants.apply_transforms( template, nmpro['NM_avg'],t1reg['fwdtransforms']+nmrig,
+            normalization_dict['NM_norm'] = ants.apply_transforms( group_template, nmpro['NM_avg'], group_transform+nmrig,
                 whichtoinvert=[False,False,True])
 
     if verbose:
@@ -5486,7 +5495,10 @@ def mm_csv(
     srmodel_DTI = False, # optional - will add a great deal of time
     dti_motion_correct = 'SyN',
     dti_denoise = True,
-    nrg_modality_list = None
+    nrg_modality_list = None,
+    normalization_template = None,
+    normalization_template_output = None,
+    normalization_template_transform_type = "antsRegistrationSyNRepro[s]",
 ):
     """
     too dangerous to document ... use with care.
@@ -5545,6 +5557,15 @@ def mm_csv(
     dti_denoise : boolean
 
     nrg_modality_list : optional; defaults to None; use to focus on a given modality
+
+    normalization_template : optional; defaults to None; if present, all images will
+        be deformed into this space and the deformation will be stored with an extension
+        related to this variable.  this should be a brain extracted T1w image.
+
+    normalization_template_output : optional string; defaults to None; naming for the 
+        normalization_template outputs which will be in the T1w directory.
+
+    normalization_template_transform_type : optional string transform type passed to ants.registration
 
     Returns
     ---------
@@ -5631,7 +5652,6 @@ def mm_csv(
                         iid2=iid+"_"+t1iid
                     myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid2
         if verbose:
-            print("VERBOSE in docsamson")
             print( locmod )
             print( myimgsInput )
             print( myoutputPrefix )
@@ -5656,6 +5676,13 @@ def mm_csv(
     templateTx = {
         'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat'],
         'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
+    groupTx = None
+    if normalization_template_output is not None:
+        normout = re.sub("T1wHierarchical","T1w",hierfn) + mysep + normalization_template_output
+        templateNormTx = {
+            'fwdtransforms': [ normout+'1Warp.nii.gz', normout+'0GenericAffine.mat'],
+            'invtransforms': [ normout+'0GenericAffine.mat', normout+'1InverseWarp.nii.gz']  }
+        groupTx = templateNormTx['fwdtransforms']
     if verbose:
         print( "-<REGISTRATION EXISTENCE>-: \n" + 
               "NAMING: " + regout+'0GenericAffine.mat' + " \n " +
@@ -5783,6 +5810,8 @@ def mm_csv(
                             do_tractography=False,
                             do_kk=False,
                             do_normalization=templateTx,
+                            group_template = normalization_template,
+                            group_transform = groupTx,
                             test_run=test_run,
                             verbose=True )
                     if not test_run:
@@ -5822,6 +5851,15 @@ def mm_csv(
                             img = mm_read( myimg )
                             ishapelen = len( img.shape )
                             if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
+                                if normalization_template_output is not None and normalization_template is not None:
+                                    if verbose:
+                                        print("begin group template registration")
+                                    greg = ants.registration( normalization_template, 
+                                        hier['brain_n4_dnz'],
+                                        normalization_template_transform_type,
+                                        outprefix = normout, verbose=False )
+                                    if verbose:
+                                        print("end group template registration")
                                 if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
                                     if verbose:
                                         print('start t1 registration')
@@ -5829,7 +5867,8 @@ def mm_csv(
                                     templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
                                     template = mm_read( templatefn )
                                     template = ants.resample_image( template, [1,1,1], use_voxels=False )
-                                    t1reg = ants.registration( template, hier['brain_n4_dnz'],
+                                    t1reg = ants.registration( template, 
+                                        hier['brain_n4_dnz'],
                                         "antsRegistrationSyNQuickRepro[s]", outprefix = regout, verbose=False )
                                     myjac = ants.create_jacobian_determinant_image( template,
                                         t1reg['fwdtransforms'][0], do_log=True, geom=True )
@@ -5846,6 +5885,8 @@ def mm_csv(
                                         do_tractography=False,
                                         do_kk=True,
                                         do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
                                         test_run=test_run,
                                         verbose=True )
                                     if visualize:
@@ -5861,6 +5902,8 @@ def mm_csv(
                                     do_tractography=False,
                                     do_kk=False,
                                     do_normalization=templateTx,
+                                    group_template = normalization_template,
+                                    group_transform = groupTx,
                                     test_run=test_run,
                                     verbose=True )
                                 if visualize:
@@ -5883,6 +5926,8 @@ def mm_csv(
                                     do_tractography=False,
                                     do_kk=False,
                                     do_normalization=templateTx,
+                                    group_template = normalization_template,
+                                    group_transform = groupTx,
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
@@ -5944,6 +5989,8 @@ def mm_csv(
                                         do_tractography=not test_run,
                                         do_kk=False,
                                         do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
                                         dti_motion_correct = dti_motion_correct,
                                         dti_denoise = dti_denoise,
                                         test_run=test_run,
