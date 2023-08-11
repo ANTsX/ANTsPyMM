@@ -1382,7 +1382,7 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
     ants.copy_image_info( reference_image, dtiAnts )
     return dtiAnts
 
-def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, **kwargs):
+def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, verbose=False, **kwargs):
     """
     apply a transform to DTI in the style of ants.apply_transforms. this function
         expects a pre-computed composite transform which it will use to reorient 
@@ -1395,6 +1395,8 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
     composite_transform : should be a composition of all transforms to be applied stored on disk ( a filename ) ... might change this in the future.
 
     py_based : boolean
+
+    verbose : boolean
 
     **kwargs : passed to ants.apply_transforms
 
@@ -1410,12 +1412,16 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
     for k in range(len(dtsplit)):
         dtiw.append( ants.apply_transforms( fixed, dtsplit[k], composite_transform ) )
     dtiw=ants.merge_channels(dtiw)
-    # reorient them locally: compose and get reo image
+    if verbose:
+        print("reorient tensors locally: compose and get reo image")
     locrot = ants.deformation_gradient( ants.image_read(composite_transform), 
         to_rotation = True, py_based=py_based )
-    # rebase them to new space
     rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
+    if verbose:
+        print("convert UT to full tensor")
     dtiw2tensor = triangular_to_tensor( dtiw )
+    if verbose:
+        print("rebase them to new space via iterator")
     it = np.ndindex( fixed.shape )
     for i in it:
         # direction * dt * direction.transpose();
@@ -1428,6 +1434,8 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
         mmm = np.dot( mmm, np.transpose( rebaser ) )
         mmm = np.dot( rebaser, mmm )
         dtiw2tensor[i] = mmm
+    if verbose:
+        print("done with rebasing")
     return dti_numpy_to_image( fixed, dtiw2tensor )
 
 
@@ -4783,6 +4791,7 @@ def mm(
         if output_dict['DTI'] is not None:
             mydti = output_dict['DTI']
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
+<<<<<<< HEAD
             normalization_dict['MD_norm'] = ants.apply_transforms( group_template, mydti['recon_md'],group_transform+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( group_template, mydti['recon_fa'],group_transform+dtirig['fwdtransforms'] )
             output_directory = tempfile.mkdtemp()
@@ -4791,6 +4800,20 @@ def mm(
                 compose = output_directory + '/xxx' )
             normalization_dict['DTI_norm'] = transform_and_reorient_dti(
                 group_template, mydti['dti'], comptx, py_based=True )
+=======
+            normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+            normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
+            if verbose:
+                print("Create DTI composite map to template space")
+            output_directory = tempfile.mkdtemp()
+            comptx = ants.apply_transforms( template, template, 
+                t1reg['fwdtransforms']+dtirig['fwdtransforms'], 
+                compose = output_directory + '/xxx', verbose=verbose )
+            if verbose:
+                print("transform and reorient DTI to template space")
+            normalization_dict['DTI_norm'] = transform_and_reorient_dti(
+                template, mydti['dti'], comptx, py_based=True, verbose=verbose )
+>>>>>>> 58e1884 (STYLE: verbose option)
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
