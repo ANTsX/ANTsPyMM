@@ -4780,7 +4780,7 @@ def mm(
             comptx = ants.apply_transforms( template, template, 
                 t1reg['fwdtransforms']+dtirig['fwdtransforms'], 
                 compose = output_directory + '/xxx' )
-            normalization_dict['DTI_norm'] = antspymm.transform_and_reorient_dti(
+            normalization_dict['DTI_norm'] = transform_and_reorient_dti(
                 template, mydti['dti'], comptx, py_based=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
