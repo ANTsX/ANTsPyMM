@@ -5490,7 +5490,7 @@ def mm_nrg(
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep, verbose=True )
                                 for mykey in normPro.keys():
-                                    if normPro[mykey] is not None and False:
+                                    if normPro[mykey] is not None:
                                         if visualize and normPro[mykey].components == 1:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
@@ -6025,7 +6025,7 @@ def mm_csv(
                             if dowrite:
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
-                                    if normPro[mykey] is not None:
+                                    if normPro[mykey] is not None and normPro[mykey].components == 1:
                                         if visualize:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
