@@ -5487,7 +5487,7 @@ def mm_nrg(
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
                                     if normPro[mykey] is not None:
-                                        if visualize:
+                                        if visualize and normPro[mykey].components == 1:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
             return
