@@ -4428,11 +4428,15 @@ def write_bvals_bvecs(bvals, bvecs, prefix ):
     N = len(bvals)
     fname = prefix + '.bval'
     fmt = _VAL_FMT * N + '\n'
-    open(fname, 'wt').write(fmt % bvals)
+    myfile = open(fname, 'wt')
+    myfile.write(fmt % bvals)
+    myfile.close()
     fname = prefix + '.bvec'
     bvf = open(fname, 'wt')
     for dim_vals in bvecs.T:
         bvf.write(fmt % tuple(dim_vals))
+    bvf.close()
+    
 
 def crop_mcimage( x, mask, padder=None ):
     """
@@ -4798,7 +4802,7 @@ def mm(
                 group_transform+dtirig['fwdtransforms'], 
                 compose = output_directory + '/xxx' )
             normalization_dict['DTI_norm'] = transform_and_reorient_dti(
-                group_template, mydti['dti'], comptx, py_based=True )
+                group_template, mydti['dti'], comptx, py_based=True, verbose=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
