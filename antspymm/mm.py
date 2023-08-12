@@ -5765,6 +5765,26 @@ def mm_csv(
     if not testloop:
         t1imgbrn = hier['brain_n4_dnz']
         t1atropos = hier['dkt_parc']['tissue_segmentation']
+
+    if normalization_template_output is not None and normalization_template is not None:
+        if verbose:
+            print("begin group template registration")
+        if not exists( normout+'0GenericAffine.mat' ):
+            if normalization_template_spacing is not None:
+                normalization_template_rr=ants.resample_image(normalization_template,normalization_template_spacing)
+            else:
+                normalization_template_rr=normalization_template
+            greg = ants.registration( 
+                normalization_template_rr, 
+                hier['brain_n4_dnz'],
+                normalization_template_transform_type,
+                outprefix = normout, verbose=False )
+            if verbose:
+                print("end group template registration")
+        else:
+            if verbose:
+                print("group template registration already done")
+
     # loop over modalities and then unique image IDs
     # we treat NM in a "special" way -- aggregating repeats
     # other modalities (beyond T1) are treated individually
@@ -5870,24 +5890,6 @@ def mm_csv(
                             img = mm_read( myimg )
                             ishapelen = len( img.shape )
                             if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
-                                if normalization_template_output is not None and normalization_template is not None:
-                                    if verbose:
-                                        print("begin group template registration")
-                                    if not exists( normout+'0GenericAffine.mat' ):
-                                        if normalization_template_spacing is not None:
-                                            normalization_template_rr=ants.resample_image(normalization_template,normalization_template_spacing)
-                                        else:
-                                            normalization_template_rr=normalization_template
-                                        greg = ants.registration( 
-                                            normalization_template_rr, 
-                                            hier['brain_n4_dnz'],
-                                            normalization_template_transform_type,
-                                            outprefix = normout, verbose=False )
-                                        if verbose:
-                                            print("end group template registration")
-                                    else:
-                                        if verbose:
-                                            print("group template registration already done")
                                 if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
                                     if verbose:
                                         print('start t1 registration')
