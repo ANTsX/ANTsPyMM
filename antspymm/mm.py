@@ -4791,7 +4791,6 @@ def mm(
         if output_dict['DTI'] is not None:
             mydti = output_dict['DTI']
             dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
-<<<<<<< HEAD
             normalization_dict['MD_norm'] = ants.apply_transforms( group_template, mydti['recon_md'],group_transform+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( group_template, mydti['recon_fa'],group_transform+dtirig['fwdtransforms'] )
             output_directory = tempfile.mkdtemp()
@@ -4800,20 +4799,6 @@ def mm(
                 compose = output_directory + '/xxx' )
             normalization_dict['DTI_norm'] = transform_and_reorient_dti(
                 group_template, mydti['dti'], comptx, py_based=True )
-=======
-            normalization_dict['MD_norm'] = ants.apply_transforms( template, mydti['recon_md'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
-            normalization_dict['FA_norm'] = ants.apply_transforms( template, mydti['recon_fa'],t1reg['fwdtransforms']+dtirig['fwdtransforms'] )
-            if verbose:
-                print("Create DTI composite map to template space")
-            output_directory = tempfile.mkdtemp()
-            comptx = ants.apply_transforms( template, template, 
-                t1reg['fwdtransforms']+dtirig['fwdtransforms'], 
-                compose = output_directory + '/xxx', verbose=verbose )
-            if verbose:
-                print("transform and reorient DTI to template space")
-            normalization_dict['DTI_norm'] = transform_and_reorient_dti(
-                template, mydti['dti'], comptx, py_based=True, verbose=verbose )
->>>>>>> 58e1884 (STYLE: verbose option)
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
