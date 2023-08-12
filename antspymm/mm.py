@@ -5862,12 +5862,17 @@ def mm_csv(
                                 if normalization_template_output is not None and normalization_template is not None:
                                     if verbose:
                                         print("begin group template registration")
-                                    greg = ants.registration( normalization_template, 
-                                        hier['brain_n4_dnz'],
-                                        normalization_template_transform_type,
-                                        outprefix = normout, verbose=False )
-                                    if verbose:
-                                        print("end group template registration")
+                                    if not exists( normout+'0GenericAffine.mat' ):
+                                        greg = ants.registration( 
+                                            normalization_template, 
+                                            hier['brain_n4_dnz'],
+                                            normalization_template_transform_type,
+                                            outprefix = normout, verbose=False )
+                                        if verbose:
+                                            print("end group template registration")
+                                    else:
+                                        if verbose:
+                                            print("group template registration already done")
                                 if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
                                     if verbose:
                                         print('start t1 registration')
