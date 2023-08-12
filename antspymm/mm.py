@@ -4824,7 +4824,7 @@ def mm(
     return output_dict, normalization_dict
 
 
-def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
+def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbose=False ):
     """
     write the tabular and normalization output of the mm function
 
@@ -4840,6 +4840,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
     t1wide : wide output data frame from t1 hierarchical
 
     separator : string or character separator for filenames
+
+    verbose : boolean
 
     Returns
     ---------
@@ -4985,6 +4987,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_' ):
             mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
+    if verbose:
+        print( output_prefix + " write_mm done." )
     return
 
 
@@ -5480,13 +5484,13 @@ def mm_nrg(
                                 mydti = tabPro['DTI']
                                 if visualize:
                                     maxslice = np.min( [21, mydti['recon_fa'] ] )
-                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
+                                    ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA', filename=mymm+mysep+"FAbetter.png"  )
                                     ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
                                     ants.plot( mydti['recon_md'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='MD', filename=mymm+mysep+"MD.png"  )
                             if dowrite:
-                                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
+                                write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep, verbose=True )
                                 for mykey in normPro.keys():
-                                    if normPro[mykey] is not None:
+                                    if normPro[mykey] is not None and False:
                                         if visualize and normPro[mykey].components == 1:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
