@@ -5686,7 +5686,7 @@ def mm_csv(
         'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
     groupTx = None
     if normalization_template_output is not None:
-        normout = re.sub("T1wHierarchical","T1w",hierfn) + mysep + normalization_template_output
+        normout = re.sub("T1wHierarchical","T1w",hierfn) +  normalization_template_output
         templateNormTx = {
             'fwdtransforms': [ normout+'1Warp.nii.gz', normout+'0GenericAffine.mat'],
             'invtransforms': [ normout+'0GenericAffine.mat', normout+'1InverseWarp.nii.gz']  }
