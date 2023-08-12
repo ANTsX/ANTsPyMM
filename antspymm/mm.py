@@ -5766,6 +5766,23 @@ def mm_csv(
         t1imgbrn = hier['brain_n4_dnz']
         t1atropos = hier['dkt_parc']['tissue_segmentation']
 
+    if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
+        if verbose:
+            print('start t1 registration')
+        ex_path = os.path.expanduser( "~/.antspyt1w/" )
+        templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
+        template = mm_read( templatefn )
+        template = ants.resample_image( template, [1,1,1], use_voxels=False )
+        t1reg = ants.registration( template, 
+            hier['brain_n4_dnz'],
+            "antsRegistrationSyNQuickRepro[s]", outprefix = regout, verbose=False )
+        myjac = ants.create_jacobian_determinant_image( template,
+            t1reg['fwdtransforms'][0], do_log=True, geom=True )
+        image_write_with_thumbnail( myjac, regout + "logjacobian.nii.gz", thumb=False )
+        if visualize:
+            ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
+            ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
+
     if normalization_template_output is not None and normalization_template is not None:
         if verbose:
             print("begin group template registration")
@@ -5890,22 +5907,6 @@ def mm_csv(
                             img = mm_read( myimg )
                             ishapelen = len( img.shape )
                             if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
-                                if not exists( regout + "logjacobian.nii.gz" ) or not exists( regout+'1Warp.nii.gz' ):
-                                    if verbose:
-                                        print('start t1 registration')
-                                    ex_path = os.path.expanduser( "~/.antspyt1w/" )
-                                    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-                                    template = mm_read( templatefn )
-                                    template = ants.resample_image( template, [1,1,1], use_voxels=False )
-                                    t1reg = ants.registration( template, 
-                                        hier['brain_n4_dnz'],
-                                        "antsRegistrationSyNQuickRepro[s]", outprefix = regout, verbose=False )
-                                    myjac = ants.create_jacobian_determinant_image( template,
-                                        t1reg['fwdtransforms'][0], do_log=True, geom=True )
-                                    image_write_with_thumbnail( myjac, regout + "logjacobian.nii.gz", thumb=False )
-                                    if visualize:
-                                        ants.plot( ants.iMath(t1reg['warpedmovout'],"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='warped to template', filename=regout+"totemplate.png" )
-                                        ants.plot( ants.iMath(myjac,"Normalize"),  axis=2, nslices=21, ncol=7, crop=True, title='jacobian', filename=regout+"jacobian.png" )
                                 if not exists( mymm + mysep + "kk_norm.nii.gz" ):
                                     dowrite=True
                                     if verbose:
