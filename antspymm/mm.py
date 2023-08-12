@@ -1421,7 +1421,7 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
         print("convert UT to full tensor")
     dtiw2tensor = triangular_to_tensor( dtiw )
     if verbose:
-        print("rebase them to new space via iterator")
+        print("rebase tensors to new space via iterator")
     it = np.ndindex( fixed.shape )
     for i in it:
         # direction * dt * direction.transpose();
