@@ -5515,6 +5515,7 @@ def mm_csv(
     normalization_template = None,
     normalization_template_output = None,
     normalization_template_transform_type = "antsRegistrationSyNRepro[s]",
+    normalization_template_spacing=None
 ):
     """
     too dangerous to document ... use with care.
@@ -5582,6 +5583,8 @@ def mm_csv(
         normalization_template outputs which will be in the T1w directory.
 
     normalization_template_transform_type : optional string transform type passed to ants.registration
+
+    normalization_template_spacing : 3-tuple controlling the resolution at which registration is computed 
 
     Returns
     ---------
@@ -5871,8 +5874,12 @@ def mm_csv(
                                     if verbose:
                                         print("begin group template registration")
                                     if not exists( normout+'0GenericAffine.mat' ):
+                                        if normalization_template_spacing is not None:
+                                            normalization_template_rr=ants.resample_image(normalization_template,normalization_template_spacing)
+                                        else:
+                                            normalization_template_rr=normalization_template
                                         greg = ants.registration( 
-                                            normalization_template, 
+                                            normalization_template_rr, 
                                             hier['brain_n4_dnz'],
                                             normalization_template_transform_type,
                                             outprefix = normout, verbose=False )
