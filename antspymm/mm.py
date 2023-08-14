@@ -1834,7 +1834,7 @@ def mc_reg(
     }
 
 
-def get_data( name=None, force_download=False, version=12, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=13, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
