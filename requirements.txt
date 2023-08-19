@@ -1,7 +1,7 @@
 h5py>=2.10.0
 numpy>=1.19.4
 pandas>=1.0.1
-antspyx>=0.2.7
+antspyx>=0.4.1
 antspyt1w>=0.2.3
 pathlib
 dipy
