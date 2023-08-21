@@ -3,8 +3,18 @@ from setuptools import setup, find_packages
 
 long_description = open("README.md").read()
 
-with open("./requirements.txt") as f:
-      requirements = f.read().splitlines()
+requirements = [
+      "h5py>=2.10.0",
+      "numpy>=1.19.4",
+      "pandas>=1.0.1",
+      "antspyx",
+      "antspyt1w>=0.2.3",
+      "pathlib",
+      "dipy",
+      "nibabel",
+      "scipy",
+      "siq",
+      "sklearn"]
 
 setup(name='antspymm',
       version='1.0.1',
