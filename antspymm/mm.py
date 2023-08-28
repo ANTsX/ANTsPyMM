@@ -5696,6 +5696,8 @@ def mm_csv(
         'fwdtransforms': [ regout+'1Warp.nii.gz', regout+'0GenericAffine.mat'],
         'invtransforms': [ regout+'0GenericAffine.mat', regout+'1InverseWarp.nii.gz']  }
     groupTx = None
+    # make the T1w directory
+    os.makedirs( os.path.dirname(re.sub("T1wHierarchical","T1w",hierfn)), exist_ok=True  )
     if normalization_template_output is not None:
         normout = re.sub("T1wHierarchical","T1w",hierfn) +  normalization_template_output
         templateNormTx = {
