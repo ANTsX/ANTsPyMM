@@ -4566,7 +4566,7 @@ def mm(
     #####################
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    mynets = list([ 'CinguloopercularTaskControl', 'DefaultMode',
+    mynets = list([ 'meanBold', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode',
         'MemoryRetrieval', 'VentralAttention', 'Visual',
         'FrontoparietalTaskControl', 'Salience', 'Subcortical',
         'DorsalAttention'])
