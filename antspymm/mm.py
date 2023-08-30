@@ -161,9 +161,9 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     if long:
         mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func" ]
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'rsfMRI', 'NM2DMT','DTIdwi','DTIb0']
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI']
     else:
-        mymod = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI" ]
     if not asString:
         return mymod
     else:
@@ -5002,7 +5002,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","DTI","T2Flair" ],
+    nrg_modality_list = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI" ],
     verbose = True
 ):
     """
