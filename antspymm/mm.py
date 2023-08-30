@@ -1589,7 +1589,7 @@ def dti_reg(
         print("Progress:")
     counter = round( nTimePoints / 10 )
     for k in range(nTimePoints):
-        if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
+        if verbose and nTimePoints > 0 and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
             myperc = round( k / nTimePoints * 100)
             print(myperc, end="%.", flush=True)
         if k in b0_idx:
