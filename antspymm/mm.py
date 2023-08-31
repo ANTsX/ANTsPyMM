@@ -1091,7 +1091,7 @@ def timeseries_reg(
     fdpts = pd.DataFrame(data=myoffsets[useinds, :], columns=mycols)
     if verbose:
         print("Progress:")
-    counter = round( nTimePoints / 10 )
+    counter = round( nTimePoints / 10 ) + 1
     for k in range( nTimePoints):
         if verbose and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
             myperc = round( k / nTimePoints * 100)
@@ -1587,7 +1587,7 @@ def dti_reg(
 
     if verbose:
         print("Progress:")
-    counter = round( nTimePoints / 10 )
+    counter = round( nTimePoints / 10 ) + 1
     for k in range(nTimePoints):
         if verbose and nTimePoints > 0 and ( ( k % counter ) ==  0 ) or ( k == (nTimePoints-1) ):
             myperc = round( k / nTimePoints * 100)
