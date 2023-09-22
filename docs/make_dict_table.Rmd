@@ -295,7 +295,7 @@ Time series images may have additional QC metrics such as:
 
 ## the full data dictionary 
 
-A sortable version of the data dictionary is below.
+A sortable version of the data dictionary is below (if viewing on local machine).
 
 ### Table 2
 
