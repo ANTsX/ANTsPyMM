@@ -279,6 +279,8 @@ Time series images may have additional QC metrics such as:
 
 * TSNR: temporal signal to noise ratio
 
+* SSNR: spatial signal to noise ratio on the mean image (different from TSNR)
+
 * DVARS: the spatial root mean square of the data after temporal differencing
 
 * Neuromelanin (NM) has its own set of variables including:
@@ -292,6 +294,8 @@ Time series images may have additional QC metrics such as:
     * `avg/std_substantianigra` : average and standard deviation of signal in the substantia nigra or a related CIT168 region (determined by deepCIT168)
 
     * `NM2DMT_NM_substantianigra_z_coordinate`: estimate of the normalized (zero to one) z-coordinate of the substantia nigra in a neuromelanin scan; higher values mean higher in the slab.
+
+* the framewise displacement (FD) values are 10x in DTI data compared to rsfMRI data
 
 ## the full data dictionary 
 
