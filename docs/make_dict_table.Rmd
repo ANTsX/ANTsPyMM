@@ -317,6 +317,49 @@ good=ddnms[  (ddnms %in% zz$Label) ]
 bad=ddnms[ ! (ddnms %in% zz$Label) ]
 stopifnot(length(bad)==0)
 bad2=zz[ is.na(zz$Measurement),'Label']
-print( bad2 )
-print( length( bad2 ) )
+# print( bad2 )
+# print( length( bad2 ) )
+```
+
+
+## Joining with clinical data: PPMI
+
+We provide an example of how to join derived `ANTsPyMM` summary data with clinical variables from PPMI.
+
+```{r joiner,eval=TRUE,echo=FALSE}
+demog=read.csv("Demographics_22Sep2023.csv")
+clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
+dd$PATNO=dd$subjectID
+# subjects with imaging that have clinical data
+table( dd$PATNO %in% clin$PATNO )
+# subjects with clinical data that have imaging
+table( clin$PATNO %in% dd$PATNO )
+commonids = intersect( clin$PATNO, dd$PATNO )
+commonids = intersect( commonids, demog$PATNO )
+ee = dd[ dd$PATNO %in% commonids, ]
+clin = clin[ clin$PATNO %in% commonids, ]
+clin = merge( clin, demog, by='PATNO', all.x=TRUE )
+rmnames=names(clin)[ grep("[.]y",names(clin))]
+clin=clin[,!(names(clin) %in% rmnames)]
+names(clin)=gsub("[.]x","",names(clin))
+clin$birthdate=clin$BIRTHDT
+# convert shortbirtdate to NRG format
+for ( k in 1:nrow(clin) ) {
+    temp=unlist(strsplit(clin$BIRTHDT[k], "/"))
+    clin$birthdate[k]=as.numeric(paste0(temp[2],temp[1],15)) # add the 15th as the estimated date
+}
+# now we can compute age at imaging using imaging date in addition to BIRTHDT
+ee$ageatimaging=NA
+for ( k in 1:nrow( ee ) ) {
+    subjectbdate = unique( clin$birthdate[ clin$PATNO == ee$PATNO[k] ] )
+    ee$ageatimaging[k] = as.numeric( 
+            difftime( 
+                nrgDateToRDate( ee$date[k] ), 
+                nrgDateToRDate( subjectbdate ), units='weeks' )/52.0)
+    }
+
+yearthresh=35/365 # max allowed year difference
+# find the best imaging vist for each demographic time point
+
+# find the best demographic data for each imaging time point
 ```
