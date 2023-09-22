@@ -324,11 +324,15 @@ bad2=zz[ is.na(zz$Measurement),'Label']
 
 ## Joining with clinical data: PPMI
 
-We provide an example of how to join derived `ANTsPyMM` summary data with clinical variables from PPMI.
+We provide an example of how to join derived `ANTsPyMM` summary data with clinical variables from PPMI. 
 
-```{r joiner,eval=TRUE,echo=FALSE}
+**FIXME**
+
+```{r joiner,eval=FALSE,echo=FALSE}
 demog=read.csv("Demographics_22Sep2023.csv")
 clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
+demog[demog=='.']=NA
+clin[clin=='.']=NA
 dd$PATNO=dd$subjectID
 # subjects with imaging that have clinical data
 table( dd$PATNO %in% clin$PATNO )
@@ -374,7 +378,27 @@ for ( k in 1:nrow( clin ) ) {
         clin[k,names(ee)]=ee[iselind,]
     }
 }
-table( is.na( clin$T1Hier_resnetGrade ))
-
-# find the best demographic data for each imaging time point
+table( !is.na( clin$T1Hier_resnetGrade ))
+clin$DX = NA
+clin$DX = 'CN'
+clin$DX[ clin$CONCOHORT == 1 ]='PD'
+clin$DX[ clin$CONCOHORT == 4 ]='Prodromal'
+clin$DXSubRaw=paste0( clin$DX, "_", clin$subgroup )
+clin$DXSub=NA
+clin$DXSub[ clin$DX == 'CN' ]='CN'
+ispd = which( clin$DX == 'PD' )
+ispro = which( clin$DX == 'Prodromal' )
+isgba = grep("GBA",clin$subgroup)
+islrrk2 = grep("LRRK2",clin$subgroup)
+isprkn = grep("PRKN",clin$subgroup)
+issnca = grep("SNCA",clin$subgroup)
+issporadic = grep("Sporadic",clin$subgroup)
+clin$DXSub[ intersect(ispd,issporadic) ]='PDSporadic'
+clin$DXSub[ intersect(ispd,islrrk2) ]='PDLRRK2'
+clin$DXSub[ intersect(ispd,isgba) ]='PDGBA'
+clin$DXSub[ intersect(ispro,issporadic) ]='ProdromalSporadic'
+clin$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
+clin$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
+isbl = clin$EVENT_ID == 'BL'
+print( table( clin$DXSub[isbl], clin$CSFSAA[isbl] ) )
 ```
