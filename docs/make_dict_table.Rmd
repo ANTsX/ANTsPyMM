@@ -300,10 +300,8 @@ A sortable version of the data dictionary is below (if viewing on local machine)
 ### Table 2
 
 ```{r printdict,echo=FALSE}
-# DT::datatable(zz)
-reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000 )
+reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
 ```
-
 
 
 
