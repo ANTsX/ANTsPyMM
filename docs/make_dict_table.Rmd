@@ -359,7 +359,22 @@ for ( k in 1:nrow( ee ) ) {
     }
 
 yearthresh=35/365 # max allowed year difference
+# yearthresh=0.2
 # find the best imaging vist for each demographic time point
+for ( k in 1:nrow( clin ) ) {
+    if ( k %% 100 == 0 ) cat( paste0(k,'...'))
+    pat = clin$PATNO[k]
+    patage = clin$age_at_visit[k]
+    isel = which( ee$PATNO == pat )
+    iage = ee$ageatimaging[ isel ]
+    minagediff = min( abs( iage - patage ), na.rm=T)
+    if ( minagediff < yearthresh ) {
+        minage = which.min( abs( iage - patage ) )
+        iselind = isel[ minage ]
+        clin[k,names(ee)]=ee[iselind,]
+    }
+}
+table( is.na( clin$T1Hier_resnetGrade ))
 
 # find the best demographic data for each imaging time point
 ```
