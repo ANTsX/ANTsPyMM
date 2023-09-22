@@ -261,6 +261,8 @@ cerenames = getNamesFromDataframe("cerebellum",dd,exclusions=c("dkt","tissu"))
 for ( ccc in cerenames ) {
     zz[zz$Label == ccc,'Atlas']='TustisonCobra'
     zz[zz$Label == ccc,'Anatomy']='cerebellum label using Schmahmann nomenclature'
+    zz[zz$Label == ccc,'side']='left'
+    if ( length(grep("_r_",ccc) == 1 ) ) zz[zz$Label == ccc,'side']='right'
 }
 zz[zz$Label %in% c("mi",'EVR','reflection_err','org0','org1','org2','spc0','spc1','spc2','dimz','dimy','dimx'),"Measurement"]='QC'
 zz[ subtyper::fs(zz$Label == zz$Anatomy),'Anatomy']=NA
