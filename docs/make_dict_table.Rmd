@@ -4,6 +4,7 @@ output: html_document
 ---
 
 ```{r,echo=FALSE,include=FALSE}
+library(subtyper)
 library(plyr)
 library(data.table)
 library(ztable)
@@ -15,10 +16,303 @@ library( ztable )
 options(digits=3)
 options( ztable.type="html" )
 tblcmd = ztable
-rr=read.csv("antspymm_data_dictionary.csv")
+rr=read.csv("~/code/ANTsPyMM/antspymm_data_dictionary.csv")
 ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
+
+The `ANTsPyMM` system takes advantage of template-based priors. 
+
+* We quantify cortex with the Desikan-Killiany-Tourville parcellation ([DKT](https://doi.org/10.3389/fnins.2012.00171)).
+
+* Subcortical segmentation with deep learning and also SyN registration leverages the CIT168 atlas [10.1101/211201](https://doi.org/10.1101/211201).
+
+* A medial temporal lobe parcellation is based on manual labels derived from M. Yassa's research group ([preprint](https://doi.org/10.1101/2023.01.17.23284693)).
+
+* A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.
+
+* Brain stem is subdivided into the mid-brain, pons and medulla; This segmentation derives from registration between the individual T1w and the manually labeled CIT168 template.
+
+* We segment anatomy related to the basal forebrain and associated cholinergic neurons with a deep learning method (`deepNBM`) derived from manual labeling of ADNI data.  
+
+    * This approach is based on anatomical landmarks proposed in [Liu, A. et al. (2015)](https://doi.org/10.1007/s00401-015-1392-5).  The `deepNBM` method uses super-resolution segmentation to take advantage of manual labels performed on super-resolution training data.
+
+    * The classic [Zaborszky, L. et al. (2008) "Stereotaxic probabilistic maps of the magnocellular cell groups in human basal forebrain." Neuroimage 42: 1127--1141](https://www.sciencedirect.com/science/article/abs/pii/S1053811908006903) also informed the manual labeling.
+
+* The Mori JHU white matter atlas provides a parcellation of white matter regions ([paper here](https://www.sciencedirect.com/science/article/abs/pii/S105381190700688X?via%3Dihub)) which are applied to diffusion weighted images.
+
+* Jonathan Power's coordinates from "Functional Network Organization of the Human Brain" [10.1016/j.neuron.2011.09.006](10.1016/j.neuron.2011.09.006) guide our analysis of resting state function MRI (rsfMRI).
+
+The `ANTsPyMM` data dictionary labels associates each column name with each of the above anatomical references.  Table 1 below summarizes the number of variables associated with each modality and anatomical prior space.  DTI-derived connectivity yields the largest number of variables because we pairwise map each DKT cortical region as well as the primary CIT168 regions.
+
+
+### Table 1
 ```{r,echo=FALSE,results='asis'}
-tblcmd(mytable( Modality~. ,data=ss ))
+myt=mytable( Modality~. ,data=ss )
+tblcmd( myt )
+```
+
+```{r detailsandcitations,echo=FALSE,eval=TRUE}
+# powers points 10.1016/j.conb.2012.12.009
+powers=read.csv("~/.antspymm/powers_mni_itk.csv")
+# 10.1016/j.neuroimage.2008.07.009
+# https://doi.org/10.1016/j.neuroimage.2007.07.053
+jhu=read.csv("~/.antspyt1w/FA_JHU_labels_edited.csv")
+# doi: 10.3389/fnins.2012.00171
+# http://dx.doi.org/10.1016/j.neuroimage.2006.01.021
+dktcsv=read.csv("~/.antspyt1w/dkt.csv")
+dktcsv=dktcsv[dktcsv$Label>0,]
+# hipp https://doi.org/10.1101/2023.01.17.23284693
+hipp=read.csv("~/.antspyt1w/mtl_description.csv")
+hipp$Anatomy=hipp$Description
+hipp$Anatomy=gsub("alEC"," antero-lateral entorhinal cortex",hipp$Anatomy)
+hipp$Anatomy=gsub("pMEC"," postero-medial entorhinal cortex",hipp$Anatomy)
+hipp$Anatomy=gsub("DG"," dentate gyrus",hipp$Anatomy)
+hipp$Anatomy=gsub("CA"," cornu ammonis", hipp$Anatomy)
+
+# https://doi.org/10.1101/211201
+cit=read.csv("~/.antspyt1w/CIT168_Reinf_Learn_v1_label_descriptions_pad.csv")
+cit$Anatomy=NA
+cit$Anatomy[  grep("STR_Ca", cit$Description )] = 'caudate'
+cit$Anatomy[  grep("STR_Pu", cit$Description )] = 'putamen'
+cit$Anatomy[  grep("STR_NAC", cit$Description )] = 'Nucleus Accumbens'
+cit$Anatomy[  grep("VTA", cit$Description )] = 'Ventral Tegmental Area'
+cit$Anatomy[  grep("PBP", cit$Description )] = 'Parabrachial Pigmented Nucleus'
+cit$Anatomy[  grep("SNc", cit$Description )] = 'Substantia Nigra pars compacta'
+cit$Anatomy[  grep("SNr", cit$Description )] = 'Substantia Nigra pars reticulated'
+cit$Anatomy[  grep("GPe", cit$Description )] = 'globus pallidus externa'
+cit$Anatomy[  grep("GPi", cit$Description )] = 'globus pallidus interna'
+cit$Anatomy[  grep("RN", cit$Description )] = 'red nucleus'
+cit$Anatomy[  grep("STH", cit$Description )] = 'Subthalamic Nucleus'
+cit$Anatomy[  grep("HTH", cit$Description )] = 'Hypothalamus'
+cit$Anatomy[  grep("HN", cit$Description )] = 'Habenular Nuclei'
+cit$Anatomy[  grep("EXA", cit$Description )] = 'extended amygdala'
+cit$Anatomy[  grep("BNST", cit$Description )] = 'bed nuclei of the stria terminali'
+cit$Anatomy[  grep("MN", cit$Description )] = 'mammillary nucleus'
+cit$Anatomy[  grep("SLEA", cit$Description )] = 'sublenticular extended amygdala'
+cit$Anatomy[  grep("VeP", cit$Description )] = 'ventral pallidum'
+
+interpretcnx<-function( x ) {
+    breaker=gsub("DTI_cnxcount","",x)
+    temp = unlist(strsplit(breaker,"_"))
+    ind=temp[1]
+    anat=paste( temp[-1],collapse='_')
+    return( paste( anat, "to", dktcsv[as.integer(ind),'Description'] ) )
+}
+interpretcnx2<-function( x ) {
+    breaker=gsub("DTI_cnxcount","",x)
+    temp = unlist(strsplit(breaker,"_"))
+    ind=temp[1]
+    anat=paste( temp[-1],collapse='_')
+    return( dktcsv[as.integer(ind),'Description'] )
+}
+
+if ( ! exists("dd") ) {
+    dfn='~/code/multidisorder/data/ppmi_gwas/ppmi_matched_qc_mm_srfirst.csv'
+    dd=read.csv( dfn )
+    ddnms=names(dd)
+}
+
+# dd=read.csv("joined_mm_or2.csv")
+zz=data.frame( Label=colnames(dd))
+qcrows=min(grep("RandBasis",zz$Label)):grep("resnetGrade", zz$Label)
+zz$Modality='Other'
+zz[ grep("T1Hier", zz$Label), 'Modality']='T1 hierarchical processing'
+zz[ grep("T1w", zz$Label), 'Modality']='T1 DiReCT thickness processing'
+zz[ grep("DTI", zz$Label), 'Modality']='DTI'
+zz[ grep("NM2DMT", zz$Label), 'Modality']='Neuromelanin'
+zz[ grep("rsfMRI", zz$Label), 'Modality']='restingStatefMRI'
+zz[ grep("lair", zz$Label), 'Modality']='Flair'
+zz[ grep("left", zz$Label), 'side']='left'
+zz[ grep("right", zz$Label), 'side']='right'
+zz$Atlas='ANTs'
+zz[ grep("dkt", zz$Label), 'Atlas']='desikan-killiany-tourville'
+zz[ grep("cnxcou", zz$Label), 'Atlas']='desikan-killiany-tourville'
+zz[ grep("jhu", zz$Label), 'Atlas']='johns hopkins white matter'
+zz[ grep("cit", zz$Label), 'Atlas']='CIT168'
+zz[ grep("nbm", zz$Label), 'Atlas']='BF'
+zz[ grep("ch13", zz$Label), 'Atlas']='BF'
+zz[ grep("mtl", zz$Label), 'Atlas']='MTL'
+zz[ grep("rsfMRI", zz$Label),'Atlas']='power peterson fMRI meta-analyses'
+zz[qcrows,'Atlas']='quality control metrics'
+zz[qcrows,'Measurement']='QC'
+zz$Measurement[  grep("FD", zz$Label)]='motion statistic on framewise displacement'
+zz$Measurement[  grep("thk", zz$Label)]='geometry/thickness'
+zz$Measurement[  grep("area", zz$Label)]='geometry/area'
+zz$Measurement[  grep("vol", zz$Label)]='geometry/volume'
+zz$Measurement[  grep("mean_md", zz$Label)]='mean diffusion'
+zz$Measurement[  grep("mean_fa", zz$Label)]='fractional anisotropy'
+zz$Measurement[  grep("cnx", zz$Label)]='tractography-based connectivity'
+zz$Anatomy = zz$Label
+zz$Anatomy = gsub("_thk_","", zz$Anatomy)
+zz$Anatomy = gsub("_area_","", zz$Anatomy)
+zz$Anatomy = gsub("_volume_","", zz$Anatomy)
+zz$Anatomy = gsub("DTI_cnxcount","", zz$Anatomy)
+zz$Anatomy = gsub("DTI_mean_md","", zz$Anatomy)
+zz$Anatomy = gsub("DTI_mean_fa","", zz$Anatomy)
+zz$Anatomy = gsub("T1Hier_","", zz$Anatomy)
+zz$Anatomy = gsub("T1Hier","", zz$Anatomy)
+# fix dkt
+dktlabs=dktcsv$Description
+dktlabs=gsub("right ","",dktlabs)
+dktlabs=gsub("left ","",dktlabs)
+dktlabs2=gsub(" ","_",dktlabs)
+for ( k in 1:length(dktlabs) ) {
+    gg=grep( dktlabs[k], zz$Label)
+    zz[ gg, "Atlas"]="desikan-killiany-tourville"
+    zz[ gg, "Anatomy"]=dktlabs[k]
+    gg=grep( dktlabs2[k], zz$Label)
+    zz[ gg, "Atlas"]="desikan-killiany-tourville"
+    zz[ gg, "Anatomy"]=dktlabs[k]
+}
+
+# fix cit
+citlabs=tolower( cit$Description)
+for ( k in 1:length(citlabs) ) {
+    gg=grep( citlabs[k], zz$Label)
+    zz[ gg, "Atlas"]="CIT168"
+    zz[ gg, "Anatomy"]=cit$Anatomy[k]
+}
+zz$Anatomy = gsub("DTIfa","", zz$Anatomy)
+zz$Anatomy = gsub("DTImd","", zz$Anatomy)
+zz$Anatomy = gsub("dktregions","", zz$Anatomy)
+zz$Anatomy = gsub("dktcortex"," cortex only ", zz$Anatomy)
+zz$Anatomy = gsub("_right_","", zz$Anatomy)
+zz$Anatomy = gsub("_left_","", zz$Anatomy)
+zz$Anatomy = gsub("right","", zz$Anatomy)
+zz$Anatomy = gsub("left","", zz$Anatomy)
+zz$Anatomy = gsub("jhu_icbm_labels_1mm","", zz$Anatomy)
+zz[ grep("u_hier_id", zz$Label), -1 ]='unique id'
+cnxrows=grep("DTI_cnxcount",zz$Label)
+for ( k in cnxrows )
+    zz$Anatomy[k]=interpretcnx( zz[k,'Label'] )
+
+zz[ multigrep( c("rsfMRI","R"), zz$Label, intersect=TRUE), 'side'  ]='right'
+zz[ multigrep( c("rsfMRI","L"), zz$Label, intersect=TRUE), 'side'  ]='left'
+zz$Measurement[ multigrep( c("rsfMRI","_2_"), zz$Label, intersect=TRUE) ]='network correlation'
+zz$Measurement[ multigrep(c("rsfMRI","_alff"), zz$Label, intersect=TRUE) ]='amplitude of low frequency fluctuations ALFF'
+zz$Measurement[ multigrep( c("rsfMRI","_falff"), zz$Label, intersect=TRUE) ]='fractional amplitude of low frequency fluctuations fALFF'
+zz$Anatomy = gsub("rsfMRI_", "", zz$Anatomy )
+zz$Anatomy = gsub("falffPoint", "", zz$Anatomy )
+zz$Anatomy = gsub("alffPoint", "", zz$Anatomy )
+noncnx=1:1888
+# for ( k in sample(noncnx, 3) ) print( zz[k,c("Label","Atlas","Anatomy")] )
+
+zz[ zz$Label == 'Flair', 'Measurement' ]='white matter hyper-intensity'
+zz[ zz$Label == 'T2Flair_flair_wmh_prior', 'Measurement' ]='prior-constrained white matter hyper-intensity'
+
+zz[ multigrep( c("NM2DMT", "q0pt"),  zz$Label, intersect=TRUE), "Measurement"  ]='neuromelanin intensity quantile'
+gg=grep("mmwide_filename",zz$Label)
+zz[ gg,'Anatomy']=NA
+zz[ gg,'Measurement']="unique NRG format filename identifier"
+zz[ gg,'Atlas']=NA
+zz[ gg,'side']=NA
+zz[ zz$Label == 'T1wHierarchical_mmwide_filename','Modality']='T1 hierarchical processing'
+zz[ zz$Label == 'T1w_mmwide_filename','Modality']='T1 DiReCT thickness processing'
+zz[ zz$Label == 'rsfMRI_mmwide_filename','Modality']='restingStatefMRI'
+zz[ zz$Label == 'DTI_mmwide_filename','Modality']='DTI'
+zz[ zz$Label == 'T2Flair_mmwide_filename','Modality']='Flair'
+zz[ zz$Label == 'NM2DMT_mmwide_filename','Modality']='Neuromelanin'
+zz[ grep("SNR",zz$Label),'Measurement']='QC'
+zz[ grep("fn",zz$Label),'Measurement']='original T1 filename'
+zz[ grep("noise",zz$Label),'Measurement']='QC'
+zz[ grep("snr",zz$Label),'Measurement']='QC'
+zz[ grep("cnr",zz$Label),'Measurement']='QC'
+zz[ grep("X",zz$Label),'Measurement']='ignore'
+zz[ grep("ssim",zz$Label),'Measurement']='QC'
+zz[ grep("loop",zz$Label),'Measurement']='QC'
+zz[ grep("high_motion",zz$Label),'Measurement']='QC'
+zz[ grep("lof",zz$Label),'Measurement']='QC'
+zz[ grep("nmid",zz$Label),'Measurement']='NM unique filename'
+zz[ grep("_dvars",zz$Label),'Measurement']='QC'
+zz[ grep("_evr",zz$Label),'Measurement']='QC'
+zz[ grep("slice",zz$Label),'Measurement']='slice number in time series (ignore)'
+zz[ grep("subjectID",zz$Label),'Measurement']='unique subject ID'
+zz[ zz$Label=='NM2DMT_NM_substantianigra_z_coordinate','Measurement']='Estimate of the normalize (zero to one) z-coordinate of the substantia nigra in a neuromelanin scan; higher values mean higher in the slab'
+zz[ zz$Label=='sid','Measurement']='unique subject ID'
+zz[ grep("mrimfg",zz$Label),'Measurement']='MRI manufacturer (often missing)'
+zz[ grep("mrimodel",zz$Label),'Measurement']='MRI model (often missing)'
+zz[ grep("T1w_mean_",zz$Label),'Measurement']='Regional average of DiReCT estimated thickness'
+zz[ grep("NM2DMT_mean",zz$Label),'Measurement']='Neuromelanin signal summary'
+zz[ grep("NM2DMT_NM_avg",zz$Label),'Measurement']='Neuromelanin signal summary'
+zz[ grep("NM2DMT_NM_std",zz$Label),'Measurement']='Neuromelanin signal summary'
+zz[ grep("NM2DMT_NM_count",zz$Label),'Measurement']='count of neuromelanin scans that were averaged at this date'
+zz[ grep("NM2DMT_NM_m",zz$Label),'Measurement']='Neuromelanin signal summary'
+zz[ grep("NM2DMT_NM_sd",zz$Label),'Measurement']='Neuromelanin signal summary'
+zz[ zz$Label %in% c("flairid",'nmid1','nmid2','nmid3','nmid4','nmid5','nmid6','nmid7','nmid8','nmid9','nmid10','nmid11','rsfid1','rsfid2','dtid1','dtid2'),'Measurement']='unique image id for modalities or their components (e.g. LR RL acquisitions for DTI or rsfMRI)'
+zz[ zz$Label == 'T2Flair_flair_wmh','Measurement']='project ID or name eg ADNI'
+zz[ zz$Label == 'projectID','Measurement']='project ID or name eg ADNI'
+zz[ zz$Label == 'modality','Measurement']='generic modality name'
+zz[ zz$Label == 'negol','Measurement']='negative outlier variable (higher is better)'
+zz[ zz$Label == 'negative_outlier_factor','Measurement']='negative outlier variable (higher is better)'
+zz[ zz$Label == 'mmimageuid','Measurement']='unique id for the T1w used in ANTsPyMM same as t1imageuid'
+zz[ zz$Label == 't1imageuid','Measurement']='unique id for the T1w used in ANTsPyMM should equal mmimageuid'
+zz[ zz$Label == 'visitdate','Measurement']='image acquisition date'
+zz[ zz$Label == 'date','Measurement']='image acquisition date'
+zz[ zz$Label == 'subjectIDdate','Measurement']='concatenation of subject ID and date'
+zz[ zz$Label == 'imageID','Measurement']='unique image ID (ideally unique but not always)'
+zz[ grep("brainstem",zz$Label),'Modality']='T1 hierarchical processing'
+zz[ grep("brainstem",zz$Label),'side']=NA
+zz[ grep("brainstem",zz$Label),'Atlas']='CIT168'
+zz[ grep("brainstem",zz$Label),'Anatomy']='brainstem subdivision'
+zz[ grep("cerebellum",zz$Label),'Modality']='T1 hierarchical processing'
+
+cerenames = getNamesFromDataframe("cerebellum",dd,exclusions=c("dkt","tissu"))
+for ( ccc in cerenames ) {
+    zz[zz$Label == ccc,'Atlas']='TustisonCobra'
+    zz[zz$Label == ccc,'Anatomy']='cerebellum label using Schmahmann nomenclature'
+}
+zz[zz$Label %in% c("mi",'EVR','reflection_err','org0','org1','org2','spc0','spc1','spc2','dimz','dimy','dimx'),"Measurement"]='QC'
+zz[ subtyper::fs(zz$Label == zz$Anatomy),'Anatomy']=NA
+write.csv( zz, "~/code/ANTsPyMM/antspymm_data_dictionary.csv", row.names=FALSE)
+```
+
+## Quality control metrics
+
+Automated (blind) QC is part of standard ANTsPyMM processing.  QC metrics 
+are therefore present in the standard output tables.  Notes on the meaning of these 
+metrics, along with examples of the metrics on images, are [here](https://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/blind_qc.html).
+
+The `outlierness` function produces additional blind QC measurements via automated outlierness calculations.  These measurements are denoted by Local Outlier Probability (LOOP `*loop*` ) and local outlier factor ( LOF `*lof*` ) column names.
+
+Time series images may have additional QC metrics such as:
+
+* TSNR: temporal signal to noise ratio
+
+* DVARS: the spatial root mean square of the data after temporal differencing
+
+* Neuromelanin (NM) has its own set of variables including:
+
+    * count: the number of acquisitions at that date 
+
+    * min/max/mean/sd: a statistic on the raw image signal after averaging the acquisitions
+
+    * `avg/std_refregion` : average and standard deviation of signal in the reference region
+
+    * `avg/std_substantianigra` : average and standard deviation of signal in the substantia nigra or a related CIT168 region (determined by deepCIT168)
+
+    * `NM2DMT_NM_substantianigra_z_coordinate`: estimate of the normalized (zero to one) z-coordinate of the substantia nigra in a neuromelanin scan; higher values mean higher in the slab.
+
+## the full data dictionary 
+
+A sortable version of the data dictionary is below.
+
+### Table 2
+
+```{r printdict,echo=FALSE}
+# DT::datatable(zz)
+reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000 )
+```
+
+
+
+
+```{r checking,echo=FALSE,eval=TRUE}
+# find the missing names
+good=ddnms[  (ddnms %in% zz$Label) ]
+bad=ddnms[ ! (ddnms %in% zz$Label) ]
+stopifnot(length(bad)==0)
+bad2=zz[ is.na(zz$Measurement),'Label']
+print( bad2 )
+print( length( bad2 ) )
 ```
