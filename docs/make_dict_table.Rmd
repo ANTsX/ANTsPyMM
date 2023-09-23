@@ -347,7 +347,7 @@ rmnames=names(clin)[ grep("[.]y",names(clin))]
 clin=clin[,!(names(clin) %in% rmnames)]
 names(clin)=gsub("[.]x","",names(clin))
 clin$birthdate=clin$BIRTHDT
-# convert shortbirtdate to NRG format
+# convert birtdate to NRG format
 for ( k in 1:nrow(clin) ) {
     temp=unlist(strsplit(clin$BIRTHDT[k], "/"))
     clin$birthdate[k]=as.numeric(paste0(temp[2],temp[1],15)) # add the 15th as the estimated date
@@ -361,21 +361,24 @@ for ( k in 1:nrow( ee ) ) {
                 nrgDateToRDate( ee$date[k] ), 
                 nrgDateToRDate( subjectbdate ), units='weeks' )/52.0)
     }
-
+###############################################
+clin$imagedatediff=NA
 yearthresh=35/365 # max allowed year difference
-# yearthresh=0.2
 # find the best imaging vist for each demographic time point
+ct=0
 for ( k in 1:nrow( clin ) ) {
     if ( k %% 100 == 0 ) cat( paste0(k,'...'))
     pat = clin$PATNO[k]
     patage = clin$age_at_visit[k]
-    isel = which( ee$PATNO == pat )
+    isel = which( ee$PATNO == pat & !is.na(ee$T1Hier_resnetGrade) )
     iage = ee$ageatimaging[ isel ]
-    minagediff = min( abs( iage - patage ), na.rm=T)
-    if ( minagediff < yearthresh ) {
+    if ( length(iage) > 0 ) {
+        minagediff = min( abs( iage - patage ) )
         minage = which.min( abs( iage - patage ) )
         iselind = isel[ minage ]
         clin[k,names(ee)]=ee[iselind,]
+        clin$imagedatediff[k]=minagediff
+        ct=ct+1
     }
 }
 table( !is.na( clin$T1Hier_resnetGrade ))
@@ -399,6 +402,44 @@ clin$DXSub[ intersect(ispd,isgba) ]='PDGBA'
 clin$DXSub[ intersect(ispro,issporadic) ]='ProdromalSporadic'
 clin$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
 clin$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
+# identify asyn status for each subject
+saasubs = unique( clin$PATNO[  !is.na( clin$CSFSAA ) ] )
+# 3 categories: Negative, Positive, Other
+clin$AsynStatus=NA
+for ( u in saasubs ) {
+    usel = clin$PATNO == u
+    if ( any( fs(clin$CSFSAA[usel] == "1") ) ) {
+        asynstat='Positive'
+    } else if ( any( fs(clin$CSFSAA[usel] %in% c("0"))) ) {
+        asynstat='Negative'
+    } else if ( any( fs(clin$CSFSAA[usel] %in% c("2","3"))) ) {
+        asynstat='Other'
+    }
+    clin[usel,'AsynStatus']=asynstat
+}
+############################
 isbl = clin$EVENT_ID == 'BL'
-print( table( clin$DXSub[isbl], clin$CSFSAA[isbl] ) )
+print( table( clin$DXSub[isbl], clin$AsynStatus[isbl] ) )
+isv4 = clin$EVENT_ID == 'V04'
+print( table( clin$DXSub[isv4], clin$AsynStatus[isv4] ) )
+clin$DXSubAsyn=NA
+nna=!is.na(clin$AsynStatus)
+clin$DXSubAsyn[ nna ]=paste0( clin$DXSub[nna], clin$AsynStatus[nna] )
+```
+
+
+### quick example longitudinal regression
+
+
+```{r lmerex,echo=FALSE,eval=FALSE}
+library(lmerTest)
+ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
+    fs( clin$DX %in% c("PD","CN") ) & !is.na(clin$T1Hier_resnetGrade)
+studydata = clin[ssel,]
+studydata$yearsbl=studydata$age_at_visit - studydata$age
+testvols = getNamesFromDataframe( c("T1Hier","snc","vol"), studydata )
+studydata$testvol = rowMeans( studydata[,testvols[c(1,2)]])
+studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
+mdl = lmer( testvol ~ (1|PATNO) + EDUCYRS + age + SEX  + yearsbl * DXSub,data=studydata )
+summary(mdl)
 ```
