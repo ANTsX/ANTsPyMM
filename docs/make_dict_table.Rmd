@@ -425,6 +425,7 @@ print( table( clin$DXSub[isv4], clin$AsynStatus[isv4] ) )
 clin$DXSubAsyn=NA
 nna=!is.na(clin$AsynStatus)
 clin$DXSubAsyn[ nna ]=paste0( clin$DXSub[nna], clin$AsynStatus[nna] )
+clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ```
 
 
@@ -437,9 +438,11 @@ ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) &
     fs( clin$DX %in% c("PD","CN") ) & !is.na(clin$T1Hier_resnetGrade)
 studydata = clin[ssel,]
 studydata$yearsbl=studydata$age_at_visit - studydata$age
-testvols = getNamesFromDataframe( c("T1Hier","snc","vol"), studydata )
+testvols = getNamesFromDataframe( c("T1Hier","thk","snc"), studydata )
+testvols = getNamesFromDataframe( c("T1Hier","cit","_pu","vol","deep"), studydata )
+testvols = getNamesFromDataframe( c("T1Hier","thk","alecmtl"), studydata )
 studydata$testvol = rowMeans( studydata[,testvols[c(1,2)]])
 studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-mdl = lmer( testvol ~ (1|PATNO) + EDUCYRS + age + SEX  + yearsbl * DXSub,data=studydata )
-summary(mdl)
+mdl = lmer( testvol ~ (1|PATNO) + EDUCYRS + age + SEX  + yearsbl * DXSubAsyn,data=studydata )
+print(coefficients(summary(mdl))[-c(1:2),-c(1:3)])
 ```
