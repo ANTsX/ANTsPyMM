@@ -447,10 +447,13 @@ clin$mrimodel[ grep("Symphony",clin$mrimodel)]='Symphony'
 clin$mrimodel[ grep("chieva",clin$mrimodel)]='achieva'
 clin$mrimodel[ grep("DISCOVERY",clin$mrimodel)]='DISCOVERY'
 clin$mrimodel[ grep("MAGNETOM_Prisma",clin$mrimodel)]='MAGNETOM_Prisma'
+clin$mrimodel[ grep("SIGNA",clin$mrimodel)]='SIGNA'
+clin$mrimodel[ grep("Signa",clin$mrimodel)]='SIGNA'
 clin$mrimodel[ grep("Ingenia",clin$mrimodel)]='Ingenia'
 clin$mrimodel[ grep("MAGNETOM",clin$mrimodel)]='MAGNETOM'
 clin$mrimodel[ grep("DicomCleaner",clin$mrimodel)]='Unk'
 clin$mrimodel[ grep("Vantage_Elan",clin$mrimodel)]='Unk'
+recentdates = 1:nrow(clin) %in% multigrep( c(2020,2021,2022,2023), clin$date, intersect=FALSE )
 #################
 library(lmerTest)
 t1names=c( 
@@ -458,21 +461,27 @@ t1names=c(
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1") ),
         getNamesFromDataframe( "T1Hier_thk", dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id') ) )
-dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id') )
+dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx') )
     
 rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id') )
 
 thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
 mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
-subtype='Sporadic'
+cnxnames = getNamesFromDataframe( c("DTI","cnx"), dd )
 subtype='LRRK2'
+subtype='Sporadic'
 dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
+#    fs( recentdates ) &
+#    fs( clin$imagedatediff <= 1 ) &
     fs( clin$DX %in% c("PD","CN") ) & 
     fs( clin$DXSubAsyn %in% dxs ) & 
     !is.na(clin$T1Hier_resnetGrade) &
-#    fs( clin$mrimfg =='Siemens') & 
+    fs( !clin$mrimodel %in% c("SIGNA") ) &
+#    fs( clin$mrimfg %in% c( "Siemens") ) & 
+#    fs( clin$mrimfg %in% c( "Siemens", "Phillips","GE", "Unk" ) ) & 
     fs(clin$T1Hier_resnetGrade >= 1.05)
+table( ssel )
 studydata = clin[ssel,]
 coggers = c( "ess", "gds","lexical",'lns','moca','MODBNT','NP1APAT','NP1ANXS',
     "mean_striatum",'NP1DPRS', 'pigd', 'rem', 'quip','scopa','stai','VLTANIM',
@@ -494,16 +503,21 @@ studydata$yearsbl=studydata$age_at_visit - studydata$age
 studydata$yearsbl[ studydata$yearsbl < 0]=0.
 studydata = highestQualityRepeat( studydata, 'PATNO', 'yearsbl', 'T1Hier_resnetGrade')
 studydata$duration_yrs = as.numeric( studydata$duration_yrs )
+studydata$cnxtot = rowSums( studydata[,cnxnames] )
+studydata[,cnxnames]=studydata[,cnxnames]/studydata$cnxtot
 studydata$brainVolume = rowSums( studydata[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
 studydata$brainVolume = studydata$brainVolume/mean(studydata$brainVolume,na.rm=T)
 studydata=studydata[ studydata$yearsbl <= 4.5, ]
 studydata$meanthick = rowMeans( studydata[,thknames])
 studydata$meanmd = rowMeans( studydata[,mdnames])
+studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
+studydata[,thknames]=studydata[,thknames]/studydata$meanthick
 studydata = fillBaselineColumn( studydata, 
     c('meanthick','meanmd','brainVolume'), 'PATNO', 'yearsbl', 0, 
     fast=T, verbose=F )[[1]]
 # studydata$testvol = rowMeans( studydata[,testvols[]])
 testnames = c( t1names, dtinames ) # rsfnames, 
+####################################
 studydata=mapAsymVar( studydata, 
     testnames[ grep("_l_", testnames) ] )
 studydata=mapLRAverageVar( studydata, 
@@ -520,11 +534,12 @@ for ( x in 1:length(testnames) ) {
     countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
 }
 testnames=testnames[ countdtinz > 100 ]
+#######################################
 for ( testvols in sample( testnames ) ) {
     studydata$testvol = studydata[ ,testvols]
     studydata$testvol = psych::winsor(studydata$testvol,tr=0.01)
     studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX + meanthick_BL + mrimodel +  yearsbl * DXSubAsyn"
+    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + noise + snr + psnr + EVR + msk_vol + ol_loop + age + SEX  + mrimfg +  yearsbl * DXSubAsyn"
 #    myform="testvol ~ (1|PATNO) + brainVolume + EDUCYRS + age + SEX  + mrimodel +  yearsbl * DXSubAsyn"
     mdl = lmer( myform,data=studydata )
     mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:3)]
