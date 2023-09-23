@@ -432,17 +432,23 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ### quick example longitudinal regression
 
 
-```{r lmerex,echo=FALSE,eval=FALSE}
+```{r lmerex,echo=FALSE,eval=TRUE,fig.width=8,fig.height=4}
 library(lmerTest)
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
-    fs( clin$DX %in% c("PD","CN") ) & !is.na(clin$T1Hier_resnetGrade)
+    fs( clin$DX %in% c("PD","CN") ) & !is.na(clin$T1Hier_resnetGrade) &
+    fs( clin$mrimfg !='GE') & fs(clin$T1Hier_resnetGrade > 1.06)
 studydata = clin[ssel,]
 studydata$yearsbl=studydata$age_at_visit - studydata$age
+studydata=studydata[ studydata$yearsbl <= 4.5, ]
 testvols = getNamesFromDataframe( c("T1Hier","thk","snc"), studydata )
 testvols = getNamesFromDataframe( c("T1Hier","cit","_pu","vol","deep"), studydata )
-testvols = getNamesFromDataframe( c("T1Hier","thk","alecmtl"), studydata )
+testvols = getNamesFromDataframe( c("T1Hier","thk","perirhi"), studydata )
+testvols = getNamesFromDataframe( c("ant","thk","nbm"), studydata )
+testvols = getNamesFromDataframe( c("DTI_mean_md",'nbm'), studydata )
 studydata$testvol = rowMeans( studydata[,testvols[c(1,2)]])
+studydata$testvol = psych::winsor(studydata$testvol,tr=0.025)
 studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-mdl = lmer( testvol ~ (1|PATNO) + EDUCYRS + age + SEX  + yearsbl * DXSubAsyn,data=studydata )
+mdl = lmer( testvol ~ (1|PATNO) + T1Hier_vol_csftissues ++ T1Hier_vol_gmtissues + T1Hier_vol_wmtissues + EDUCYRS + age + SEX  + yearsbl * DXSubAsyn,data=studydata )
 print(coefficients(summary(mdl))[-c(1:2),-c(1:3)])
+print(visreg::visreg( mdl, 'yearsbl', by='DXSubAsyn',gg=TRUE))
 ```
