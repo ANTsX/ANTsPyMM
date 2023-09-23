@@ -437,7 +437,7 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ### quick example longitudinal regression
 -->
 
-```{r lmerex,echo=FALSE,eval=TRUE,fig.width=8,fig.height=4}
+```{r lmerex,echo=FALSE,eval=TRUE,fig.width=12,fig.height=4}
 #################
 clin[ fs(clin$mrimfg == ""), "mrimfg"] = "Unk"
 clin[ is.na(clin$mrimfg), "mrimfg"] = "Unk"
@@ -451,13 +451,14 @@ clin$mrimodel[ grep("Ingenia",clin$mrimodel)]='Ingenia'
 clin$mrimodel[ grep("MAGNETOM",clin$mrimodel)]='MAGNETOM'
 clin$mrimodel[ grep("DicomCleaner",clin$mrimodel)]='Unk'
 clin$mrimodel[ grep("Vantage_Elan",clin$mrimodel)]='Unk'
+#################
 library(lmerTest)
 t1names=c( 
         getNamesFromDataframe( "T1Hier_vol", dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1") ),
         getNamesFromDataframe( "T1Hier_thk", dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id') ) )
-dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id') )
+dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id') )
     
 rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id') )
 
@@ -514,6 +515,11 @@ studydata=mapLRAverageVar( studydata,
 testnames = c( 
     getNamesFromDataframe( "Asym" , studydata ),
     getNamesFromDataframe( "LRAVG" , studydata ) )
+countdtinz=rep(NA,length(testnames))
+for ( x in 1:length(testnames) ) {
+    countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
+}
+testnames=testnames[ countdtinz > 100 ]
 for ( testvols in sample( testnames ) ) {
     studydata$testvol = studydata[ ,testvols]
     studydata$testvol = psych::winsor(studydata$testvol,tr=0.01)
