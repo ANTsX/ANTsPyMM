@@ -331,6 +331,7 @@ We provide an example of how to join derived `ANTsPyMM` summary data with clinic
 **FIXME**
 
 ```{r joiner,eval=TRUE,echo=FALSE}
+if ( ! exists( "clin" ) ) {
 demog=read.csv("Demographics_22Sep2023.csv")
 clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
 demog[demog=='.']=NA
@@ -428,6 +429,7 @@ clin$DXSubAsyn=NA
 nna=!is.na(clin$AsynStatus)
 clin$DXSubAsyn[ nna ]=paste0( clin$DXSub[nna], clin$AsynStatus[nna] )
 clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
+}
 ```
 
 
@@ -437,9 +439,9 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 
 ```{r lmerex,echo=FALSE,eval=TRUE,fig.width=8,fig.height=4}
 #################
-clin[ clin$mrimfg == "", "mrimfg"] = "Unk"
+clin[ fs(clin$mrimfg == ""), "mrimfg"] = "Unk"
 clin[ is.na(clin$mrimfg), "mrimfg"] = "Unk"
-clin[ clin$mrimodel == "", "mrimodel"] = "Unk"
+clin[ fs(clin$mrimodel == ""), "mrimodel"] = "Unk"
 clin[ is.na(clin$mrimodel), "mrimodel"] = "Unk"
 clin$mrimodel[ grep("Symphony",clin$mrimodel)]='Symphony'
 clin$mrimodel[ grep("chieva",clin$mrimodel)]='achieva'
@@ -462,6 +464,7 @@ rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx
 thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
 mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
 subtype='Sporadic'
+subtype='LRRK2'
 dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
     fs( clin$DX %in% c("PD","CN") ) & 
@@ -472,7 +475,7 @@ ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) &
 studydata = clin[ssel,]
 coggers = c( "ess", "gds","lexical",'lns','moca','MODBNT','NP1APAT','NP1ANXS',
     "mean_striatum",'NP1DPRS', 'pigd', 'rem', 'quip','scopa','stai','VLTANIM',
-    'upsit','nfl_serum',
+    'nfl_serum', #upsit
     getNamesFromDataframe("score",studydata), 
     getNamesFromDataframe("HVLT",studydata), 
     getNamesFromDataframe("hvlt_",studydata), 
