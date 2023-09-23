@@ -13,6 +13,8 @@ library(kableExtra)
 library(flextable)
 library(plotly)
 library( ztable )
+library(ggpubr)
+library(gridExtra)
 options(digits=3)
 options( ztable.type="html" )
 tblcmd = ztable
@@ -328,7 +330,7 @@ We provide an example of how to join derived `ANTsPyMM` summary data with clinic
 
 **FIXME**
 
-```{r joiner,eval=FALSE,echo=FALSE}
+```{r joiner,eval=TRUE,echo=FALSE}
 demog=read.csv("Demographics_22Sep2023.csv")
 clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
 demog[demog=='.']=NA
@@ -429,26 +431,114 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ```
 
 
+<!--
 ### quick example longitudinal regression
-
+-->
 
 ```{r lmerex,echo=FALSE,eval=TRUE,fig.width=8,fig.height=4}
+#################
+clin[ clin$mrimfg == "", "mrimfg"] = "Unk"
+clin[ is.na(clin$mrimfg), "mrimfg"] = "Unk"
+clin[ clin$mrimodel == "", "mrimodel"] = "Unk"
+clin[ is.na(clin$mrimodel), "mrimodel"] = "Unk"
+clin$mrimodel[ grep("Symphony",clin$mrimodel)]='Symphony'
+clin$mrimodel[ grep("chieva",clin$mrimodel)]='achieva'
+clin$mrimodel[ grep("DISCOVERY",clin$mrimodel)]='DISCOVERY'
+clin$mrimodel[ grep("MAGNETOM_Prisma",clin$mrimodel)]='MAGNETOM_Prisma'
+clin$mrimodel[ grep("Ingenia",clin$mrimodel)]='Ingenia'
+clin$mrimodel[ grep("MAGNETOM",clin$mrimodel)]='MAGNETOM'
+clin$mrimodel[ grep("DicomCleaner",clin$mrimodel)]='Unk'
+clin$mrimodel[ grep("Vantage_Elan",clin$mrimodel)]='Unk'
 library(lmerTest)
+t1names=c( 
+        getNamesFromDataframe( "T1Hier_vol", dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1") ),
+        getNamesFromDataframe( "T1Hier_thk", dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id') ) )
+dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id') )
+    
+rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id') )
+
+thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
+mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
+subtype='Sporadic'
+dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
-    fs( clin$DX %in% c("PD","CN") ) & !is.na(clin$T1Hier_resnetGrade) &
-    fs( clin$mrimfg !='GE') & fs(clin$T1Hier_resnetGrade > 1.06)
+    fs( clin$DX %in% c("PD","CN") ) & 
+    fs( clin$DXSubAsyn %in% dxs ) & 
+    !is.na(clin$T1Hier_resnetGrade) &
+#    fs( clin$mrimfg =='Siemens') & 
+    fs(clin$T1Hier_resnetGrade >= 1.05)
 studydata = clin[ssel,]
+coggers = c( "ess", "gds","lexical",'lns','moca','MODBNT','NP1APAT','NP1ANXS',
+    "mean_striatum",'NP1DPRS', 'pigd', 'rem', 'quip','scopa','stai','VLTANIM',
+    'upsit','nfl_serum',
+    getNamesFromDataframe("score",studydata), 
+    getNamesFromDataframe("HVLT",studydata), 
+    getNamesFromDataframe("hvlt_",studydata), 
+    getNamesFromDataframe("pm_",studydata) )
+for ( cog in coggers )
+    studydata[,cog]=as.numeric(studydata[,cog])
+mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
+studydata$milestonesum = rowSums( studydata[,mymiles] )
+cogger='rem'
+t0=table( studydata$DXSubAsyn[ studydata$EVENT_ID=='BL'] )
+t1=table( studydata$DXSubAsyn[ studydata$EVENT_ID=='V04'] )
+nstring='Long N: '
+for ( k in 1:length(t1)) nstring=paste0(nstring,names(t1)[k],":",t1[k]," / ")
 studydata$yearsbl=studydata$age_at_visit - studydata$age
+studydata$yearsbl[ studydata$yearsbl < 0]=0.
+studydata = highestQualityRepeat( studydata, 'PATNO', 'yearsbl', 'T1Hier_resnetGrade')
+studydata$duration_yrs = as.numeric( studydata$duration_yrs )
+studydata$brainVolume = rowSums( studydata[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
+studydata$brainVolume = studydata$brainVolume/mean(studydata$brainVolume,na.rm=T)
 studydata=studydata[ studydata$yearsbl <= 4.5, ]
-testvols = getNamesFromDataframe( c("T1Hier","thk","snc"), studydata )
-testvols = getNamesFromDataframe( c("T1Hier","cit","_pu","vol","deep"), studydata )
-testvols = getNamesFromDataframe( c("T1Hier","thk","perirhi"), studydata )
-testvols = getNamesFromDataframe( c("ant","thk","nbm"), studydata )
-testvols = getNamesFromDataframe( c("DTI_mean_md",'nbm'), studydata )
-studydata$testvol = rowMeans( studydata[,testvols[c(1,2)]])
-studydata$testvol = psych::winsor(studydata$testvol,tr=0.025)
-studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-mdl = lmer( testvol ~ (1|PATNO) + T1Hier_vol_csftissues ++ T1Hier_vol_gmtissues + T1Hier_vol_wmtissues + EDUCYRS + age + SEX  + yearsbl * DXSubAsyn,data=studydata )
-print(coefficients(summary(mdl))[-c(1:2),-c(1:3)])
-print(visreg::visreg( mdl, 'yearsbl', by='DXSubAsyn',gg=TRUE))
+studydata$meanthick = rowMeans( studydata[,thknames])
+studydata$meanmd = rowMeans( studydata[,mdnames])
+studydata = fillBaselineColumn( studydata, 
+    c('meanthick','meanmd','brainVolume'), 'PATNO', 'yearsbl', 0, 
+    fast=T, verbose=F )[[1]]
+# studydata$testvol = rowMeans( studydata[,testvols[]])
+testnames = c( t1names, dtinames ) # rsfnames, 
+studydata=mapAsymVar( studydata, 
+    testnames[ grep("_l_", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+    testnames[ grep("_l_", testnames) ] )
+studydata=mapAsymVar( studydata, 
+    testnames[ grep("_left", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+    testnames[ grep("_left", testnames) ] )
+testnames = c( 
+    getNamesFromDataframe( "Asym" , studydata ),
+    getNamesFromDataframe( "LRAVG" , studydata ) )
+for ( testvols in sample( testnames ) ) {
+    studydata$testvol = studydata[ ,testvols]
+    studydata$testvol = psych::winsor(studydata$testvol,tr=0.01)
+    studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
+    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX + meanthick_BL + mrimodel +  yearsbl * DXSubAsyn"
+#    myform="testvol ~ (1|PATNO) + brainVolume + EDUCYRS + age + SEX  + mrimodel +  yearsbl * DXSubAsyn"
+    mdl = lmer( myform,data=studydata )
+    mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:3)]
+    mycoff = mycoff[grep(subtype,rownames(mycoff)),]
+    if ( any( mycoff[,2] < 0.05/length(testnames) ) ) {
+        print(testvols)
+        print( mycoff )
+        nnn = length(unique(studydata$PATNO))
+#        print( visreg::visreg( mdl, 'yearsbl', by='DXSubAsyn',gg=TRUE) + ggtitle(testvols) )
+        (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,"\n",nstring))) %>% print()
+#        Sys.sleep(3)
+        myform="updrs2_score ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX + mean_striatum+  (yearsbl * DXSubAsyn * testvol)"
+        cogger=sample(coggers,1)
+        myform=paste(cogger," ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX +  (yearsbl * DXSubAsyn * testvol)")
+        mdl = lmer( myform,data=studydata[studydata$DXSubAsyn!='CNNegative',] )
+        coffpvs = coefficients(summary(mdl))
+        coffpvs = coffpvs[grep('testvol',rownames(coffpvs)),5]
+        if ( any(coffpvs < 0.005) ) {
+            print(cogger)
+            print( coefficients(summary(mdl))[-c(1:3),-c(1:3)] )
+            print( threewayinteraction( studydata,  'yearsbl', cogger,  'DXSubAsyn', anat=testvols ) )
+            }
+        }
+    }
+############
 ```
