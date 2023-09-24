@@ -299,7 +299,7 @@ Time series images may have additional QC metrics such as:
 
     * `NM2DMT_NM_substantianigra_z_coordinate`: estimate of the normalized (zero to one) z-coordinate of the substantia nigra in a neuromelanin scan; higher values mean higher in the slab.
 
-* the framewise displacement (FD) values are 10x in DTI data compared to rsfMRI data
+* the framewise displacement (FD) values are 10x in DTI data compared to rsfMRI data. E.g. if 0.3 were a reasonable high motion threshold in rsfMRI; then 3.0 would be a comparable threshold for DTI.
 
 ## the full data dictionary 
 
@@ -330,7 +330,7 @@ We provide an example of how to join derived `ANTsPyMM` summary data with clinic
 
 **FIXME**
 
-```{r joiner,eval=TRUE,echo=FALSE}
+```{r joiner,eval=FALSE,echo=FALSE}
 if ( ! exists( "clin" ) ) {
 demog=read.csv("Demographics_22Sep2023.csv")
 clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
@@ -433,11 +433,136 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ```
 
 
+```{r joiner2,eval=FALSE,echo=FALSE}
+# use age at visit as well ....
+if ( ! exists( "clin2" ) ) {
+    demog=read.csv("Demographics_22Sep2023.csv")
+    ageviz=read.csv("Age_at_visit_22Sep2023.csv")
+    clin2=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
+    demog[demog=='.']=NA
+    clin2[clin2=='.']=NA
+    dd$PATNO=dd$subjectID
+    # subjects with imaging that have clinical data
+    table( dd$PATNO %in% clin2$PATNO )
+    # subjects with clinical data that have imaging
+    table( clin2$PATNO %in% dd$PATNO )
+    commonids = intersect( clin2$PATNO, dd$PATNO )
+    commonids = intersect( commonids, demog$PATNO )
+    ee = dd[ dd$PATNO %in% commonids, ]
+    clin2 = clin2[ clin2$PATNO %in% commonids, ]
+    clin2 = merge( clin2, demog, by='PATNO', all.x=TRUE )
+    rmnames=names(clin2)[ grep("[.]y",names(clin2))]
+    clin2=clin2[,!(names(clin2) %in% rmnames)]
+    names(clin2)=gsub("[.]x","",names(clin2))
+    clin2$birthdate=clin2$BIRTHDT
+    # convert birtdate to NRG format
+    for ( k in 1:nrow(clin2) ) {
+        temp=unlist(strsplit(clin2$BIRTHDT[k], "/"))
+        clin2$birthdate[k]=as.numeric(paste0(temp[2],temp[1],15)) # add the 15th as the estimated date
+    }
+    # now we can compute age at imaging using imaging date in addition to BIRTHDT
+    ee$ageatimaging=NA
+    ee$EVENT_ID=NA
+    ee$clin_imaging_mismatch=TRUE
+    for ( k in 1:nrow( ee ) ) {
+        subjectbdate = unique( clin2$birthdate[ clin2$PATNO == ee$PATNO[k] ] )
+        ee$ageatimaging[k] = as.numeric( 
+                difftime( 
+                    nrgDateToRDate( ee$date[k] ), 
+                    nrgDateToRDate( subjectbdate ), units='weeks' )/52.0)
+        # find the closest EVENT_ID using ageviz
+        agesel=which( ageviz$PATNO == ee$PATNO[k] )
+        locages=ageviz[agesel,]
+        closest=which.min( abs(ee$ageatimaging[k]-locages$AGE_AT_VISIT))
+        ee$EVENT_ID[k]=locages[closest,'EVENT_ID']
+        # select clin
+        wclin = which(clin2$PATNO == ee$PATNO[k] & clin2$EVENT_ID ==  ee$EVENT_ID[k])
+        if ( length(wclin) == 1 ) {
+            if ( ! exists("clin2add" ) ) {
+                clin2add=names(clin2)[ !(names(clin2) %in% names(ee) )]
+                }
+            ee[k,clin2add]=clin2[wclin,clin2add]
+            ee$clin_imaging_mismatch[k]=FALSE
+            } else {
+                wclin = which(clin2$PATNO == ee$PATNO[k] )
+                # find next closest match
+                if ( length(wclin) > 0 ) {
+                    locclin=clin2[wclin,]
+                    closest=which.min( abs(ee$ageatimaging[k]-locclin$age_at_visit))
+                    ee[k,clin2add]=locclin[closest,clin2add]
+                    }
+            }
+        }
+    clin2 = ee
+    clin2$DX = NA
+    clin2$DX = 'CN'
+    clin2$DX[ clin2$CONCOHORT == 1 ]='PD'
+    clin2$DX[ clin2$CONCOHORT == 4 ]='Prodromal'
+    clin2$DXSubRaw=paste0( clin2$DX, "_", clin2$subgroup )
+    clin2$DXSub=NA
+    clin2$DXSub[ clin2$DX == 'CN' ]='CN'
+    ispd = which( clin2$DX == 'PD' )
+    ispro = which( clin2$DX == 'Prodromal' )
+    isgba = grep("GBA",clin2$subgroup)
+    islrrk2 = grep("LRRK2",clin2$subgroup)
+    isprkn = grep("PRKN",clin2$subgroup)
+    issnca = grep("SNCA",clin2$subgroup)
+    issporadic = grep("Sporadic",clin2$subgroup)
+    clin2$DXSub[ intersect(ispd,issporadic) ]='PDSporadic'
+    clin2$DXSub[ intersect(ispd,islrrk2) ]='PDLRRK2'
+    clin2$DXSub[ intersect(ispd,isgba) ]='PDGBA'
+    clin2$DXSub[ intersect(ispro,issporadic) ]='ProdromalSporadic'
+    clin2$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
+    clin2$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
+    # identify asyn status for each subject
+    saasubs = unique( clin2$PATNO[  !is.na( clin2$CSFSAA ) ] )
+    # 3 categories: Negative, Positive, Other
+    clin2$AsynStatus=NA
+    for ( u in saasubs ) {
+        usel = clin2$PATNO == u
+        if ( any( fs(clin2$CSFSAA[usel] == "1") ) ) {
+            asynstat='Positive'
+        } else if ( any( fs(clin2$CSFSAA[usel] %in% c("0"))) ) {
+            asynstat='Negative'
+        } else if ( any( fs(clin2$CSFSAA[usel] %in% c("2","3"))) ) {
+            asynstat='Other'
+        }
+        clin2[usel,'AsynStatus']=asynstat
+    }
+    ############################
+    isbl = clin2$EVENT_ID == 'BL'
+    print( table( clin2$DXSub[isbl], clin2$AsynStatus[isbl] ) )
+    isv4 = clin2$EVENT_ID == 'V04'
+    print( table( clin2$DXSub[isv4], clin2$AsynStatus[isv4] ) )
+    clin2$DXSubAsyn=NA
+    nna=!is.na(clin2$AsynStatus)
+    clin2$DXSubAsyn[ nna ]=paste0( clin2$DXSub[nna], clin2$AsynStatus[nna] )
+    clin2$DXSubAsyn[ is.na( clin2$AsynStatus)|is.na(clin2$DXSub)]=NA
+
+    # get the baseline age for imaging and the change in time
+    clin2$yearsbl=NA
+    clin2$age_BL=NA
+    clin2$imaging_EVENT_ID=NA
+    usubs=unique(clin2$PATNO)
+    for ( u in usubs ) {
+        seller=clin2$PATNO == u
+        losel = clin2[seller, ]
+        minage=min(losel$ageatimaging,na.rm=T)
+        clin2$age_BL[seller]=minage
+        loy=losel$ageatimaging-minage
+        clin2$yearsbl[seller]=loy
+        clin2$imaging_EVENT_ID[seller]=paste0("V",round(loy*4))
+        }
+    }
+```
+
+
 <!--
 ### quick example longitudinal regression
 -->
 
-```{r lmerex,echo=FALSE,eval=TRUE,fig.width=12,fig.height=4}
+```{r lmerex,echo=FALSE,eval=TRUE,fig.width=12,fig.height=4,message=FALSE,warning=FALSE}
+clin=clin2 # sets the source data
 #################
 clin[ fs(clin$mrimfg == ""), "mrimfg"] = "Unk"
 clin[ is.na(clin$mrimfg), "mrimfg"] = "Unk"
@@ -468,8 +593,9 @@ rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx
 thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
 mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
 cnxnames = getNamesFromDataframe( c("DTI","cnx"), dd )
-subtype='LRRK2'
+subtype='GBA'
 subtype='Sporadic'
+subtype='LRRK2'
 dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
 #    fs( recentdates ) &
@@ -477,7 +603,7 @@ ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) &
     fs( clin$DX %in% c("PD","CN") ) & 
     fs( clin$DXSubAsyn %in% dxs ) & 
     !is.na(clin$T1Hier_resnetGrade) &
-    fs( !clin$mrimodel %in% c("SIGNA") ) &
+#    fs( !clin$mrimodel %in% c("SIGNA") ) &
 #    fs( clin$mrimfg %in% c( "Siemens") ) & 
 #    fs( clin$mrimfg %in% c( "Siemens", "Phillips","GE", "Unk" ) ) & 
     fs(clin$T1Hier_resnetGrade >= 1.05)
@@ -494,29 +620,23 @@ for ( cog in coggers )
     studydata[,cog]=as.numeric(studydata[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 studydata$milestonesum = rowSums( studydata[,mymiles] )
-cogger='rem'
-t0=table( studydata$DXSubAsyn[ studydata$EVENT_ID=='BL'] )
-t1=table( studydata$DXSubAsyn[ studydata$EVENT_ID=='V04'] )
-nstring='Long N: '
-for ( k in 1:length(t1)) nstring=paste0(nstring,names(t1)[k],":",t1[k]," / ")
-studydata$yearsbl=studydata$age_at_visit - studydata$age
-studydata$yearsbl[ studydata$yearsbl < 0]=0.
-studydata = highestQualityRepeat( studydata, 'PATNO', 'yearsbl', 'T1Hier_resnetGrade')
+# studydata = highestQualityRepeat( studydata, 'PATNO', 'yearsbl', 'T1Hier_resnetGrade')
+# studydata = highestQualityRepeat( studydata, 'PATNO', 'u_hier_id', 'T1Hier_resnetGrade')
 studydata$duration_yrs = as.numeric( studydata$duration_yrs )
 studydata$cnxtot = rowSums( studydata[,cnxnames] )
 studydata[,cnxnames]=studydata[,cnxnames]/studydata$cnxtot
 studydata$brainVolume = rowSums( studydata[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
 studydata$brainVolume = studydata$brainVolume/mean(studydata$brainVolume,na.rm=T)
-studydata=studydata[ studydata$yearsbl <= 4.5, ]
+studydata=studydata[ studydata$yearsbl <= 40.5, ]
 studydata$meanthick = rowMeans( studydata[,thknames])
 studydata$meanmd = rowMeans( studydata[,mdnames])
-studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
-studydata[,thknames]=studydata[,thknames]/studydata$meanthick
-studydata = fillBaselineColumn( studydata, 
-    c('meanthick','meanmd','brainVolume'), 'PATNO', 'yearsbl', 0, 
+# studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
+# studydata[,thknames]=studydata[,thknames]/studydata$meanthick
+studydata = fillBaselineColumn( studydata,
+    c('meanthick','meanmd','brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
     fast=T, verbose=F )[[1]]
 # studydata$testvol = rowMeans( studydata[,testvols[]])
-testnames = c( t1names, dtinames ) # rsfnames, 
+testnames = c( t1names, dtinames )# , rsfnames )
 ####################################
 studydata=mapAsymVar( studydata, 
     testnames[ grep("_l_", testnames) ] )
@@ -536,31 +656,61 @@ for ( x in 1:length(testnames) ) {
 testnames=testnames[ countdtinz > 100 ]
 #######################################
 for ( testvols in sample( testnames ) ) {
+#    testvols=sample( testnames, 1 )
     studydata$testvol = studydata[ ,testvols]
     studydata$testvol = psych::winsor(studydata$testvol,tr=0.01)
     studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + noise + snr + psnr + EVR + msk_vol + ol_loop + age + SEX  + mrimfg +  yearsbl * DXSubAsyn"
-#    myform="testvol ~ (1|PATNO) + brainVolume + EDUCYRS + age + SEX  + mrimodel +  yearsbl * DXSubAsyn"
+    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + age_BL + SEX + yearsbl * DXSubAsyn"
     mdl = lmer( myform,data=studydata )
+#    summary(mdl)
+#    testvols
     mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:3)]
     mycoff = mycoff[grep(subtype,rownames(mycoff)),]
     if ( any( mycoff[,2] < 0.05/length(testnames) ) ) {
         print(testvols)
         print( mycoff )
-        nnn = length(unique(studydata$PATNO))
+        temp=studydata[names(predict(mdl)),]
+        nstringb='Base N: '
+        nstring='Long N: '
+        for ( k in 1:length(dxs)) {
+            dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID == "V0"] ))
+            dxtemp=gsub("ative","",dxs[k])
+            dxtemp=gsub("itive","",dxtemp)
+            nstringb=paste0(nstringb,dxtemp,":",dxct," / ")
+            dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID != "V0"] ))
+            dxtemp=gsub("ative","",dxs[k])
+            dxtemp=gsub("itive","",dxtemp)
+            nstring=paste0(nstring,dxtemp,":",dxct," / ")
+            }
+        nstring=paste(nstringb,"\n",nstring)
+
 #        print( visreg::visreg( mdl, 'yearsbl', by='DXSubAsyn',gg=TRUE) + ggtitle(testvols) )
         (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,"\n",nstring))) %>% print()
 #        Sys.sleep(3)
-        myform="updrs2_score ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX + mean_striatum+  (yearsbl * DXSubAsyn * testvol)"
-        cogger=sample(coggers,1)
-        myform=paste(cogger," ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age + SEX +  (yearsbl * DXSubAsyn * testvol)")
-        mdl = lmer( myform,data=studydata[studydata$DXSubAsyn!='CNNegative',] )
-        coffpvs = coefficients(summary(mdl))
-        coffpvs = coffpvs[grep('testvol',rownames(coffpvs)),5]
-        if ( any(coffpvs < 0.005) ) {
-            print(cogger)
-            print( coefficients(summary(mdl))[-c(1:3),-c(1:3)] )
-            print( threewayinteraction( studydata,  'yearsbl', cogger,  'DXSubAsyn', anat=testvols ) )
+        myform="updrs2_score ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX + mean_striatum+  (yearsbl * DXSubAsyn * testvol)"
+        if ( FALSE )
+        for ( cogger in coggers ) {
+            bform=paste(cogger," ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX +  (yearsbl * DXSubAsyn )")
+            mform=paste( bform , "*testvol")
+            ss = fs(studydata$DXSubAsyn!='CNNegative' & 
+                !is.na(studydata[,testvols])& 
+                !is.na(studydata[,cogger])& 
+                !is.na(studydata[,'brainVolume_BL'])& 
+                !is.na(studydata[,'age'])& 
+                !is.na(studydata[,'yearsbl'])& 
+                !is.na(studydata[,'EDUCYRS'])& 
+                !is.na(studydata[,'SEX']))
+            datob = studydata[ss,]
+            mdl = lmer( mform,data=datob )
+            bmdl = lmer( bform,data=datob[names(predict(mdl)),] )
+            mdl = lmer( mform,data=datob[names(predict(mdl)),] )
+            coffpvs = coefficients(summary(mdl))
+            coffpvs = coffpvs[grep('testvol',rownames(coffpvs)),5]
+            if ( anova(bmdl,mdl)$Pr[2] < 0.001 ) {
+                print(cogger)
+                print( coefficients(summary(mdl))[-c(1:3),-c(1:3)] )
+                print( threewayinteraction( studydata,  'yearsbl', cogger,  'DXSubAsyn', anat=testvols ) )
+                }
             }
         }
     }
