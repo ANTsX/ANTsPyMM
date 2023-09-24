@@ -433,7 +433,7 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ```
 
 
-```{r joiner2,eval=FALSE,echo=FALSE}
+```{r joiner2,eval=TRUE,echo=FALSE}
 # use age at visit as well ....
 if ( ! exists( "clin2" ) ) {
     demog=read.csv("Demographics_22Sep2023.csv")
@@ -594,8 +594,8 @@ thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
 mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
 cnxnames = getNamesFromDataframe( c("DTI","cnx"), dd )
 subtype='GBA'
-subtype='Sporadic'
 subtype='LRRK2'
+subtype='Sporadic'
 dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
 ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
 #    fs( recentdates ) &
@@ -603,7 +603,7 @@ ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) &
     fs( clin$DX %in% c("PD","CN") ) & 
     fs( clin$DXSubAsyn %in% dxs ) & 
     !is.na(clin$T1Hier_resnetGrade) &
-#    fs( !clin$mrimodel %in% c("SIGNA") ) &
+    fs( !clin$mrimodel %in% c("SIGNA") ) &
 #    fs( clin$mrimfg %in% c( "Siemens") ) & 
 #    fs( clin$mrimfg %in% c( "Siemens", "Phillips","GE", "Unk" ) ) & 
     fs(clin$T1Hier_resnetGrade >= 1.05)
@@ -688,7 +688,7 @@ for ( testvols in sample( testnames ) ) {
         (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,"\n",nstring))) %>% print()
 #        Sys.sleep(3)
         myform="updrs2_score ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX + mean_striatum+  (yearsbl * DXSubAsyn * testvol)"
-        if ( FALSE )
+        if ( TRUE )
         for ( cogger in coggers ) {
             bform=paste(cogger," ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX +  (yearsbl * DXSubAsyn )")
             mform=paste( bform , "*testvol")
