@@ -307,8 +307,8 @@ A sortable version of the data dictionary is below (if viewing on local machine)
 
 ### Table 2
 
-```{r printdict,echo=FALSE}
-reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
+```{r printdict,echo=FALSE,eval=FALSE}
+reactable::reactable( zz[-grep("cnx",zz$Label),] , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
 ```
 
 
@@ -327,8 +327,6 @@ bad2=zz[ is.na(zz$Measurement),'Label']
 ## Joining with clinical data: PPMI
 
 We provide an example of how to join derived `ANTsPyMM` summary data with clinical variables from PPMI. 
-
-**FIXME**
 
 ```{r joiner,eval=FALSE,echo=FALSE}
 if ( ! exists( "clin" ) ) {
@@ -553,9 +551,51 @@ if ( ! exists( "clin2" ) ) {
         clin2$yearsbl[seller]=loy
         clin2$imaging_EVENT_ID[seller]=paste0("V",round(loy*4))
         }
-    }
+    clin2$brainVolume = rowSums( clin2[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
+    clin2$brainVolume = clin2$brainVolume/mean(clin2$brainVolume,na.rm=T)
+    clin2$mrimfg[ clin2$mrimfg == ""]="Unk"
+    }    
 ```
 
+
+```{r helpers,eval=TRUE,echo=FALSE}
+showtest <- function( predictor, mycoeffs, searcher='PD', qthresh=0.001 ) {
+    isasym = length( grep("asym",predictor) > 0 )
+    mycoeffs2 = mycoeffs[ grep(searcher,rownames(mycoeffs)), ]
+    signs=sign(-1)
+    if ( isasym ) signs=sign(1)
+    wsig=mycoeffs2[,"Pr(>|t|)"]<=qthresh
+    if ( any(wsig) ) {
+        myt=mycoeffs2[wsig,"t value"]
+        if ( any( sign(myt) == signs ) )
+            return( TRUE)
+    }
+    return( FALSE )
+}
+
+getnstring <- function() {
+    temp=studydata[names(predict(mdl)),]
+    nstringb='Base N: '
+    nstring='Long N: '
+    for ( k in 1:length(dxs)) {
+                dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID == "V0"] ))
+                dxtemp=gsub("ative","",dxs[k])
+                dxtemp=gsub("itive","",dxtemp)
+                nstringb=paste0(nstringb,dxtemp,":",dxct," / ")
+                dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID != "V0"] ))
+                dxtemp=gsub("ative","",dxs[k])
+                dxtemp=gsub("itive","",dxtemp)
+                nstring=paste0(nstring,dxtemp,":",dxct," / ")
+                }
+    nstring=paste(nstringb,"\n",nstring)
+    nstring=gsub("Pos","+",nstring)
+    nstring=gsub("Neg","-",nstring)
+    nstring=gsub("PD","",nstring)
+    nstring=gsub("Sporadic","Sp",nstring)
+    return( nstring )
+}
+
+```
 
 <!--
 ### quick example longitudinal regression
@@ -583,136 +623,345 @@ recentdates = 1:nrow(clin) %in% multigrep( c(2020,2021,2022,2023), clin$date, in
 library(lmerTest)
 t1names=c( 
         getNamesFromDataframe( "T1Hier_vol", dd, 
-            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1") ),
-        getNamesFromDataframe( "T1Hier_thk", dd, 
-            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id') ) )
-dtinames=getNamesFromDataframe( "DTI"  , dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx') )
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit') ),
+        getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit') ) )
+dtinames=unique(
+    getNamesFromDataframe( c("DTI","mean_md"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit') )  )
     
-rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id') )
+rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id','snseg','tcit') )
 
 thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
 mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
 cnxnames = getNamesFromDataframe( c("DTI","cnx"), dd )
-subtype='GBA'
-subtype='LRRK2'
-subtype='Sporadic'
-dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
-ssel = fs( clin$AsynStatus %in% c('Positive','Negative') ) & 
-#    fs( recentdates ) &
-#    fs( clin$imagedatediff <= 1 ) &
-    fs( clin$DX %in% c("PD","CN") ) & 
-    fs( clin$DXSubAsyn %in% dxs ) & 
-    !is.na(clin$T1Hier_resnetGrade) &
-    fs( !clin$mrimodel %in% c("SIGNA") ) &
-#    fs( clin$mrimfg %in% c( "Siemens") ) & 
-#    fs( clin$mrimfg %in% c( "Siemens", "Phillips","GE", "Unk" ) ) & 
-    fs(clin$T1Hier_resnetGrade >= 1.05)
-table( ssel )
-studydata = clin[ssel,]
-coggers = c( "ess", "gds","lexical",'lns','moca','MODBNT','NP1APAT','NP1ANXS',
+coggers = c( "ess", "gds",'lns','moca','NP1APAT','NP1ANXS',
     "mean_striatum",'NP1DPRS', 'pigd', 'rem', 'quip','scopa','stai','VLTANIM',
-    'nfl_serum', #upsit
-    getNamesFromDataframe("score",studydata), 
-    getNamesFromDataframe("HVLT",studydata), 
-    getNamesFromDataframe("hvlt_",studydata), 
-    getNamesFromDataframe("pm_",studydata) )
+    'nfl_serum', #upsit"lexical",'MODBNT',
+    getNamesFromDataframe("score",clin), 
+    getNamesFromDataframe("HVLT",clin), 
+    getNamesFromDataframe("hvlt_",clin), 
+    getNamesFromDataframe("pm_",clin) )
 for ( cog in coggers )
-    studydata[,cog]=as.numeric(studydata[,cog])
+    clin[,cog]=as.numeric(clin[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
-studydata$milestonesum = rowSums( studydata[,mymiles] )
-# studydata = highestQualityRepeat( studydata, 'PATNO', 'yearsbl', 'T1Hier_resnetGrade')
-# studydata = highestQualityRepeat( studydata, 'PATNO', 'u_hier_id', 'T1Hier_resnetGrade')
-studydata$duration_yrs = as.numeric( studydata$duration_yrs )
-studydata$cnxtot = rowSums( studydata[,cnxnames] )
-studydata[,cnxnames]=studydata[,cnxnames]/studydata$cnxtot
-studydata$brainVolume = rowSums( studydata[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
-studydata$brainVolume = studydata$brainVolume/mean(studydata$brainVolume,na.rm=T)
-studydata=studydata[ studydata$yearsbl <= 40.5, ]
-studydata$meanthick = rowMeans( studydata[,thknames])
-studydata$meanmd = rowMeans( studydata[,mdnames])
-# studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
-# studydata[,thknames]=studydata[,thknames]/studydata$meanthick
-studydata = fillBaselineColumn( studydata,
-    c('meanthick','meanmd','brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
-    fast=T, verbose=F )[[1]]
-# studydata$testvol = rowMeans( studydata[,testvols[]])
-testnames = c( t1names, dtinames )# , rsfnames )
-####################################
-studydata=mapAsymVar( studydata, 
-    testnames[ grep("_l_", testnames) ] )
-studydata=mapLRAverageVar( studydata, 
-    testnames[ grep("_l_", testnames) ] )
-studydata=mapAsymVar( studydata, 
-    testnames[ grep("_left", testnames) ] )
-studydata=mapLRAverageVar( studydata, 
-    testnames[ grep("_left", testnames) ] )
-testnames = c( 
-    getNamesFromDataframe( "Asym" , studydata ),
-    getNamesFromDataframe( "LRAVG" , studydata ) )
-countdtinz=rep(NA,length(testnames))
-for ( x in 1:length(testnames) ) {
-    countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
-}
-testnames=testnames[ countdtinz > 100 ]
-#######################################
-for ( testvols in sample( testnames ) ) {
-#    testvols=sample( testnames, 1 )
-    studydata$testvol = studydata[ ,testvols]
-    studydata$testvol = psych::winsor(studydata$testvol,tr=0.01)
-    studydata$EDUCYRS = as.numeric( studydata$EDUCYRS )
-    myform="testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + age_BL + SEX + yearsbl * DXSubAsyn"
-    mdl = lmer( myform,data=studydata )
-#    summary(mdl)
-#    testvols
-    mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:3)]
-    mycoff = mycoff[grep(subtype,rownames(mycoff)),]
-    if ( any( mycoff[,2] < 0.05/length(testnames) ) ) {
-        print(testvols)
-        print( mycoff )
-        temp=studydata[names(predict(mdl)),]
-        nstringb='Base N: '
-        nstring='Long N: '
-        for ( k in 1:length(dxs)) {
-            dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID == "V0"] ))
-            dxtemp=gsub("ative","",dxs[k])
-            dxtemp=gsub("itive","",dxtemp)
-            nstringb=paste0(nstringb,dxtemp,":",dxct," / ")
-            dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID != "V0"] ))
-            dxtemp=gsub("ative","",dxs[k])
-            dxtemp=gsub("itive","",dxtemp)
-            nstring=paste0(nstring,dxtemp,":",dxct," / ")
-            }
-        nstring=paste(nstringb,"\n",nstring)
+clin$milestonesum = rowSums( clin[,mymiles] )
+covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
+covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + T1Hier_resnetGrade + age_BL + SEX "
+covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
+covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + mrimfg + snr + T1Hier_resnetGrade + age_BL + SEX "
+covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + mrimfg + age_BL + SEX "
+dticovars="+DTI_dti_FD_mean+DTI_dti_tsnr_b0_mean"
+#################################################
+```
 
-#        print( visreg::visreg( mdl, 'yearsbl', by='DXSubAsyn',gg=TRUE) + ggtitle(testvols) )
-        (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,"\n",nstring))) %>% print()
-#        Sys.sleep(3)
-        myform="updrs2_score ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX + mean_striatum+  (yearsbl * DXSubAsyn * testvol)"
-        if ( TRUE )
-        for ( cogger in coggers ) {
-            bform=paste(cogger," ~ (1|PATNO) + brainVolume_BL + EDUCYRS + age_BL + SEX +  (yearsbl * DXSubAsyn )")
-            mform=paste( bform , "*testvol")
-            ss = fs(studydata$DXSubAsyn!='CNNegative' & 
-                !is.na(studydata[,testvols])& 
-                !is.na(studydata[,cogger])& 
-                !is.na(studydata[,'brainVolume_BL'])& 
-                !is.na(studydata[,'age'])& 
-                !is.na(studydata[,'yearsbl'])& 
-                !is.na(studydata[,'EDUCYRS'])& 
-                !is.na(studydata[,'SEX']))
-            datob = studydata[ss,]
-            mdl = lmer( mform,data=datob )
-            bmdl = lmer( bform,data=datob[names(predict(mdl)),] )
-            mdl = lmer( mform,data=datob[names(predict(mdl)),] )
-            coffpvs = coefficients(summary(mdl))
-            coffpvs = coffpvs[grep('testvol',rownames(coffpvs)),5]
-            if ( anova(bmdl,mdl)$Pr[2] < 0.001 ) {
-                print(cogger)
-                print( coefficients(summary(mdl))[-c(1:3),-c(1:3)] )
-                print( threewayinteraction( studydata,  'yearsbl', cogger,  'DXSubAsyn', anat=testvols ) )
+```{r lmerextab,echo=FALSE,eval=TRUE,fig.width=12,fig.height=5,message=FALSE,warning=FALSE}
+###################################################
+winsval=0.005
+qthresh=1e-4
+outcomes = c("subtype","Neg","Pos","Y.Neg","Y.Pos")
+noutcomes = length(outcomes)
+pvaluedf = data.frame( matrix(ncol=noutcomes) )
+colnames(pvaluedf)=outcomes
+tvaluedf=pvaluedf
+meffdall = data.frame()
+ct = 0
+for (  subtype in c('LRRK2','Sporadic','GBA') ) {
+    dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
+    ssel = fs( clin$DXSubAsyn %in% dxs ) & 
+            !is.na(clin$T1Hier_resnetGrade) &
+            fs( !clin$mrimodel %in% c("SIGNA") ) &
+            fs(clin$T1Hier_resnetGrade >= 1.05)
+    studydata = clin[ssel,]
+    studydata$duration_yrs = as.numeric( studydata$duration_yrs )
+    studydata$cnxtot = rowSums( studydata[,cnxnames] )
+    studydata[,cnxnames]=studydata[,cnxnames]/studydata$cnxtot
+    studydata=studydata[ studydata$yearsbl <= 14.5, ]
+    studydata$meanthick = rowMeans( studydata[,thknames])
+    studydata$meanmd = rowMeans( studydata[,mdnames])
+    normalizeit=FALSE
+    if ( normalizeit ) {
+        studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
+        studydata[,thknames]=studydata[,thknames]/studydata$meanthick
+    }
+    studydata = fillBaselineColumn( studydata,
+        c('meanthick','meanmd','brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
+        fast=T, verbose=F )[[1]]
+    testnames = c( t1names, dtinames )# , rsfnames )
+    ####################################
+    studydata=mapAsymVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+    studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+    studydata=mapAsymVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+    studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+    testnames = c( 
+        getNamesFromDataframe( "Asym" , studydata ),
+        getNamesFromDataframe( "LRAVG" , studydata ) )
+    countdtinz=rep(NA,length(testnames))
+    for ( x in 1:length(testnames) ) {
+        countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
+    }
+    testnames=testnames[ countdtinz > 100 ]
+    for ( testvols in ( testnames ) ) {
+        ct = ct + 1
+        studydata$testvol = studydata[ ,testvols]
+        studydata$testvol = psych::winsor(studydata$testvol,tr=winsval)
+        studydata$SEX = factor( studydata$SEX )
+        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
+        studydata[,toscale]=scale(studydata[,toscale])
+        studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
+        if ( length(grep("DTI_",testvols)>1 ) ) covars=paste(covars,dticovars)
+        bform=paste( covars, " + yearsbl ")
+        bmdl = try( lmer( bform,data=studydata ) )
+        myform=paste( covars, " + yearsbl * DXSubAsyn")
+        mdl = try( lmer( myform,data=studydata ) )
+        if ( !is(mdl, "try-error") ) {
+            mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
+            mycoff = mycoff[grep(subtype,rownames(mycoff)),]
+            tvaluedf[ct, outcomes] = c(subtype,mycoff[,"t value"])
+            pvaluedf[ct, outcomes] = c(subtype,mycoff[,"Pr(>|t|)"])
+            pvaluedf[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
+            tvaluedf[ct,'anat']=pvaluedf[ct,'anat']=testvols
+            if (  pvaluedf[ct,'anova'] < qthresh  )
+                {
+                nstring = getnstring()
+                pvformatted=insight::format_p( pvaluedf[ct,'anova'], stars=TRUE, digits=4 )
+                cat( paste0( "\n\n****************************************************************\n\n" ) )
+                cat( paste0( testvols," anv ", pvaluedf[ct,'anova'], " ****************\n\n" ) )
+                print( mycoff[-1,-c(1:3)] )
+                mydegfree = round( (mycoff[,'df']) )
+                meff = effectsize::t_to_d( mycoff[,'t value'], mydegfree )
+                rownames(meff) = rownames(mycoff)
+                myrownames = rownames(mycoff)
+                myrownames = gsub("yearsbl","years",myrownames)
+                myrownames = gsub("DXSubAsynPD","",myrownames)
+                meffd = data.frame(meff)
+                meffd$eff=myrownames
+                meffd$anat = testvols
+                meffd$dx = "Pos"
+                meffd$dx[ grep("Neg",myrownames)]='Neg'
+                if ( nrow(meffdall) == 0 ) meffdall=meffd else meffdall = rbind(meffdall,meffd)
+                print( ggbarplot( meffd, 'eff','d', color='dx', fill='dx', 
+                    palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
+                    position=position_dodge(.5))  )
+                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",nstring))) %>% print()
                 }
             }
         }
+    cat("****************\n\n")
+} # subtype loop
+##########################################################
+
+```
+
+
+
+
+
+
+
+
+
+```{r lmerexallgroups,echo=FALSE,eval=TRUE,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
+###################################################
+winsval=00.00
+qthresh=1.e-4
+dxstbl = table( clin$DXSubAsyn  )
+dxs = names(dxstbl[dxstbl>6])
+dxs = dxs[ -2 ]
+ct = 0
+ssel = fs( clin$DXSubAsyn %in% dxs ) & 
+        !is.na(clin$T1Hier_resnetGrade) &
+        fs( !clin$mrimodel %in% c("SIGNA") ) &
+        fs(clin$T1Hier_resnetGrade >= 1.05)
+##############################################
+outcomes = c( dxs[-1], paste0("Y.",dxs[-1]))
+noutcomes = length(outcomes)
+pvaluedfG = data.frame( matrix(ncol=noutcomes) )
+colnames(pvaluedfG)=outcomes
+tvaluedfG=pvaluedfG
+meffdallG = data.frame()
+#######################
+studydata = clin[ssel,]
+studydata[,'DXSubAsyn'] = factor( studydata[,'DXSubAsyn'], levels = dxs )
+studydata = fillBaselineColumn( studydata,
+        c('brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
+        fast=T, verbose=F )[[1]]
+testnames = c( t1names, dtinames, rsfnames )
+studydata=mapAsymVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+studydata=mapAsymVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+testnames = c(
+        getNamesFromDataframe( "Asym" , studydata ),
+        getNamesFromDataframe( "LRAVG" , studydata ) ) %>% unique()
+countdtinz=rep(NA,length(testnames))
+for ( x in 1:length(testnames) ) {
+    countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
     }
-############
+testnames=testnames[ countdtinz > 100 ]
+#######################################
+for ( testvols in ( testnames ) ) {
+        ct = ct + 1
+        studydata$testvol = studydata[ ,testvols]
+        studydata$testvol = psych::winsor(studydata$testvol,tr=winsval)
+        studydata$SEX = factor( studydata$SEX )
+        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
+        studydata[,toscale]=scale(studydata[,toscale])
+        studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
+        if ( length(grep("DTI_",testvols)>1 ) ) covars=paste(covars,dticovars)
+        bform=paste( covars, " + yearsbl ")
+        bmdl = try( lmer( bform,data=studydata ) )
+        myform=paste( covars, " + yearsbl * DXSubAsyn")
+        mdl = try( lmer( myform,data=studydata ) )
+        if ( !is(mdl, "try-error") ) {
+            mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
+            mycoff = mycoff[grep('PD',rownames(mycoff)),]
+            tvaluedfG[ct, outcomes] = c(mycoff[,"t value"])
+            pvaluedfG[ct, outcomes] = c(mycoff[,"Pr(>|t|)"])
+            pvaluedfG[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
+            tvaluedfG[ct,'anat']=pvaluedfG[ct,'anat']=testvols
+            if (  pvaluedfG[ct,'anova'] < qthresh  )
+                {
+                nstring = getnstring()
+                pvformatted=insight::format_p( pvaluedfG[ct,'anova'], stars=TRUE, digits=4 )
+                cat( paste0( "\n\n****************************************************************\n\n" ) )
+                cat( paste0( testvols," anv ", pvaluedfG[ct,'anova'], " ****************\n\n" ) )
+                print( mycoff[,-1] )
+                mydegfree = round( (mycoff[,'df']) )
+                meff = effectsize::t_to_d( mycoff[,'t value'], mydegfree )
+                rownames(meff) = rownames(mycoff)
+                myrownames = rownames(mycoff)
+                myrownames = gsub("yearsbl","years",myrownames)
+                myrownames = gsub("DXSubAsynPD","",myrownames)
+                meffd = data.frame(meff)
+                meffd$eff=myrownames
+                meffd$anat = testvols
+                meffd$dx = "Pos"
+                meffd$dx[ grep("Neg",myrownames)]='Neg'
+                if ( nrow(meffdallG) == 0 ) meffdallG=meffd else meffdallG = rbind(meffdallG,meffd)
+                print( ggbarplot( meffd, 'eff','d', color='dx', fill='dx', 
+                    palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
+                    position=position_dodge(.5) ) )
+                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",nstring))) %>% print()
+                }
+        }
+    }
+##########################################################
+for ( x in names(pvaluedfG)[1:12] ) {
+    print( x  )
+    sel=p.adjust( pvaluedfG[,x], 'bonf' ) <= 0.05
+    print( pvaluedfG[ sel, "anat"] )
+    cat(">>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<\n\n")
+    }
+##########################################################
+```
+
+
+
+
+
+
+```{r lmerexallgroups2,echo=FALSE,eval=FALSE,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
+###################################################
+clin$DXAsyn = as.character(clin$DXSubAsyn)
+clin$DXAsyn = gsub("Sporadic","",clin$DXAsyn)
+clin$DXAsyn = gsub("LRRK2","",clin$DXAsyn)
+clin$DXAsyn = gsub("GBA","",clin$DXAsyn)
+winsval=0.005
+qthresh=1e-4
+dxstbl = table( clin$DXAsyn  )
+dxs = names(dxstbl[dxstbl>16])
+# dxs = dxs[ -2 ]
+ct = 0
+ssel = fs( clin$DXAsyn %in% dxs ) & 
+        !is.na(clin$T1Hier_resnetGrade) &
+        fs( !clin$mrimodel %in% c("SIGNA") ) &
+    #   fs( clin$mrimfg %in% c( "Siemens", "Phillips",  "Unk" ) ) & 
+        fs(clin$T1Hier_resnetGrade >= 1.01)
+##############################################
+outcomes = c( dxs[-1], paste0("Y.",dxs[-1]))
+noutcomes = length(outcomes)
+pvaluedfG = data.frame( matrix(ncol=noutcomes) )
+colnames(pvaluedfG)=outcomes
+tvaluedfG=pvaluedfG
+meffdallG = data.frame()
+#######################
+studydata = clin[ssel,]
+studydata[,'DXAsyn'] = factor( studydata[,'DXAsyn'], levels = dxs )
+studydata = fillBaselineColumn( studydata,
+        c('brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
+        fast=T, verbose=F )[[1]]
+testnames = c( t1names, dtinames, rsfnames )
+studydata=mapAsymVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_l_", testnames) ] )
+studydata=mapAsymVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+studydata=mapLRAverageVar( studydata, 
+        testnames[ grep("_left", testnames) ] )
+testnames = c( 
+        getNamesFromDataframe( "Asym" , studydata ),
+        getNamesFromDataframe( "LRAVG" , studydata ) )
+countdtinz=rep(NA,length(testnames))
+for ( x in 1:length(testnames) ) {
+    countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
+    }
+testnames=testnames[ countdtinz > 100 ]
+#######################################
+for ( testvols in ( testnames ) ) {
+        ct = ct + 1
+        studydata$testvol = studydata[ ,testvols]
+        studydata$testvol = psych::winsor(studydata$testvol,tr=winsval)
+        studydata$SEX = factor( studydata$SEX )
+        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
+        studydata[,toscale]=scale(studydata[,toscale])
+        studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
+        if ( length(grep("DTI_",testvols)>1 ) ) covars=paste(covars,dticovars)
+        bform=paste( covars, " + yearsbl ")
+        bmdl = try( lmer( bform,data=studydata ) )
+        myform=paste( covars, " + yearsbl * DXAsyn")
+        mdl = try( lmer( myform,data=studydata ) )
+        if ( !is(mdl, "try-error") ) {
+            mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
+            mycoff = mycoff[grep('PD',rownames(mycoff)),]
+            tvaluedfG[ct, outcomes] = c('PD',mycoff[,"t value"])
+            pvaluedfG[ct, outcomes] = c('PD',mycoff[,"Pr(>|t|)"])
+            pvaluedfG[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
+            tvaluedfG[ct,'anat']=pvaluedfG[ct,'anat']=testvols
+            if (  pvaluedfG[ct,'anova'] < qthresh  )
+                {
+                nstring = getnstring()
+                pvformatted=insight::format_p( pvaluedfG[ct,'anova'], stars=TRUE, digits=4 )
+                cat( paste0( "\n\n****************************************************************\n\n" ) )
+                cat( paste0( testvols," anv ", pvaluedfG[ct,'anova'], " ****************\n\n" ) )
+                print( mycoff[,-1] )
+                mydegfree = round( (mycoff[,'df']) )
+                meff = effectsize::t_to_d( mycoff[,'t value'], mydegfree )
+                rownames(meff) = rownames(mycoff)
+                myrownames = rownames(mycoff)
+                myrownames = gsub("yearsbl","years",myrownames)
+                myrownames = gsub("DXAsynPD","",myrownames)
+                meffd = data.frame(meff)
+                meffd$eff=myrownames
+                meffd$anat = testvols
+                meffd$dx = "Pos"
+                meffd$dx[ grep("Neg",myrownames)]='Neg'
+                if ( nrow(meffdallG) == 0 ) meffdallG=meffd else meffdallG = rbind(meffdallG,meffd)
+                print( ggbarplot( meffd, 'eff','d', color='dx', fill='dx', 
+                    palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
+                    position=position_dodge(.5))  )
+                (prplot( mdl,  'yearsbl', 'DXAsyn', color='DXAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",nstring))) %>% print()
+                }
+        }
+    }
+##########################################################
+
 ```
