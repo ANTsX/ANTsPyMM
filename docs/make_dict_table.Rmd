@@ -659,13 +659,15 @@ dticovars="+DTI_dti_FD_mean" # +DTI_dti_tsnr_b0_mean"
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
 commonsel = fs(
-    clin$T1Hier_resnetGrade >= 1.05 &
-    clin$yearsbl <= 5.5 &
-    !(clin$mrimfg %in% c("Toshiba")) )
+    clin$T1Hier_resnetGrade >= 1.01 &
+    clin$yearsbl <= 5.5 )
+#    !clin$mrimodel %in% c("SIGNA") )
+#    !(clin$mrimfg %in% c("Toshiba")) )
+table(commonsel)
 corrmeth='bonf'
 winsval=0.01
 qthresh=1e-5
-runstats=TRUE
+runstats=FALSE
 runstatsG=FALSE
 ```
 
