@@ -652,13 +652,15 @@ for ( cog in coggers )
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 clin$milestonesum = rowSums( clin[,mymiles] )
 covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
-covars0x = " EDUCYRS + snr + mrimfg + age_BL + SEX "
+covars0x = " brainVolume + EDUCYRS + snr + mrimfg + age_BL + SEX "
 covars0 = paste("testvol_delta ~ (1|PATNO) + testvol_BL + ", covars0x )
 dticovars="+DTI_dti_FD_mean" # +DTI_dti_tsnr_b0_mean"
 #################################################
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
-commonsel = fs(clin$T1Hier_resnetGrade >= 1.05 & clin$yearsbl <= 2.5 &
+commonsel = fs(
+    clin$T1Hier_resnetGrade >= 1.05 &
+    clin$yearsbl <= 5.5 &
     !(clin$mrimfg %in% c("Toshiba")) )
 corrmeth='bonf'
 winsval=0.01
@@ -726,6 +728,7 @@ for (  subtype in subtypes ) {
         studydata[,toscale]=scale(studydata[,toscale])
         studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
         covars=covars0
+        covarsx=covars0x
         if ( length(grep("DTI_",testvols)>1 ) ) {
             covars=paste(covars0,dticovars)
             covarsx=paste(covars0x,dticovars)
@@ -733,29 +736,27 @@ for (  subtype in subtypes ) {
         bform=paste( covars, " + yearsbl ")
         bmdl = try( lmer( bform,data=studydata ) )
         myform=paste( covars, " + yearsbl * ( DXSubAsyn )")
-        myformx=paste( covarsx, " + ( DXSubAsyn )")
+        bformx=paste( "testvol~(1|PATNO)+brainVolume_BL+",covarsx, " ")
+        myformx=paste( "testvol~(1|PATNO)+brainVolume_BL+",covarsx, " + ( DXSubAsyn )")
+        studydata$EDUCYRS=as.numeric(studydata$EDUCYRS)
         mdl = try( lmer( myform,data=studydata ) )
-        studydatax=studydata[studydata$imaging_EVENT_ID=='V0',]
-        studydatax$EDUCYRS=as.numeric(studydatax$EDUCYRS)
-        bmdlx = lm( paste("testvol~",covarsx),data=studydatax )
-        mdlx = lm( paste("testvol~",myformx),data=studydatax )
+        bmdlx = lmer( bformx,data=studydata )
+        mdlx = lmer( myformx,data=studydata )
         if ( !is(mdl, "try-error") ) {
-            mycoffx = coefficients(summary(mdlx))[-c(1:2),-1]
+            mycoffx = coefficients(summary(mdlx))[-c(1:2),-c(1:2)]
             mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
-            colnames(mycoffx)[1]='df'
-            mycoffx[,'df']=summary(mdlx)$df[2]
-            # mycoffTau = mycoff[multigrep(c(subtype,"ptau"),rownames(mycoff),intersect=F),]
             mycoff = rbind(
                 mycoffx[grep(subtype,rownames(mycoffx)),],
                 mycoff[multigrep(c("yearsbl",subtype),rownames(mycoff),intersect=T),])
             tvaluedf[ct, outcomes] = c(subtype,mycoff[,"t value"])
             pvaluedf[ct, outcomes] = c(subtype,mycoff[,"Pr(>|t|)"])
+            anvx = anova(bmdlx,mdlx)$Pr[2]
             pvaluedf[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
-            tvaluedf[ct,'anat']=pvaluedf[ct,'anat']=testvols
-            if (  pvaluedf[ct,'anova'] < qthresh  )
+            pvaluedf[ct,'anovax'] = anvx
+            tvaluedf[ct,'anat'] = pvaluedf[ct,'anat']=testvols
+            if (  pvaluedf[ct,'anova'] < qthresh | pvaluedf[ct,'anovax'] < qthresh  )
                 {
                 nstring = getnstring()
-                anvx=anova(bmdlx,mdlx)$Pr[2]
                 pvformattedx=insight::format_p( anvx, stars=TRUE, digits=4 )
                 pvformatted=insight::format_p( pvaluedf[ct,'anova'], stars=TRUE, digits=4 )
                 cat( paste0( "\n\n****************************************************************\n\n" ) )
@@ -776,7 +777,6 @@ for (  subtype in subtypes ) {
                 print( ggbarplot( meffd, 'eff','d', color='dx', fill='dx', 
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
-                visreg::visreg(mdlx,'DXSubAsyn')
                 (prplot( mdlx, 'DXSubAsyn',color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
                 (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydata$yearr=round( studydata$yearsbl )
@@ -811,10 +811,14 @@ for ( subtype in subtypes[1:2] ) {
 
 ```{r printgba,echo=FALSE,eval=TRUE}
 makethetable <- function( ss ) {
-    pvaluedfsub = pvaluedf[ pvaluedf$subtype == ss,c("anat","anova", "Neg","Pos","Y.Neg","Y.Pos") ]
-    sel=p.adjust( pvaluedfsub[,'anova'], corrmeth ) <= 0.05
+    pvaluedfsub = pvaluedf[ 
+        pvaluedf$subtype == ss,
+            c("anat","anovax","anova", "Neg","Pos","Y.Neg","Y.Pos") ]
+    sel= ( 
+        p.adjust( pvaluedfsub[,'anova'], corrmeth ) <= 0.05 | 
+        p.adjust( pvaluedfsub[,'anovax'], corrmeth ) <= 0.05  )
     pvaluedfsub=pvaluedfsub[sel,]
-    for ( x in c( "anova", "Neg","Pos","Y.Neg","Y.Pos" ) ) {
+    for ( x in c( "anovax",  "anova", "Neg","Pos","Y.Neg","Y.Pos" ) ) {
         rowsel = as.numeric(pvaluedfsub[,x])>0.001
         pvaluedfsub[rowsel,x]=NA
         pvrow = which( !rowsel )
