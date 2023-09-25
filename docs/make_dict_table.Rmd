@@ -277,6 +277,8 @@ Automated (blind) QC is part of standard ANTsPyMM processing.  QC metrics
 are therefore present in the standard output tables.  Notes on the meaning of these 
 metrics, along with examples of the metrics on images, are [here](https://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/blind_qc.html).
 
+The most important QC metric is `T1Hier_resnetGrade` which rejects truly bad images.  We recommend rejecting images with `T1Hier_resnetGrade < 1.01` where higher thresholds may be useful in some cases.  This grading function uses deep learning to generate a pseudocontinuous measurement of aggregate T1w image quality.  Several factors will contribute to these scores and it is not a perfect approach but it is well-defined and evaluated based on manual ratings [here](https://doi.org/10.1101/2023.02.02.23285376).
+
 The `outlierness` function produces additional blind QC measurements via automated outlierness calculations.  These measurements are denoted by Local Outlier Probability (LOOP `*loop*` ) and local outlier factor ( LOF `*lof*` ) column names.
 
 Time series images may have additional QC metrics such as:
@@ -650,22 +652,22 @@ for ( cog in coggers )
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 clin$milestonesum = rowSums( clin[,mymiles] )
 covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
-covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + T1Hier_resnetGrade + age_BL + SEX "
-covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
-covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + mrimfg + snr + T1Hier_resnetGrade + age_BL + SEX "
-covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + mrimfg + age_BL + SEX "
-dticovars="+DTI_dti_FD_mean+DTI_dti_tsnr_b0_mean"
-dticovars="+DTI_dti_FD_mean"
+covars0x = " EDUCYRS + snr + mrimfg + age_BL + SEX "
+covars0 = paste("testvol_delta ~ (1|PATNO) + testvol_BL + ", covars0x )
+dticovars="+DTI_dti_FD_mean" # +DTI_dti_tsnr_b0_mean"
 #################################################
-commonsel = !is.na(clin$T1Hier_resnetGrade) & fs(clin$T1Hier_resnetGrade >= 1.01)
-            # fs( !clin$mrimodel %in% c("SIGNA") )
-corrmeth='BH'
-winsval=0.005
-qthresh=1e-4
-runstats=FALSE
+clin$ptau = as.numeric( clin$ptau )
+clin$tau = as.numeric( clin$tau )
+commonsel = fs(clin$T1Hier_resnetGrade >= 1.05 & clin$yearsbl <= 2.5 &
+    !(clin$mrimfg %in% c("Toshiba")) )
+corrmeth='bonf'
+winsval=0.01
+qthresh=1e-5
+runstats=TRUE
+runstatsG=FALSE
 ```
 
-```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=5,message=FALSE,warning=FALSE}
+```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=6,message=FALSE,warning=FALSE}
 ###################################################
 outcomes = c("subtype","Neg","Pos","Y.Neg","Y.Pos")
 noutcomes = length(outcomes)
@@ -675,14 +677,15 @@ tvaluedf=pvaluedf
 meffdall = data.frame()
 ct = 0
 subtypes = c('LRRK2','Sporadic' ) # GBA
+# subtypes = c('Sporadic' ) # GBA
 for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
+    studydata[,'DXSubAsyn']=factor(studydata[,'DXSubAsyn'],levels=dxs)
     studydata$duration_yrs = as.numeric( studydata$duration_yrs )
     studydata$cnxtot = rowSums( studydata[,cnxnames] )
     studydata[,cnxnames]=studydata[,cnxnames]/studydata$cnxtot
-    studydata=studydata[ studydata$yearsbl <= 14.5, ]
     studydata$meanthick = rowMeans( studydata[,thknames])
     studydata$meanmd = rowMeans( studydata[,mdnames])
     normalizeit=FALSE
@@ -715,18 +718,36 @@ for (  subtype in subtypes ) {
         ct = ct + 1
         studydata$testvol = studydata[ ,testvols]
         studydata$testvol = psych::winsor(studydata$testvol,tr=winsval)
+        studydata = fillBaselineColumn( studydata,
+            'testvol', 'PATNO', 'imaging_EVENT_ID', 'V0', 
+            fast=T, verbose=F )[[1]]
         studydata$SEX = factor( studydata$SEX )
         toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
         studydata[,toscale]=scale(studydata[,toscale])
         studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
-        if ( length(grep("DTI_",testvols)>1 ) ) covars=paste(covars,dticovars)
+        covars=covars0
+        if ( length(grep("DTI_",testvols)>1 ) ) {
+            covars=paste(covars0,dticovars)
+            covarsx=paste(covars0x,dticovars)
+        }
         bform=paste( covars, " + yearsbl ")
         bmdl = try( lmer( bform,data=studydata ) )
-        myform=paste( covars, " + yearsbl * DXSubAsyn")
+        myform=paste( covars, " + yearsbl * ( DXSubAsyn )")
+        myformx=paste( covarsx, " + ( DXSubAsyn )")
         mdl = try( lmer( myform,data=studydata ) )
+        studydatax=studydata[studydata$imaging_EVENT_ID=='V0',]
+        studydatax$EDUCYRS=as.numeric(studydatax$EDUCYRS)
+        bmdlx = lm( paste("testvol~",covarsx),data=studydatax )
+        mdlx = lm( paste("testvol~",myformx),data=studydatax )
         if ( !is(mdl, "try-error") ) {
+            mycoffx = coefficients(summary(mdlx))[-c(1:2),-1]
             mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
-            mycoff = mycoff[grep(subtype,rownames(mycoff)),]
+            colnames(mycoffx)[1]='df'
+            mycoffx[,'df']=summary(mdlx)$df[2]
+            # mycoffTau = mycoff[multigrep(c(subtype,"ptau"),rownames(mycoff),intersect=F),]
+            mycoff = rbind(
+                mycoffx[grep(subtype,rownames(mycoffx)),],
+                mycoff[multigrep(c("yearsbl",subtype),rownames(mycoff),intersect=T),])
             tvaluedf[ct, outcomes] = c(subtype,mycoff[,"t value"])
             pvaluedf[ct, outcomes] = c(subtype,mycoff[,"Pr(>|t|)"])
             pvaluedf[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
@@ -734,6 +755,8 @@ for (  subtype in subtypes ) {
             if (  pvaluedf[ct,'anova'] < qthresh  )
                 {
                 nstring = getnstring()
+                anvx=anova(bmdlx,mdlx)$Pr[2]
+                pvformattedx=insight::format_p( anvx, stars=TRUE, digits=4 )
                 pvformatted=insight::format_p( pvaluedf[ct,'anova'], stars=TRUE, digits=4 )
                 cat( paste0( "\n\n****************************************************************\n\n" ) )
                 cat( paste0( testvols," anv ", pvaluedf[ct,'anova'], " ****************\n\n" ) )
@@ -753,7 +776,18 @@ for (  subtype in subtypes ) {
                 print( ggbarplot( meffd, 'eff','d', color='dx', fill='dx', 
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
-                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",nstring))) %>% print()
+                visreg::visreg(mdlx,'DXSubAsyn')
+                (prplot( mdlx, 'DXSubAsyn',color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
+                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
+                studydata$yearr=round( studydata$yearsbl )
+                tsel = studydata$yearr %in% c(0,1,2,4)
+                yername=gsub("T1Hier_","",testvols)
+                yername=gsub("DTI_","",yername)
+                yername=gsub("dktregions","",yername)
+                yername=gsub("jhu","",yername)
+                print( plotSubtypeChange( studydata[tsel,], 
+                    idvar='PATNO', 'DXSubAsyn',   
+                    measurement="testvol_delta", vizname='yearr', 'se', xlab='yr from v0' ) + ggtitle(yername) )
                 }
             }
         }
@@ -807,7 +841,7 @@ makethetable('Sporadic')
 ```
 
 
-```{r lmerexallgroups,echo=FALSE,eval=runstats,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
+```{r lmerexallgroups,echo=FALSE,eval=runstatsG,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
 ###################################################
 dxstbl = table( clin$DXSubAsyn  )
 dxs = names(dxstbl[dxstbl>10])
@@ -905,7 +939,7 @@ for ( x in names(pvaluedfG)[1:(length(names(pvaluedfG))-2)] ) {
 
 ## single model group results
 
-```{r printintegrated,echo=FALSE,eval=runstats}
+```{r printintegrated,echo=FALSE,eval=runstatsG}
 dxnames = names( pvaluedfG )
 dxnames = dxnames[ 1:(length(dxnames)-2)]
 sel=p.adjust( pvaluedfG[,'anova'], corrmeth ) <= 0.05
