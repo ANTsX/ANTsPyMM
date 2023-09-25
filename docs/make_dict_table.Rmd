@@ -662,9 +662,10 @@ commonsel = !is.na(clin$T1Hier_resnetGrade) & fs(clin$T1Hier_resnetGrade >= 1.01
 corrmeth='BH'
 winsval=0.005
 qthresh=1e-4
+runstats=FALSE
 ```
 
-```{r lmerextab,echo=FALSE,eval=TRUE,fig.width=12,fig.height=5,message=FALSE,warning=FALSE}
+```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=5,message=FALSE,warning=FALSE}
 ###################################################
 outcomes = c("subtype","Neg","Pos","Y.Neg","Y.Pos")
 noutcomes = length(outcomes)
@@ -795,18 +796,18 @@ makethetable <- function( ss ) {
 
 ## LRRK2 results table
 
-```{r printlrrk2,echo=FALSE,eval=TRUE}
+```{r printlrrk2,echo=FALSE,eval=runstats}
 makethetable("LRRK2")
 ```
 
 ## sporadic results table
 
-```{r printsporadic,echo=FALSE,eval=TRUE}
+```{r printsporadic,echo=FALSE,eval=runstats}
 makethetable('Sporadic')
 ```
 
 
-```{r lmerexallgroups,echo=FALSE,eval=TRUE,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
+```{r lmerexallgroups,echo=FALSE,eval=runstats,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
 ###################################################
 dxstbl = table( clin$DXSubAsyn  )
 dxs = names(dxstbl[dxstbl>10])
@@ -904,7 +905,7 @@ for ( x in names(pvaluedfG)[1:(length(names(pvaluedfG))-2)] ) {
 
 ## single model group results
 
-```{r printintegrated,echo=FALSE,eval=TRUE}
+```{r printintegrated,echo=FALSE,eval=runstats}
 dxnames = names( pvaluedfG )
 dxnames = dxnames[ 1:(length(dxnames)-2)]
 sel=p.adjust( pvaluedfG[,'anova'], corrmeth ) <= 0.05
