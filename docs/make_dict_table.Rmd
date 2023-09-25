@@ -307,7 +307,7 @@ A sortable version of the data dictionary is below (if viewing on local machine)
 
 ### Table 2
 
-```{r printdict,echo=FALSE,eval=FALSE}
+```{r printdict,echo=FALSE,eval=TRUE}
 reactable::reactable( zz[-grep("cnx",zz$Label),] , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
 ```
 
@@ -666,7 +666,8 @@ colnames(pvaluedf)=outcomes
 tvaluedf=pvaluedf
 meffdall = data.frame()
 ct = 0
-for (  subtype in c('LRRK2','Sporadic','GBA') ) {
+subtypes = c('LRRK2','Sporadic','GBA')
+for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & 
             !is.na(clin$T1Hier_resnetGrade) &
@@ -754,15 +755,51 @@ for (  subtype in c('LRRK2','Sporadic','GBA') ) {
     cat("****************\n\n")
 } # subtype loop
 ##########################################################
-
+##########################################################
+if ( FALSE )
+for ( subtype in subtypes[1:2] ) {
+    print(subtype)
+    pvaluedfsub = pvaluedf[ pvaluedf$subtype == subtype, ]
+    sel=p.adjust( pvaluedfsub[,'anova'], 'bonf' ) <= 0.05
+    print( pvaluedfsub[ sel, c("Neg","Pos","Y.Neg","Y.Pos","anat")] )
+    cat(">>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<\n\n")
+}
+##########################################################
+##########################################################
 ```
 
+## GBA results table
 
+```{r printgba,echo=FALSE,eval=TRUE}
+makethetable <- function( ss ) {
+    pvaluedfsub = pvaluedf[ pvaluedf$subtype == ss,c("anat","anova", "Neg","Pos","Y.Neg","Y.Pos") ]
+    sel=p.adjust( pvaluedfsub[,'anova'], 'bonf' ) <= 0.05
+    pvaluedfsub=pvaluedfsub[sel,]
+    for ( x in c( "anova", "Neg","Pos","Y.Neg","Y.Pos" ) ) {
+        rowsel = as.numeric(pvaluedfsub[,x])>0.001
+        pvaluedfsub[rowsel,x]=NA
+        pvrow = which( !rowsel )
+        for ( j in pvrow ) {
+          pvaluedfsub[j,x]=insight::format_p( as.numeric(pvaluedfsub[j,x]),
+            stars=TRUE, digits=4 )
+        }
+    }
+    reactable::reactable( pvaluedfsub, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = F )
+}
+makethetable("GBA")
+```
 
+## LRRK2 results table
 
+```{r printlrrk2,echo=FALSE,eval=TRUE}
+makethetable("LRRK2")
+```
 
+## sporadic results table
 
-
+```{r printsporadic,echo=FALSE,eval=TRUE}
+makethetable('Sporadic')
+```
 
 
 ```{r lmerexallgroups,echo=FALSE,eval=TRUE,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
