@@ -626,9 +626,13 @@ t1names=c(
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit') ),
         getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit') ) )
-dtinames=unique(
-    getNamesFromDataframe( c("DTI","mean_md"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit') )  )
-    
+dtinames=c(
+    getNamesFromDataframe( c("DTI","mean_md_deep"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ),
+    getNamesFromDataframe( c("DTI","mean_fa","jhu"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
+for ( zz in c( "temporal","usiform","entral","hippocamp","rontal","ingulat","mtl","supramarginal","arietal" ) )
+    dtinames = c( dtinames, 
+        getNamesFromDataframe( c("DTI","mean_md",zz), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference')  ) )
+
 rsfnames=getNamesFromDataframe( "rsfMRI"  , dd, exclusions=c("_BL","_delta","cnx","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume","_alff",'filename','u_hier_id','snseg','tcit') )
 
 thknames = getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd )
@@ -653,12 +657,15 @@ covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + mrimfg + age_BL
 dticovars="+DTI_dti_FD_mean+DTI_dti_tsnr_b0_mean"
 dticovars="+DTI_dti_FD_mean"
 #################################################
+commonsel = !is.na(clin$T1Hier_resnetGrade) & fs(clin$T1Hier_resnetGrade >= 1.01)
+            # fs( !clin$mrimodel %in% c("SIGNA") )
+corrmeth='BH'
+winsval=0.005
+qthresh=1e-4
 ```
 
 ```{r lmerextab,echo=FALSE,eval=TRUE,fig.width=12,fig.height=5,message=FALSE,warning=FALSE}
 ###################################################
-winsval=0.005
-qthresh=1e-4
 outcomes = c("subtype","Neg","Pos","Y.Neg","Y.Pos")
 noutcomes = length(outcomes)
 pvaluedf = data.frame( matrix(ncol=noutcomes) )
@@ -666,13 +673,10 @@ colnames(pvaluedf)=outcomes
 tvaluedf=pvaluedf
 meffdall = data.frame()
 ct = 0
-subtypes = c('LRRK2','Sporadic','GBA')
+subtypes = c('LRRK2','Sporadic' ) # GBA
 for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
-    ssel = fs( clin$DXSubAsyn %in% dxs ) & 
-            !is.na(clin$T1Hier_resnetGrade) &
-            fs( !clin$mrimodel %in% c("SIGNA") ) &
-            fs(clin$T1Hier_resnetGrade >= 1.05)
+    ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
     studydata$duration_yrs = as.numeric( studydata$duration_yrs )
     studydata$cnxtot = rowSums( studydata[,cnxnames] )
@@ -760,7 +764,7 @@ if ( FALSE )
 for ( subtype in subtypes[1:2] ) {
     print(subtype)
     pvaluedfsub = pvaluedf[ pvaluedf$subtype == subtype, ]
-    sel=p.adjust( pvaluedfsub[,'anova'], 'bonf' ) <= 0.05
+    sel=p.adjust( pvaluedfsub[,'anova'], corrmet ) <= 0.05
     print( pvaluedfsub[ sel, c("Neg","Pos","Y.Neg","Y.Pos","anat")] )
     cat(">>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<\n\n")
 }
@@ -768,12 +772,12 @@ for ( subtype in subtypes[1:2] ) {
 ##########################################################
 ```
 
-## GBA results table
+<!-- ## GBA results table -->
 
 ```{r printgba,echo=FALSE,eval=TRUE}
 makethetable <- function( ss ) {
     pvaluedfsub = pvaluedf[ pvaluedf$subtype == ss,c("anat","anova", "Neg","Pos","Y.Neg","Y.Pos") ]
-    sel=p.adjust( pvaluedfsub[,'anova'], 'bonf' ) <= 0.05
+    sel=p.adjust( pvaluedfsub[,'anova'], corrmeth ) <= 0.05
     pvaluedfsub=pvaluedfsub[sel,]
     for ( x in c( "anova", "Neg","Pos","Y.Neg","Y.Pos" ) ) {
         rowsel = as.numeric(pvaluedfsub[,x])>0.001
@@ -786,7 +790,7 @@ makethetable <- function( ss ) {
     }
     reactable::reactable( pvaluedfsub, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = F )
 }
-makethetable("GBA")
+# makethetable("GBA")
 ```
 
 ## LRRK2 results table
@@ -804,16 +808,11 @@ makethetable('Sporadic')
 
 ```{r lmerexallgroups,echo=FALSE,eval=TRUE,fig.width=12,fig.height=8,message=FALSE,warning=FALSE}
 ###################################################
-winsval=00.00
-qthresh=1.e-4
 dxstbl = table( clin$DXSubAsyn  )
-dxs = names(dxstbl[dxstbl>6])
+dxs = names(dxstbl[dxstbl>10])
 dxs = dxs[ -2 ]
 ct = 0
-ssel = fs( clin$DXSubAsyn %in% dxs ) & 
-        !is.na(clin$T1Hier_resnetGrade) &
-        fs( !clin$mrimodel %in% c("SIGNA") ) &
-        fs(clin$T1Hier_resnetGrade >= 1.05)
+ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
 ##############################################
 outcomes = c( dxs[-1], paste0("Y.",dxs[-1]))
 noutcomes = length(outcomes)
@@ -892,17 +891,35 @@ for ( testvols in ( testnames ) ) {
         }
     }
 ##########################################################
-for ( x in names(pvaluedfG)[1:12] ) {
-    print( x  )
-    sel=p.adjust( pvaluedfG[,x], 'bonf' ) <= 0.05
-    print( pvaluedfG[ sel, "anat"] )
-    cat(">>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<\n\n")
+for ( x in names(pvaluedfG)[1:(length(names(pvaluedfG))-2)] ) {
+#    print( x  )
+    sel=p.adjust( pvaluedfG[,x], corrmeth ) <= 0.05
+ #   print( pvaluedfG[ sel, "anat"] )
+  #  cat(">>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<\n\n")
     }
 ##########################################################
 ```
 
 
 
+## single model group results
+
+```{r printintegrated,echo=FALSE,eval=TRUE}
+dxnames = names( pvaluedfG )
+dxnames = dxnames[ 1:(length(dxnames)-2)]
+sel=p.adjust( pvaluedfG[,'anova'], corrmeth ) <= 0.05
+pvaluedfsub = pvaluedfG[sel,c("anat","anova", dxnames) ]
+for ( x in c( "anova", dxnames ) ) {
+    rowsel = as.numeric(pvaluedfsub[,x])>0.001
+    pvaluedfsub[rowsel,x]=NA
+    pvrow = which( !rowsel )
+    for ( j in pvrow ) {
+        pvaluedfsub[j,x]=insight::format_p( as.numeric(pvaluedfsub[j,x]),
+            stars=TRUE, digits=4 )
+        }
+    }
+reactable::reactable( pvaluedfsub, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = F )
+```
 
 
 
@@ -1003,3 +1020,4 @@ for ( testvols in ( testnames ) ) {
 ##########################################################
 
 ```
+
