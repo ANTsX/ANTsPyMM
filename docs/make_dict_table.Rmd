@@ -651,6 +651,7 @@ covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1
 covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + mrimfg + snr + T1Hier_resnetGrade + age_BL + SEX "
 covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + mrimfg + age_BL + SEX "
 dticovars="+DTI_dti_FD_mean+DTI_dti_tsnr_b0_mean"
+dticovars="+DTI_dti_FD_mean"
 #################################################
 ```
 
@@ -730,7 +731,7 @@ for (  subtype in c('LRRK2','Sporadic','GBA') ) {
                 pvformatted=insight::format_p( pvaluedf[ct,'anova'], stars=TRUE, digits=4 )
                 cat( paste0( "\n\n****************************************************************\n\n" ) )
                 cat( paste0( testvols," anv ", pvaluedf[ct,'anova'], " ****************\n\n" ) )
-                print( mycoff[-1,-c(1:3)] )
+                print( mycoff[,-1] )
                 mydegfree = round( (mycoff[,'df']) )
                 meff = effectsize::t_to_d( mycoff[,'t value'], mydegfree )
                 rownames(meff) = rownames(mycoff)
