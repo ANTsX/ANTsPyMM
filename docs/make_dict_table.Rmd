@@ -15,6 +15,7 @@ library(plotly)
 library( ztable )
 library(ggpubr)
 library(gridExtra)
+library(ggsci)
 options(digits=3)
 options( ztable.type="html" )
 tblcmd = ztable
@@ -529,6 +530,19 @@ if ( ! exists( "clin2" ) ) {
         }
         clin2[usel,'AsynStatus']=asynstat
     }
+    if ( TRUE ) {
+        if ( ! exists("suppasyn") ) {
+            suppasyn=read.csv("~/code/multidisorder/data/ppmi_gwas/ppmi_asyn_milestones_or_dtidenoise_may_asyn_20230710.csv")
+            }
+        uids = unique( suppasyn$Subject.ID[ !is.na( suppasyn$asynstatus)] )
+        for ( u in uids ) {
+            clin2sel=clin2$PATNO == u
+            if ( sum(clin2sel) > 0 ) {
+                suppas = unique(suppasyn[ suppasyn$Subject.ID == u, 'asynstatus'])
+                clin2[clin2sel,'AsynStatus']=suppas
+                }
+            }
+        }
     ############################
     isbl = clin2$EVENT_ID == 'BL'
     print( table( clin2$DXSub[isbl], clin2$AsynStatus[isbl] ) )
@@ -553,9 +567,10 @@ if ( ! exists( "clin2" ) ) {
         clin2$yearsbl[seller]=loy
         clin2$imaging_EVENT_ID[seller]=paste0("V",round(loy*4))
         }
-    clin2$brainVolume = rowSums( clin2[,getNamesFromDataframe( c("T1Hier","vol","hemis"), studydata )])
+    clin2$brainVolume = rowSums( clin2[,getNamesFromDataframe( c("T1Hier","vol","hemis"), clin2 )])
     clin2$brainVolume = clin2$brainVolume/mean(clin2$brainVolume,na.rm=T)
     clin2$mrimfg[ clin2$mrimfg == ""]="Unk"
+    clin2$APOE[ clin2$APOE == "" ] = "e3/e3"
     }    
 ```
 
@@ -575,16 +590,50 @@ showtest <- function( predictor, mycoeffs, searcher='PD', qthresh=0.001 ) {
     return( FALSE )
 }
 
+backimpute <-function( mydf, varofinterest, patidvar, timevar, timethresh=Inf, verbose=FALSE ) {
+    nabl = is.na( mydf[, paste0(varofinterest,"_BL") ] )
+    idswithmissingbl=unique( mydf[nabl,patidvar])
+    if ( verbose ) {
+    #    print(idswithmissingbl)
+    }
+    for ( u in idswithmissingbl ) {
+        usel=mydf[,patidvar]==u
+        anyavail = which( usel & !is.na(mydf[,varofinterest] ) )
+        if ( length(anyavail) > 0 ) {
+            availtimes = min(mydf[anyavail,timevar],na.rm=T)
+            anyavail = which( usel & !is.na(mydf[,varofinterest] ) & 
+                 mydf[,timevar] == min(availtimes) )[1]
+            imputedblval = mydf[anyavail,varofinterest]
+            if ( verbose ) { 
+                print(u)
+                print( anyavail )
+                print( paste( imputedblval, mydf[anyavail,'imaging_EVENT_ID'] ) )
+            }
+            if ( min(availtimes) < timethresh ) {
+                mydf[usel, paste0(varofinterest,"_BL") ]=imputedblval
+                mydf[usel, paste0(varofinterest,"_delta") ]=
+                    mydf[usel, paste0(varofinterest) ]-
+                    mydf[usel, paste0(varofinterest,"_BL") ]
+            }
+        }
+    }
+    return(mydf)
+}
+
 getnstring <- function() {
     temp=studydata[names(predict(mdl)),]
     nstringb='Base N: '
     nstring='Long N: '
     for ( k in 1:length(dxs)) {
-                dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID == "V0"] ))
+                dxct=length( unique( 
+                    temp$PATNO[temp$DXSubAsyn == dxs[k] & 
+                    temp$imaging_EVENT_ID == "V0"] ) )
                 dxtemp=gsub("ative","",dxs[k])
                 dxtemp=gsub("itive","",dxtemp)
                 nstringb=paste0(nstringb,dxtemp,":",dxct," / ")
-                dxct=length(unique( temp$PATNO[temp$DXSubAsyn == dxs[k] & temp$imaging_EVENT_ID != "V0"] ))
+                dxct=length( unique( 
+                    temp$PATNO[temp$DXSubAsyn == dxs[k] & 
+                    temp$imaging_EVENT_ID != "V0"] ))
                 dxtemp=gsub("ative","",dxs[k])
                 dxtemp=gsub("itive","",dxtemp)
                 nstring=paste0(nstring,dxtemp,":",dxct," / ")
@@ -651,27 +700,27 @@ for ( cog in coggers )
     clin[,cog]=as.numeric(clin[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 clin$milestonesum = rowSums( clin[,mymiles] )
-covars = "testvol ~ (1|PATNO) + brainVolume_BL + EDUCYRS + snr + psnr + EVR + T1Hier_resnetGrade + mrimfg + age_BL + SEX "
-covars0x = " brainVolume + EDUCYRS + snr + mrimfg + age_BL + SEX "
-covars0 = paste("testvol_delta ~ (1|PATNO) + testvol_BL + ", covars0x )
-dticovars="+DTI_dti_FD_mean" # +DTI_dti_tsnr_b0_mean"
+covars0x = " brainVolume + EDUCYRS + snr + mrimfg +  SEX + ageatimaging "
+covars0 = paste("testvol_delta ~ (1|PATNO) + testvol_BL + EDUCYRS + snr + mrimfg + age_BL + SEX" )
+dticovars="+DTI_dti_FD_mean+DTI_dti_tsnr_b0_mean"
 #################################################
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
 commonsel = fs(
-    clin$T1Hier_resnetGrade >= 1.01 &
-    clin$yearsbl <= 5.5 )
-#    !clin$mrimodel %in% c("SIGNA") )
+    clin$T1Hier_resnetGrade >= 1.05 &
+    clin$yearsbl <= 400.5 &
+    !clin$mrimodel %in% c("SIGNA") )
 #    !(clin$mrimfg %in% c("Toshiba")) )
 table(commonsel)
 corrmeth='bonf'
-winsval=0.01
-qthresh=1e-5
-runstats=FALSE
+winsval=0.00
+qthresh=5e-5
+runstats=TRUE
 runstatsG=FALSE
 ```
 
 ```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=6,message=FALSE,warning=FALSE}
+library( zoo )
 ###################################################
 outcomes = c("subtype","Neg","Pos","Y.Neg","Y.Pos")
 noutcomes = length(outcomes)
@@ -681,9 +730,9 @@ tvaluedf=pvaluedf
 meffdall = data.frame()
 ct = 0
 subtypes = c('LRRK2','Sporadic' ) # GBA
-# subtypes = c('Sporadic' ) # GBA
+# subtypes = c('LRRK2' ) # GBA
 for (  subtype in subtypes ) {
-    dxs = c("CNNegative", paste0("PD",subtype,c("Positive","Negative") ) )
+    dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
     studydata[,'DXSubAsyn']=factor(studydata[,'DXSubAsyn'],levels=dxs)
@@ -697,10 +746,13 @@ for (  subtype in subtypes ) {
         studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
         studydata[,thknames]=studydata[,thknames]/studydata$meanthick
     }
-    studydata = fillBaselineColumn( studydata,
-        c('meanthick','meanmd','brainVolume'), 'PATNO', 'imaging_EVENT_ID', 'V0', 
-        fast=T, verbose=F )[[1]]
-    testnames = c( t1names, dtinames )# , rsfnames )
+    testnames = c( t1names, dtinames, rsfnames )
+    if ( winsval == 0.0 ) {
+        isna=is.na( studydata[,testnames] )
+        temp = ANTsR::robustMatrixTransform(studydata[,testnames])
+        temp[ isna ]=NA
+        studydata[,testnames]=temp
+        }
     ####################################
     studydata=mapAsymVar( studydata, 
         testnames[ grep("_l_", testnames) ] )
@@ -718,13 +770,19 @@ for (  subtype in subtypes ) {
         countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
     }
     testnames=testnames[ countdtinz > 100 ]
+    studydata = fillBaselineColumn( studydata,
+        c('meanthick','meanmd','brainVolume',testnames), 
+        'PATNO', 'imaging_EVENT_ID', 'V0', 
+        fast=T, verbose=F )[[1]]
+    # testnames='DTI_mean_md_Asym_rostral_middle_frontal'
     for ( testvols in ( testnames ) ) {
         ct = ct + 1
         studydata$testvol = studydata[ ,testvols]
-        studydata$testvol = psych::winsor(studydata$testvol,tr=winsval)
-        studydata = fillBaselineColumn( studydata,
-            'testvol', 'PATNO', 'imaging_EVENT_ID', 'V0', 
-            fast=T, verbose=F )[[1]]
+        studydata$testvol_BL = studydata[ ,paste0(testvols,"_BL")]
+        studydata$testvol_delta = studydata[ ,paste0(testvols,"_delta")]
+        # studydata=backimpute( studydata, 'testvol', 'PATNO', 'yearsbl', 
+        #    timethresh=1.1, verbose=F )
+        studydata$testvol_delta = psych::winsor(studydata$testvol_delta,tr=winsval)
         studydata$SEX = factor( studydata$SEX )
         toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
         studydata[,toscale]=scale(studydata[,toscale])
@@ -738,9 +796,10 @@ for (  subtype in subtypes ) {
         bform=paste( covars, " + yearsbl ")
         bmdl = try( lmer( bform,data=studydata ) )
         myform=paste( covars, " + yearsbl * ( DXSubAsyn )")
-        bformx=paste( "testvol~(1|PATNO)+brainVolume_BL+",covarsx, " ")
-        myformx=paste( "testvol~(1|PATNO)+brainVolume_BL+",covarsx, " + ( DXSubAsyn )")
+        bformx=paste( "testvol~(1|PATNO)+",covarsx, " ")
+        myformx=paste( "testvol~(1|PATNO)+",covarsx, " + ( DXSubAsyn )")
         studydata$EDUCYRS=as.numeric(studydata$EDUCYRS)
+        studydata$age_BL=ANTsRCore::antsrimpute(as.numeric(studydata$age_BL))
         mdl = try( lmer( myform,data=studydata ) )
         bmdlx = lmer( bformx,data=studydata )
         mdlx = lmer( myformx,data=studydata )
@@ -782,14 +841,20 @@ for (  subtype in subtypes ) {
                 (prplot( mdlx, 'DXSubAsyn',color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
                 (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1 )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydata$yearr=round( studydata$yearsbl )
-                tsel = studydata$yearr %in% c(0,1,2,4)
+                temp = table( studydata[,'PATNO'] )
+                tsel = ( studydata$yearr %in% c(0,1,2,4) ) & 
+                    studydata$PATNO %in% names(temp)[temp>=2]
                 yername=gsub("T1Hier_","",testvols)
                 yername=gsub("DTI_","",yername)
                 yername=gsub("dktregions","",yername)
                 yername=gsub("jhu","",yername)
-                print( plotSubtypeChange( studydata[tsel,], 
-                    idvar='PATNO', 'DXSubAsyn',   
-                    measurement="testvol_delta", vizname='yearr', 'se', xlab='yr from v0' ) + ggtitle(yername) )
+                manualColors = pal_npg("nrc", alpha = 0.9)(3)
+                print( plotSubtypeChange( studydata[tsel,],
+                    idvar='PATNO', 'DXSubAsyn',
+                    measurement="testvol_delta",
+                    vizname='yearr', 'se', xlab='yr from v0' ) + 
+                    ggtitle(yername) +
+                    scale_colour_manual(values = manualColors ) )
                 }
             }
         }
@@ -812,13 +877,13 @@ for ( subtype in subtypes[1:2] ) {
 <!-- ## GBA results table -->
 
 ```{r printgba,echo=FALSE,eval=TRUE}
-makethetable <- function( ss ) {
+makethetable <- function( ss, qvt=0.01 ) {
     pvaluedfsub = pvaluedf[ 
         pvaluedf$subtype == ss,
             c("anat","anovax","anova", "Neg","Pos","Y.Neg","Y.Pos") ]
     sel= ( 
-        p.adjust( pvaluedfsub[,'anova'], corrmeth ) <= 0.05 | 
-        p.adjust( pvaluedfsub[,'anovax'], corrmeth ) <= 0.05  )
+        p.adjust( pvaluedfsub[,'anova'], corrmeth ) <= qvt | 
+        p.adjust( pvaluedfsub[,'anovax'], corrmeth ) <= qvt  )
     pvaluedfsub=pvaluedfsub[sel,]
     for ( x in c( "anovax",  "anova", "Neg","Pos","Y.Neg","Y.Pos" ) ) {
         rowsel = as.numeric(pvaluedfsub[,x])>0.001
@@ -829,7 +894,7 @@ makethetable <- function( ss ) {
             stars=TRUE, digits=4 )
         }
     }
-    reactable::reactable( pvaluedfsub, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = F )
+    reactable::reactable( pvaluedfsub, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 120, static = FALSE, sortable=TRUE )
 }
 # makethetable("GBA")
 ```
