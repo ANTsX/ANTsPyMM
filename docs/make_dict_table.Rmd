@@ -703,8 +703,10 @@ library(lmerTest)
 t1names=c( 
         getNamesFromDataframe( "T1Hier_vol", dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit') ),
-        getNamesFromDataframe( c("T1Hier_thk","dktcortex"), dd, 
+        getNamesFromDataframe( c("T1Hier_thk"), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit') ) )
+t1names = t1names[ 
+    multigrep(c( "fusiform", "nbm", "supra","temporal","parietal","central","snc","_pu_","_ca_","_snr","_gpi","_gpe"), t1names ) ]
 dtinames=c(
     getNamesFromDataframe( c("DTI","mean_md_deep"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
 #    getNamesFromDataframe( c("DTI","mean_fa","jhu"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
@@ -728,7 +730,7 @@ for ( cog in coggers )
     clin[,cog]=as.numeric(clin[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 clin$milestonesum = rowSums( clin[,mymiles] )
-commcov = " brainVolume_BL + EDUCYRS + snr + psnr + EVR + age_BL  "
+commcov = " brainVolume_BL + EDUCYRS + snr + EVR + ( Age1 + Age2 ) * SEX  "
 covars0x = commcov
 covars0 = paste("testvol ~ (1|PATNO) +  ", commcov )
 covars0 = paste("testvol_delta ~ (1|PATNO) + (1|SITE)+testvol_BL + ", commcov )
@@ -737,7 +739,7 @@ dticovars="+DTI_dti_FD_mean "
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
 corrmeth='BH'
-winsval=0.00
+winsval=0.01
 qthresh=5e-5
 ythresh=4.50
 print( paste("PARAMS: corrmeth",corrmeth,"winsval",winsval,"qthresh",qthresh,"ythresh", ythresh ))
@@ -763,6 +765,9 @@ for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
+    sage=data.frame( stats::poly( studydata$age_BL , 2 ) )
+    colnames(sage)=c("Age1","Age2")
+    studydata=cbind(studydata,sage)
 #    studydata[,testnames]=residuals(lm( data.matrix(studydata[,testnames]) ~ studydata$SITE))
     studydata$SEX = factor( studydata$SEX )
     if ( FALSE ) {
