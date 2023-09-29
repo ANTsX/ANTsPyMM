@@ -730,23 +730,25 @@ for ( cog in coggers )
     clin[,cog]=as.numeric(clin[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
 clin$milestonesum = rowSums( clin[,mymiles] )
-commcov = " brainVolume_BL + EDUCYRS + snr + EVR + ( Age1 + Age2 ) * SEX  "
+commcov = " brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX  "
+commcov = " brainVolume_BL + EDUCYRS + meanthick + meanmd + snr + EVR + psnr + mi + ssim + ol_loop + T1Hier_resnetGrade + ( Age1 + Age2 ) + SEX  "
+commcov = " brainVolume_BL + EDUCYRS + T1Hier_resnetGrade + ( Age1 ) + SEX  "
 covars0x = commcov
-covars0 = paste("testvol ~ (1|PATNO) +  ", commcov )
 covars0 = paste("testvol_delta ~ (1|PATNO) + (1|SITE)+testvol_BL + ", commcov )
+# covars0 = paste("testvol ~ (1|PATNO) + (1|SITE) +  ", commcov )
 dticovars="+DTI_dti_FD_mean "
 #################################################
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
 corrmeth='BH'
-winsval=0.01
+winsval=0.02
 qthresh=5e-5
-ythresh=4.50
+ythresh=4.25
 print( paste("PARAMS: corrmeth",corrmeth,"winsval",winsval,"qthresh",qthresh,"ythresh", ythresh ))
 commonsel = !is.na( clin$AsynStatus) & fs(
     clin$T1Hier_resnetGrade >= 1.02 &
-    clin$yearsbl <= ythresh &
-    !clin$mrimodel %in% c("SIGNA") )
+    clin$yearsbl <= ythresh  )
+#    !clin$mrimodel %in% c("SIGNA") )
 #    !(clin$mrimfg %in% c("Toshiba")) )
 table(commonsel)
 runstats=TRUE
@@ -765,6 +767,7 @@ for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
+    print( table(round(studydatasub$yearsbl), studydatasub$DXSubAsyn) )
     sage=data.frame( stats::poly( studydata$age_BL , 2 ) )
     colnames(sage)=c("Age1","Age2")
     studydata=cbind(studydata,sage)
@@ -784,7 +787,7 @@ for (  subtype in subtypes ) {
     if ( normalizeit ) {
         studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
         studydata[,thknames]=studydata[,thknames]/studydata$meanthick
-    }
+        }
     testnames = c( t1names, dtinames, rsfnames )
     if ( winsval == 0.0 ) {
         isna=is.na( studydata[,testnames] )
@@ -809,6 +812,7 @@ for (  subtype in subtypes ) {
         countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
     }
     testnames=testnames[ countdtinz > 100 ]
+    testnames = testnames[ -grep("Asym",testnames)]
     studydata$meanthick = rowMeans( studydata[,thknames])
     studydata$meanmd = rowMeans( studydata[,mdnames])
     studydata = fillBaselineColumn( studydata,
@@ -817,9 +821,11 @@ for (  subtype in subtypes ) {
         fast=T, verbose=F )[[1]]
     for ( x in  c('meanthick','meanmd','brainVolume',testnames) ) {
         studydata=visitimpute( studydata, x )
-    }
-##        studydata=baseimpute( studydata, 'testvol' )
-    # testnames='DTI_mean_md_Asym_rostral_middle_frontal'
+        }
+    if ( FALSE )
+        testnames = c( 
+            "T1Hier_vol_bn_gp_gpe_LRAVGdeep_cit168",
+            'T1Hier_vol_bn_str_pu_LRAVGdeep_cit168','DTI_mean_md_Asym_rostral_middle_frontal')
     for ( testvols in testnames ) {
         ct = ct + 1
         studydata$testvol = studydata[ ,testvols]
@@ -827,7 +833,8 @@ for (  subtype in subtypes ) {
         studydata$testvol_delta = studydata[ ,paste0(testvols,"_delta")]
         studydata$testvol_delta = psych::winsor(studydata$testvol_delta,tr=winsval)
         studydata$SEX = factor( studydata$SEX )
-        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','DTI_dti_tsnr_b0_mean')
+        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','T1Hier_resnetGrade','DTI_dti_tsnr_b0_mean','testvol_BL','brainVolume_BL','EDUCYRS')
+        studydata$EDUCYRS=as.numeric(studydata$EDUCYRS)
         studydata[,toscale]=scale(studydata[,toscale])
         studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
         covars=covars0
@@ -840,18 +847,17 @@ for (  subtype in subtypes ) {
         myform=paste( covars, " + yearsbl * ( DXSubAsyn )")
         # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3281513/
         # section: Advantages and Disadvantages of Fixed Main Effect for Site
-        bformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " ")
-        myformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " +  ( DXSubAsyn )")
-        studydata$EDUCYRS=as.numeric(studydata$EDUCYRS)
+        bformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " + yearsbl ")
+        myformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " + yearsbl * ( DXSubAsyn )")
         studydata$age_BL=ANTsRCore::antsrimpute(as.numeric(studydata$age_BL))
         isblsub = studydata$PATNO[ studydata$imaging_EVENT_ID=='V0' ]
         isfsub = studydata$PATNO[ studydata$imaging_EVENT_ID !='V0' ]
         isboth = intersect( isblsub, isfsub )
         studydatasub = studydata[ studydata$PATNO %in% isboth,]
-        bmdl = try( lmer( bform,data=studydata ) )
-        mdl = try( lmer( myform,data=studydata ) )
-        bmdlx = lmer( bformx,data=studydatasub )
-        mdlx = lmer( myformx,data=studydatasub )
+        bmdl = try( lmer( bform,data=studydatasub ) )
+        mdl = try( lmer( myform,data=studydatasub ) )
+        bmdlx = lmer( bformx,data=studydata )
+        mdlx = lmer( myformx,data=studydata )
         if ( FALSE ) {
             # simple regression for BL vs follow
             lmdata = data.frame( )
@@ -860,16 +866,19 @@ for (  subtype in subtypes ) {
                 "DTI_dti_tsnr_b0_mean","mrimfg"), fillvars, intersect=FALSE )
             lmform = paste( fillvars[1], "~(1|PATNO)+testvol_BL+",paste(fillvars[-rmers],collapse="+"))
             mdlLM = lmer( lmform,data=studydatasub)
-            mycoffsX = coefficients(summary( mdlLM ))
-            if ( any(tail(mycoffsX[,"Pr(>|t|)"],2) < 0.005 )) {
-                print( visreg::visreg(mdlLM,'DXSubAsyn',gg=TRUE)+ggtitle(testvols))
-                print( mycoffsX )
-                print( testvols )
-                }
+#            mycoffsX = coefficients(summary( mdlLM ))
+#            if ( any(tail(mycoffsX[,"Pr(>|t|)"],2) < 0.005 )) {
+#                print( visreg::visreg(mdlLM,'DXSubAsyn',gg=TRUE)+ggtitle(testvols))
+#                print( mycoffsX )
+#                print( testvols )
+#                }
             }
         if ( !is( mdl, "try-error" ) ) {
             mycoffx = coefficients(summary(mdlx))[-c(1:2),-c(1:2)]
+            mycoffx = mycoffx[ grep(subtype,rownames(mycoffx)), ]
+            mycoffx = mycoffx[ -grep("yearsbl",rownames(mycoffx)),]
             mycoff = coefficients(summary(mdl))[-c(1:2),-c(1:2)]
+#            mycoff = mycoff[ grep(subtype,rownames(mycoff)), ]
             mycoff = rbind(
                 mycoffx[grep(subtype,rownames(mycoffx)),],
                 mycoff[multigrep(c("yearsbl",subtype),rownames(mycoff),intersect=T),])
@@ -889,7 +898,8 @@ for (  subtype in subtypes ) {
             tvaluedf[ct, outcomes] = c(subtype,mycoff[,"t value"])
             pvaluedf[ct, outcomes] = c(subtype,mycoff[,"Pr(>|t|)"])
             anvx = anova(bmdlx,mdlx)$Pr[2]
-            pvaluedf[ct,'anova'] = anova(bmdl,mdl)$Pr[2]
+            anv = anova(bmdl,mdl)$Pr[2]
+            pvaluedf[ct,'anova'] = anv
             pvaluedf[ct,'anovax'] = anvx
             tvaluedf[ct,'anat'] = pvaluedf[ct,'anat']=testvols
             if (  pvaluedf[ct,'anova'] < qthresh | pvaluedf[ct,'anovax'] < qthresh  )
@@ -916,8 +926,8 @@ for (  subtype in subtypes ) {
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
                 mypal = 'lancet'
-                (prplot( mdlx, 'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
-                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
+                (prplot( mdlx,'yearsbl',  'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
+#                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydatasub$yearr=round( studydatasub$yearsbl )
                 temp = table( studydatasub[,'PATNO'] )
                 tsel = ( studydatasub$yearr %in% c(0,1,2,4) ) & 
@@ -941,7 +951,7 @@ for (  subtype in subtypes ) {
                         vizname='yearr', 'se', xlab='yr from v0' ) + 
                         ggtitle(paste(yername," : raw")) +
                         scale_colour_manual(values = manualColors ) )
-                    ggscatter( studydata, 'yearsbl', "testvol", facet.by='DXSubAsyn', color='DXSubAsyn', add='reg.line', conf.int=T, cor.coef=T, parse=T, palette=manualColors ) %>% print()
+#                    ggscatter( studydata, 'yearsbl', "brainVolume", facet.by='DXSubAsyn', color='DXSubAsyn', add='reg.line', conf.int=T, cor.coef=T, parse=T, palette=manualColors ) %>% print()
                     }
                 }
             }
