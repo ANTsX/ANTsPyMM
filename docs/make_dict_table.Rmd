@@ -983,6 +983,7 @@ for (  subtype in subtypes ) {
                                 print(cog)
                                 print( cogcoff[,-c(1:2)])
                             (prplot( mdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
+                            pvaluedf[ct,cog]=min(cogcoff[,"Pr(>|t|)"])
                             }
                         }
                     }
