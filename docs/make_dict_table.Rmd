@@ -728,12 +728,12 @@ coggers = c( "ess", "gds",'lns','moca','NP1APAT','NP1ANXS',
     'nfl_serum', #upsit"lexical",'MODBNT',
     getNamesFromDataframe("score",clin), 
     getNamesFromDataframe("HVLT",clin), 
-    getNamesFromDataframe("hvlt_",clin), 
-    getNamesFromDataframe("pm_",clin) )
+    getNamesFromDataframe("hvlt_",clin) )
+#    getNamesFromDataframe("pm_",clin) )
 for ( cog in coggers )
     clin[,cog]=as.numeric(clin[,cog])
 mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_mc_any" ,           "pm_wb_any")
-clin$milestonesum = rowSums( clin[,mymiles] )
+# clin$milestonesum = rowSums( clin[,mymiles] )
 commcov = " brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX  "
 commcov = " brainVolume_BL + EDUCYRS + meanthick + meanmd + snr + EVR + psnr + mi + ssim + ol_loop + T1Hier_resnetGrade + ( Age1 + Age2 ) + SEX  "
 commcov = " (1|PATNO) + (1|SITE)+EVR + brainVolume_BL + hy_BL + moca_BL + EDUCYRS + ( Age1 + Age2 ) * SEX "
@@ -981,9 +981,12 @@ for (  subtype in subtypes ) {
                             if ( any( cogcoff[,"Pr(>|t|)"] < 0.001 ) ) {
                                 message(paste(testvols,cog))
                                 print(cog)
-                                print( cogcoff[,-c(1:2)])
-                            (prplot( mdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
-                            pvaluedf[ct,cog]=min(cogcoff[,"Pr(>|t|)"])
+                                print( cogcoff[,-c(1:2)] )
+                                cogpvform = insight::format_p( 
+                                    min(cogcoff[,"Pr(>|t|)"]),
+                                    stars=TRUE, digits=4 )
+                                (prplot( mdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,cog,"\n",cogpvform))) %>% print()
+                                pvaluedf[ct,cog]=min(cogcoff[,"Pr(>|t|)"])
                             }
                         }
                     }
@@ -1273,5 +1276,23 @@ temporoparietal junction [https://pubmed.ncbi.nlm.nih.gov/28057458/](https://pub
 
 
 ```{r temporoparietal,echo=FALSE}
+
+```
+
+
+```{r cogresults,echo=FALSE,eval=TRUE}
+cogindex = names( pvaluedf)  %in% coggers
+cognames = c( 'subtype','anat', names(pvaluedf)[cogindex] )
+cogresults = data.frame( matrix(nrow=1,ncol=length(cognames)))
+colnames(cogresults)=cognames
+ct = 1
+for ( x in names(pvaluedf)[cogindex] ) { 
+    sel=fs(p.adjust( pvaluedf[,x], 'bonf' ) <= 0.05)
+    temo=pvaluedf[sel,c('subtype','anat',x)]
+    cogresults[ct:(ct+sum(sel)-1),c('subtype','anat',x)]=temo
+    ct=ct+sum(sel)
+}
+
+reactable::reactable( cogresults, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 120, static = FALSE, sortable=TRUE )
 
 ```
