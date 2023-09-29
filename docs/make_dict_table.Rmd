@@ -595,22 +595,22 @@ baseimpute <-function( mydf, varofinterest ) {
     vodl = paste0(varofinterest,"_delta")
     isbl=mydf$imaging_EVENT_ID =='V0'
     isna=is.na( mydf[,vobl] )
-    mydf[isna,vobl]=mean(mydf[!isna & isbl,vobl],na.rm=T)
+    mydf[isna,vobl]=mean(na.omit(mydf[!isna & isbl,vobl]))
     disna=is.na( mydf[,vodl] )
     mydf[disna,vodl]=mydf[disna,varofinterest]-mydf[disna,vobl]
     return( mydf )
     }
 
-visitimpute <-function( mydf, varofinterest ) {
-    yearr = round( mydf$yearsbl )
+visitimpute <-function( mydf, varofinterest, scaler=5 ) {
+    yearr = round( sort(mydf$yearsbl*scaler))
     vobl = paste0(varofinterest,"_BL")
     vodl = paste0(varofinterest,"_delta")
     udx = unique( mydf$DXSubAsyn )
-    for ( v in c(0,1,2,4) ) {
+    for ( v in unique(yearr) ) {
         for ( u in udx ) {
             isviz=fs(yearr == v & mydf$DXSubAsyn==u)
             isna=isviz & is.na( mydf[,varofinterest] )
-            mydf[isna,varofinterest]=mean(mydf[!isna & isviz,varofinterest],na.rm=T)
+            mydf[isna,varofinterest]=mean(na.omit(mydf[!isna & isviz,varofinterest]))
             }
         }
     mydf[,vodl]=mydf[,varofinterest]-mydf[,vobl]
@@ -701,12 +701,16 @@ recentdates = 1:nrow(clin) %in% multigrep( c(2020,2021,2022,2023), clin$date, in
 #################
 library(lmerTest)
 t1names=c( 
+        getNamesFromDataframe( c("T1Hier_vol",'brainstem'), dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') ),
+        getNamesFromDataframe( c("T1Hier_vol",'cerebellum'), dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') ),    
         getNamesFromDataframe( "T1Hier_vol", dd, 
-            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit') ),
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','cerebellum','brainstem','dktregions','dktlobes') ),
         getNamesFromDataframe( c("T1Hier_thk"), dd, 
-            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit') ) )
-t1names = t1names[ 
-    multigrep(c( "fusiform", "nbm", "supra","temporal","parietal","central","snc","_pu_","_ca_","_snr","_gpi","_gpe"), t1names ) ]
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit','cerebellum','brainstem','dktregions','dktlobes') ) )
+t1names = unique( t1names[ 
+    multigrep(c( "fusiform", "nbm", "supra","temporal","parietal","central","snc","_pu_","_ca_","_snr","_gpi","_gpe","cerebellum","pons","medulla","midbrain"), t1names ) ] )
 dtinames=c(
     getNamesFromDataframe( c("DTI","mean_md_deep"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
 #    getNamesFromDataframe( c("DTI","mean_fa","jhu"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
@@ -732,23 +736,29 @@ mymiles = c("pm_adl_any","pm_fd_any","pm_auto_any", "pm_cog_any",           "pm_
 clin$milestonesum = rowSums( clin[,mymiles] )
 commcov = " brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX  "
 commcov = " brainVolume_BL + EDUCYRS + meanthick + meanmd + snr + EVR + psnr + mi + ssim + ol_loop + T1Hier_resnetGrade + ( Age1 + Age2 ) + SEX  "
-commcov = " brainVolume_BL + EDUCYRS + T1Hier_resnetGrade + ( Age1 ) + SEX  "
+commcov = " (1|PATNO) + (1|SITE)+EVR + brainVolume_BL + hy_BL + moca_BL + EDUCYRS + ( Age1 + Age2 ) * SEX "
+commcov = " (1|PATNO) + (1|SITE) + T1Hier_resnetGrade + brainVolume_BL + hy_BL + EDUCYRS + ( Age1 + Age2 ) + SEX "
 covars0x = commcov
-covars0 = paste("testvol_delta ~ (1|PATNO) + (1|SITE)+testvol_BL + ", commcov )
-# covars0 = paste("testvol ~ (1|PATNO) + (1|SITE) +  ", commcov )
-dticovars="+DTI_dti_FD_mean "
+covars0 = paste("testvol_delta ~ testvol_BL + ", commcov )
+# covars0 = paste("testvol_delta ~ (1|PATNO) + (1|SITE) + ", commcov )
+dticovars=" + DTI_dti_FD_mean "
 #################################################
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
+clin$hy[ is.na( clin$hy )] = "0"
+clin$hy = as.numeric( clin$hy )
+clin$moca = ANTsRCore::antsrimpute( clin$moca )
+clin$age_BL=ANTsRCore::antsrimpute(as.numeric(clin$age_BL))
 corrmeth='BH'
-winsval=0.02
+winsval=0.001
 qthresh=5e-5
+qthresh=0.001
 ythresh=4.25
 print( paste("PARAMS: corrmeth",corrmeth,"winsval",winsval,"qthresh",qthresh,"ythresh", ythresh ))
 commonsel = !is.na( clin$AsynStatus) & fs(
     clin$T1Hier_resnetGrade >= 1.02 &
-    clin$yearsbl <= ythresh  )
-#    !clin$mrimodel %in% c("SIGNA") )
+    clin$yearsbl <= ythresh  &
+    !clin$mrimodel %in% c("SIGNA") )
 #    !(clin$mrimfg %in% c("Toshiba")) )
 table(commonsel)
 runstats=TRUE
@@ -771,7 +781,6 @@ for (  subtype in subtypes ) {
     sage=data.frame( stats::poly( studydata$age_BL , 2 ) )
     colnames(sage)=c("Age1","Age2")
     studydata=cbind(studydata,sage)
-#    studydata[,testnames]=residuals(lm( data.matrix(studydata[,testnames]) ~ studydata$SITE))
     studydata$SEX = factor( studydata$SEX )
     if ( FALSE ) {
         studydata$DXSubAsyn = paste0( studydata$DXSubAsyn, studydata$SEX )
@@ -788,7 +797,7 @@ for (  subtype in subtypes ) {
         studydata[,mdnames]=studydata[,mdnames]/studydata$meanmd
         studydata[,thknames]=studydata[,thknames]/studydata$meanthick
         }
-    testnames = c( t1names, dtinames, rsfnames )
+    testnames = unique( c( t1names, dtinames, rsfnames ) )
     if ( winsval == 0.0 ) {
         isna=is.na( studydata[,testnames] )
         temp = ANTsR::robustMatrixTransform(studydata[,testnames])
@@ -812,15 +821,16 @@ for (  subtype in subtypes ) {
         countdtinz[x]=sum( !is.na(studydata[,testnames[x]]) & studydata[,testnames[x]] > 0)
     }
     testnames=testnames[ countdtinz > 100 ]
-    testnames = testnames[ -grep("Asym",testnames)]
+#    testnames = testnames[ -grep("Asym",testnames)]
     studydata$meanthick = rowMeans( studydata[,thknames])
     studydata$meanmd = rowMeans( studydata[,mdnames])
     studydata = fillBaselineColumn( studydata,
-        c('meanthick','meanmd','brainVolume',testnames), 
+        c('meanthick','meanmd','brainVolume',testnames,'hy','moca'), 
         'PATNO', 'imaging_EVENT_ID', 'V0', 
         fast=T, verbose=F )[[1]]
     for ( x in  c('meanthick','meanmd','brainVolume',testnames) ) {
-        studydata=visitimpute( studydata, x )
+#        studydata=baseimpute( studydata, x )
+#        studydata=visitimpute( studydata, x, 2 )
         }
     if ( FALSE )
         testnames = c( 
@@ -833,7 +843,7 @@ for (  subtype in subtypes ) {
         studydata$testvol_delta = studydata[ ,paste0(testvols,"_delta")]
         studydata$testvol_delta = psych::winsor(studydata$testvol_delta,tr=winsval)
         studydata$SEX = factor( studydata$SEX )
-        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','T1Hier_resnetGrade','DTI_dti_tsnr_b0_mean','testvol_BL','brainVolume_BL','EDUCYRS')
+        toscale = c('snr','psnr','EVR','age_BL','DTI_dti_FD_mean','T1Hier_resnetGrade','DTI_dti_tsnr_b0_mean','testvol_BL','brainVolume_BL','EDUCYRS', 'moca_BL', 'hy_BL' )
         studydata$EDUCYRS=as.numeric(studydata$EDUCYRS)
         studydata[,toscale]=scale(studydata[,toscale])
         studydata$EDUCYRS = scale(ANTsRCore::antsrimpute(as.numeric( studydata$EDUCYRS )))
@@ -847,15 +857,14 @@ for (  subtype in subtypes ) {
         myform=paste( covars, " + yearsbl * ( DXSubAsyn )")
         # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3281513/
         # section: Advantages and Disadvantages of Fixed Main Effect for Site
-        bformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " + yearsbl ")
-        myformx=paste( "testvol~(1|PATNO)+(1|SITE)+",covarsx, " + yearsbl * ( DXSubAsyn )")
-        studydata$age_BL=ANTsRCore::antsrimpute(as.numeric(studydata$age_BL))
+        bformx=paste( "testvol~",covarsx, " + yearsbl ")
+        myformx=paste( "testvol~",covarsx, " + yearsbl * ( DXSubAsyn )")
         isblsub = studydata$PATNO[ studydata$imaging_EVENT_ID=='V0' ]
         isfsub = studydata$PATNO[ studydata$imaging_EVENT_ID !='V0' ]
         isboth = intersect( isblsub, isfsub )
         studydatasub = studydata[ studydata$PATNO %in% isboth,]
-        bmdl = try( lmer( bform,data=studydatasub ) )
-        mdl = try( lmer( myform,data=studydatasub ) )
+        bmdl = try( lmer( bform,data=studydata ) )
+        mdl = try( lmer( myform,data=studydata ) )
         bmdlx = lmer( bformx,data=studydata )
         mdlx = lmer( myformx,data=studydata )
         if ( FALSE ) {
@@ -926,7 +935,7 @@ for (  subtype in subtypes ) {
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
                 mypal = 'lancet'
-                (prplot( mdlx,'yearsbl',  'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",unlist(strsplit(nstring,"\n"))[1]))) %>% print()
+                (prplot( mdlx,'yearsbl',  'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
 #                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydatasub$yearr=round( studydatasub$yearsbl )
                 temp = table( studydatasub[,'PATNO'] )
@@ -952,6 +961,32 @@ for (  subtype in subtypes ) {
                         ggtitle(paste(yername," : raw")) +
                         scale_colour_manual(values = manualColors ) )
 #                    ggscatter( studydata, 'yearsbl', "brainVolume", facet.by='DXSubAsyn', color='DXSubAsyn', add='reg.line', conf.int=T, cor.coef=T, parse=T, palette=manualColors ) %>% print()
+
+                    # now test the TPL hypotheses
+                    testcog=TRUE
+                    if ( testcog ) {
+                        subcohort = studydata[ studydata$DXSubAsyn != 'CNNegative',]
+                        subcohortbl = studydata[ studydata$DXSubAsyn !=     
+                            'CNNegative' &
+                            studydata$imaging_EVENT_ID == 'V0', ]
+                        myst = trainSubtypeUni( subcohortbl, "testvol",
+                            c("Alow","Amid","Ahigh"), quantiles = c(0.33,0.66) )
+                        subcohort = predictSubtypeUni( subcohort, myst, 'PATNO', 
+                            'imaging_EVENT_ID', 'V0')
+                        for ( cog in coggers ) {
+                            cogform=paste( cog , "~", commcov, "+subtype*yearsbl" )
+                            mdl = try( lmer( cogform, data=subcohort ) )
+                            cogcoff=coefficients(summary(mdl))
+                            cogcoff=cogcoff[grep("subtype",rownames(cogcoff)),]
+                            if ( any( cogcoff[,"Pr(>|t|)"] < 0.001 ) ) {
+                                message(paste(testvols,cog))
+                                print(cog)
+                                print( cogcoff[,-c(1:2)])
+                            (prplot( mdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
+                            }
+                        }
+                    }
+
                     }
                 }
             }
@@ -1106,7 +1141,7 @@ for ( x in names(pvaluedfG)[1:(length(names(pvaluedfG))-2)] ) {
 
 
 
-## single model group results
+<!-- ## single model group results -->
 
 ```{r printintegrated,echo=FALSE,eval=runstatsG}
 dxnames = names( pvaluedfG )
@@ -1225,3 +1260,17 @@ for ( testvols in ( testnames ) ) {
 
 ```
 
+
+## some references for methods
+
+modeling site variability [https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3281513/](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3281513/)
+
+temporoparietal junction [https://pubmed.ncbi.nlm.nih.gov/28057458/](https://pubmed.ncbi.nlm.nih.gov/28057458/)
+
+
+## test the temporoparietal junction with cognition
+
+
+```{r temporoparietal,echo=FALSE}
+
+```
