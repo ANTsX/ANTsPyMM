@@ -701,6 +701,8 @@ recentdates = 1:nrow(clin) %in% multigrep( c(2020,2021,2022,2023), clin$date, in
 #################
 library(lmerTest)
 t1names=c( 
+        getNamesFromDataframe( c("T1Hier_vol",'mtl'), dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes','area') ),
         getNamesFromDataframe( c("T1Hier_vol",'brainstem'), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') ),
         getNamesFromDataframe( c("T1Hier_vol",'cerebellum'), dd, 
@@ -725,7 +727,8 @@ mdnames = getNamesFromDataframe( c("DTI_mean_md_"), dd )
 cnxnames = getNamesFromDataframe( c("DTI","cnx"), dd )
 coggers = c( "ess", "gds",'lns','moca','NP1APAT','NP1ANXS',
     "mean_striatum",'NP1DPRS', 'pigd', 'rem', 'quip','scopa','stai','VLTANIM',
-    'nfl_serum', #upsit"lexical",'MODBNT',
+    'nfl_serum', 'abeta', 'tau',
+    #upsit"lexical",'MODBNT',
     getNamesFromDataframe("score",clin), 
     getNamesFromDataframe("HVLT",clin), 
     getNamesFromDataframe("hvlt_",clin) )
@@ -806,9 +809,9 @@ for (  subtype in subtypes ) {
         }
     ####################################
     studydata=mapAsymVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
     studydata=mapLRAverageVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
     studydata=mapAsymVar( studydata, 
         testnames[ grep("_left", testnames) ] )
     studydata=mapLRAverageVar( studydata, 
@@ -965,36 +968,36 @@ for (  subtype in subtypes ) {
                     # now test the TPL hypotheses
                     testcog=TRUE
                     if ( testcog ) {
-                        subcohort = studydata[ studydata$DXSubAsyn != 'CNNegative',]
-                        subcohortbl = studydata[ studydata$DXSubAsyn !=     
+                        subcohort = studydatasub[ studydatasub$DXSubAsyn != 'CNNegative',]
+                        subcohortbl = studydatasub[ studydatasub$DXSubAsyn !=     
                             'CNNegative' &
-                            studydata$imaging_EVENT_ID == 'V0', ]
+                            studydatasub$imaging_EVENT_ID == 'V0', ]
                         myst = trainSubtypeUni( subcohortbl, "testvol",
                             c("Alow","Amid","Ahigh"), quantiles = c(0.33,0.66) )
                         subcohort = predictSubtypeUni( subcohort, myst, 'PATNO', 
                             'imaging_EVENT_ID', 'V0')
                         for ( cog in coggers ) {
-                            cogform=paste( cog , "~", commcov, "+subtype*yearsbl" )
-                            mdl = try( lmer( cogform, data=subcohort ) )
-                            cogcoff=coefficients(summary(mdl))
+                            cogform=paste( cog , "~", commcov, "+AsynStatus+subtype*yearsbl" )
+                            cogmdl = try( lmer( cogform, data=subcohort ) )
+                            cogcoff=coefficients(summary(cogmdl))
                             cogcoff=cogcoff[grep("subtype",rownames(cogcoff)),]
                             if ( any( cogcoff[,"Pr(>|t|)"] < 0.001 ) ) {
                                 message(paste(testvols,cog))
-                                print(cog)
+                                print(paste("COGGER",cog))
                                 print( cogcoff[,-c(1:2)] )
                                 cogpvform = insight::format_p( 
                                     min(cogcoff[,"Pr(>|t|)"]),
                                     stars=TRUE, digits=4 )
-                                (prplot( mdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,cog,"\n",cogpvform))) %>% print()
+                                (prplot( cogmdl,'yearsbl',  'subtype',color='subtype', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,"COGGER",cog,"\n",cogpvform))) %>% print()
                                 pvaluedf[ct,cog]=min(cogcoff[,"Pr(>|t|)"])
                             }
                         }
                     }
 
-                    }
                 }
             }
         }
+    }
     cat("****************\n\n")
 } # subtype loop
 ##########################################################
@@ -1071,9 +1074,9 @@ studydata = fillBaselineColumn( studydata,
         fast=T, verbose=F )[[1]]
 testnames = c( t1names, dtinames, rsfnames )
 studydata=mapAsymVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
 studydata=mapLRAverageVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
 studydata=mapAsymVar( studydata, 
         testnames[ grep("_left", testnames) ] )
 studydata=mapLRAverageVar( studydata, 
@@ -1198,9 +1201,9 @@ studydata = fillBaselineColumn( studydata,
         fast=T, verbose=F )[[1]]
 testnames = c( t1names, dtinames, rsfnames )
 studydata=mapAsymVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
 studydata=mapLRAverageVar( studydata, 
-        testnames[ grep("_l_", testnames) ] )
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
 studydata=mapAsymVar( studydata, 
         testnames[ grep("_left", testnames) ] )
 studydata=mapLRAverageVar( studydata, 
@@ -1272,13 +1275,7 @@ modeling site variability [https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3281513/
 temporoparietal junction [https://pubmed.ncbi.nlm.nih.gov/28057458/](https://pubmed.ncbi.nlm.nih.gov/28057458/)
 
 
-## test the temporoparietal junction with cognition
-
-
-```{r temporoparietal,echo=FALSE}
-
-```
-
+## test the anatomical relationship with cognition and clinical measurements
 
 ```{r cogresults,echo=FALSE,eval=TRUE}
 cogindex = names( pvaluedf)  %in% coggers
@@ -1293,6 +1290,104 @@ for ( x in names(pvaluedf)[cogindex] ) {
     ct=ct+sum(sel)
 }
 
-reactable::reactable( cogresults, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 120, static = FALSE, sortable=TRUE )
+# reactable::reactable( cogresults, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 120, static = FALSE, sortable=TRUE )
+
+cogclean = tidyr::pivot_longer( cogresults, names(cogresults)[-c(1:2)] )
+names(cogclean)[names(cogclean)=='value']='pvalue'
+names(cogclean)[names(cogclean)=='name']='cogclin'
+cogclean = cogclean[ !is.na(cogclean$pvalue), ]
+for ( x in 1:nrow(cogclean)){
+    cogclean$pvalue[x]=insight::format_p( cogclean$pvalue[x],
+            stars=TRUE, digits=4 )
+}
+reactable::reactable( cogclean, highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 120, static = FALSE, sortable=TRUE )
+
+```
+
+
+
+
+## multivariate subtyping
+
+
+```{r mvst,echo=FALSE,eval=FALSE}
+dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
+ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
+ssel = fs( commonsel )# & clin$DX != 'CN' )
+clustdata = clin[ssel,]
+print( table(round(clustdata$yearsbl), clustdata$DXSubAsyn) )
+sage=data.frame( stats::poly( clustdata$age_BL , 2 ) )
+colnames(sage)=c("Age1","Age2")
+clustdata=cbind(clustdata,sage)
+clustdata$SEX = factor( clustdata$SEX )
+# clustdata[,'DXSubAsyn']=factor(clustdata[,'DXSubAsyn'],levels=dxs)
+clustdata$duration_yrs = as.numeric( clustdata$duration_yrs )
+clustdata$cnxtot = rowSums( clustdata[,cnxnames] )
+clustdata[,cnxnames]=clustdata[,cnxnames]/clustdata$cnxtot
+testnames = unique( c( t1names, dtinames, rsfnames ) )
+clustdata=mapAsymVar( clustdata,
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
+clustdata=mapLRAverageVar( clustdata, 
+        testnames[ grep("_l_", testnames) ], '_l_', "_r_" )
+clustdata=mapAsymVar( clustdata, 
+        testnames[ grep("_left", testnames) ] )
+clustdata=mapLRAverageVar( clustdata, 
+        testnames[ grep("_left", testnames) ] )
+testnames = c( 
+        getNamesFromDataframe( "Asym" , clustdata ),
+        getNamesFromDataframe( "LRAVG" , clustdata ) )
+countdtinz=rep(NA,length(testnames))
+for ( x in 1:length(testnames) ) {
+        countdtinz[x]=sum( !is.na(clustdata[,testnames[x]]) & clustdata[,testnames[x]] > 0)
+    }
+testnames=testnames[ countdtinz > 100 ]
+#    testnames = testnames[ -grep("Asym",testnames)]
+clustdata = fillBaselineColumn( clustdata,
+        c('brainVolume',testnames,'hy','moca'), 
+        'PATNO', 'imaging_EVENT_ID', 'V0', 
+        fast=T, verbose=F )[[1]]
+cohsel = clustdata$DX %in% c('PD','Prodromal','CN')
+subcohort = clustdata[ cohsel,]
+basesel = fs(subcohort$imaging_EVENT_ID == 'V0')
+trainsel = fs( basesel & subcohort$DX == 'PD' )
+subcohortbl = subcohort[ basesel, ]
+mcnames = testnames[ -grep("DTI",testnames) ]
+subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
+subcohortbl[,mcnames]=subcohort[basesel,mcnames]
+subcohorttr=subcohort[trainsel,mcnames]
+myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'jaccard', 6 )
+mvcl='MVCX'
+subcohort = predictSubtypeClusterMulti( subcohort, mcnames, myst, mvcl, 
+    'PATNO', 'imaging_EVENT_ID', 'V0')
+print( table( subcohort$DXSubAsyn, subcohort[,mvcl] ))
+subcohortProdromal = subcohort[ subcohort$DX != 'PD' & subcohort$yearsbl <= 2.5,]
+print( table( subcohortProdromal$DXSubAsyn, subcohortProdromal[,mvcl] ))
+for ( cog in coggers[ !( coggers %in% c('mean_striatum','updrs4_score') ) ] ) {
+    cogform=paste( cog , "~", commcov, "+(yearsbl)*",mvcl )
+    cogmdl = lmer( cogform, data=subcohortProdromal )
+    cogcoff=coefficients(summary(cogmdl))
+    cogcoff=cogcoff[grep(mvcl,rownames(cogcoff)),]
+    if ( any( cogcoff[,"Pr(>|t|)"] < 0.001 ) ) {
+        message(paste('mvclust',cog))
+        print(paste("COGGER",cog))
+        print( cogcoff[,-c(1:2)] )
+        cogpvform = insight::format_p( 
+            min(cogcoff[,"Pr(>|t|)"]),
+            stars=TRUE, digits=4 )
+        temp = table( subcohort$PATNO )
+        subcohort$yearr =round( subcohort$yearsbl)
+        tsel = ( subcohort$yearr %in% c(0,1,2) ) & 
+                    subcohort$PATNO %in% names(temp)[temp>=2]
+        print( plotSubtypeChange( subcohort[tsel,],
+                        idvar='PATNO', mvcl,
+                        measurement=cog,
+                        vizname='yearr', 'se', xlab='yr from v0' ) + 
+                        ggtitle(paste(cog," : raw"))  )
+#        (prplot( cogmdl,'yearsbl', mvcl, color=mvcl, 
+ #           addpoints=1, palette=mypal ) +
+  #          ggtitle(paste(mvcl,"COGGER",cog,"\n",cogpvform))) %>% print()
+    }
+}
+#####
 
 ```
