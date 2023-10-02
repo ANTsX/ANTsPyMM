@@ -509,10 +509,11 @@ if ( ! exists( "clin2" ) ) {
     isprkn = grep("PRKN",clin2$subgroup)
     issnca = grep("SNCA",clin2$subgroup)
     issporadic = grep("Sporadic",clin2$subgroup)
+    isprodspor = which( clin2$subgroup %in% c("Hyposmia","RBD","Sporadic","RBD + Hyposmia") )
     clin2$DXSub[ intersect(ispd,issporadic) ]='PDSporadic'
     clin2$DXSub[ intersect(ispd,islrrk2) ]='PDLRRK2'
     clin2$DXSub[ intersect(ispd,isgba) ]='PDGBA'
-    clin2$DXSub[ intersect(ispro,issporadic) ]='ProdromalSporadic'
+    clin2$DXSub[ intersect(ispro,isprodspor) ]='ProdromalSporadic'
     clin2$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
     clin2$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
     # identify asyn status for each subject
@@ -1314,6 +1315,7 @@ reactable::reactable( cogclean, highlight = TRUE, bordered = TRUE, striped = TRU
 
 
 ```{r mvst,echo=FALSE,eval=FALSE}
+######################################################################
 dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
 ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
 ssel = fs( commonsel )# & clin$DX != 'CN' )
@@ -1349,24 +1351,45 @@ clustdata = fillBaselineColumn( clustdata,
         c('brainVolume',testnames,'hy','moca'), 
         'PATNO', 'imaging_EVENT_ID', 'V0', 
         fast=T, verbose=F )[[1]]
+###################################################
 cohsel = clustdata$DX %in% c('PD','Prodromal','CN')
+# cohsel = clustdata$DXSubAsyn %in% c('PDSporadicPositive')
 subcohort = clustdata[ cohsel,]
 basesel = fs(subcohort$imaging_EVENT_ID == 'V0')
-trainsel = fs( basesel & subcohort$DX == 'PD' )
+trainsel = fs( basesel & subcohort$DX %in%  c('Prodromal','CN' ) )
+trainsel = fs( basesel & subcohort$hy_BL %in%  c(0) )
+trainsel = fs( basesel ) # & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
 subcohortbl = subcohort[ basesel, ]
-mcnames = testnames[ -grep("DTI",testnames) ]
-subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
+mcnames = testnames[ -multigrep(c("DTI","mtl","cereb"), testnames) ]
+mcnames = testnames[ -multigrep(c("DTI"), testnames) ]
+subcohort[,mcnames]=ANTsRCore::antsrimpute(subcohort[,mcnames])
+# subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
+subcohort[,mcnames]=ANTsR::robustMatrixTransform(subcohort[,mcnames])
 subcohortbl[,mcnames]=subcohort[basesel,mcnames]
 subcohorttr=subcohort[trainsel,mcnames]
-myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'angle', 6 )
+myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'angle', desiredk=2 )
 mvcl='MVCX'
 subcohort = predictSubtypeClusterMulti( subcohort, mcnames, myst, mvcl, 
     'PATNO', 'imaging_EVENT_ID', 'V0')
 print( table( subcohort$DXSubAsyn, subcohort[,mvcl] ))
-subcohortProdromal = subcohort[ subcohort$DX != 'PD' & subcohort$yearsbl <= 2.5,]
+subcohortProdromal = subcohort[ fs( !is.na(subcohort$AsynStatus) &
+    subcohort$DX %in% c("Prodromal") & subcohort$yearsbl <= 2.5),]
+subcohortProdromal$CDX = paste0(subcohortProdromal$AsynStatus,subcohortProdromal[,mvcl])
+#    subcohort$DXSub %in% c("PDSporadic") & subcohort$yearsbl <= 4.5,]
+# subcohortProdromal = subcohort[ subcohort$hy_BL > 0,]
+# subcohortProdromal = subcohort[ subcohort$DX == 'PD' & subcohort$yearsbl <= 4.5,]
+# subcohortProdromal = subcohort[ subcohort$yearsbl <= 2.5,]
 print( table( subcohortProdromal$DXSubAsyn, subcohortProdromal[,mvcl] ))
+print( table( subcohortProdromal$hy, subcohortProdromal[,mvcl] ))
 for ( cog in coggers[ !( coggers %in% c('mean_striatum','updrs4_score') ) ] ) {
-    cogform=paste( cog , "~", commcov, "+(yearsbl)*",mvcl )
+# for ( cog in coggers ) {
+    print(paste("cog",cog))
+    temp = table( subcohortProdromal$PATNO )
+    subcohortProdromal$yearr =round( subcohortProdromal$yearsbl)
+    tsel = ( subcohortProdromal$yearr %in% c(0,1,2,4) ) & 
+                    subcohortProdromal$PATNO %in% names(temp)[temp>=1]
+    subcohortProdromal = subcohortProdromal[tsel,]
+    cogform=paste( cog , "~", commcov, "+(yearsbl)*CDX" )
     cogmdl = lmer( cogform, data=subcohortProdromal )
     cogcoff=coefficients(summary(cogmdl))
     cogcoff=cogcoff[grep(mvcl,rownames(cogcoff)),]
@@ -1377,18 +1400,19 @@ for ( cog in coggers[ !( coggers %in% c('mean_striatum','updrs4_score') ) ] ) {
         cogpvform = insight::format_p( 
             min(cogcoff[,"Pr(>|t|)"]),
             stars=TRUE, digits=4 )
-        temp = table( subcohort$PATNO )
-        subcohort$yearr =round( subcohort$yearsbl)
-        tsel = ( subcohort$yearr %in% c(0,1,2) ) & 
-                    subcohort$PATNO %in% names(temp)[temp>=2]
-        print( plotSubtypeChange( subcohort[tsel,],
-                        idvar='PATNO', mvcl,
+        print( plotSubtypeChange( subcohortProdromal,
+                        idvar='PATNO', 'CDX',
                         measurement=cog,
                         vizname='yearr', 'se', xlab='yr from v0' ) + 
                         ggtitle(paste(cog," : raw"))  )
-#        (prplot( cogmdl,'yearsbl', mvcl, color=mvcl, 
- #           addpoints=1, palette=mypal ) +
-  #          ggtitle(paste(mvcl,"COGGER",cog,"\n",cogpvform))) %>% print()
+        subcohortProdromal$temp = as.character( subcohortProdromal[,'DXSub'])
+        subcohortg=subcohortProdromal[!is.na(subcohortProdromal$temp),]
+        ggscatter( subcohortg, 'yearsbl', cog, facet.by='CDX', color='temp', add='reg.line', conf.int=T, cor.coef=T, parse=T ) %>% print()
+#        ggscatter( subcohortg, 'yearsbl', cog, facet.by='hy', color=mvcl, add='reg.line', conf.int=T, cor.coef=T, parse=T ) %>% print()
+#        if ( FALSE )
+        (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
+            addpoints=1, palette=mypal ) +
+            ggtitle(paste(mvcl,"COGGER",cog,"\n",cogpvform))) %>% print()
     }
 }
 #####
