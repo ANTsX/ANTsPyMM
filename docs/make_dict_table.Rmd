@@ -1316,6 +1316,13 @@ reactable::reactable( cogclean, highlight = TRUE, bordered = TRUE, striped = TRU
 
 ```{r mvst,echo=FALSE,eval=FALSE}
 ######################################################################
+clin$ptau = as.numeric( clin$ptau )
+clin$tau = as.numeric( clin$tau )
+clin$EDUCYRS = as.numeric( clin$EDUCYRS )
+clin$hy[ is.na( clin$hy )] = "0"
+clin$hy = as.numeric( clin$hy )
+clin$moca = ANTsRCore::antsrimpute(as.numeric(clin$moca ))
+clin$age_BL=ANTsRCore::antsrimpute(as.numeric(clin$age_BL))
 dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
 ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
 ssel = fs( commonsel )# & clin$DX != 'CN' )
@@ -1358,7 +1365,7 @@ subcohort = clustdata[ cohsel,]
 basesel = fs(subcohort$imaging_EVENT_ID == 'V0')
 trainsel = fs( basesel & subcohort$DX %in%  c('Prodromal','CN' ) )
 trainsel = fs( basesel & subcohort$hy_BL %in%  c(0) )
-trainsel = fs( basesel ) # & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
+trainsel = fs( basesel & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
 subcohortbl = subcohort[ basesel, ]
 mcnames = testnames[ -multigrep(c("DTI","mtl","cereb"), testnames) ]
 mcnames = testnames[ -multigrep(c("DTI"), testnames) ]
@@ -1367,13 +1374,13 @@ subcohort[,mcnames]=ANTsRCore::antsrimpute(subcohort[,mcnames])
 subcohort[,mcnames]=ANTsR::robustMatrixTransform(subcohort[,mcnames])
 subcohortbl[,mcnames]=subcohort[basesel,mcnames]
 subcohorttr=subcohort[trainsel,mcnames]
-myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'angle', desiredk=2 )
+myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'angle', desiredk=3 )
 mvcl='MVCX'
 subcohort = predictSubtypeClusterMulti( subcohort, mcnames, myst, mvcl, 
     'PATNO', 'imaging_EVENT_ID', 'V0')
 print( table( subcohort$DXSubAsyn, subcohort[,mvcl] ))
 subcohortProdromal = subcohort[ fs( !is.na(subcohort$AsynStatus) &
-    subcohort$DX %in% c("Prodromal") & subcohort$yearsbl <= 2.5),]
+    subcohort$DX %in% c("PD") & subcohort$yearsbl <= 4.5),]
 subcohortProdromal$CDX = paste0(subcohortProdromal$AsynStatus,subcohortProdromal[,mvcl])
 #    subcohort$DXSub %in% c("PDSporadic") & subcohort$yearsbl <= 4.5,]
 # subcohortProdromal = subcohort[ subcohort$hy_BL > 0,]
