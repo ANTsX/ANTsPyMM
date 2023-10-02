@@ -571,6 +571,8 @@ if ( ! exists( "clin2" ) ) {
     clin2$brainVolume = clin2$brainVolume/mean(clin2$brainVolume,na.rm=T)
     clin2$mrimfg[ clin2$mrimfg == ""]="Unk"
     clin2$APOE[ clin2$APOE == "" ] = "e3/e3"
+    clin2$abeta = as.numeric( clin2$abeta )
+    clin2$tau = as.numeric( clin2$tau )
     }    
 ```
 
@@ -700,11 +702,11 @@ clin$mrimodel[ grep("Vantage_Elan",clin$mrimodel)]='Unk'
 recentdates = 1:nrow(clin) %in% multigrep( c(2020,2021,2022,2023), clin$date, intersect=FALSE )
 #################
 library(lmerTest)
+midnames = getNamesFromDataframe( c("T1Hier_vol",'brainstem'), dd, 
+            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') )
 t1names=c( 
         getNamesFromDataframe( c("T1Hier_vol",'mtl'), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes','area') ),
-        getNamesFromDataframe( c("T1Hier_vol",'brainstem'), dd, 
-            exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') ),
         getNamesFromDataframe( c("T1Hier_vol",'cerebellum'), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1","hemispher",'u_hier_id','filena','snseg','tcit','tissues','lobes','cleanup','dktregions','dktlobes') ),    
         getNamesFromDataframe( "T1Hier_vol", dd, 
@@ -712,7 +714,7 @@ t1names=c(
         getNamesFromDataframe( c("T1Hier_thk"), dd, 
             exclusions=c("_BL","_delta","evratio","Grade","mhdist","RandB","outli","templateL1",'filename','u_hier_id',"hemispher",'snseg','tcit','cerebellum','brainstem','dktregions','dktlobes') ) )
 t1names = unique( t1names[ 
-    multigrep(c( "fusiform", "nbm", "supra","temporal","parietal","central","snc","_pu_","_ca_","_snr","_gpi","_gpe","cerebellum","pons","medulla","midbrain"), t1names ) ] )
+    multigrep(c( "fusiform", "mtl", "nbm", "supra","temporal","parietal","central","snc","_pu_","_ca_","_snr","_gpi","_gpe","cerebellum","pons","medulla","midbrain"), t1names ) ] )
 dtinames=c(
     getNamesFromDataframe( c("DTI","mean_md_deep"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
 #    getNamesFromDataframe( c("DTI","mean_fa","jhu"), dd, exclusions=c("_BL","_delta","FD","motion","SNR","evr","ssnr","dvars","tsnr","volume",'filename','u_hier_id','cnx','snseg','tcit','reference') ) )
@@ -780,7 +782,7 @@ for (  subtype in subtypes ) {
     dxs = c("CNNegative", paste0("PD",subtype,c("Negative","Positive") ) )
     ssel = fs( clin$DXSubAsyn %in% dxs ) & commonsel
     studydata = clin[ssel,]
-    print( table(round(studydatasub$yearsbl), studydatasub$DXSubAsyn) )
+    print( table(round(studydata$yearsbl), studydata$DXSubAsyn) )
     sage=data.frame( stats::poly( studydata$age_BL , 2 ) )
     colnames(sage)=c("Age1","Age2")
     studydata=cbind(studydata,sage)
@@ -827,6 +829,7 @@ for (  subtype in subtypes ) {
 #    testnames = testnames[ -grep("Asym",testnames)]
     studydata$meanthick = rowMeans( studydata[,thknames])
     studydata$meanmd = rowMeans( studydata[,mdnames])
+    testnames = c( testnames, midnames )
     studydata = fillBaselineColumn( studydata,
         c('meanthick','meanmd','brainVolume',testnames,'hy','moca'), 
         'PATNO', 'imaging_EVENT_ID', 'V0', 
@@ -1355,7 +1358,7 @@ mcnames = testnames[ -grep("DTI",testnames) ]
 subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
 subcohortbl[,mcnames]=subcohort[basesel,mcnames]
 subcohorttr=subcohort[trainsel,mcnames]
-myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'jaccard', 6 )
+myst = trainSubtypeClusterMulti( subcohorttr, mcnames, 'angle', 6 )
 mvcl='MVCX'
 subcohort = predictSubtypeClusterMulti( subcohort, mcnames, myst, mvcl, 
     'PATNO', 'imaging_EVENT_ID', 'V0')
