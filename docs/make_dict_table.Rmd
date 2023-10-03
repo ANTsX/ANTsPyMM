@@ -1314,7 +1314,7 @@ reactable::reactable( cogclean, highlight = TRUE, bordered = TRUE, striped = TRU
 ## multivariate subtyping
 
 
-```{r mvst,echo=FALSE,eval=FALSE}
+```{r mvst,echo=FALSE,eval=TRUE}
 ######################################################################
 for ( m in mymiles ) {
     clin[,m]=as.numeric(clin[,m])
@@ -1560,11 +1560,20 @@ for ( myclust in clustlist ) {
     }
     print(myclust)
 }
-########
+#########################################################
+myg='PD'
+cmeth='hardcl'
+cmeth='angle'
+gsel = clustdfPD$group == myg & clustdfPD$method == cmeth
+clustdfsubPD = clustdfPD[gsel,]
+qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
 myg='Prodromal'
-gsel = clustdf$group == myg # & clustdf$method == 'hardcl'
+gsel = clustdf$group == myg  & clustdf$method == cmeth
 clustdfsub = clustdf[gsel,]
 qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
-clustdfsub[  qvals < 0.05,  ]
+cat("\n\n\n")
+print( clustdfsubPD[  qvalsPD < 0.05,  ] )
+cat("\n\n\n")
+print( clustdfsub[  qvals < 0.05,  ] )
 ##########
 ```
