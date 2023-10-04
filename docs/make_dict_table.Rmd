@@ -1641,13 +1641,14 @@ trainsel = fs( clustdata$DX != "Prodromal" )
 yth=4.5
 # this is training for model selection
 subcohortPD = clustdata[ fs(
-    clustdata$DXSub %in% c('PDSporadic') &
+    clustdata$DXSubAsyn %in% c('PDSporadicPositive') &
+#    clustdata$DXSub %in% c('PDSporadic') &
 #    clustdata$DX %in% c('PD') &
     clustdata$yearsbl <= yth),]
 # this is testing model selection
 subcohortProdromal = clustdata[ fs(
-    clustdata$DXSub %in% c("ProdromalSporadic") &
-#    clustdata$DXSubAsyn %in% c("ProdromalSporadicPositive") &
+#    clustdata$DXSub %in% c("ProdromalSporadic") &
+    clustdata$DXSubAsyn %in% c("ProdromalSporadicPositive") &
 #    clustdata$DX %in% c("Prodromal") &
     clustdata$yearsbl <= yth),]
 # names of the predicted clusters
@@ -1687,6 +1688,7 @@ for ( myclust in clustlist ) {
     }
 names( clustmodels ) = clustlist
 ## EVALUATE THE TRAINED MODELS in PD
+mygroup='PD'
 clustdf = data.frame( )
 for ( myclust in clustlist ) {
     myst = clustmodels[[myclust]]
@@ -1803,7 +1805,7 @@ for ( cmeth in clustlistPro ) {
     myg='Prodromal'
     gsel = clustdf$group == myg  & clustdf$method == cmeth
     clustdfsub = clustdf[gsel,]
-    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'none' )
+    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
 #    cat("\n\n\n")
 #    print(cmeth)
 #    print( clustdfsubPD[  qvalsPD < 0.05,  ] )
