@@ -1466,7 +1466,8 @@ for ( myclust in clustlist ) {
         'PATNO', 'imaging_EVENT_ID', 'V0')
     subcohortPD$CDX = paste0( subcohortPD[,mvcl], "_", subcohortPD$AsynStatus )
     subcohortPD$CDX=subcohortPD[,mvcl]
-    for ( cog in coggers[ !( coggers %in% c( 'MCI_testscores',  'abeta', 'tau', 'nfl_serum', 'mean_striatum','updrs4_score') ) ] ) {
+    coggersX = c(  "gds","lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai" , "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore" , "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall","hvlt_retention"  )
+    for ( cog in coggersX ) {
         print(paste("cog",cog,'clust',myclust,'PD'))
         thedf = subcohortPD
         temp = table( thedf$PATNO )
@@ -1483,7 +1484,7 @@ for ( myclust in clustlist ) {
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
-        if ( as.numeric(clustdf[nr,c('pvalue')]) < 1e-3 ) {
+        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.005 ) {
             ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
             message(paste('mvclust',cog))
             print( cogcoff[,-c(1:2)] )
@@ -1662,6 +1663,23 @@ for ( cmeth in clustlistPro ) {
     if ( sum(seller)>0 ) {
         cat("\n\n***************************\n")
         print( clustdfsub[ seller,  ] )
+    }
+}
+##########
+```
+
+## print OG evaluation
+
+```{r OGeval,echo=FALSE,eval=FALSE,warning=FALSE,message=FALSE}
+#########################################################
+for ( cmeth in clustlistPro ) {
+    gsel = clustdfPD$method == cmeth
+    clustdfsubPD = clustdfPD[gsel,]
+    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
+    seller=qvalsPD < 0.05
+    if ( sum(seller)>0 ) {
+        cat("\n\n***************************\n")
+        print( clustdfsubPD[ seller,  ] )
     }
 }
 ##########
