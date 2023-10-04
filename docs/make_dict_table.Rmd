@@ -683,7 +683,7 @@ getnstring <- function(dxname) {
 ### quick example longitudinal regression
 -->
 
-```{r lmerex,echo=FALSE,eval=TRUE,fig.width=12,fig.height=4,message=FALSE,warning=FALSE}
+```{r lmerex,echo=FALSE,eval=TRUE,fig.width=12,fig.height=4,message=FALSE,warning=FALSE,cache=TRUE}
 clin=clin2 # sets the source data
 #################
 clin[ fs(clin$mrimfg == ""), "mrimfg"] = "Unk"
@@ -772,7 +772,7 @@ runstatsG=FALSE
 #############
 ```
 
-```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=6,message=FALSE,warning=FALSE}
+```{r lmerextab,echo=FALSE,eval=runstats,fig.width=12,fig.height=6,message=FALSE,warning=FALSE,cache=TRUE}
 ###################################################
 pvaluedf = tvaluedf = data.frame()
 meffdall = data.frame()
@@ -1321,7 +1321,7 @@ for ( m in mymiles ) {
     }
 clin$ptau = as.numeric( clin$ptau )
 clin$tau = as.numeric( clin$tau )
-clin$EDUCYRS = as.numeric( clin$EDUCYRS )
+clin$EDUCYRS = ANTsRCore::antsrimpute(as.numeric( clin$EDUCYRS ))
 clin$hy[ is.na( clin$hy )] = "0"
 clin$hy = as.numeric( clin$hy )
 clin$moca = ANTsRCore::antsrimpute(as.numeric(clin$moca ))
@@ -1364,30 +1364,32 @@ clustdata = fillBaselineColumn( clustdata,
         fast=T, verbose=F )[[1]]
 ###################################################"mclust","flexcorr",
 ###################################################"mclust","flexcorr",
-desiredk = 5
+osex='SEX'
+trainsel = fs( basesel  ) # & is.na( subcohort$AsynStatus ) )
+trainsel = fs( basesel & subcohort$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
+trainsel = fs( basesel & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
+trainsel = fs( basesel & subcohort$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
+trainsel = fs( subcohort$DX == "PD" )
+desiredk = 4
 clustlist = c( "GMM", "kmeans", "pamCluster", 
     "kmeansflex","kmedians",  "angle",  "ejaccard", 
     "hardcl","neuralgas", "hierarchicalCluster" )
 clustlist = c(
     "GMM", 'kmeansflex', "pamCluster", 
-    "kmeansflex", "kmedians", "angle", "ejaccard", 
-    "hardcl" )
+    "kmeansflex", "kmedians", "angle", "ejaccard", "hardcl" )
 clustdf = data.frame( )
 for ( myclust in clustlist ) {
     print( paste( "myclust", myclust, 'begin' ) )
     cohsel = clustdata$DX %in% c('PD','Prodromal','CN')
     subcohort = clustdata[ cohsel,]
     basesel = fs( subcohort$imaging_EVENT_ID == 'V0' )
-    osex='SEX'
-    trainsel = fs( basesel & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
-    trainsel = fs( basesel  ) # & is.na( subcohort$AsynStatus ) )
-    trainsel = fs( basesel & subcohort$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
     subcohortbl = subcohort[ basesel, ]
     mcnames = testnames[ -multigrep(c("DTI","mtl","cereb"), testnames) ]
     mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ], midnames )
     subcohort[,mcnames]=ANTsRCore::antsrimpute(subcohort[,mcnames])
-    subcohort[,mcnames]=residuals( 
-        lm( data.matrix( subcohort[,mcnames] ) ~ Age1 + Age2 + SEX, data=subcohort ) )
+    subcohort[,'EDUCYRS']=ANTsRCore::antsrimpute(subcohort[,'EDUCYRS'])
+    subcohort[,mcnames]=residuals(
+        lm( data.matrix( subcohort[,mcnames] ) ~ brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX, data=subcohort ) )
 #    subcohort[,mcnames]=ANTsR::robustMatrixTransform(subcohort[,mcnames])
     subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
     subcohortbl[,mcnames]=subcohort[basesel,mcnames]
@@ -1466,7 +1468,7 @@ for ( myg in c( "PD" ) ) {
     gsel = clustdf$group == myg
     print( myg )
     clustdfsub = clustdf[gsel,]
-    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
+    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'none' )
     table( clustdfsub$method[  qvals < 0.05 ] ) %>% print()
     }
 clustdfPD = clustdf
@@ -1477,16 +1479,13 @@ for ( myclust in clustlist ) {
     cohsel = clustdata$DX %in% c('PD','Prodromal','CN')
     subcohort = clustdata[ cohsel,]
     basesel = fs( subcohort$imaging_EVENT_ID == 'V0' )
-    osex='SEX'
-    trainsel = fs( basesel & subcohort$DXSubAsyn %in% c('PDSporadicPositive') )
-    trainsel = fs( basesel  ) # & is.na( subcohort$AsynStatus ) )
-    trainsel = fs( basesel & subcohort$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
     subcohortbl = subcohort[ basesel, ]
     mcnames = testnames[ -multigrep(c("DTI","mtl","cereb"), testnames) ]
     mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ], midnames )
     subcohort[,mcnames]=ANTsRCore::antsrimpute(subcohort[,mcnames])
+    subcohort[,'EDUCYRS']=ANTsRCore::antsrimpute(subcohort[,'EDUCYRS'])
     subcohort[,mcnames]=residuals( 
-        lm( data.matrix( subcohort[,mcnames] ) ~ Age1 + Age2 + SEX, data=subcohort ) )
+        lm( data.matrix( subcohort[,mcnames] ) ~ brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX, data=subcohort ) )
 #    subcohort[,mcnames]=ANTsR::robustMatrixTransform(subcohort[,mcnames])
     subcohort[,mcnames]=scale(ANTsRCore::antsrimpute(subcohort[,mcnames]),T,T)
     subcohortbl[,mcnames]=subcohort[basesel,mcnames]
@@ -1561,19 +1560,20 @@ for ( myclust in clustlist ) {
     print(myclust)
 }
 #########################################################
-myg='PD'
-cmeth='hardcl'
-cmeth='angle'
-gsel = clustdfPD$group == myg & clustdfPD$method == cmeth
-clustdfsubPD = clustdfPD[gsel,]
-qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
-myg='Prodromal'
-gsel = clustdf$group == myg  & clustdf$method == cmeth
-clustdfsub = clustdf[gsel,]
-qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
-cat("\n\n\n")
-print( clustdfsubPD[  qvalsPD < 0.05,  ] )
-cat("\n\n\n")
-print( clustdfsub[  qvals < 0.05,  ] )
+for ( cmeth in clustlist ) {
+    myg='PD'
+    gsel = clustdfPD$group == myg & clustdfPD$method == cmeth
+    clustdfsubPD = clustdfPD[gsel,]
+    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
+    myg='Prodromal'
+    gsel = clustdf$group == myg  & clustdf$method == cmeth
+    clustdfsub = clustdf[gsel,]
+    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
+    cat("\n\n\n")
+    print(cmeth)
+    print( clustdfsubPD[  qvalsPD < 0.05,  ] )
+    cat("\n\n\n")
+    print( clustdfsub[ qvals < 0.05 &  clustdfsub$cog %in% clustdfsubPD[  qvalsPD < 0.05, "cog" ],  ] )
+}
 ##########
 ```
