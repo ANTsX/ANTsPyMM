@@ -17,6 +17,8 @@ library(ggpubr)
 library(gridExtra)
 library(ggsci)
 options(digits=3)
+library(lmerTest)
+library(lme4)
 options( ztable.type="html" )
 tblcmd = ztable
 rr=read.csv("~/code/ANTsPyMM/antspymm_data_dictionary.csv")
@@ -1313,7 +1315,7 @@ reactable::reactable( cogclean, highlight = TRUE, bordered = TRUE, striped = TRU
 
 ## multivariate subtyping
 
-```{r mvst2setup,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+```{r mvst2setup,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
 ######################################################################
 for ( m in mymiles ) {
     clin[,m]=as.numeric(clin[,m])
@@ -1372,7 +1374,7 @@ clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
 ```
 
 
-```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
 #############################################################################
 # adjust each mcname variable by the covariates 
 # adjustByCovariates(mxdfin, adjustmentFormula, groupVariable, group) 
@@ -1437,8 +1439,7 @@ clearcolname = function( mydf, mycolname ) {
 desiredk = 5
 clustlist = c( "GMM", "kmeans", "pamCluster", 
     "kmeansflex","kmedians",  "angle",  "ejaccard", 
-    "hardcl","neuralgas", "hierarchicalCluster" )
-clustlist = c( 'kmeansflex', "pamCluster", "kmedians", "angle", "ejaccard", "hardcl", "neuralgas" )
+    "hardcl","neuralgas", "cckmeans" )
 clustmodels = list()
 ## BUILD THE TRAINED MODELS
 for ( myclust in clustlist ) {
@@ -1454,7 +1455,7 @@ names( clustmodels ) = clustlist
 
 
 
-```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
 ## EVALUATE THE TRAINED MODELS in PD
 mygroup='PD'
 clustdf = data.frame( )
