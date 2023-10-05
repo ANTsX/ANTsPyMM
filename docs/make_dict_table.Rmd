@@ -1370,6 +1370,7 @@ clustdata$istrain = FALSE
 clustdata$istrain[ trainsel ] = TRUE
 #############################################################################
 mcnames = c( testnames[ -multigrep(c("DTI","Asym"), testnames) ] )
+mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ] )
 clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
 ```
 
@@ -1414,7 +1415,7 @@ subcohortProdromal = clustdata[ fs(
 # names of the predicted clusters
 subcohortGen = clustdata[ fs(
     clustdata$DXSubAsyn %in% 
-    c("ProdromalGBAPositive", "PDGBAPositive" ) &
+    c("ProdromalGBAPositive", "PDGBAPositive", "PDLRRK2Positive", "ProdromalLRRK2Positive" ) &
 #     c("PDLRRK2Positive", "PDGBAPositive","ProdromalGBAPositive","ProdromalLRRK2Positive","CNPositive", "ProdromalSporadicPositive" ) &
 #    c("PDLRRK2Positive", "ProdromalLRRK2Positive","PDLRRK2Negative", "ProdromalLRRK2Negative") &
     clustdata$yearsbl <= yth),]
@@ -1691,19 +1692,21 @@ for ( cmeth in clustlistPro ) {
 
 ```{r fimp,echo=FALSE,eval=TRUE,fig.width=12,fig.height=6}
 myclust='kmedians'
+myclust='cckmeans'
+vizcohort = subcohortPD
 myst = clustmodels[[myclust]]
-subcohortPD=clearcolname(subcohortPD, mvcl )
-subcohortPD = predictSubtypeClusterMulti( subcohortPD, 
+vizcohort=clearcolname(vizcohort, mvcl )
+vizcohort = predictSubtypeClusterMulti( vizcohort, 
         mcnames, myst, mvcl, 
         'PATNO', 'imaging_EVENT_ID', 'V0')
 fimp = featureImportanceForSubtypes(
-       subcohortPD,
-       subcohortPD[,mvcl],
-       subcohortPD[,mcnames],
+       vizcohort,
+       vizcohort[,mvcl],
+       vizcohort[,mcnames],
        associationType = "subtypes2features",
        covariates = "SEX + Age1 + Age2 + EDUCYRS",
        transform = "effect_sizes",
-       significance_level = 0.005,
+       significance_level = 0.001,
        visualize = FALSE
      )
 showcols = which( colSums( abs( fimp$subtypeFeatureTScoresSignificant ) )  > 0.5)
