@@ -1364,17 +1364,17 @@ clustdata = fillBaselineColumn( clustdata,
 basesel = fs( clustdata$imaging_EVENT_ID == 'V0' )
 trainsel = fs( basesel & clustdata$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
 trainsel = fs( clustdata$DX != "Prodromal" & basesel )
-trainsel = fs( basesel & clustdata$DXSubAsyn %in% c('PDSporadicPositive') )
 trainsel = fs( basesel & clustdata$DXSub %in% c('PDSporadic') )
+trainsel = fs( basesel & clustdata$DXSubAsyn %in% c('PDSporadicPositive') )
 clustdata$istrain = FALSE
 clustdata$istrain[ trainsel ] = TRUE
 #############################################################################
-mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ] )
+mcnames = c( testnames[ -multigrep(c("DTI","Asym"), testnames) ] )
 clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
 ```
 
 
-```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
+```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 #############################################################################
 # adjust each mcname variable by the covariates 
 # adjustByCovariates(mxdfin, adjustmentFormula, groupVariable, group) 
@@ -1414,7 +1414,7 @@ subcohortProdromal = clustdata[ fs(
 # names of the predicted clusters
 subcohortGen = clustdata[ fs(
     clustdata$DXSubAsyn %in% 
-    c("PDLRRK2Positive", "PDGBAPositive" ) &
+    c("ProdromalGBAPositive", "PDGBAPositive" ) &
 #     c("PDLRRK2Positive", "PDGBAPositive","ProdromalGBAPositive","ProdromalLRRK2Positive","CNPositive", "ProdromalSporadicPositive" ) &
 #    c("PDLRRK2Positive", "ProdromalLRRK2Positive","PDLRRK2Negative", "ProdromalLRRK2Negative") &
     clustdata$yearsbl <= yth),]
@@ -1432,11 +1432,11 @@ clearcolname = function( mydf, mycolname ) {
 
 ```
 
-```{r mvst2trainclust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+```{r mvst2trainclust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 # derkaX
 ###################################################
 ###################################################
-desiredk = 5
+desiredk = 4
 clustlist = c( "GMM", "kmeans", "pamCluster", 
     "kmeansflex","kmedians",  "angle",  "ejaccard", 
     "hardcl","neuralgas", "cckmeans" )
@@ -1455,7 +1455,7 @@ names( clustmodels ) = clustlist
 
 
 
-```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
+```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 ## EVALUATE THE TRAINED MODELS in PD
 mygroup='PD'
 clustdf = data.frame( )
@@ -1684,4 +1684,33 @@ for ( cmeth in clustlistPro ) {
     }
 }
 ##########
+```
+
+
+## Visualize feature importance for sporadic PD$+$
+
+```{r fimp,echo=FALSE,eval=TRUE,fig.width=12,fig.height=6}
+myclust='kmedians'
+myst = clustmodels[[myclust]]
+subcohortPD=clearcolname(subcohortPD, mvcl )
+subcohortPD = predictSubtypeClusterMulti( subcohortPD, 
+        mcnames, myst, mvcl, 
+        'PATNO', 'imaging_EVENT_ID', 'V0')
+fimp = featureImportanceForSubtypes(
+       subcohortPD,
+       subcohortPD[,mvcl],
+       subcohortPD[,mcnames],
+       associationType = "subtypes2features",
+       covariates = "SEX + Age1 + Age2 + EDUCYRS",
+       transform = "effect_sizes",
+       significance_level = 0.005,
+       visualize = FALSE
+     )
+showcols = which( colSums( abs( fimp$subtypeFeatureTScoresSignificant ) )  > 0.5)
+temp=fimp$subtypeFeatureTScoresSignificant[,showcols]
+coller = colnames(temp)
+coller=gsub("_adjusted","",coller)
+coller=gsub("T1Hier_","",coller)
+colnames(temp)=coller
+pheatmap::pheatmap(temp)
 ```
