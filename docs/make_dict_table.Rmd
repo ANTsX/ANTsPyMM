@@ -4,6 +4,8 @@ output: html_document
 ---
 
 ```{r,echo=FALSE,include=FALSE}
+dev.flush()
+library(ANTsR)
 library(subtyper)
 library(plyr)
 library(data.table)
@@ -1372,6 +1374,7 @@ clustdata$istrain[ trainsel ] = TRUE
 mcnames = c( testnames[ -multigrep(c("DTI","Asym"), testnames) ] )
 mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ] )
 clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
+corrmethCL='BH'
 ```
 
 
@@ -1383,7 +1386,7 @@ clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
 clustdatADJ=clustdata
 for ( x in mcnames ) {
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX " 
-    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX " 
+#    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX " 
     adjform = paste( x, stcovars )
     clustdatADJ=adjustByCovariates( clustdatADJ, adjform, 'istrain', TRUE )
 }
@@ -1398,6 +1401,73 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     center=attr(scaledTrainData, "scaled:center"), 
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
+mvcl='MVCX'
+```
+
+
+### simlr (optional)
+
+```{r simlr,echo=FALSE,eval=TRUE,warning=FALSE,message=TRUE,cache=FALSE}
+##########
+nsimlr = 1
+if ( nsimlr > 0 ) {
+    # simlr on mcnames and coggers in training data
+    matlist = list(
+        scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,mcnames]) )),
+        scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,coggers] ))) )
+    matlistTest = list(
+        scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,mcnames]) )),
+        scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,coggers] ))) )
+    # find the best nsimlr based on the cog data
+    mysvdd = cumsum(svd( scale((matlist[[2]])))$d)
+    mysvdd = cumsum(svd( scale(cbind(matlist[[1]],matlist[[2]])))$d)
+    mysvdd = cumsum(svd( matlist[[2]] )$d )
+    mysvdd = mysvdd/max(mysvdd)
+    mysvdd
+    nsimlr = which.min( abs(0.95 - (mysvdd/max(mysvdd)) ))
+    nsimlr = desiredk
+    message(paste('nsimlr',nsimlr))
+    print(paste('nsimlr',nsimlr))
+    regs = regularizeSimlr( matlist, fraction=0.05, sigma=c(3.0,3.0) )
+    regs[[1]][1,]
+    regs[[2]][1,]
+    initu = initializeSimlr(
+        matlist,
+        nsimlr,
+        jointReduction = TRUE,
+        zeroUpper = FALSE,
+        uAlgorithm = "pca",
+        addNoise = 0 )
+    # if ( ! exists( "simlrX" ) )
+    simlrX = simlr( matlist, regs, iterations=100, verbose=TRUE,
+            randomSeed = 0,
+            mixAlg='pca',
+            energyType='cca',
+#            scale = 'robust',
+            sparsenessQuantiles=c(0.95,0.95),
+            positivities = c('positive','either'),
+            constraint = 'none',
+            expBeta = 0.90,
+            initialUMatrix=initu )
+    print( predictSimlr( matlist, simlrX )$varx )
+    mcnamesorig = mcnames
+    projmati = matlist[[1]] %*% simlrX$v[[1]]
+    projmatc = matlist[[2]] %*% simlrX$v[[2]]
+    pheatmap::pheatmap( abs( cor(projmati, projmatc )) , cluster_cols=F, cluster_rows=F)
+    plot( projmati[,1], projmatc[,1] )
+    projimgs = data.matrix(clustdata[,mcnames]) %*% simlrX$v[[1]]
+    projcogs = data.matrix(clustdata[,coggers]) %*% simlrX$v[[2]]
+    mcnames=colnames(projimgs)
+    clustdata=cbind(clustdata,projimgs)
+    message("simlr done")
+    print("simlr done")
+}
+```
+
+
+### define subcohorts
+
+```{r subcohorts,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 osex='SEX'
 yth=4.5
 # this is training for model selection
@@ -1415,12 +1485,13 @@ subcohortProdromal = clustdata[ fs(
 # names of the predicted clusters
 subcohortGen = clustdata[ fs(
     clustdata$DXSubAsyn %in% 
-    c("ProdromalGBAPositive", "PDGBAPositive", "PDLRRK2Positive", "ProdromalLRRK2Positive" ) &
+#    c(  "PDLRRK2Positive",'ProdromalLRRK2Positive' ) &
+    c( "PDGBAPositive", "ProdromalGBAPositive" ) &
+#    c("ProdromalGBAPositive", "PDGBAPositive", "PDLRRK2Positive", "ProdromalLRRK2Positive" ) &
 #     c("PDLRRK2Positive", "PDGBAPositive","ProdromalGBAPositive","ProdromalLRRK2Positive","CNPositive", "ProdromalSporadicPositive" ) &
 #    c("PDLRRK2Positive", "ProdromalLRRK2Positive","PDLRRK2Negative", "ProdromalLRRK2Negative") &
     clustdata$yearsbl <= yth),]
 # names of the predicted clusters
-mvcl='MVCX'
 ```
 
 ```{r mvst2Functions,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
@@ -1437,9 +1508,16 @@ clearcolname = function( mydf, mycolname ) {
 # derkaX
 ###################################################
 ###################################################
+vizclustmeth = 'kmedians'
+vizclustmeth = 'neuralgas'
+vizclustmeth = 'GMM'
 desiredk = 4
+minsubcount = 2
 clustlist = c( "GMM", "kmeans", "pamCluster", 
     "kmeansflex","kmedians",  "angle",  "ejaccard", 
+    "hardcl","neuralgas", "cckmeans" )
+clustlist = c( "GMM", "pamCluster", 
+    "kmeansflex", "kmedians",  "angle",  "ejaccard", 
     "hardcl","neuralgas", "cckmeans" )
 clustmodels = list()
 ## BUILD THE TRAINED MODELS
@@ -1455,6 +1533,7 @@ names( clustmodels ) = clustlist
 ```
 
 
+### model selection in sporadic PD$+$
 
 ```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 ## EVALUATE THE TRAINED MODELS in PD
@@ -1468,14 +1547,13 @@ for ( myclust in clustlist ) {
         'PATNO', 'imaging_EVENT_ID', 'V0')
     subcohortPD$CDX = paste0( subcohortPD[,mvcl], "_", subcohortPD$AsynStatus )
     subcohortPD$CDX=subcohortPD[,mvcl]
-    coggersX = c(  "gds","lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai" , "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore" , "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall","hvlt_retention"  )
+    coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall", "hvlt_retention" )
     for ( cog in coggersX ) {
-        print(paste("cog",cog,'clust',myclust,'PD'))
         thedf = subcohortPD
         temp = table( thedf$PATNO )
         thedf$yearr =round( thedf$yearsbl)
         tsel = ( thedf$yearr %in% c(0,1,2,4) ) & 
-                thedf$PATNO %in% names(temp)[temp>=1]
+                thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
         cogform=paste( cogformb, "*CDX" )
@@ -1486,7 +1564,7 @@ for ( myclust in clustlist ) {
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
-        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.005 ) {
+        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.005 & myclust == vizclustmeth ) {
             ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
             message(paste('mvclust',cog))
             print( cogcoff[,-c(1:2)] )
@@ -1507,16 +1585,14 @@ for ( myclust in clustlist ) {
             (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
                     addpoints=1, palette=mypal ) +
                     ggtitle(ggtit) ) %>% print()
-            Sys.sleep( 3 )
             }
         }
-    print(myclust)
     }
 ##########
 clustdfPD = clustdf
-qvals = p.adjust( as.numeric(clustdfPD$pvalue), 'BH' )
+qvals = p.adjust( as.numeric(clustdfPD$pvalue), corrmethCL )
 table( clustdfPD$method[  qvals <= 0.05 ] ) %>% print()
-clustlistPro = as.character( unique( clustdfPD$method[  qvals <= 0.05 ]  ) )
+clustlistPro = as.character( unique( c( "cckmeans", "kmedians",clustdfPD$method[  qvals <= 0.05 ]  ) ))
 cog2test = as.character( unique( clustdfPD$cog[  qvals <= 0.05 ]  ) )
 ```
 
@@ -1536,12 +1612,11 @@ for ( myclust in clustlistPro ) {
         subcohortProdromal$AsynStatus )
     subcohortProdromal$CDX=subcohortProdromal[,mvcl]
     for ( cog in cog2test ) {
-        print(paste("cog",cog,'clust',myclust,'Prodromal'))
         thedf = subcohortProdromal
         temp = table( thedf$PATNO )
         thedf$yearr =round( thedf$yearsbl)
         tsel = ( thedf$yearr %in% c(0,1,2,4) ) & 
-                thedf$PATNO %in% names(temp)[temp>=1]
+                thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
         cogform=paste( cogformb, "*CDX" )
@@ -1552,7 +1627,7 @@ for ( myclust in clustlistPro ) {
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
-        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 ) {
+        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 & myclust == vizclustmeth ) {
             ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
             message(paste('mvclust',cog))
             print( cogcoff[,-c(1:2)] )
@@ -1564,11 +1639,9 @@ for ( myclust in clustlistPro ) {
             (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
                     addpoints=1, palette=mypal ) +
                     ggtitle(ggtit) ) %>% print()
-            Sys.sleep( 3 )
             }
         }
-    print(myclust)
-}
+    }
 ```
 
 
@@ -1580,11 +1653,11 @@ for ( cmeth in clustlistPro ) {
     myg='PD'
     gsel = clustdfPD$method == cmeth
     clustdfsubPD = clustdfPD[gsel,]
-    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
+    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),corrmethCL )
     myg='Prodromal'
     gsel = clustdf$group == myg  & clustdf$method == cmeth
     clustdfsub = clustdf[gsel,]
-    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
+    qvals = p.adjust( as.numeric(clustdfsub$pvalue),corrmethCL )
 #    cat("\n\n\n")
 #    print(cmeth)
 #    print( clustdfsubPD[  qvalsPD < 0.05,  ] )
@@ -1600,6 +1673,12 @@ for ( cmeth in clustlistPro ) {
 ## genetic evaluation
 
 ```{r mvst2pgeneval,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+subcohortGen = clustdata[ fs(
+    clustdata$DXSubAsyn %in%  c( "PDGBAPositive" ) &
+    clustdata$yearsbl <= yth),]
+subcohortGen = clustdata[ fs(
+    clustdata$DXSubAsyn %in%  c( "PDLRRK2Positive",  "PDGBAPositive") &
+    clustdata$yearsbl <= yth),]
 mygroup='GEN'
 clustdf = data.frame( )
 for ( myclust in clustlistPro ) {
@@ -1612,12 +1691,11 @@ for ( myclust in clustlistPro ) {
         subcohortGen$AsynStatus )
     subcohortGen$CDX=subcohortGen[,mvcl]
     for ( cog in cog2test ) {
-        print(paste("cog",cog,'clust',myclust,mygroup))
         thedf = subcohortGen
         temp = table( thedf$PATNO )
         thedf$yearr =round( thedf$yearsbl)
         tsel = ( thedf$yearr %in% c(0,1,2,4) ) & 
-                thedf$PATNO %in% names(temp)[temp>=1]
+                thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
         cogform=paste( cogformb, "*CDX" )
@@ -1628,11 +1706,11 @@ for ( myclust in clustlistPro ) {
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
-        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 ) {
+        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 & myclust == vizclustmeth ) {
             ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
             message(paste('mvclust',cog))
             print( cogcoff[,-c(1:2)] )
-            cogpvform = insight::format_p( 
+            cogpvform = insight::format_p(
                     clustdf[nr,c('pvalue')],
                     stars=TRUE, digits=4 )
             thedf$temp = as.character( thedf[,'DXSub'])
@@ -1640,11 +1718,10 @@ for ( myclust in clustlistPro ) {
             (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
                     addpoints=1, palette=mypal ) +
                     ggtitle(ggtit) ) %>% print()
-            Sys.sleep( 3 )
             }
         }
-    print(myclust)
-}
+    }
+#####
 ```
 
 
@@ -1656,11 +1733,11 @@ for ( cmeth in clustlistPro ) {
     myg='PD'
     gsel = clustdfPD$method == cmeth
     clustdfsubPD = clustdfPD[gsel,]
-    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
+    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),corrmethCL )
     myg='GEN'
     gsel = clustdf$group == myg  & clustdf$method == cmeth
     clustdfsub = clustdf[gsel,]
-    qvals = p.adjust( as.numeric(clustdfsub$pvalue),'BH' )
+    qvals = p.adjust( as.numeric(clustdfsub$pvalue),corrmethCL )
     seller=qvals < 0.05 &  clustdfsub$cog %in% clustdfsubPD[  qvalsPD < 0.05, "cog" ]
     if ( sum(seller)>0 ) {
         cat("\n\n***************************\n")
@@ -1677,7 +1754,7 @@ for ( cmeth in clustlistPro ) {
 for ( cmeth in clustlistPro ) {
     gsel = clustdfPD$method == cmeth
     clustdfsubPD = clustdfPD[gsel,]
-    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),'BH' )
+    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),corrmethCL )
     seller=qvalsPD < 0.05
     if ( sum(seller)>0 ) {
         cat("\n\n***************************\n")
@@ -1691,8 +1768,8 @@ for ( cmeth in clustlistPro ) {
 ## Visualize feature importance for sporadic PD$+$
 
 ```{r fimp,echo=FALSE,eval=TRUE,fig.width=12,fig.height=6}
-myclust='kmedians'
 myclust='cckmeans'
+myclust='kmedians'
 vizcohort = subcohortPD
 myst = clustmodels[[myclust]]
 vizcohort=clearcolname(vizcohort, mvcl )
@@ -1704,7 +1781,7 @@ fimp = featureImportanceForSubtypes(
        vizcohort[,mvcl],
        vizcohort[,mcnames],
        associationType = "subtypes2features",
-       covariates = "SEX + Age1 + Age2 + EDUCYRS",
+       covariates = "EDUCYRS + ( Age1 + Age2 ) + SEX", # stcovars,
        transform = "effect_sizes",
        significance_level = 0.001,
        visualize = FALSE
@@ -1716,4 +1793,9 @@ coller=gsub("_adjusted","",coller)
 coller=gsub("T1Hier_","",coller)
 colnames(temp)=coller
 pheatmap::pheatmap(temp)
+
+print( summary(lmer( tau ~ (1|PATNO)+( SEX + age_BL ) * MVCX, data=subcohortPD )) )
+print( summary(lmer( abeta ~  (1|PATNO)+( SEX + age_BL ) * MVCX, data=subcohortPD )) )
+print( summary(lmer( ageatimaging ~  (1|PATNO)+( SEX ) * MVCX, data=subcohortPD )) )
+
 ```
