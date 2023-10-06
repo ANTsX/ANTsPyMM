@@ -5,6 +5,25 @@ output: html_document
 
 ```{r,echo=FALSE,include=FALSE}
 dev.flush()
+library(MGMM) # GMM methods (FIXME)
+library(WeightedCluster) # cluster quality (FIXME)
+library( kmed ) # silhouette plots and such
+library( clustree ) # cluster validation tools
+library( factoextra )
+library(tidyverse)
+library(magrittr)
+library(cluster)
+library(cluster.datasets)
+library(cowplot)
+library(NbClust)
+library(clValid)
+library(ggfortify)
+library(clustree)
+library(dendextend)
+library(factoextra)
+library(FactoMineR)
+library(corrplot)
+library(GGally)
 library(ANTsR)
 library(subtyper)
 library(plyr)
@@ -59,7 +78,7 @@ myt=mytable( Modality~. ,data=ss )
 tblcmd( myt )
 ```
 
-```{r detailsandcitations,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
+```{r detailsandcitations,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
 # powers points 10.1016/j.conb.2012.12.009
 powers=read.csv("~/.antspymm/powers_mni_itk.csv")
 # 10.1016/j.neuroimage.2008.07.009
@@ -1378,7 +1397,7 @@ corrmethCL='BH'
 ```
 
 
-```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+```{r mvst2adjust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
 #############################################################################
 # adjust each mcname variable by the covariates 
 # adjustByCovariates(mxdfin, adjustmentFormula, groupVariable, group) 
@@ -1402,6 +1421,15 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
+desiredk = 6
+nsimlr = 1
+minsubcount = 2
+vizclustmeth = 'neuralgas'
+vizclustmeth = 'kmeansflex'
+vizclustmeth = 'kmedians'
+vizclustmeth = 'hierarchicalCluster'
+vizclustmeth = 'GMM'
+vizclustmeth = 'cckmeans'
 ```
 
 
@@ -1409,7 +1437,6 @@ mvcl='MVCX'
 
 ```{r simlr,echo=FALSE,eval=TRUE,warning=FALSE,message=TRUE,cache=FALSE}
 ##########
-nsimlr = 1
 if ( nsimlr > 0 ) {
     # simlr on mcnames and coggers in training data
     matlist = list(
@@ -1418,14 +1445,21 @@ if ( nsimlr > 0 ) {
     matlistTest = list(
         scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,mcnames]) )),
         scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,coggers] ))) )
+
+    res.pca <- PCA(matlist[[2]],  graph = FALSE)
+    mymin = round(min( dim(matlist[[2]])) * 0.9)
+    fviz_screeplot(res.pca, addlabels = TRUE, ylim = c(0, 50), ncp=mymin)
+
     # find the best nsimlr based on the cog data
     mysvdd = cumsum(svd( scale((matlist[[2]])))$d)
     mysvdd = cumsum(svd( scale(cbind(matlist[[1]],matlist[[2]])))$d)
     mysvdd = cumsum(svd( matlist[[2]] )$d )
     mysvdd = mysvdd/max(mysvdd)
     mysvdd
-    nsimlr = which.min( abs(0.95 - (mysvdd/max(mysvdd)) ))
-    nsimlr = desiredk
+    nsimlr = 4 # based on PCA plot
+    # which.min( abs(0.8 - (mysvdd/max(mysvdd)) ))
+#    nsimlr = 2
+#    nsimlr = desiredk
     message(paste('nsimlr',nsimlr))
     print(paste('nsimlr',nsimlr))
     regs = regularizeSimlr( matlist, fraction=0.05, sigma=c(3.0,3.0) )
@@ -1504,32 +1538,205 @@ clearcolname = function( mydf, mycolname ) {
 
 ```
 
+## find the elbow 
+
+```{r elbowtool,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+set.seed(31)
+subcohort = clustdata
+subcohorttr=subcohort[trainsel,mcnames]
+fviz_nbclust(subcohorttr, kmeans, method = "wss", k.max = 20) + theme_minimal() + ggtitle("Elbow plot to determine number of clusters")
+# function to compute total within-cluster sum of squares
+
+```
+
+## find the gap 
+
+```{r gap,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+nboot = 200
+gap_stat <- clusGap(subcohorttr, FUN = kmeans, nstart = 30, K.max = 20, B = nboot)
+fviz_gap_stat(gap_stat) + theme_minimal() + ggtitle("fviz_gap_stat: Gap Statistic")
+# my interpretation: search between 4 and 8 
+```
+
+## silly approach
+
+```{r silly,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+fviz_nbclust(subcohorttr, kmeans, method = "silhouette", k.max = 20) + theme_minimal() + ggtitle("The Silhouette Plot")
+```
+
+## ssc approach 
+
+```{r ssc,echo=FALSE,eval=TRUE,cache=FALSE}
+km2 <- kmeans(subcohorttr, 2)
+km3 <- kmeans(subcohorttr, 3)
+km4 <- kmeans(subcohorttr, 4)
+km5 <- kmeans(subcohorttr, 5)
+km6 <- kmeans(subcohorttr, 6)
+km7 <- kmeans(subcohorttr, 7)
+km8 <- kmeans(subcohorttr, 8)
+
+ssc <- data.frame(
+  kmeans = c(2,3,4,5,6,7,8),
+  within_ss = c(mean(km2$withinss), mean(km3$withinss), mean(km4$withinss), mean(km5$withinss), mean(km6$withinss), mean(km7$withinss), mean(km8$withinss)),
+  between_ss = c(km2$betweenss, km3$betweenss, km4$betweenss, km5$betweenss, km6$betweenss, km7$betweenss, km8$betweenss)
+)
+ssc %<>% gather(., key = "measurement", value = value, -kmeans)
+#ssc$value <- log10(ssc$value)
+ssc %>% ggplot(., aes(x=kmeans, y=log10(value), fill = measurement)) + geom_bar(stat = "identity", position = "dodge") + ggtitle("Cluster Model Comparison") + xlab("Number of Clusters") + ylab("Log10 Total Sum of Squares") + scale_x_discrete(name = "Number of Clusters", limits = c("0", "2", "3", "4", "5", "6", "7", "8"))
+```
+
+## NbClust
+
+```{r nbclust,echo=FALSE,eval=TRUE,cache=FALSE}
+res.nbclust <- NbClust(subcohorttr, distance = "euclidean",
+                  min.nc = 2, max.nc = 20, 
+                  method = "complete", index ="all")
+```
+
+## clustree
+
+
+```{r clustree,echo=FALSE,eval=TRUE,cache=FALSE}
+tmp <- NULL
+for (k in 1:11){
+  tmp[k] <- kmeans(subcohorttr, k, nstart = 30)
+}
+df <- data.frame(tmp)
+# add a prefix to the column names
+colnames(df) <- seq(1:11)
+colnames(df) <- paste0("k",colnames(df))
+# get individual PCA
+df.pca <- prcomp(df, center = TRUE, scale. = FALSE)
+ind.coord <- df.pca$x
+ind.coord <- ind.coord[,1:2]
+df <- bind_cols(as.data.frame(df), as.data.frame(ind.coord))
+clustree(df, prefix = "k")
+
+
+df_subset <- df %>% select(1:8,12:13)
+clustree_overlay(df_subset, prefix = "k", x_value = "PC1", y_value = "PC2")
+
+overlay_list <- clustree_overlay(df_subset, prefix = "k", x_value = "PC1",
+                                 y_value = "PC2", plot_sides = TRUE)
+overlay_list$x_side
+overlay_list$y_side
+```
+
+## cl valid
+
+see [this](https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92) for commentary
+
+```{r clvalid,echo=FALSE,eval=TRUE,cache=FALSE}
+clmeths = c( "hierarchical", "kmeans", "diana", "fanny",
+          "som", "model", "sota", "pam", "clara", "agnes")
+intern <- clValid(scale(subcohorttr), nClust = 2:12,
+              clMethods = clmeths, validation = "internal")
+# Summary
+summary(intern) %>% print()
+
+```
+
+## pamk
+
+```{r pamk,echo=FALSE,eval=TRUE,cache=FALSE}
+library(fpc)
+pamk.best <- pamk(subcohorttr)
+cat("number of clusters estimated by optimum average silhouette width:", pamk.best$nc, "\n")
+plot(pam(subcohorttr, pamk.best$nc))
+```
+
+## Calinski
+
+```{r Calinski,echo=FALSE,eval=TRUE,cache=FALSE}
+require(vegan)
+fit <- cascadeKM(scale(subcohorttr, center = TRUE,  scale = TRUE), 1, 10, iter = 1000)
+plot(fit, sortg = TRUE, grpmts.plot = TRUE)
+calinski.best <- as.numeric(which.max(fit$results[2,]))
+cat("Calinski criterion optimal number of clusters:", calinski.best, "\n")
+```
+
+## BIC
+
+```{r bic,echo=FALSE,eval=TRUE,cache=FALSE}
+library(mclust)
+d_clust <- Mclust(as.matrix(subcohorttr), G=1:20)
+m.best <- dim(d_clust$z)[2]
+cat("model-based optimal number of clusters:", m.best, "\n")
+# 4 clusters
+# plot(d_clust)
+```
+
+## affinity 
+
+```{r aff,echo=FALSE,eval=TRUE,cache=FALSE}
+library(apcluster)
+d.apclus <- apcluster(negDistMat(r=2), subcohorttr)
+cat("affinity propogation optimal number of clusters:", length(d.apclus@clusters), "\n")
+# 4
+heatmap(d.apclus)
+plot(d.apclus, subcohorttr)
+#
+# show(d.apclus)
+#
+```
+
+## train the models
+
 ```{r mvst2trainclust,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
-# derkaX
+## BUILD THE TRAINED MODELS
 ###################################################
 ###################################################
-vizclustmeth = 'kmedians'
-vizclustmeth = 'neuralgas'
-vizclustmeth = 'GMM'
-desiredk = 4
-minsubcount = 2
-clustlist = c( "GMM", "kmeans", "pamCluster", 
-    "kmeansflex","kmedians",  "angle",  "ejaccard", 
-    "hardcl","neuralgas", "cckmeans" )
-clustlist = c( "GMM", "pamCluster", 
+clustlist = c(  "hierarchicalCluster",  "GMM", "pamCluster", 
     "kmeansflex", "kmedians",  "angle",  "ejaccard", 
     "hardcl","neuralgas", "cckmeans" )
+clustlist = c( "GMM", "pamCluster", 
+    "kmedians", "angle", "ejaccard", 
+    "hardcl", "neuralgas", "cckmeans" )
+sildf = data.frame()
 clustmodels = list()
-## BUILD THE TRAINED MODELS
-for ( myclust in clustlist ) {
-    print( paste( "myclust", myclust, 'begin' ) )
-    subcohort = clustdata
-    subcohorttr=subcohort[trainsel,mcnames]
-    clustmodels[[ length( clustmodels ) + 1 ]] =
-        trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
-            desiredk=desiredk )
+clustmodelQual = list()
+for ( thek in 2:10 ) {
+    for ( myclust in clustlist ) {
+        clustmodels[[ length( clustmodels ) + 1 ]] =
+            trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
+                desiredk=thek )
+        temp = predictSubtypeClusterMulti( subcohort[trainsel,], 
+            mcnames, clustmodels[[ length( clustmodels ) ]], mvcl, 
+            'PATNO', 'imaging_EVENT_ID', 'V0')
+        # dissimilarity
+        mydiss = dist( (subcohorttr), diag=T, upper=T )
+        clustmodelQual[[length( clustmodels )]] = wcClusterQuality(mydiss, temp[,mvcl] )
+        mysil = cluster::silhouette( as.integer(temp[,mvcl]), mydiss)
+        clustmodelQual[[length( clustmodels )]]$stats['mean_sil']=mean(mysil[,3])
+        # print( paste( "myclust", myclust, 'sil',clustmodelQual[[length( clustmodels )]]$stats['mean_sil'], ' k ', thek ) )
+    #    print(  clustmodelQual[[length( clustmodels )]]$stats )
+        # temp[,mvcl]
+        rm( temp )
+        n=nrow(sildf)+1
+        sildf[n,'model']=myclust
+        sildf[n,'k']=thek
+        stanames=names(clustmodelQual[[length( clustmodels )]]$stats)
+        sildf[n,stanames]=clustmodelQual[[length( clustmodels )]]$stats
+        print(sildf[n,])
+        }
     }
-names( clustmodels ) = clustlist
+
+for ( nm in names(sildf)[-c(1:2)] ) {
+    cat("*********************\n")
+    wmx = which.max(sildf[,nm])
+    print( sildf[wmx,c("model","k",nm)] )
+    }
+
+clustmodels = list()
+clustmodelQual = list()
+for ( myclust in clustlist ) {
+        clustmodels[[ length( clustmodels ) + 1 ]] =
+            trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
+                desiredk=desiredk )
+}
+names( clustmodels ) = paste0(clustlist)
+
+
 ```
 
 
@@ -1747,7 +1954,7 @@ for ( cmeth in clustlistPro ) {
 ##########
 ```
 
-## print OG evaluation
+<!-- ## print OG evaluation -->
 
 ```{r OGeval,echo=FALSE,eval=FALSE,warning=FALSE,message=FALSE}
 #########################################################
@@ -1770,6 +1977,7 @@ for ( cmeth in clustlistPro ) {
 ```{r fimp,echo=FALSE,eval=TRUE,fig.width=12,fig.height=6}
 myclust='cckmeans'
 myclust='kmedians'
+myclust = vizclustmeth
 vizcohort = subcohortPD
 myst = clustmodels[[myclust]]
 vizcohort=clearcolname(vizcohort, mvcl )
@@ -1799,3 +2007,44 @@ print( summary(lmer( abeta ~  (1|PATNO)+( SEX + age_BL ) * MVCX, data=subcohortP
 print( summary(lmer( ageatimaging ~  (1|PATNO)+( SEX ) * MVCX, data=subcohortPD )) )
 
 ```
+
+
+
+### to do 
+
+explore the parameters:
+
+* `desiredk = 2` to 5 perhaps up to 6
+
+* `nsimlr = 0` vs something larger
+
+* `minsubcount = 2` alternatively 1
+
+
+
+<!-- ## selection of 250 -->
+
+```{r sel250,echo=FALSE,eval=FALSE}
+
+#############################
+# criteria for remaining 250:
+### has SAA
+### 1/2 prodromal 1/2 PD ( we assume we have sufficient controls -- probable SAA negative -- already )
+### has all "reasonable quality" modalities
+### not a SIGNA scanner
+# questions:
+## site distribution?
+## mfg/model distribution? probably SIEMENS
+###########################################
+isBL=clin2$imaging_EVENT_ID == 'V0'
+hasSAA=!is.na( clin2$AsynStatus )
+hasT1 = clin2$T1Hier_resnetGrade > 1.02
+hasMod = hasT1 & !is.na(clin2$rsfid1) &
+    !is.na( clin2$nmid1 ) & !is.na( clin2$dtid1 ) & 
+    !is.na( clin2$flairid )
+hasMod2 = hasT1 & !is.na(clin2$rsfid1) & !is.na( clin2$dtid1 )
+onepass = isBL & hasSAA & hasMod2
+second250=clin2[onepass,c("u_hier_id","flairid","dtid1","rsfid1","nmid1","DXSubAsyn","T1Hier_resnetGrade","mrimfg","mrimodel")]
+write.csv( second250, "~/Downloads/PPMI500_part2_n281.csv", row.names=FALSE )
+```
+
