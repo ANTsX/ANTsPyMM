@@ -1421,15 +1421,16 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
-desiredk = 6
+desiredk = 4
 nsimlr = 1
 minsubcount = 2
 vizclustmeth = 'neuralgas'
 vizclustmeth = 'kmeansflex'
 vizclustmeth = 'kmedians'
 vizclustmeth = 'hierarchicalCluster'
-vizclustmeth = 'GMM'
 vizclustmeth = 'cckmeans'
+vizclustmeth = 'pamCluster'
+vizclustmeth = 'GMM'
 ```
 
 
