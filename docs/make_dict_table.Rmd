@@ -1479,7 +1479,8 @@ if ( nsimlr > 0 ) {
             mixAlg='pca',
             energyType='cca',
 #            scale = 'robust',
-            sparsenessQuantiles=c(0.95,0.95),
+#            sparsenessQuantiles=c(0.95,0.95),
+            sparsenessQuantiles=c(0.8,0.8),
             positivities = c('positive','either'),
             constraint = 'none',
             expBeta = 0.90,
@@ -1745,8 +1746,10 @@ names( clustmodels ) = paste0(clustlist)
 
 ```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 ## EVALUATE THE TRAINED MODELS in PD
+coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall", "hvlt_retention" )
 mygroup='PD'
 clustdf = data.frame( )
+# effdf = data.frame( matrix( nrow = length( coggersX )*2, ncol = desiredk ) )
 for ( myclust in clustlist ) {
     myst = clustmodels[[myclust]]
     subcohortPD=clearcolname(subcohortPD, mvcl )
@@ -1755,7 +1758,6 @@ for ( myclust in clustlist ) {
         'PATNO', 'imaging_EVENT_ID', 'V0')
     subcohortPD$CDX = paste0( subcohortPD[,mvcl], "_", subcohortPD$AsynStatus )
     subcohortPD$CDX=subcohortPD[,mvcl]
-    coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall", "hvlt_retention" )
     for ( cog in coggersX ) {
         thedf = subcohortPD
         temp = table( thedf$PATNO )
@@ -1764,11 +1766,12 @@ for ( myclust in clustlist ) {
                 thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
-        cogform=paste( cogformb, "*CDX" )
+        cogform=paste( cogformb, "+CDX+yearsbl:CDX" )
         cogmdlb = lmer( cogformb, data=thedf )
         cogmdl = lmer( cogform, data=thedf )
         cogcoff=coefficients(summary(cogmdl))
-        cogcoff=cogcoff[grep(mvcl,rownames(cogcoff)),]
+        greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
+        cogcoff=cogcoff[greppers,]
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
@@ -1804,6 +1807,32 @@ clustlistPro = as.character( unique( c( "cckmeans", "kmedians",clustdfPD$method[
 cog2test = as.character( unique( clustdfPD$cog[  qvals <= 0.05 ]  ) )
 ```
 
+## visualize each cluster with respect to each significant clinical domain
+
+
+```{r vizinpd,echo=FALSE,eval=TRUE,fig.width=9,fig.height=3}
+myst = clustmodels[[vizclustmeth]]
+subcohortPD=clearcolname(subcohortPD, mvcl )
+subcohortPD = predictSubtypeClusterMulti( subcohortPD, 
+        mcnames, myst, mvcl, 
+        'PATNO', 'imaging_EVENT_ID', 'V0')
+if ( FALSE ) {
+library(ggstatsplot)
+ggbetweenstats(
+  data = subcohortPD,
+  x = MVCX,
+  y = updrs_totscore
+)
+}
+
+for ( zz in cog2test ) {
+    gg1=ggviolin( subcohortPD[basesel,], mvcl, zz)+ggtitle(paste("Baseline",zz))
+    follsel = round(subcohortPD$yearsbl)==4
+    gg2=ggviolin( subcohortPD[follsel,], mvcl, zz)+ggtitle(paste("Year 4",zz))
+    print( grid.arrange( grobs=list(gg1,gg2),nrow=1))
+    }
+
+```
 
 ## prodromal evaluation
 
@@ -1827,11 +1856,12 @@ for ( myclust in clustlistPro ) {
                 thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
-        cogform=paste( cogformb, "*CDX" )
+        cogform=paste( cogformb, "+CDX+yearsbl:CDX" )
         cogmdlb = lmer( cogformb, data=thedf )
         cogmdl = lmer( cogform, data=thedf )
         cogcoff=coefficients(summary(cogmdl))
-        cogcoff=cogcoff[grep(mvcl,rownames(cogcoff)),]
+        greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
+        cogcoff=cogcoff[greppers,]
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
@@ -1906,11 +1936,12 @@ for ( myclust in clustlistPro ) {
                 thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
-        cogform=paste( cogformb, "*CDX" )
+        cogform=paste( cogformb, "+CDX+yearsbl:CDX" )
         cogmdlb = lmer( cogformb, data=thedf )
         cogmdl = lmer( cogform, data=thedf )
         cogcoff=coefficients(summary(cogmdl))
-        cogcoff=cogcoff[grep(mvcl,rownames(cogcoff)),]
+        greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
+        cogcoff=cogcoff[greppers,]
         nr=nrow(clustdf) + 1
         clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                 c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
