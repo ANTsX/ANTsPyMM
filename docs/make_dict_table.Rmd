@@ -1453,14 +1453,14 @@ if ( nsimlr > 0 ) {
 
     # find the best nsimlr based on the cog data
     mysvdd = cumsum(svd( scale((matlist[[2]])))$d)
-    mysvdd = cumsum(svd( scale(cbind(matlist[[1]],matlist[[2]])))$d)
     mysvdd = cumsum(svd( matlist[[2]] )$d )
+#    mysvdd = cumsum(svd( scale(cbind(matlist[[1]],matlist[[2]])))$d)
     mysvdd = mysvdd/max(mysvdd)
     mysvdd
-    nsimlr = 4 # based on PCA plot
-    # which.min( abs(0.8 - (mysvdd/max(mysvdd)) ))
-#    nsimlr = 2
+    nsimlr = mymin - 1 # based on PCA plot
+    nsimlr = which.min( abs(0.8 - (mysvdd/max(mysvdd)) ))
 #    nsimlr = desiredk
+    nsimlr = 4 # based on PCA plot
     message(paste('nsimlr',nsimlr))
     print(paste('nsimlr',nsimlr))
     regs = regularizeSimlr( matlist, fraction=0.05, sigma=c(3.0,3.0) )
@@ -1474,7 +1474,10 @@ if ( nsimlr > 0 ) {
         uAlgorithm = "pca",
         addNoise = 0 )
     # if ( ! exists( "simlrX" ) )
-    simlrX = simlr( matlist, regs, iterations=100, verbose=TRUE,
+    simlrX = simlr( matlist, 
+            regs, 
+            iterations=300, 
+            verbose=TRUE,
             randomSeed = 0,
             mixAlg='pca',
             energyType='cca',
@@ -1484,7 +1487,14 @@ if ( nsimlr > 0 ) {
             constraint = 'none',
             expBeta = 0.90,
             initialUMatrix=initu )
-    print( predictSimlr( matlist, simlrX )$varx )
+    # subset the solution
+    simlrpred = predictSimlr( matlist, simlrX )
+    print( simlrpred$finalErrors/simlrpred$initialErrors)
+    for ( jj in 1:length( simlrX$v ) ) {
+        simlrX$v[[jj]]=simlrX$v[[jj]][, simlrpred$uOrder[1:4] ]
+        simlrX$v[[jj]]=simlrX$v[[jj]]/norm(simlrX$v[[jj]],'F')
+    }
+    print( simlrpred$varx )
     mcnamesorig = mcnames
     projmati = matlist[[1]] %*% simlrX$v[[1]]
     projmatc = matlist[[2]] %*% simlrX$v[[2]]
@@ -1496,7 +1506,8 @@ if ( nsimlr > 0 ) {
     clustdata=cbind(clustdata,projimgs)
     message("simlr done")
     print("simlr done")
-}
+} 
+diagnostics=FALSE
 ```
 
 
@@ -1552,7 +1563,7 @@ fviz_nbclust(subcohorttr, kmeans, method = "wss", k.max = 20) + theme_minimal() 
 
 ## find the gap 
 
-```{r gap,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+```{r gap,echo=FALSE,eval=diagnostics,warning=FALSE,message=FALSE,cache=FALSE}
 nboot = 200
 gap_stat <- clusGap(subcohorttr, FUN = kmeans, nstart = 30, K.max = 20, B = nboot)
 fviz_gap_stat(gap_stat) + theme_minimal() + ggtitle("fviz_gap_stat: Gap Statistic")
@@ -1588,7 +1599,7 @@ ssc %>% ggplot(., aes(x=kmeans, y=log10(value), fill = measurement)) + geom_bar(
 
 ## NbClust
 
-```{r nbclust,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r nbclust,echo=FALSE,eval=diagnostics,cache=FALSE}
 res.nbclust <- NbClust(subcohorttr, distance = "euclidean",
                   min.nc = 2, max.nc = 20, 
                   method = "complete", index ="all")
@@ -1597,7 +1608,7 @@ res.nbclust <- NbClust(subcohorttr, distance = "euclidean",
 ## clustree
 
 
-```{r clustree,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r clustree,echo=FALSE,eval=diagnostics,cache=FALSE}
 tmp <- NULL
 for (k in 1:11){
   tmp[k] <- kmeans(subcohorttr, k, nstart = 30)
@@ -1627,7 +1638,7 @@ overlay_list$y_side
 
 see [this](https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92) for commentary
 
-```{r clvalid,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r clvalid,echo=FALSE,eval=diagnostics,cache=FALSE}
 clmeths = c( "hierarchical", "kmeans", "diana", "fanny",
           "som", "model", "sota", "pam", "clara", "agnes")
 intern <- clValid(scale(subcohorttr), nClust = 2:12,
@@ -1639,7 +1650,7 @@ summary(intern) %>% print()
 
 ## pamk
 
-```{r pamk,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r pamk,echo=FALSE,eval=diagnostics,cache=FALSE}
 library(fpc)
 pamk.best <- pamk(subcohorttr)
 cat("number of clusters estimated by optimum average silhouette width:", pamk.best$nc, "\n")
@@ -1648,7 +1659,7 @@ plot(pam(subcohorttr, pamk.best$nc))
 
 ## Calinski
 
-```{r Calinski,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r Calinski,echo=FALSE,eval=diagnostics,cache=FALSE}
 require(vegan)
 fit <- cascadeKM(scale(subcohorttr, center = TRUE,  scale = TRUE), 1, 10, iter = 1000)
 plot(fit, sortg = TRUE, grpmts.plot = TRUE)
@@ -1658,7 +1669,7 @@ cat("Calinski criterion optimal number of clusters:", calinski.best, "\n")
 
 ## BIC
 
-```{r bic,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r bic,echo=FALSE,eval=diagnostics,cache=FALSE}
 library(mclust)
 d_clust <- Mclust(as.matrix(subcohorttr), G=1:20)
 m.best <- dim(d_clust$z)[2]
@@ -1669,7 +1680,7 @@ cat("model-based optimal number of clusters:", m.best, "\n")
 
 ## affinity 
 
-```{r aff,echo=FALSE,eval=TRUE,cache=FALSE}
+```{r aff,echo=FALSE,eval=diagnostics,cache=FALSE}
 library(apcluster)
 d.apclus <- apcluster(negDistMat(r=2), subcohorttr)
 cat("affinity propogation optimal number of clusters:", length(d.apclus@clusters), "\n")
@@ -1802,7 +1813,7 @@ for ( myclust in clustlist ) {
 clustdfPD = clustdf
 qvals = p.adjust( as.numeric(clustdfPD$pvalue), corrmethCL )
 table( clustdfPD$method[  qvals <= 0.05 ] ) %>% print()
-clustlistPro = as.character( unique( c( "cckmeans", "kmedians",clustdfPD$method[  qvals <= 0.05 ]  ) ))
+clustlistPro = as.character( unique( clustdfPD$method[  qvals <= 0.05 ] ))
 cog2test = as.character( unique( clustdfPD$cog[  qvals <= 0.05 ]  ) )
 ```
 
