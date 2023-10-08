@@ -1479,8 +1479,7 @@ if ( nsimlr > 0 ) {
             mixAlg='pca',
             energyType='cca',
 #            scale = 'robust',
-#            sparsenessQuantiles=c(0.95,0.95),
-            sparsenessQuantiles=c(0.8,0.8),
+            sparsenessQuantiles=c(0.95,0.95),
             positivities = c('positive','either'),
             constraint = 'none',
             expBeta = 0.90,
@@ -1807,32 +1806,42 @@ clustlistPro = as.character( unique( c( "cckmeans", "kmedians",clustdfPD$method[
 cog2test = as.character( unique( clustdfPD$cog[  qvals <= 0.05 ]  ) )
 ```
 
+
 ## visualize each cluster with respect to each significant clinical domain
 
-
-```{r vizinpd,echo=FALSE,eval=TRUE,fig.width=9,fig.height=3}
+```{r vizinpd,echo=FALSE,eval=TRUE,fig.width=9,fig.height=4.5}
 myst = clustmodels[[vizclustmeth]]
 subcohortPD=clearcolname(subcohortPD, mvcl )
 subcohortPD = predictSubtypeClusterMulti( subcohortPD, 
         mcnames, myst, mvcl, 
         'PATNO', 'imaging_EVENT_ID', 'V0')
 if ( FALSE ) {
-library(ggstatsplot)
-ggbetweenstats(
-  data = subcohortPD,
-  x = MVCX,
-  y = updrs_totscore
-)
-}
-
-for ( zz in cog2test ) {
-    gg1=ggviolin( subcohortPD[basesel,], mvcl, zz)+ggtitle(paste("Baseline",zz))
-    follsel = round(subcohortPD$yearsbl)==4
-    gg2=ggviolin( subcohortPD[follsel,], mvcl, zz)+ggtitle(paste("Year 4",zz))
-    print( grid.arrange( grobs=list(gg1,gg2),nrow=1))
+    library(ggstatsplot)
+    ggbetweenstats(
+    data = subcohortPD,
+    x = MVCX,
+    y = updrs_totscore
+    )
     }
-
+subcohortPD$yearr = round( subcohortPD$yearsbl )
+for ( cog in cog2test ) {
+    toviz = subcohortPD[ subcohortPD$yearr %in% c(0,1,2,4), ]
+    toviz = toviz[ !is.na( toviz[,cog]),]
+    mytbl = table( toviz$PATNO )
+    highid = names( mytbl[ mytbl > 2  ] )
+    toviz = toviz[ toviz$PATNO %in% highid, ]
+    print( plotSubtypeChange( toviz,
+        idvar='PATNO', 
+        measurement=cog,
+        subtype=mvcl,
+        vizname='yearr',
+        'se',
+        xlab='yr from v0' ) + ggtitle(paste(cog," : raw") ) )
+    }
+#####
 ```
+
+
 
 ## prodromal evaluation
 
@@ -1881,7 +1890,6 @@ for ( myclust in clustlistPro ) {
         }
     }
 ```
-
 
 ## print prodromal sporadic evaluation
 
