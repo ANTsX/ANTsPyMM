@@ -5,6 +5,7 @@ output: html_document
 
 ```{r,echo=FALSE,include=FALSE}
 dev.flush()
+library("permute")
 library(MGMM) # GMM methods (FIXME)
 library(WeightedCluster) # cluster quality (FIXME)
 library( kmed ) # silhouette plots and such
@@ -1421,16 +1422,17 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
-desiredk = 4
+desiredk = 2 # 2,3,4,5,6
 nsimlr = 1
-minsubcount = 2
+minsubcount = 1
 vizclustmeth = 'neuralgas'
 vizclustmeth = 'kmeansflex'
-vizclustmeth = 'kmedians'
 vizclustmeth = 'hierarchicalCluster'
-vizclustmeth = 'cckmeans'
 vizclustmeth = 'pamCluster'
 vizclustmeth = 'GMM'
+vizclustmeth = 'kmedians'
+vizclustmeth = 'cckmeans'
+vizclustmeth = 'angle'
 ```
 
 
@@ -1443,6 +1445,8 @@ if ( nsimlr > 0 ) {
     matlist = list(
         scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,mcnames]) )),
         scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,coggers] ))) )
+    write.csv( matlist[[1]], '/tmp/data1.csv', row.names=FALSE )
+    write.csv( matlist[[2]], '/tmp/data2.csv', row.names=FALSE )
     matlistTest = list(
         scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,mcnames]) )),
         scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,coggers] ))) )
@@ -1457,41 +1461,109 @@ if ( nsimlr > 0 ) {
 #    mysvdd = cumsum(svd( scale(cbind(matlist[[1]],matlist[[2]])))$d)
     mysvdd = mysvdd/max(mysvdd)
     mysvdd
-    nsimlr = mymin - 1 # based on PCA plot
     nsimlr = which.min( abs(0.8 - (mysvdd/max(mysvdd)) ))
 #    nsimlr = desiredk
-    nsimlr = 4 # based on PCA plot
+    nsimlr = mymin - 1 # based on cog dim
+    nsimlr = 2 # based on PCA plot
     message(paste('nsimlr',nsimlr))
     print(paste('nsimlr',nsimlr))
     regs = regularizeSimlr( matlist, fraction=0.05, sigma=c(3.0,3.0) )
     regs[[1]][1,]
     regs[[2]][1,]
-    initu = initializeSimlr(
-        matlist,
-        nsimlr,
-        jointReduction = TRUE,
-        zeroUpper = FALSE,
-        uAlgorithm = "pca",
-        addNoise = 0 )
-    # if ( ! exists( "simlrX" ) )
-    simlrX = simlr( matlist, 
-            regs, 
-            iterations=300, 
-            verbose=TRUE,
-            randomSeed = 0,
-            mixAlg='pca',
-            energyType='cca',
-#            scale = 'robust',
-            sparsenessQuantiles=c(0.95,0.95),
-            positivities = c('positive','either'),
-            constraint = 'none',
-            expBeta = 0.90,
-            initialUMatrix=initu )
-    # subset the solution
-    simlrpred = predictSimlr( matlist, simlrX )
-    print( simlrpred$finalErrors/simlrpred$initialErrors)
+    # set up parameters for permutation tests
+    myjr = TRUE
+    prescaling = c( 'centerAndScale', 'sqrtnp' )
+    prescaling = c( 'robust', 'sqrtnp'  )
+    pizzer = c( "positive", "either" )
+    objectiver = 'cca'
+    optimus = 'lineSearch'
+    maxits = 100
+    mixer = 'pca'
+    ebber = 0.5
+    nperms = 10
+    nsimlrsearch = 7 # 2:8
+    nsimlrsearchTvals = data.frame( )
+    quantval = 0.5
+    sparval = c(0.5,0.5)
+    for ( sparsearch in 1:1 ) {
+        set.seed(as.integer( Sys.time() ))
+        sparval = rnorm(2,0.75,0.15 )
+        if ( sparsearch == 1 ) sparval = c(0.5, 0.5)
+        if ( sparsearch == 2 ) sparval = c(0.8, 0.8)
+        sparval[ sparval > 0.98 ]=0.98
+        sparval[ sparval < 0.5 ]=0.5
+        for ( nsimlr in nsimlrsearch ) {
+            nsimlrct = nrow(nsimlrsearchTvals)+1
+            initu = initializeSimlr(
+                matlist,
+                nsimlr,
+                jointReduction = myjr,
+                zeroUpper = FALSE,
+                uAlgorithm = "pca",
+                addNoise = 0 )
+            simlrX = simlr( matlist, 
+                    regs, 
+                    iterations=maxits, 
+                    verbose=FALSE,
+                    randomSeed = 0,
+                    mixAlg=mixer,
+                    energyType=objectiver,
+                    scale = prescaling,
+                    sparsenessQuantiles=sparval,
+                    positivities = pizzer, expBeta=ebber,
+                    optimizationStyle=optimus,
+                    initialUMatrix=initu )
+            simlrpred = predictSimlr( matlist, simlrX, 
+                targetMatrix=2, sourceMatrices=1 )
+            simlrpvals = rep(NA,nperms)  
+            # begin permutation
+            myseeds = sample(1:10000,nperms)
+            for ( nperm in c(1:nperms) ) {
+                matlistperm = matlist
+                for ( jj in 1:length(matlist) ) {
+                    myperm = shuffle( as.integer( 1:nrow(matlist[[jj]])) )
+                    matlistperm[[jj]]=matlist[[jj]][myperm,]
+                }
+                initu = initializeSimlr(
+                    matlistperm,
+                    nsimlr,
+                    jointReduction = myjr,
+                    zeroUpper = FALSE,
+                    uAlgorithm = "pca",
+                    addNoise = 0 )
+                simlrXperm = simlr( matlistperm, 
+                    regs, 
+                    iterations=maxits, 
+                    verbose=FALSE,
+                    randomSeed = 0,
+                    mixAlg=mixer,
+                    energyType=objectiver,
+                    scale = prescaling,
+                    sparsenessQuantiles=sparval,
+                    positivities = pizzer, expBeta = ebber,
+                    optimizationStyle=optimus,
+                    initialUMatrix=initu )
+                simlrpredperm = predictSimlr( matlistperm, simlrXperm, 
+                    targetMatrix=2, sourceMatrices=1 )
+                simlrpvals[nperm]=quantile( simlrpredperm$varxfull[[1]], quantval )
+                # print( paste(nperm,simlrpvals[nperm], mean(simlrpredperm$varx) ) )
+                set.seed( myseeds[nperm] )
+            }
+            refvarxval = quantile( simlrpred$varxfull[[1]], quantval )
+            mytt = t.test( refvarxval - simlrpvals )
+            nsimlrsearchTvals[nsimlrct,c('energy','mix','opt')]=c(objectiver,mixer,optimus)
+            nsimlrsearchTvals[nsimlrct,c('sp1','sp2','elast')]=c(sparval,ebber)
+            nsimlrsearchTvals[nsimlrct,c('varx')]=refvarxval
+            nsimlrsearchTvals[nsimlrct,c('n', 't','pval')]=c(nsimlr,as.numeric(mytt$stat),sum(simlrpvals>mean(simlrpred$varx))/nperm)
+            print( nsimlrsearchTvals[nsimlrct,] )
+            } # nsimlrsearch
+        } # sparval search
+    print( nsimlrsearchTvals )
+    #######################
+    # subset the solution #
+    #######################
     for ( jj in 1:length( simlrX$v ) ) {
-        simlrX$v[[jj]]=simlrX$v[[jj]][, simlrpred$uOrder[1:4] ]
+        simlrX$v[[jj]]=simlrX$v[[jj]][, simlrpred$uOrder[1:2] ]
         simlrX$v[[jj]]=simlrX$v[[jj]]/norm(simlrX$v[[jj]],'F')
     }
     print( simlrpred$varx )
