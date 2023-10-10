@@ -1422,10 +1422,9 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
-desiredk = 2 # 2,3,4,5,6
+desiredk = 5 # 2,3,4,5,6
 nsimlr = 1
 minsubcount = 1
-vizclustmeth = 'neuralgas'
 vizclustmeth = 'kmeansflex'
 vizclustmeth = 'hierarchicalCluster'
 vizclustmeth = 'pamCluster'
@@ -1433,6 +1432,9 @@ vizclustmeth = 'GMM'
 vizclustmeth = 'kmedians'
 vizclustmeth = 'cckmeans'
 vizclustmeth = 'angle'
+vizclustmeth = 'neuralgas'
+vizclustmeth = 'hardcl'
+######################
 ```
 
 
@@ -1472,23 +1474,23 @@ if ( nsimlr > 0 ) {
     regs[[2]][1,]
     # set up parameters for permutation tests
     myjr = TRUE
-    prescaling = c( 'centerAndScale', 'sqrtnp' )
-    prescaling = c( 'robust', 'sqrtnp'  )
-    pizzer = c( "positive", "either" )
+    prescaling = c( 'robust', 'norm'  )
+    prescaling = c( 'centerAndScale', 'norm' )
+    pizzer = c( "positive", "positive" )
     objectiver = 'cca'
     optimus = 'lineSearch'
     maxits = 100
     mixer = 'pca'
     ebber = 0.5
-    nperms = 10
-    nsimlrsearch = 7 # 2:8
+    nperms = 2
+    nsimlrsearch = 5 # 2:8
     nsimlrsearchTvals = data.frame( )
     quantval = 0.5
-    sparval = c(0.5,0.5)
+    basesparval = c(0.5,0.5)
     for ( sparsearch in 1:1 ) {
         set.seed(as.integer( Sys.time() ))
         sparval = rnorm(2,0.75,0.15 )
-        if ( sparsearch == 1 ) sparval = c(0.5, 0.5)
+        if ( sparsearch == 1 ) sparval = basesparval
         if ( sparsearch == 2 ) sparval = c(0.8, 0.8)
         sparval[ sparval > 0.98 ]=0.98
         sparval[ sparval < 0.5 ]=0.5
@@ -1553,7 +1555,7 @@ if ( nsimlr > 0 ) {
             mytt = t.test( refvarxval - simlrpvals )
             nsimlrsearchTvals[nsimlrct,c('energy','mix','opt')]=c(objectiver,mixer,optimus)
             nsimlrsearchTvals[nsimlrct,c('sp1','sp2','elast')]=c(sparval,ebber)
-            nsimlrsearchTvals[nsimlrct,c('varx')]=refvarxval
+            nsimlrsearchTvals[nsimlrct,c('varx','nperms')]=c(refvarxval,nperms)
             nsimlrsearchTvals[nsimlrct,c('n', 't','pval')]=c(nsimlr,as.numeric(mytt$stat),sum(simlrpvals>mean(simlrpred$varx))/nperm)
             print( nsimlrsearchTvals[nsimlrct,] )
             } # nsimlrsearch
