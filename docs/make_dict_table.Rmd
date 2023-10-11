@@ -1382,7 +1382,7 @@ clustdata = fillBaselineColumn( clustdata,
         c('brainVolume',testnames,'hy','moca'), 
         'PATNO', 'imaging_EVENT_ID', 'V0', 
         fast=T, verbose=F )[[1]]
-#############################################################################
+clustdata$milestonesum = rowSums( clustdata[,mymiles] )#############################################################################
 basesel = fs( clustdata$imaging_EVENT_ID == 'V0' )
 trainsel = fs( basesel & clustdata$DX %in% c( "PD" ) )#  & subcohort$SEX==0)
 trainsel = fs( clustdata$DX != "Prodromal" & basesel )
@@ -1405,11 +1405,14 @@ corrmethCL='BH'
 #############################################################################
 clustdatADJ=clustdata
 for ( x in mcnames ) {
+    message("SHOULD SEX BE A COVAR GIVEN THAT IT IS COINCIDENT WITH SYMPTOMOLOGY?")
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX " 
-#    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX " 
+    stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
+#    stcovars = "  ~ mrimfg + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
+#    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX "
     adjform = paste( x, stcovars )
     clustdatADJ=adjustByCovariates( clustdatADJ, adjform, 'istrain', TRUE )
-}
+    }
 mcnames = getNamesFromDataframe( "_adjusted", clustdatADJ )
 clustdata = clustdatADJ
 rm( clustdatADJ )
@@ -1431,9 +1434,9 @@ vizclustmeth = 'pamCluster'
 vizclustmeth = 'GMM'
 vizclustmeth = 'kmedians'
 vizclustmeth = 'cckmeans'
-vizclustmeth = 'angle'
 vizclustmeth = 'neuralgas'
 vizclustmeth = 'hardcl'
+vizclustmeth = 'angle'
 ######################
 ```
 
@@ -1442,16 +1445,20 @@ vizclustmeth = 'hardcl'
 
 ```{r simlr,echo=FALSE,eval=TRUE,warning=FALSE,message=TRUE,cache=FALSE}
 ##########
+#  "scopa", "stai",
+coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", 
+"quip", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_immediaterecall"  )
+coggersX2 = c( coggersX)
 if ( nsimlr > 0 ) {
     # simlr on mcnames and coggers in training data
     matlist = list(
         scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,mcnames]) )),
-        scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,coggers] ))) )
+        scale(antsrimpute(data.matrix( clustdata[clustdata$istrain,coggersX2] ))) )
     write.csv( matlist[[1]], '/tmp/data1.csv', row.names=FALSE )
     write.csv( matlist[[2]], '/tmp/data2.csv', row.names=FALSE )
     matlistTest = list(
         scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,mcnames]) )),
-        scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,coggers] ))) )
+        scale(antsrimpute(data.matrix( clustdata[!clustdata$istrain,coggersX2] ))) )
 
     res.pca <- PCA(matlist[[2]],  graph = FALSE)
     mymin = round(min( dim(matlist[[2]])) * 0.9)
@@ -1477,21 +1484,25 @@ if ( nsimlr > 0 ) {
     prescaling = c( 'robust', 'norm'  )
     prescaling = c( 'centerAndScale', 'norm' )
     pizzer = c( "positive", "positive" )
-    objectiver = 'cca'
+    objectiver = 'lowRankRegression'
     optimus = 'lineSearch'
     maxits = 100
     mixer = 'pca'
     ebber = 0.5
-    nperms = 2
-    nsimlrsearch = 5 # 2:8
+    nsimlrsearch = 2 # max 10 based on looking at the scree plot for cog data
+    nperms = 40
+    if ( length( nsimlrsearch  ) == 1 ) nperms=3
     nsimlrsearchTvals = data.frame( )
     quantval = 0.5
-    basesparval = c(0.5,0.5)
-    for ( sparsearch in 1:1 ) {
+    basesparval = c(0.5,0.5) 
+    # n = 6, n = 4 for 0.8, n=7 for spar 0.8 and LRR
+    # n = 3 for spar 0.95 and LRR
+    for ( sparsearch in 3 ) {
         set.seed(as.integer( Sys.time() ))
         sparval = rnorm(2,0.75,0.15 )
         if ( sparsearch == 1 ) sparval = basesparval
         if ( sparsearch == 2 ) sparval = c(0.8, 0.8)
+        if ( sparsearch == 3 ) sparval = c(0.95, 0.95)
         sparval[ sparval > 0.98 ]=0.98
         sparval[ sparval < 0.5 ]=0.5
         for ( nsimlr in nsimlrsearch ) {
@@ -1506,7 +1517,7 @@ if ( nsimlr > 0 ) {
             simlrX = simlr( matlist, 
                     regs, 
                     iterations=maxits, 
-                    verbose=FALSE,
+                    verbose=T,
                     randomSeed = 0,
                     mixAlg=mixer,
                     energyType=objectiver,
@@ -1536,7 +1547,7 @@ if ( nsimlr > 0 ) {
                 simlrXperm = simlr( matlistperm, 
                     regs, 
                     iterations=maxits, 
-                    verbose=FALSE,
+                    verbose=F,
                     randomSeed = 0,
                     mixAlg=mixer,
                     energyType=objectiver,
@@ -1575,7 +1586,7 @@ if ( nsimlr > 0 ) {
     pheatmap::pheatmap( abs( cor(projmati, projmatc )) , cluster_cols=F, cluster_rows=F)
     plot( projmati[,1], projmatc[,1] )
     projimgs = data.matrix(clustdata[,mcnames]) %*% simlrX$v[[1]]
-    projcogs = data.matrix(clustdata[,coggers]) %*% simlrX$v[[2]]
+    projcogs = data.matrix(clustdata[,coggersX2]) %*% simlrX$v[[2]]
     mcnames=colnames(projimgs)
     clustdata=cbind(clustdata,projimgs)
     message("simlr done")
@@ -1830,7 +1841,6 @@ names( clustmodels ) = paste0(clustlist)
 
 ```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 ## EVALUATE THE TRAINED MODELS in PD
-coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", "quip", "scopa", "stai", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_discrimination", "hvlt_immediaterecall", "hvlt_retention" )
 mygroup='PD'
 clustdf = data.frame( )
 # effdf = data.frame( matrix( nrow = length( coggersX )*2, ncol = desiredk ) )
@@ -1942,11 +1952,12 @@ for ( myclust in clustlistPro ) {
     subcohortProdromal$CDX = paste0( subcohortProdromal[,mvcl], "_", 
         subcohortProdromal$AsynStatus )
     subcohortProdromal$CDX=subcohortProdromal[,mvcl]
-    for ( cog in cog2test ) {
+    cog2test2 = c( cog2test, 'milestonesum' )
+    for ( cog in cog2test2 ) {
         thedf = subcohortProdromal
         temp = table( thedf$PATNO )
         thedf$yearr =round( thedf$yearsbl)
-        tsel = ( thedf$yearr %in% c(0,1,2,4) ) & 
+        tsel = # ( thedf$yearr %in% c(0,1) ) & 
                 thedf$PATNO %in% names(temp)[temp>=minsubcount]
         thedf = thedf[tsel,]
         cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
@@ -1974,6 +1985,7 @@ for ( myclust in clustlistPro ) {
             }
         }
     }
+#####
 ```
 
 ## print prodromal sporadic evaluation
