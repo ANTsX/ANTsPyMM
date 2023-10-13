@@ -1394,7 +1394,7 @@ clustdata$istrain[ trainsel ] = TRUE
 mcnames = c( testnames[ -multigrep(c("DTI","Asym"), testnames) ] )
 mcnames = c( testnames[ -multigrep(c("DTI"), testnames) ] )
 clustdata[,mcnames]=ANTsRCore::antsrimpute(clustdata[,mcnames])
-corrmethCL='BH'
+corrmethCL='bonf'
 ```
 
 
@@ -1427,18 +1427,18 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
-desiredk = 5 # 2,3,4,5,6
+desiredk = 5 # based on scree plot etc
 nsimlr = 1
 minsubcount = 1
 vizclustmeth = 'kmeansflex'
-vizclustmeth = 'hierarchicalCluster'
 vizclustmeth = 'pamCluster'
-vizclustmeth = 'kmedians'
 vizclustmeth = 'neuralgas'
-vizclustmeth = 'hardcl'
 vizclustmeth = 'GMM'
 vizclustmeth = 'cckmeans'
 vizclustmeth = 'angle'
+vizclustmeth = 'kmedians'
+vizclustmeth = 'hardcl'
+vizclustmeth = 'hierarchicalCluster'
 ######################
 ```
 
@@ -1487,16 +1487,17 @@ if ( nsimlr > 0 ) {
     prescaling = c( 'centerAndScale', 'norm' )
     optimus = 'lineSearch'
     maxits = 100
-    mixer = 'pca'
     ebber = 0.5
-    nsimlrsearch = 4 # :8 # 2:8 # max 10 based on looking at the scree plot for cog data
-    nperms = 25
-    if ( length( nsimlrsearch  ) == 1 ) nperms=3
-    quantval = 0.5
+    nsimlrsearch = 2 # 2:8 # max 10 based on looking at the scree plot for cog data
+    nperms = 100
+    # if ( length( nsimlrsearch  ) == 1 ) nperms=3
+    quantval = 0.99
     objectiver = 'lowRankRegression'
     pizzer = c( "positive", "positive" )
+    pizzer = c( "either", "either" )
+    mixer = 'pca'
     nsimlrsearchTvals = data.frame( )
-    basesparval = c(0.5,0.5) 
+    basesparval = c( 0.5, 0.5 ) 
     # n = 6, n = 4 for 0.8, n=7 for spar 0.8 and LRR
     # n = 3 for spar 0.95 and LRR
     for ( sparsearch in 1 ) {
@@ -1537,7 +1538,7 @@ if ( nsimlr > 0 ) {
             for ( nperm in c(1:nperms) ) {
                 matlistperm = matlist
                 for ( jj in 1:length(matlist) ) {
-                    myperm = shuffle( as.integer( 1:nrow(matlist[[jj]])) )
+                    myperm = sample( as.integer( 1:nrow(matlist[[jj]])) )
                     matlistperm[[jj]]=matlist[[jj]][myperm,]
                 }
                 initu = initializeSimlr(
@@ -1612,8 +1613,9 @@ subcohortPD = clustdata[ fs(
     clustdata$yearsbl <= yth),]
 # this is testing model selection
 subcohortProdromal = clustdata[ fs(
+    clustdata$DXSubAsyn %in% c("ProdromalSporadicPositive") &
 #    clustdata$DXSub %in% c("ProdromalSporadic") &
-    clustdata$DXSubAsyn %in% c("ProdromalSporadicPositive","CNPositive") &
+#    clustdata$DXSubAsyn %in% c("ProdromalSporadicPositive","CNPositive") &
 #    clustdata$DX %in% c("Prodromal") &
     clustdata$yearsbl <= yth),]
 # names of the predicted clusters
@@ -1786,12 +1788,19 @@ plot(d.apclus, subcohorttr)
 ## BUILD THE TRAINED MODELS
 ###################################################
 ###################################################
-clustlist = c( "hierarchicalCluster", "GMM", "pamCluster", 
+clustlist = c(  
+    "hierarchicalCluster", "GMM", "pamCluster", 
     "kmedians", "angle", "ejaccard", "hardcl",  "cckmeans" )
+# clustlist = c( clustlist, mlr_learners$keys("clust") )
+# clustlist = clustlist[ !( clustlist %in% c("clust.ff", "clust.agnes","clust.ap","clust.cobweb","clust.dbscan","clust.em","clust.MBatchKMeans","clust.SimpleKMeans","clust.meanshift","clust.xmeans","clust.diana","clust.fanny","clust.hclust","clust.kkmeans" ,     "clust.kmeans"))]
+    for ( myclust in clustlist ) {
+        trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
+                desiredk=thek )
+    }
 sildf = data.frame()
 clustmodels = list()
 clustmodelQual = list()
-for ( thek in 2:10 ) {
+for ( thek in desiredk ) {
     for ( myclust in clustlist ) {
         clustmodels[[ length( clustmodels ) + 1 ]] =
             trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
@@ -2204,4 +2213,38 @@ bsel = subcohortProdromal$imaging_EVENT_ID == 'V0'
 temp = subcohortProdromal[ bsel, ]
 print( table( temp[,'SEX'], temp[,mvcl ] ) )
 ##########################################
+```
+
+
+
+## cluster break down with respect to subtype
+
+
+```{r spdpromvc,echo=FALSE,eval=TRUE}
+##########################################
+##########################################
+print("At risk")
+bsel = subcohortProdromal$imaging_EVENT_ID == 'V0'
+temp = subcohortProdromal[ bsel, ]
+print( table( temp[,'subgroup'], temp[,mvcl ] ) )
+##########################################
+```
+
+
+## plot the clusters 
+
+```{r clusterplot,echo=FALSE,eval=TRUE}
+# library(cluster)
+# autoplot(clara(subcohortPD[,mcnames], desiredk), frame = TRUE)
+# ggfortify::autoplot( )
+ggscatter( subcohortPD, mcnames[1], mcnames[2], color=mvcl )
+#    ggforce::geom_mark_ellipse(aes(fill = mvcl,
+#                        label = mvcl)),
+#                    expand = unit(0.5,"mm"),
+ #                   label.buffer = unit(-5, 'mm'))
+#  geom_polygon(data = subcohortPD,
+#               aes(fill = mvcl,
+#                   colour = mvcl),
+#               alpha = 0.3,
+#               show.legend = FALSE)
 ```
