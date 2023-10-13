@@ -779,7 +779,7 @@ clin$hy[ is.na( clin$hy )] = "0"
 clin$hy = as.numeric( clin$hy )
 clin$moca = ANTsRCore::antsrimpute( clin$moca )
 clin$age_BL=ANTsRCore::antsrimpute(as.numeric(clin$age_BL))
-corrmeth='BH'
+corrmeth='bonf'
 winsval=0.001
 qthresh=5e-5
 qthresh=0.001
@@ -1408,6 +1408,8 @@ for ( x in mcnames ) {
     message("SHOULD SEX BE A COVAR GIVEN THAT IT IS COINCIDENT WITH SYMPTOMOLOGY?")
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + SEX " 
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
+    stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + mrimfg "
+    stcovars = "  ~ SEX + EDUCYRS + ( Age1 + Age2 ) + mrimfg "
 #    stcovars = "  ~ mrimfg + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
 #    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX "
     adjform = paste( x, stcovars )
@@ -1431,11 +1433,11 @@ minsubcount = 1
 vizclustmeth = 'kmeansflex'
 vizclustmeth = 'hierarchicalCluster'
 vizclustmeth = 'pamCluster'
-vizclustmeth = 'GMM'
 vizclustmeth = 'kmedians'
-vizclustmeth = 'cckmeans'
 vizclustmeth = 'neuralgas'
 vizclustmeth = 'hardcl'
+vizclustmeth = 'GMM'
+vizclustmeth = 'cckmeans'
 vizclustmeth = 'angle'
 ######################
 ```
@@ -1448,7 +1450,7 @@ vizclustmeth = 'angle'
 #  "scopa", "stai",
 coggersX = c( "gds", "lns", "moca", "NP1APAT", "pigd", 
 "quip", "updrs1_score" , "updrs2_score", "updrs3_score", "updrs3_score_on", "updrs_totscore", "updrs_totscore_on", "hvlt_immediaterecall"  )
-coggersX2 = c( coggersX)
+coggersX2 = c( coggersX )
 if ( nsimlr > 0 ) {
     # simlr on mcnames and coggers in training data
     matlist = list(
@@ -1483,28 +1485,29 @@ if ( nsimlr > 0 ) {
     myjr = TRUE
     prescaling = c( 'robust', 'norm'  )
     prescaling = c( 'centerAndScale', 'norm' )
-    pizzer = c( "positive", "positive" )
-    objectiver = 'lowRankRegression'
     optimus = 'lineSearch'
     maxits = 100
     mixer = 'pca'
     ebber = 0.5
-    nsimlrsearch = 2 # max 10 based on looking at the scree plot for cog data
-    nperms = 40
+    nsimlrsearch = 4 # :8 # 2:8 # max 10 based on looking at the scree plot for cog data
+    nperms = 25
     if ( length( nsimlrsearch  ) == 1 ) nperms=3
-    nsimlrsearchTvals = data.frame( )
     quantval = 0.5
+    objectiver = 'lowRankRegression'
+    pizzer = c( "positive", "positive" )
+    nsimlrsearchTvals = data.frame( )
     basesparval = c(0.5,0.5) 
     # n = 6, n = 4 for 0.8, n=7 for spar 0.8 and LRR
     # n = 3 for spar 0.95 and LRR
-    for ( sparsearch in 3 ) {
+    for ( sparsearch in 1 ) {
         set.seed(as.integer( Sys.time() ))
         sparval = rnorm(2,0.75,0.15 )
         if ( sparsearch == 1 ) sparval = basesparval
         if ( sparsearch == 2 ) sparval = c(0.8, 0.8)
         if ( sparsearch == 3 ) sparval = c(0.95, 0.95)
+        if ( sparsearch == 4 ) sparval = c(0.,0.)
         sparval[ sparval > 0.98 ]=0.98
-        sparval[ sparval < 0.5 ]=0.5
+        sparval[ sparval < 0. ]=0.
         for ( nsimlr in nsimlrsearch ) {
             nsimlrct = nrow(nsimlrsearchTvals)+1
             initu = initializeSimlr(
@@ -1565,7 +1568,7 @@ if ( nsimlr > 0 ) {
             refvarxval = quantile( simlrpred$varxfull[[1]], quantval )
             mytt = t.test( refvarxval - simlrpvals )
             nsimlrsearchTvals[nsimlrct,c('energy','mix','opt')]=c(objectiver,mixer,optimus)
-            nsimlrsearchTvals[nsimlrct,c('sp1','sp2','elast')]=c(sparval,ebber)
+            nsimlrsearchTvals[nsimlrct,c('sp1','sp2','pos1','pos2', 'elast')]=c(sparval,pizzer, ebber)
             nsimlrsearchTvals[nsimlrct,c('varx','nperms')]=c(refvarxval,nperms)
             nsimlrsearchTvals[nsimlrct,c('n', 't','pval')]=c(nsimlr,as.numeric(mytt$stat),sum(simlrpvals>mean(simlrpred$varx))/nperm)
             print( nsimlrsearchTvals[nsimlrct,] )
@@ -1576,7 +1579,7 @@ if ( nsimlr > 0 ) {
     # subset the solution #
     #######################
     for ( jj in 1:length( simlrX$v ) ) {
-        simlrX$v[[jj]]=simlrX$v[[jj]][, simlrpred$uOrder[1:2] ]
+        simlrX$v[[jj]]=simlrX$v[[jj]][, simlrpred$uOrder ]
         simlrX$v[[jj]]=simlrX$v[[jj]]/norm(simlrX$v[[jj]],'F')
     }
     print( simlrpred$varx )
@@ -1783,12 +1786,8 @@ plot(d.apclus, subcohorttr)
 ## BUILD THE TRAINED MODELS
 ###################################################
 ###################################################
-clustlist = c(  "hierarchicalCluster",  "GMM", "pamCluster", 
-    "kmeansflex", "kmedians",  "angle",  "ejaccard", 
-    "hardcl","neuralgas", "cckmeans" )
-clustlist = c( "GMM", "pamCluster", 
-    "kmedians", "angle", "ejaccard", 
-    "hardcl", "neuralgas", "cckmeans" )
+clustlist = c( "hierarchicalCluster", "GMM", "pamCluster", 
+    "kmedians", "angle", "ejaccard", "hardcl",  "cckmeans" )
 sildf = data.frame()
 clustmodels = list()
 clustmodelQual = list()
@@ -1949,39 +1948,41 @@ for ( myclust in clustlistPro ) {
     subcohortProdromal = predictSubtypeClusterMulti( subcohortProdromal, 
         mcnames, myst, mvcl, 
         'PATNO', 'imaging_EVENT_ID', 'V0')
-    subcohortProdromal$CDX = paste0( subcohortProdromal[,mvcl], "_", 
-        subcohortProdromal$AsynStatus )
-    subcohortProdromal$CDX=subcohortProdromal[,mvcl]
-    cog2test2 = c( cog2test, 'milestonesum' )
-    for ( cog in cog2test2 ) {
-        thedf = subcohortProdromal
-        temp = table( thedf$PATNO )
-        thedf$yearr =round( thedf$yearsbl)
-        tsel = # ( thedf$yearr %in% c(0,1) ) & 
-                thedf$PATNO %in% names(temp)[temp>=minsubcount]
-        thedf = thedf[tsel,]
-        cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
-        cogform=paste( cogformb, "+CDX+yearsbl:CDX" )
-        cogmdlb = lmer( cogformb, data=thedf )
-        cogmdl = lmer( cogform, data=thedf )
-        cogcoff=coefficients(summary(cogmdl))
-        greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
-        cogcoff=cogcoff[greppers,]
-        nr=nrow(clustdf) + 1
-        clustdf[nr,c( 'method', 'cog','pvalue','group')] =
-                c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
-        if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 & myclust == vizclustmeth ) {
-            ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
-            message(paste('mvclust',cog))
-            print( cogcoff[,-c(1:2)] )
-            cogpvform = insight::format_p( 
-                    clustdf[nr,c('pvalue')],
-                    stars=TRUE, digits=4 )
-            thedf$temp = as.character( thedf[,'DXSub'])
-            subcohortg=thedf[!is.na(thedf$temp),]
-            (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
-                    addpoints=1, palette=mypal ) +
-                    ggtitle(ggtit) ) %>% print()
+    if ( length(table( subcohortProdromal[,mvcl] )) > 1 ) {
+        subcohortProdromal$CDX = paste0( subcohortProdromal[,mvcl], "_", 
+            subcohortProdromal$AsynStatus )
+        subcohortProdromal$CDX=subcohortProdromal[,mvcl]
+        cog2test2 = c( cog2test, 'abeta', 'tau' )
+        for ( cog in cog2test ) {
+            thedf = subcohortProdromal
+            temp = table( thedf$PATNO )
+            thedf$yearr =round( thedf$yearsbl)
+            tsel = # ( thedf$yearr %in% c(0,1) ) & 
+                    thedf$PATNO %in% names(temp)[temp>=minsubcount]
+            thedf = thedf[tsel,]
+            cogformb=paste( cog , "~", gsub("SEX",osex,commcov), "+(yearsbl)" )
+            cogform=paste( cogformb, "+CDX+yearsbl:CDX" )
+            cogmdlb = lmer( cogformb, data=thedf )
+            cogmdl = lmer( cogform, data=thedf )
+            cogcoff=coefficients(summary(cogmdl))
+            greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
+            cogcoff=cogcoff[greppers,]
+            nr=nrow(clustdf) + 1
+            clustdf[nr,c( 'method', 'cog','pvalue','group')] =
+                    c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
+            if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 & myclust == vizclustmeth ) {
+                ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
+                message(paste('mvclust',cog))
+                print( cogcoff[,-c(1:2)] )
+                cogpvform = insight::format_p( 
+                        clustdf[nr,c('pvalue')],
+                        stars=TRUE, digits=4 )
+                thedf$temp = as.character( thedf[,'DXSub'])
+                subcohortg=thedf[!is.na(thedf$temp),]
+                (prplot( cogmdl,'yearsbl', 'CDX', color='CDX', 
+                        addpoints=1, palette=mypal ) +
+                        ggtitle(ggtit) ) %>% print()
+                }
             }
         }
     }
@@ -2126,7 +2127,7 @@ fimp = featureImportanceForSubtypes(
        vizcohort[,mvcl],
        vizcohort[,mcnames],
        associationType = "subtypes2features",
-       covariates = "EDUCYRS + ( Age1 + Age2 ) + SEX", # stcovars,
+       covariates = "EDUCYRS + ( Age1 + Age2 ) + SEX",
        transform = "effect_sizes",
        significance_level = 0.001,
        visualize = FALSE
@@ -2142,6 +2143,7 @@ pheatmap::pheatmap(temp)
 print( summary(lmer( tau ~ (1|PATNO)+( SEX + age_BL ) * MVCX, data=subcohortPD )) )
 print( summary(lmer( abeta ~  (1|PATNO)+( SEX + age_BL ) * MVCX, data=subcohortPD )) )
 print( summary(lmer( ageatimaging ~  (1|PATNO)+( SEX ) * MVCX, data=subcohortPD )) )
+# print( summary(lmer( duration_yrs ~  (1|PATNO)+( SEX  ) + MVCX, data=subcohortPD )) )
 
 ```
 
@@ -2185,3 +2187,21 @@ second250=clin2[onepass,c("u_hier_id","flairid","dtid1","rsfid1","nmid1","DXSubA
 write.csv( second250, "~/Downloads/PPMI500_part2_n281.csv", row.names=FALSE )
 ```
 
+
+
+## cluster break down with respect to sex
+
+
+```{r spdsexmvc,echo=FALSE,eval=TRUE}
+##########################################
+print("PD")
+bsel = subcohortPD$imaging_EVENT_ID == 'V0'
+temp = subcohortPD[ bsel, ]
+print( table( temp[,'SEX'], temp[,mvcl ] ) )
+##########################################
+print("At risk")
+bsel = subcohortProdromal$imaging_EVENT_ID == 'V0'
+temp = subcohortProdromal[ bsel, ]
+print( table( temp[,'SEX'], temp[,mvcl ] ) )
+##########################################
+```
