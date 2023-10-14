@@ -11,6 +11,7 @@ library(WeightedCluster) # cluster quality (FIXME)
 library( kmed ) # silhouette plots and such
 library( clustree ) # cluster validation tools
 library( factoextra )
+library(flexclust)
 library(tidyverse)
 library(magrittr)
 library(cluster)
@@ -41,6 +42,8 @@ library(ggsci)
 options(digits=3)
 library(lmerTest)
 library(lme4)
+library(mlr3verse)
+library(Evacluster)
 options( ztable.type="html" )
 tblcmd = ztable
 rr=read.csv("~/code/ANTsPyMM/antspymm_data_dictionary.csv")
@@ -966,6 +969,8 @@ for (  subtype in subtypes ) {
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
                 mypal = 'lancet'
+                mypal = scales::hue_pal()(desiredk+1)
+                mypal[1:3]=c("red","darkgreen","blue")
                 (prplot( mdlx,'yearsbl',  'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
 #                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydatasub$yearr=round( studydatasub$yearsbl )
@@ -1410,6 +1415,9 @@ for ( x in mcnames ) {
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
     stcovars = "  ~ T1Hier_resnetGrade + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) + mrimfg "
     stcovars = "  ~ SEX + EDUCYRS + ( Age1 + Age2 ) + mrimfg "
+    stcovars = "  ~ mrimfg + age_BL + SEX " # age and sex independent
+    stcovars = "  ~ mrimfg " # scanner independent
+    stcovars = "  ~ mrimfg + age_BL " # age independent
 #    stcovars = "  ~ mrimfg + brainVolume_BL + EDUCYRS + ( Age1 + Age2 ) " 
 #    stcovars = "  ~ EDUCYRS + ( Age1 + Age2 ) + SEX "
     adjform = paste( x, stcovars )
@@ -1427,18 +1435,18 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
     scale=attr(scaledTrainData, "scaled:scale"))
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
-desiredk = 5 # based on scree plot etc
-nsimlr = 1
-minsubcount = 1
 vizclustmeth = 'kmeansflex'
 vizclustmeth = 'pamCluster'
 vizclustmeth = 'neuralgas'
-vizclustmeth = 'GMM'
-vizclustmeth = 'cckmeans'
-vizclustmeth = 'angle'
 vizclustmeth = 'kmedians'
 vizclustmeth = 'hardcl'
 vizclustmeth = 'hierarchicalCluster'
+vizclustmeth = 'GMM'
+vizclustmeth = 'angle'
+vizclustmeth = 'cckmeans'
+desiredk = 3 # based on scree plot etc
+nsimlr = 1
+minsubcount = 1
 ######################
 ```
 
@@ -1483,17 +1491,20 @@ if ( nsimlr > 0 ) {
     regs[[2]][1,]
     # set up parameters for permutation tests
     myjr = TRUE
-    prescaling = c( 'robust', 'norm'  )
-    prescaling = c( 'centerAndScale', 'norm' )
+    prescaling = c( 'centerAndScale', 'np' )
+    prescaling = c( 'robust', 'sqrtnp'  )
     optimus = 'lineSearch'
     maxits = 100
-    ebber = 0.5
-    nsimlrsearch = 2 # 2:8 # max 10 based on looking at the scree plot for cog data
-    nperms = 100
+    ebber = 0.99
+    nsimlrsearch = 4 # 2:10 
+    # max 10 based on looking at the scree plot for cog data
+    # 4 has the best p-value and t-stat for cca+pca at default sparseness
+    nperms = 20
     # if ( length( nsimlrsearch  ) == 1 ) nperms=3
-    quantval = 0.99
-    objectiver = 'lowRankRegression'
+    quantval = 0.5
+    objectiver = 'cca'
     pizzer = c( "positive", "positive" )
+    pizzer = c( "positive", "either" )
     pizzer = c( "either", "either" )
     mixer = 'pca'
     nsimlrsearchTvals = data.frame( )
@@ -1791,12 +1802,10 @@ plot(d.apclus, subcohorttr)
 clustlist = c(  
     "hierarchicalCluster", "GMM", "pamCluster", 
     "kmedians", "angle", "ejaccard", "hardcl",  "cckmeans" )
+clustlist = c( "GMM", "pamCluster", 
+    "kmedians", "angle", "ejaccard", "hardcl",  "cckmeans" )
 # clustlist = c( clustlist, mlr_learners$keys("clust") )
 # clustlist = clustlist[ !( clustlist %in% c("clust.ff", "clust.agnes","clust.ap","clust.cobweb","clust.dbscan","clust.em","clust.MBatchKMeans","clust.SimpleKMeans","clust.meanshift","clust.xmeans","clust.diana","clust.fanny","clust.hclust","clust.kkmeans" ,     "clust.kmeans"))]
-    for ( myclust in clustlist ) {
-        trainSubtypeClusterMulti( subcohorttr, mcnames, myclust, 
-                desiredk=thek )
-    }
 sildf = data.frame()
 clustmodels = list()
 clustmodelQual = list()
@@ -1974,12 +1983,20 @@ for ( myclust in clustlistPro ) {
             cogmdlb = lmer( cogformb, data=thedf )
             cogmdl = lmer( cogform, data=thedf )
             cogcoff=coefficients(summary(cogmdl))
+
             greppers = unique(multigrep(c(mvcl,"yearsb"),rownames(cogcoff)))
             cogcoff=cogcoff[greppers,]
             nr=nrow(clustdf) + 1
             clustdf[nr,c( 'method', 'cog','pvalue','group')] =
                     c(myclust,cog,anova(cogmdlb,cogmdl)$Pr[2],mygroup)
             if ( as.numeric(clustdf[nr,c('pvalue')]) < 0.01 & myclust == vizclustmeth ) {
+
+                myjm = emmeans::joint_tests( cogmdl )
+                em1 <- emmeans::emmeans(cogmdl, "CDX", by='yearsbl')
+                mypairs1 = pairs(em1)
+                print( mypairs1 )
+                print( interactions::sim_slopes( cogmdl, 'yearsbl', 'CDX' ) )
+
                 ggtit = paste(mvcl,"COGGER",cog,myclust,mygroup,"\n",cogpvform)
                 message(paste('mvclust',cog))
                 print( cogcoff[,-c(1:2)] )
@@ -1995,6 +2012,7 @@ for ( myclust in clustlistPro ) {
             }
         }
     }
+clustdfPro=clustdf
 #####
 ```
 
@@ -2008,13 +2026,13 @@ for ( cmeth in clustlistPro ) {
     clustdfsubPD = clustdfPD[gsel,]
     qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),corrmethCL )
     myg='Prodromal'
-    gsel = clustdf$group == myg  & clustdf$method == cmeth
-    clustdfsub = clustdf[gsel,]
+    gsel = clustdfPro$group == myg  & clustdfPro$method == cmeth
+    clustdfsub = clustdfPro[gsel,]
     qvals = p.adjust( as.numeric(clustdfsub$pvalue),corrmethCL )
 #    cat("\n\n\n")
 #    print(cmeth)
 #    print( clustdfsubPD[  qvalsPD < 0.05,  ] )
-    seller=qvals < 0.05 &  clustdfsub$cog %in% clustdfsubPD[  qvalsPD < 0.05, "cog" ]
+    seller=qvals < 0.05 # &  clustdfsub$cog %in% clustdfsubPD[  qvalsPD < 0.05, "cog" ]
     if ( sum(seller)>0 ) {
         cat("\n\n***************************\n")
         print( clustdfsub[ seller,  ] )
@@ -2121,7 +2139,7 @@ for ( cmeth in clustlistPro ) {
 
 ## Visualize feature importance for sporadic PD$+$
 
-```{r fimp,echo=FALSE,eval=TRUE,fig.width=12,fig.height=6}
+```{r fimp,echo=FALSE,eval=TRUE,fig.width=18,fig.height=9}
 myclust='cckmeans'
 myclust='kmedians'
 myclust = vizclustmeth
@@ -2134,7 +2152,7 @@ vizcohort = predictSubtypeClusterMulti( vizcohort,
 fimp = featureImportanceForSubtypes(
        vizcohort,
        vizcohort[,mvcl],
-       vizcohort[,mcnames],
+       vizcohort[,mcnamesorig],
        associationType = "subtypes2features",
        covariates = "EDUCYRS + ( Age1 + Age2 ) + SEX",
        transform = "effect_sizes",
@@ -2168,7 +2186,9 @@ explore the parameters:
 
 * `minsubcount = 2` alternatively 1
 
+* covariates: manufacturer, age, sex, possibly education
 
+    * probably just age and manufacturer makes most sense
 
 <!-- ## selection of 250 -->
 
@@ -2233,18 +2253,30 @@ print( table( temp[,'subgroup'], temp[,mvcl ] ) )
 
 ## plot the clusters 
 
-```{r clusterplot,echo=FALSE,eval=TRUE}
-# library(cluster)
-# autoplot(clara(subcohortPD[,mcnames], desiredk), frame = TRUE)
-# ggfortify::autoplot( )
-ggscatter( subcohortPD, mcnames[1], mcnames[2], color=mvcl )
-#    ggforce::geom_mark_ellipse(aes(fill = mvcl,
-#                        label = mvcl)),
-#                    expand = unit(0.5,"mm"),
- #                   label.buffer = unit(-5, 'mm'))
-#  geom_polygon(data = subcohortPD,
-#               aes(fill = mvcl,
-#                   colour = mvcl),
-#               alpha = 0.3,
-#               show.legend = FALSE)
+```{r clusterplot,echo=FALSE,eval=TRUE,fig.width=10,fig.height=8}
+library(ggfortify)
+pca_res <- prcomp(subcohortPD[,mcnames], scale. = TRUE)
+autoplot(pca_res, data = subcohortPD, colour = mvcl, loadings = TRUE)
+if ( FALSE ) {
+    library(cluster)
+    autoplot(pam(subcohortPD[,mcnames], desiredk), frame = TRUE)
+    # ggfortify::autoplot( )
+    ggplot(subcohortPD, aes(x = PC1, y = PC2, color = MVCX)) +
+    geom_point() + theme_minimal() +  stat_ellipse(geom = "polygon",
+                aes(fill = MVCX), 
+                alpha = 0.25)
+    #  stat_ellipse()
+
+    # ggscatter( subcohortPD, mcnames[1], mcnames[2], color=mvcl ) + stat_ellipse()
+    #    ggforce::geom_mark_ellipse(aes(fill = mvcl,
+    #                        label = mvcl)),
+    #                    expand = unit(0.5,"mm"),
+    #                   label.buffer = unit(-5, 'mm'))
+    #  geom_polygon(data = subcohortPD,
+    #               aes(fill = mvcl,
+    #                   colour = mvcl),
+    #               alpha = 0.3,
+    #               show.legend = FALSE)
+}
 ```
+
