@@ -969,8 +969,6 @@ for (  subtype in subtypes ) {
                     palette='npg' ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+ggtitle(paste("Long and cross effect sizes (d):",testvols)) + geom_errorbar(aes(ymin=CI_low, ymax=CI_high), width=.1,
                     position=position_dodge(.5))  )
                 mypal = 'lancet'
-                mypal = scales::hue_pal()(desiredk+1)
-                mypal[1:3]=c("red","darkgreen","blue")
                 (prplot( mdlx,'yearsbl',  'DXSubAsyn',color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformattedx,"\n",nstring))) %>% print()
 #                (prplot( mdl,  'yearsbl', 'DXSubAsyn', color='DXSubAsyn', addpoints=1, palette=mypal )+ ggtitle(paste(testvols,pvformatted,"\n",unlist(strsplit(nstring,"\n"))[2]))) %>% print()
                 studydatasub$yearr=round( studydatasub$yearsbl )
@@ -1436,15 +1434,15 @@ scaledTestData = scale(clustdata[clustdata$istrain==FALSE,mcnames],
 clustdata[clustdata$istrain==FALSE,mcnames] = scaledTestData
 mvcl='MVCX'
 vizclustmeth = 'kmeansflex'
-vizclustmeth = 'pamCluster'
 vizclustmeth = 'neuralgas'
 vizclustmeth = 'kmedians'
 vizclustmeth = 'hardcl'
 vizclustmeth = 'hierarchicalCluster'
 vizclustmeth = 'GMM'
-vizclustmeth = 'angle'
 vizclustmeth = 'cckmeans'
-desiredk = 3 # based on scree plot etc
+vizclustmeth = 'angle'
+vizclustmeth = 'pamCluster'
+desiredk = 5 # based on scree plot etc
 nsimlr = 1
 minsubcount = 1
 ######################
@@ -1857,6 +1855,9 @@ names( clustmodels ) = paste0(clustlist)
 ### model selection in sporadic PD$+$
 
 ```{r mvst2,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+mypal = scales::hue_pal()(desiredk)
+if ( desiredk >= 3 ) mypal[1:3]=c("red","darkgreen","blue")
+if ( desiredk == 2 ) mypal=c("red","darkgreen")
 ## EVALUATE THE TRAINED MODELS in PD
 mygroup='PD'
 clustdf = data.frame( )
@@ -2013,6 +2014,7 @@ for ( myclust in clustlistPro ) {
         }
     }
 clustdfPro=clustdf
+clustdfPro$pvalue=as.numeric(clustdfPro$pvalue)
 #####
 ```
 
@@ -2021,10 +2023,6 @@ clustdfPro=clustdf
 ```{r prodromalsporevalprint,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
 #########################################################
 for ( cmeth in clustlistPro ) {
-    myg='PD'
-    gsel = clustdfPD$method == cmeth
-    clustdfsubPD = clustdfPD[gsel,]
-    qvalsPD = p.adjust( as.numeric(clustdfsubPD$pvalue),corrmethCL )
     myg='Prodromal'
     gsel = clustdfPro$group == myg  & clustdfPro$method == cmeth
     clustdfsub = clustdfPro[gsel,]
