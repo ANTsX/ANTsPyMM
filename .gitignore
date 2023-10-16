@@ -21,6 +21,7 @@ models/*
 *.so
 
 # Distribution / packaging
+docs/make_dict_table.html
 applications/fix_low_vol_DKT.py
 .Python
 build/
