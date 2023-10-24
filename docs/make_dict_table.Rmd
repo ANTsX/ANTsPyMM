@@ -82,7 +82,7 @@ myt=mytable( Modality~. ,data=ss )
 tblcmd( myt )
 ```
 
-```{r detailsandcitations,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=TRUE}
+```{r detailsandcitations,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
 # powers points 10.1016/j.conb.2012.12.009
 powers=read.csv("~/.antspymm/powers_mni_itk.csv")
 # 10.1016/j.neuroimage.2008.07.009
@@ -301,7 +301,7 @@ for ( ccc in cerenames ) {
 }
 zz[zz$Label %in% c("mi",'EVR','reflection_err','org0','org1','org2','spc0','spc1','spc2','dimz','dimy','dimx'),"Measurement"]='QC'
 zz[ subtyper::fs(zz$Label == zz$Anatomy),'Anatomy']=NA
-write.csv( zz, "~/code/ANTsPyMM/antspymm_data_dictionary.csv", row.names=FALSE)
+write.csv( zz, "~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv", row.names=FALSE)
 ```
 
 ## Quality control metrics
