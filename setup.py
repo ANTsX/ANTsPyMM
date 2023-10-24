@@ -17,7 +17,7 @@ requirements = [
       "sklearn"]
 
 setup(name='antspymm',
-      version='1.0.1',
+      version='1.1.0',
       description='multi-channel/time-series medical image processing with antspyx',
       long_description=long_description,
       long_description_content_type="text/markdown; charset=UTF-8; variant=GFM",
