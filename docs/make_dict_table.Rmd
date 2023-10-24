@@ -467,7 +467,6 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 
 
 ```{r joiner2,eval=TRUE,echo=FALSE,warning=FALSE,message=FALSE}
-# use age at visit as well ....
 if ( ! exists( "clin2" ) ) {
     demog=read.csv("Demographics_22Sep2023.csv")
     ageviz=read.csv("Age_at_visit_22Sep2023.csv")
