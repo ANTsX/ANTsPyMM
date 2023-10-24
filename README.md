@@ -84,6 +84,7 @@ achieved through four steps (recommended approach):
 
 4. run the main antspymm function
 
+
 # first time setup
 
 ```python
@@ -270,6 +271,80 @@ studycsv = antspymm.generate_mm_dataframe(
 studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 ```
+
+
+## Population studies
+
+Large population studies may need more care to ensure everything is reproducibly organized and processed.  In this case, we recommend:
+
+### 1. blind qc
+
+first run the blind qc function that would look like `tests/blind_qc.py`. 
+this gives a quick view of the relevant data to be processed. it provides 
+both figures and summary data for each 3D and 4D (potential) input image.
+
+### 2. collect outlierness measurements
+
+the outlierness function gives one an idea of how each image relates to 
+the others in terms of similarity.  it may or may not succeed in detecting 
+true outliers but does a reasonable job of providing some rank ordering 
+of quality when there is repeated data.  see `tests/outlierness.py`.
+
+### 3. match the modalities for each subject and timepoint
+
+this occurs at the end of `tests/outlierness.py`.  the output of the 
+function will select the best quality time point multiple modality 
+collection and will define the antspymm cohort in a reproducible manner.
+
+### 4. run the antspymm processing
+
+for each subject/timepoint, one would run:
+
+```python
+# ... imports above ...
+studyfn="matched_mm_data2.csv"
+df=pd.read_csv( studyfn )
+index = 20 # 20th subject/timepoint
+csvfns = df['fn']
+csvrow = df[ df['fn'] == csvfns[index] ]
+csvrow['projectID']='MyStudy'
+
+############################################################################################
+template = ants.image_read("~/.antspymm/PPMI_template0.nii.gz")
+bxt = ants.image_read("~/.antspymm/PPMI_template0_brainmask.nii.gz")
+template = template * bxt
+template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
+studycsv2 = antspymm.study_dataframe_from_matched_dataframe(
+        csvrow,
+        rootdir + "nrgdata/data/",
+        rootdir + "processed/", verbose=True)
+mmrun = antspymm.mm_csv( studycsv2,
+                        dti_motion_correct='SyN',
+                        dti_denoise=True,
+                        normalization_template=template,
+                        normalization_template_output='ppmi',
+                        normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
+                        normalization_template_spacing=[1,1,1])
+```
+
+### 5. aggregate results
+
+if you have a large population study then the last step would look like this:
+
+```python
+import antspymm
+import glob as glob
+import re
+import pandas as pd
+import os
+df = pd.read_csv( "matched_mm_data2.csv" )
+pdir='./processed/'
+df['projectID']='MYSTUDY'
+merged = antspymm.merge_wides_to_study_dataframe( df, pdir, verbose=False, report_missing=False, progress=100 )
+print(merged.shape)
+merged.to_csv("mystudy_results_antspymm.csv")
+```
+
 
 ## useful tools for converting dicom to nifti
 
