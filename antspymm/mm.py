@@ -1856,6 +1856,104 @@ def map_scalar_to_labels(dataframe, label_image_template):
 
     return mapped_label_image
 
+
+def template_figure_with_overlay(scalar_label_df, prefix, outputfilename=None, template='cit168', xyz=None, mask_dilation=25, padding=12, verbose=True):
+    """
+    Process and visualize images with mapped scalar values.
+
+    Parameters:
+    - scalar_label_df (pd.DataFrame): A Pandas DataFrame containing scalar values and labels.
+    - prefix (str): The prefix for input image files.
+    - template (str, optional): Template for selecting image data (default is 'cit168').
+    - xyz (str, optional): The integer index of the slices to display.
+    - mask_dilation (int, optional): Dilation factor for creating a mask (default is 25).
+    - padding (int, optional): Padding value for the mapped images (default is 12).
+    - verbose (bool, optional): Enable verbose mode for printing (default is True).
+
+    Example Usage:
+    >>> scalar_label_df = pd.DataFrame({'label': [1, 2, 3], 'scalar_value': [0.5, 0.8, 1.2]})
+    >>> prefix = '../PPMI_template0_'
+    >>> process_and_visualize_images(scalar_label_df, prefix, template='cit168', xyz=None, mask_dilation=25, padding=12, verbose=True)
+    """
+
+    # Template image paths
+    template_paths = {
+        'cit168': 'cit168lab.nii.gz',
+        'bf': 'bf.nii.gz',
+        'cerebellum': 'cerebellum.nii.gz',
+        'mtl': 'mtl.nii.gz',
+        'ctx': 'dkt_cortex.nii.gz',
+        'jhuwm': 'JHU_wm.nii.gz'
+    }
+
+    if template not in template_paths:
+        print( "Valid options:")
+        print( template_paths )
+        raise ValueError(f"Template option '{template}' does not exist.")
+
+    template_image_path = template_paths[template]
+    template_image = ants.image_read(f'{prefix}{template_image_path}')
+
+    # Load image data
+    edgeimg = ants.image_read(f'{prefix}edge.nii.gz')
+    dktimg = ants.image_read(f'{prefix}dkt_parcellation.nii.gz')
+    segimg = ants.image_read(f'{prefix}tissue_segmentation.nii.gz')
+    ttl = ''
+
+    # Load and process the template image
+    ventricles = ants.threshold_image(dktimg, 4, 4) + ants.threshold_image(dktimg, 43, 43)
+    seggm = ants.mask_image(segimg, segimg, [2, 4], binarize=False)
+    edgeimg = edgeimg.clone()
+    edgeimg[edgeimg == 0] = ventricles[edgeimg == 0]
+    segwm = ants.threshold_image(segimg, 3, 4).morphology("open", 1)
+
+    # Define cropping mask
+    cmask = ants.threshold_image(template_image, 1, 1.e9).iMath("MD", mask_dilation)
+
+    mapped_image = map_scalar_to_labels(scalar_label_df, template_image)
+    tcrop = ants.crop_image(template_image, cmask)
+    toviz = ants.crop_image(mapped_image, cmask)
+    seggm = ants.crop_image(edgeimg, cmask)
+       
+    # Map scalar values to labels and visualize
+    toviz = ants.pad_image(toviz, pad_width=(padding, padding, padding))
+    seggm = ants.pad_image(seggm, pad_width=(padding, padding, padding))
+    tcrop = ants.pad_image(tcrop, pad_width=(padding, padding, padding))
+
+    if xyz is None:
+        if template == 'cit168':
+            xyz=[140, 89, 94]
+        elif template == 'bf':
+            xyz=[114,92,76]
+        elif template == 'cerebellum':
+            xyz=[169, 128, 137]
+        elif template == 'mtl':
+            xyz=[154, 112, 113]
+        elif template == 'ctx':
+            xyz=[233, 190, 174]
+        elif template == 'jhuwm':
+            xyz=[146, 133, 182]
+
+    if verbose:
+        print("plot xyz for " + template )
+        print( xyz )
+        
+    if outputfilename is None:
+        temp = ants.plot_ortho( seggm, overlay=toviz, crop=False,
+                        xyz=xyz, cbar_length=0.2, cbar_vertical=False,
+                        flat=True, xyz_lines=False, resample=False, orient_labels=False,
+                        title=ttl, titlefontsize=12, title_dy=-0.02, textfontcolor='red', 
+                        cbar=True, allow_xyz_change=False)
+    else:
+        temp = ants.plot_ortho( seggm, overlay=toviz, crop=False,
+                    xyz=xyz, cbar_length=0.2, cbar_vertical=False,
+                    flat=True, xyz_lines=False, resample=False, orient_labels=False,
+                    title=ttl, titlefontsize=12, title_dy=-0.02, textfontcolor='red', 
+                    cbar=True, allow_xyz_change=False, filename=outputfilename )
+    seggm = temp['image']
+    toviz = temp['overlay']
+    return { "underlay": seggm, 'overlay': toviz, 'seg': tcrop  }
+
 def get_data( name=None, force_download=False, version=18, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
