@@ -1,5 +1,8 @@
 # ANTsPyMM
 
+
+![mapping](https://imgur.com/a/p5h5FZ3)
+
 ## processing utilities for timeseries/multichannel images - mostly neuroimaging
 
 the outputs of these processes can be used for data inspection/cleaning/triage
