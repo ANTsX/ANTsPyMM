@@ -90,3 +90,4 @@ from .mm import collect_blind_qc_by_modality
 from .mm import get_valid_modalities
 from .mm import study_dataframe_from_matched_dataframe
 from .mm import merge_wides_to_study_dataframe
+from .mm import map_scalar_to_labels

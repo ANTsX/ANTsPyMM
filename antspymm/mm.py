@@ -1833,7 +1833,30 @@ def mc_reg(
         "FD": FD,
     }
 
-def get_data( name=None, force_download=False, version=15, target_extension='.csv' ):
+def map_scalar_to_labels(dataframe, label_image_template):
+    """
+    Map scalar values from a DataFrame to associated integer image labels.
+
+    Parameters:
+    - dataframe (pd.DataFrame): A Pandas DataFrame containing a label column and scalar_value column.
+    - label_image_template (ants.ANTsImage): ANTs image with (at least some of) the same values as labels.
+
+    Returns:
+    - ants.ANTsImage: A label image with scalar values mapped to associated integer labels.
+    """
+
+    # Create an empty label image with the same geometry as the template
+    mapped_label_image = label_image_template.clone() * 0.0
+
+    # Loop through DataFrame and map scalar values to labels
+    for index, row in dataframe.iterrows():
+        label = int(row['label'])  # Assuming the DataFrame has a 'label' column
+        scalar_value = row['scalar_value']  # Replace with your column name
+        mapped_label_image[label_image_template == label] = scalar_value
+
+    return mapped_label_image
+
+def get_data( name=None, force_download=False, version=18, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
