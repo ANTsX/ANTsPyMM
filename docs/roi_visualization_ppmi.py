@@ -24,5 +24,5 @@ zzz.rename(columns={'index': 'anat'}, inplace=True)
 zzz.rename(columns={myco: 'value'}, inplace=True)
 qqq = zzz.copy()
 qqq['anat'] = qqq['anat'].str.replace(r'(vol_|thk_|LRAVG_|_LRAVG|Asym_|_Asym|volAsym|volLRAVG|thkAsym|thkLRAVG)', '', regex=True)
-antspymm.brainmap_figure(qqq, data_dictionary_path, output_prefix, edge_image_path, nslices=21, verbose=True )
+antspymm.brainmap_figure(qqq, data_dictionary_path, output_prefix, edge_image_path, nslices=21, black_bg=False, verbose=True )
 

@@ -7763,7 +7763,7 @@ def novelty_detection_quantile(df_train, df_test):
     return myqs
 
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_image_path, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_image_path, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -7778,6 +7778,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_im
     - nslices: number of slices to show
     - ncol: number of columns to show
     - edge_image_dilation: integer greater than or equal to zero
+    - black_bg: boolean
     - verbose: boolean
 
     Returns:
@@ -7880,7 +7881,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_im
             edgeimgC = ants.crop_image( edgeimg, cmask )
             ants.plot(edgeimgC, addemC, axis=axx, nslices=nslices, ncol=ncol,       
                 overlay_cmap=overlay_cmap, resample=False,
-                filename=figfn, cbar=True, crop=True, black_bg=True )
+                filename=figfn, cbar=axx==0, crop=True, black_bg=black_bg )
         if verbose:
             print(f"{col2viz} done")
     if verbose:
