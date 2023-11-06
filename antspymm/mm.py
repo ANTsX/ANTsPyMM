@@ -7875,7 +7875,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_im
             print('Done Adding')
         for axx in range(3):
             figfn=output_prefix+f"fig{col2viz}ax{axx}_py.jpg"
-            cmask = ants.threshold_image( addemC,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addemC,-1e9, -1e-5 ).iMath("MD",3)
+            cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",3)
             addemC = ants.crop_image( addem, cmask )
             edgeimgC = ants.crop_image( edgeimg, cmask )
             ants.plot(edgeimgC, addemC, axis=axx, nslices=nslices, ncol=ncol,       
