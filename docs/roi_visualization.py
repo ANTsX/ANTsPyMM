@@ -121,7 +121,7 @@ def create_segmentation_figures(statistical_file_path, data_dictionary_path, out
 statistical_file_path = "/tmp/temp.csv"
 data_dictionary_path = "~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv"
 output_prefix = '/tmp/vizit_'
-edge_image_path = '../PPMI_template0_edge.nii.gz'
+edge_image_path = '~/PPMI_template0_edge.nii.gz'
 
 # Call the function
 create_segmentation_figures(statistical_file_path, data_dictionary_path, output_prefix, edge_image_path, 1, True )

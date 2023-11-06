@@ -1954,7 +1954,7 @@ def template_figure_with_overlay(scalar_label_df, prefix, outputfilename=None, t
     toviz = temp['overlay']
     return { "underlay": seggm, 'overlay': toviz, 'seg': tcrop  }
 
-def get_data( name=None, force_download=False, version=18, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=19, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
@@ -7761,3 +7761,128 @@ def novelty_detection_quantile(df_train, df_test):
         temp = (myqs[mykey][0] >  df_train[mykey]).sum() / n
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
+
+
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_image_path, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, verbose=False ):
+    """
+    Create figures based on statistical data and an underlying brain image.
+
+    Assumes both ~/.antspyt1w and ~/.antspymm data is available
+
+    Parameters:
+    - statistical_df (pandas dataframe): with 2 columns named anat and value
+    - data_dictionary_path (str): Path to the data dictionary CSV file.
+    - output_prefix (str): Prefix for the output figure filenames.
+    - edge_image_path (str): Path to the edge image in NIfTI format.
+    - overlay_cmap (str): see matplotlib
+    - nslices: number of slices to show
+    - ncol: number of columns to show
+    - edge_image_dilation: integer greater than or equal to zero
+    - verbose: boolean
+
+    Returns:
+    values mapped to the associated regions
+    """
+
+    # Read the statistical file
+    zz = statistical_df 
+    
+    # Read the data dictionary from a CSV file
+    mydict = pd.read_csv(data_dictionary_path)
+    mydict = mydict[~mydict['Measurement'].str.contains("tractography-based connectivity", na=False)]
+
+    # Load image and process it
+    edgeimg = ants.image_read(edge_image_path).iMath("Normalize")
+    if edge_image_dilation > 0:
+        edgeimg = ants.iMath( edgeimg, "MD", edge_image_dilation)
+
+    # Define lists and data frames
+    postfix = ['bf', 'deep_cit168lab', 'mtl', 'cerebellum', 'dkt_cortex','brainstem']
+    atlas = ['BF', 'CIT168', 'MTL', 'TustisonCobra', 'desikan-killiany-tourville','brainstem']
+    postdesc = ['nbm3CH13', 'CIT168_Reinf_Learn_v1_label_descriptions_pad', 'mtl_description', 'cerebellum', 'dkt','CIT168_T1w_700um_pad_adni_brainstem']
+    statdf = pd.DataFrame({'img': postfix, 'atlas': atlas, 'csvdescript': postdesc})
+    templateprefix = '~/.antspymm/PPMI_template0_'
+    # Iterate through columns and create figures
+    col2viz = 'value'
+    if True:
+        anattoshow = zz['anat'].unique()
+        if verbose:
+            print(col2viz)
+            print(anattoshow)
+        # Rest of your code for figure creation goes here...
+        addem = edgeimg * 0
+        for k in range(len(anattoshow)):
+            if verbose:
+                print(str(k) +  " " + anattoshow[k]  )
+            mysub = zz[zz['anat'].str.contains(anattoshow[k])]
+            vals2viz = mysub[col2viz].agg(['min', 'max'])
+            vals2viz = vals2viz[abs(vals2viz).idxmax()]
+            myext = None
+            if 'dktcortex' in anattoshow[k]:
+                myext = 'dkt_cortex'
+            elif 'cit168' in anattoshow[k]:
+                myext = 'deep_cit168lab'
+            elif 'mtl' in anattoshow[k]:
+                myext = 'mtl'
+            elif 'cerebellum' in anattoshow[k]:
+                myext = 'cerebellum'
+            elif 'brainstem' in anattoshow[k]:
+                myext = 'brainstem'
+            elif any(item in anattoshow[k] for item in ['nbm', 'bf']):
+                myext = 'bf'
+            for j in postfix:
+                if j == "dkt_cortex":
+                    j = 'dktcortex'
+                if j == "deep_cit168lab":
+                    j = 'deep_cit168'
+                anattoshow[k] = anattoshow[k].replace(j, "")
+            if verbose:
+                print( anattoshow[k] + " " + str( vals2viz ) )
+            myatlas = atlas[postfix.index(myext)]
+            correctdescript = postdesc[postfix.index(myext)]
+            locfilename =  templateprefix + myext + '.nii.gz'
+            if verbose:
+                print( locfilename )
+            myatlas = ants.image_read(locfilename)
+            atlasDescript = pd.read_csv(f"~/.antspyt1w/{correctdescript}.csv")
+            atlasDescript['Description'] = atlasDescript['Description'].str.lower()
+            atlasDescript['Description'] = atlasDescript['Description'].str.replace(" ", "_")
+            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left_", "_")
+            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right_", "_")
+            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left", "")
+            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right", "")
+            if myext == 'cerebellum':
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("l_", "")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("r_", "")
+                whichindex = atlasDescript.index[atlasDescript['Description'] == anattoshow[k]].values[0]
+            else:
+                whichindex = atlasDescript.index[atlasDescript['Description'].str.contains(anattoshow[k])]
+
+            if type(whichindex) is np.int64:
+                labelnums = atlasDescript.loc[whichindex, 'Label']
+            else:
+                labelnums = list(atlasDescript.loc[whichindex, 'Label'])
+            if not isinstance(labelnums, list):
+                labelnums=[labelnums]
+            addemiszero = ants.threshold_image(addem, 0, 0)
+            temp = ants.image_read(locfilename)
+            temp = ants.mask_image(temp, temp, level=labelnums, binarize=True)
+            temp[temp == 1] = (vals2viz)
+            temp[addemiszero == 0] = 0
+            addem = addem + temp
+
+        if verbose:
+            print('Done Adding')
+        for axx in range(3):
+            figfn=output_prefix+f"fig{col2viz}ax{axx}_py.jpg"
+            cmask = ants.threshold_image( addemC,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addemC,-1e9, -1e-5 ).iMath("MD",3)
+            addemC = ants.crop_image( addem, cmask )
+            edgeimgC = ants.crop_image( edgeimg, cmask )
+            ants.plot(edgeimgC, addemC, axis=axx, nslices=nslices, ncol=ncol,       
+                overlay_cmap=overlay_cmap, resample=False,
+                filename=figfn, cbar=True, crop=True, black_bg=True )
+        if verbose:
+            print(f"{col2viz} done")
+    if verbose:
+        print("DONE brain map figures")
+    return addem

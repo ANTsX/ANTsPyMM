@@ -92,3 +92,4 @@ from .mm import study_dataframe_from_matched_dataframe
 from .mm import merge_wides_to_study_dataframe
 from .mm import map_scalar_to_labels
 from .mm import template_figure_with_overlay
+from .mm import brainmap_figure
