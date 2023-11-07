@@ -7763,7 +7763,7 @@ def novelty_detection_quantile(df_train, df_test):
     return myqs
 
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -7775,14 +7775,16 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     - output_prefix (str): Prefix for the output figure filenames.
     - brain_image (antsImage): the brain image on which results will overlay.
     - overlay_cmap (str): see matplotlib
-    - nslices: number of slices to show
-    - ncol: number of columns to show
-    - edge_image_dilation: integer greater than or equal to zero
-    - black_bg: boolean
-    - verbose: boolean
+    - nslices (int): number of slices to show
+    - ncol (int): number of columns to show
+    - edge_image_dilation (int): integer greater than or equal to zero
+    - black_bg (bool): boolean
+    - axes (list): integer list typically [0,1,2] sagittal coronal axial
+    - fixed_overlay_range (list): scalar pair will try to keep a constant cbar and will truncate the overlay at these min/max values
+    - verbose (bool): boolean
 
     Returns:
-    values mapped to the associated regions
+    an image with values mapped to the associated regions
     """
 
     # Read the statistical file
@@ -7874,14 +7876,19 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
 
         if verbose:
             print('Done Adding')
-        for axx in range(3):
+        for axx in axes:
             figfn=output_prefix+f"fig{col2viz}ax{axx}_py.jpg"
             cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",3)
             addemC = ants.crop_image( addem, cmask )
             edgeimgC = ants.crop_image( edgeimg, cmask )
+            if fixed_overlay_range is not None:
+                addemC[0:3,0:3,0:3]=fixed_overlay_range[0]
+                addemC[4:7,4:7,4:7]=fixed_overlay_range[1]
+                addemC[ addemC < fixed_overlay_range[0] ] = fixed_overlay_range[0]
+                addemC[ addemC > fixed_overlay_range[1] ] = fixed_overlay_range[1]
             ants.plot(edgeimgC, addemC, axis=axx, nslices=nslices, ncol=ncol,       
                 overlay_cmap=overlay_cmap, resample=False,
-                filename=figfn, cbar=axx==0, crop=True, black_bg=black_bg )
+                filename=figfn, cbar=axx==axes[0], crop=True, black_bg=black_bg )
         if verbose:
             print(f"{col2viz} done")
     if verbose:

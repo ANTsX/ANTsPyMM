@@ -27,5 +27,5 @@ for myco in zz['subtype']:
     zzz.rename(columns={myco: 'value'}, inplace=True)
     qqq = zzz.copy()
     qqq['anat'] = qqq['anat'].str.replace(r'(vol_|thk_|LRAVG_|_LRAVG|Asym_|_Asym|volAsym|volLRAVG|thkAsym|thkLRAVG)', '', regex=True)
-    olimg = antspymm.brainmap_figure(qqq, data_dictionary_path, output_prefix + myco, brain_image_t, nslices=21, black_bg=False, verbose=True )
+    olimg = antspymm.brainmap_figure(qqq, data_dictionary_path, output_prefix + myco, brain_image_t, nslices=21, black_bg=False, axes=[1], fixed_overlay_range=[-1.0,1.0],verbose=True )
     print( myco + ' done')
