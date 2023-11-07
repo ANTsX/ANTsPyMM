@@ -7763,7 +7763,7 @@ def novelty_detection_quantile(df_train, df_test):
     return myqs
 
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_image_path, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -7773,7 +7773,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_im
     - statistical_df (pandas dataframe): with 2 columns named anat and value
     - data_dictionary_path (str): Path to the data dictionary CSV file.
     - output_prefix (str): Prefix for the output figure filenames.
-    - edge_image_path (str): Path to the edge image in NIfTI format.
+    - brain_image (antsImage): the brain image on which results will overlay.
     - overlay_cmap (str): see matplotlib
     - nslices: number of slices to show
     - ncol: number of columns to show
@@ -7793,7 +7793,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, edge_im
     mydict = mydict[~mydict['Measurement'].str.contains("tractography-based connectivity", na=False)]
 
     # Load image and process it
-    edgeimg = ants.image_read(edge_image_path).iMath("Normalize")
+    edgeimg = ants.iMath(brain_image,"Normalize")
     if edge_image_dilation > 0:
         edgeimg = ants.iMath( edgeimg, "MD", edge_image_dilation)
 
