@@ -7771,6 +7771,10 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
 
     Parameters:
     - statistical_df (pandas dataframe): with 2 columns named anat and value
+        the anat column should have names that meet *partial matching* criterion 
+        with respect to regions that are measured in antspymm.   value will be 
+        the value to be displayed.   if two examples of a given region exist in 
+        statistical_df, then the largest absolute value will be taken for display.
     - data_dictionary_path (str): Path to the data dictionary CSV file.
     - output_prefix (str): Prefix for the output figure filenames.
     - brain_image (antsImage): the brain image on which results will overlay.
