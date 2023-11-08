@@ -7763,7 +7763,7 @@ def novelty_detection_quantile(df_train, df_test):
     return myqs
 
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=True, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -7785,6 +7785,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     - black_bg (bool): boolean
     - axes (list): integer list typically [0,1,2] sagittal coronal axial
     - fixed_overlay_range (list): scalar pair will try to keep a constant cbar and will truncate the overlay at these min/max values
+    - crop (bool): crops the image to display by the extent of the overlay
     - verbose (bool): boolean
 
     Returns:
@@ -7882,9 +7883,13 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             print('Done Adding')
         for axx in axes:
             figfn=output_prefix+f"fig{col2viz}ax{axx}_py.jpg"
-            cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",3)
-            addemC = ants.crop_image( addem, cmask )
-            edgeimgC = ants.crop_image( edgeimg, cmask )
+            if crop:
+                cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",3)
+                addemC = ants.crop_image( addem, cmask )
+                edgeimgC = ants.crop_image( edgeimg, cmask )
+            else:
+                addemC = addem
+                edgeimgC = edgeimg
             if fixed_overlay_range is not None:
                 addemC[0:3,0:3,0:3]=fixed_overlay_range[0]
                 addemC[4:7,4:7,4:7]=fixed_overlay_range[1]
