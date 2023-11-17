@@ -7903,3 +7903,110 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     if verbose:
         print("DONE brain map figures")
     return addem
+
+
+def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/"):
+    """
+    Aggregate ANTsPyMM results from the specified CSV file and save the aggregated results to a new CSV file.
+
+    Parameters:
+    - input_csv (str): File path of the input CSV file containing ANTsPyMM results.
+    - output_csv (str): File path of the output CSV file to save the aggregated results.
+    - subject_col (str): Name of the column to store subject IDs.
+    - date_col (str): Name of the column to store date information.
+    - image_col (str): Name of the column to store image IDs.
+    - date_column (str): Name of the column representing the date information.
+    - base_path (str): Base path for search paths. Defaults to "./Processed/ANTsExpArt/".
+
+    Note:
+    This function is untested. Use with caution.
+
+    Author:
+    Avants and ChatGPT
+    """
+    import pandas as pd
+    import numpy as np
+    from glob import glob
+
+    def myread_csv(x, cnms):
+        """
+        Reads a CSV file and returns a DataFrame excluding specified columns.
+
+        Parameters:
+        - x (str): File path of the CSV file.
+        - cnms (list): List of column names to exclude from the DataFrame.
+
+        Returns:
+        pd.DataFrame: DataFrame with specified columns excluded.
+        """
+        df = pd.read_csv(x)
+        return df.loc[:, ~df.columns.isin(cnms)]
+
+    # Warning message for untested function
+    print("Warning: This function is untested. Use with caution.")
+
+    # Read the input CSV file
+    df = pd.read_csv(input_csv)
+
+    # Filter rows where modality is 'T1w'
+    df = df[df['modality'] == 'T1w']
+
+    # Add new columns for subject ID, date, and image ID
+    df[subject_col] = np.nan
+    df[date_col] = date_column
+    df[image_col] = np.nan
+
+    for x in range(1, len(df) + 1):
+        print(f"{x}...")
+
+        temp = df['fn'].iloc[x - 1].split("_")
+        df.at[x - 1, subject_col] = temp[0]
+        df.at[x - 1, date_col] = date_column
+        df.at[x - 1, image_col] = temp[1]
+
+        # Generalized search paths
+        path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
+        hierfn = sorted(glob(f"{path_template}-T1wHierarchical-*wide.csv"))
+        t1wfn = sorted(glob(f"{path_template}-T1w-*wide.csv"))
+        dtfn = sorted(glob(f"{path_template}-DTI-*wide.csv"))
+        rsfn = sorted(glob(f"{path_template}-rsfMRI-*wide.csv"))
+
+        hdf = pd.read_csv(hierfn[0])
+        nums = [isinstance(df[col].iloc[0], (int, float)) for col in hdf.columns]
+        corenames = list(np.array(hdf.columns)[nums])
+
+        hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+
+        t1df = myread_csv(t1wfn[0], corenames)
+        t1df.loc[:, nums] = t1df.loc[:, nums].add_prefix("T1w_")
+        t1df = t1df.loc[:, nums]
+        t1df = pd.DataFrame(t1df.mean(axis=0, skipna=True)).T
+
+        rsdf = myread_csv(rsfn[0], corenames)
+        rsdf.loc[:, nums] = rsdf.loc[:, nums].add_prefix("rsfMRI_")
+
+        dtdf = myread_csv(dtfn[0], corenames)
+        dtdf.loc[:, nums] = dtdf.loc[:, nums].add_prefix("DTI_")
+        dtdf = dtdf.loc[:, nums]
+        dtdf = pd.DataFrame(dtdf.mean(axis=0, skipna=True)).T
+
+        hdf = pd.concat([hdf, t1df, dtdf, rsdf], axis=1)
+
+        if x == 1:
+            df.loc[:, hdf.columns] = hdf
+        else:
+            commcols = list(set(hdf.columns).intersection(df.columns))
+            df.loc[x - 1, commcols] = hdf.iloc[0, commcols]
+
+        print(np.random.choice(df.columns, 5))
+
+    demog = pd.read_csv("experienced_artillery_demog.csv")
+    df['Subject_Number'] = df[subject_col].str.replace("sub-", "").str.slice(0, 6)
+    demog = pd.merge(demog, df, left_on='Subject_Number', right_on='Subject_Number')
+
+    # Save the aggregated results to a new CSV file
+    demog.to_csv(output_csv, index=False)
+
+# Example usage:
+# aggregate_antspymm_results("qcdfaol.csv", "expart_antspymm_imaging.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Your/Custom/Path/")
+

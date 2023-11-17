@@ -56,6 +56,7 @@ from .mm import average_mm_df
 from .mm import get_names_from_data_frame
 from .mm import read_mm_csv
 from .mm import assemble_modality_specific_dataframes
+from .mm import aggregate_antspymm_results
 from .mm import mc_denoise
 from .mm import mc_reg
 from .mm import dti_reg
