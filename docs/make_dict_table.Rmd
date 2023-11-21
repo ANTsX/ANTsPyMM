@@ -92,6 +92,8 @@ jhu=read.csv("~/.antspyt1w/FA_JHU_labels_edited.csv")
 # http://dx.doi.org/10.1016/j.neuroimage.2006.01.021
 dktcsv=read.csv("~/.antspyt1w/dkt.csv")
 dktcsv=dktcsv[dktcsv$Label>0,]
+cnxcsv=read.csv("~/.antspyt1w/dkt_cortex_cit_deep_brain.csv")
+cnxcsv=cnxcsv[cnxcsv$Label>0,]
 # hipp https://doi.org/10.1101/2023.01.17.23284693
 hipp=read.csv("~/.antspyt1w/mtl_description.csv")
 hipp$Anatomy=hipp$Description
@@ -127,7 +129,7 @@ interpretcnx<-function( x ) {
     temp = unlist(strsplit(breaker,"_"))
     ind=temp[1]
     anat=paste( temp[-1],collapse='_')
-    return( paste( anat, "to", dktcsv[as.integer(ind),'Description'] ) )
+    return( paste( anat, "to", cnxcsv[as.integer(ind)+1,'Description'] ) )
 }
 interpretcnx2<-function( x ) {
     breaker=gsub("DTI_cnxcount","",x)
@@ -466,7 +468,7 @@ clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
 ```
 
 
-```{r joiner2,eval=TRUE,echo=FALSE,warning=FALSE,message=FALSE}
+```{r joiner2,eval=FALSE,echo=FALSE,warning=FALSE,message=FALSE}
 if ( ! exists( "clin2" ) ) {
     demog=read.csv("Demographics_22Sep2023.csv")
     ageviz=read.csv("Age_at_visit_22Sep2023.csv")
