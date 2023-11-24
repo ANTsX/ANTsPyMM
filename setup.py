@@ -14,7 +14,7 @@ requirements = [
       "nibabel",
       "scipy",
       "siq",
-      "sklearn"]
+      "scikit-learn"]
 
 setup(name='antspymm',
       version='1.1.2',
