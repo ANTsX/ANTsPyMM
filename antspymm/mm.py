@@ -159,11 +159,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     """
     if long:
-        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func" ]
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf" ]
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI']
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf" ]
     else:
-        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI" ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf"  ]
     if not asString:
         return mymod
     else:
@@ -184,7 +184,8 @@ def generate_mm_dataframe(
         flair_filename=[],
         rsf_filenames=[],
         dti_filenames=[],
-        nm_filenames=[]
+        nm_filenames=[],
+        perf_filename=[]
 ):
     from os.path import exists
     valid_modalities = get_valid_modalities()
@@ -219,6 +220,17 @@ def generate_mm_dataframe(
                 flair_filename=flair_filename[0]
     if flair_filename is not None and not "lair" in flair_filename:
             raise ValueError("flair is not flair filename " + flair_filename)
+    ## perfusion
+    if perf_filename is not None:
+        if isinstance(perf_filename,list):
+            if (len(perf_filename) == 0):
+                perf_filename=None
+            else:
+                print("Take first entry from perf_filename list")
+                perf_filename=perf_filename[0]
+    if perf_filename is not None and not "perf" in perf_filename:
+            raise ValueError("perf_filename is not perf filename " + perf_filename)
+    
     for k in nm_filenames:
         if k is not None:
             if not "NM" in k:
@@ -231,7 +243,10 @@ def generate_mm_dataframe(
         if k is not None:
             if not "fMRI" in k and not "func" in k:
                 raise ValueError("rsfMRI/func is not rsfmri filename " + k)
-    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames
+    if perf_filename is not None:
+        if not "perf" in perf_filename:
+                raise ValueError("perf_filename is not a valid perfusion (perf) filename " + k)
+    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames + [perf_filename]
     for k in allfns:
         if k is not None:
             if not isinstance(k, str):
@@ -247,7 +262,8 @@ def generate_mm_dataframe(
         source_image_directory,
         output_image_directory,
         t1_filename,
-        flair_filename]
+        flair_filename, 
+        perf_filename]
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
@@ -259,7 +275,8 @@ def generate_mm_dataframe(
         'sourcedir',
         'outputdir',
         'filename',
-        'flairid']
+        'flairid',
+        'perfid']
     mycols0 = corecols + [
         'rsfid1', 'rsfid2',
         'dtid1', 'dtid2']
@@ -268,10 +285,6 @@ def generate_mm_dataframe(
         'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10', 'nmid11'
     ]
     mycols = mycols0 + nmext
-    print(len(mydata0))
-    print(len(nm_filenames))
-    print(len(mycols0))
-    print(len(nmext))
     studycsv = pd.DataFrame([ mydata ],
         columns=mycols)
     return studycsv
@@ -343,6 +356,10 @@ def nrg_2_bids( nrg_filename ):
         bids_modality_folder = 'func'
         bids_modality_filename = 'func'
 
+    if nrg_modality == 'perf'  :
+        bids_modality_folder = 'perf'
+        bids_modality_filename = 'perf'
+
     bids_suffix = nrg_suffix[1:]
     bids_filename = f'{bids_subject}_{bids_session}_{bids_modality_filename}.{bids_suffix}'
 
@@ -384,6 +401,9 @@ def bids_2_nrg( bids_filename, project_name, date, nrg_modality=None ):
 
     if bids_modality == 'func' and nrg_modality is None  :
         nrg_modality = 'rsfMRI'
+
+    if bids_modality == 'perf' and nrg_modality is None  :
+        nrg_modality = 'perf'
 
     nrg_suffix = bids_suffix[1:]
     nrg_filename = f'{project_name}-{nrg_subject_id}-{date}-{nrg_modality}-{nrg_image_id}.{nrg_suffix}'
@@ -2308,7 +2328,9 @@ def get_average_rsf( x, min_t=10, max_t=35 ):
         bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True )
-    return ants.n4_bias_field_correction(bavg)
+    bavg = ants.iMath( bavg, 'Normalize' )
+    return bavg
+    # return ants.n4_bias_field_correction(bavg, mask=ants.get_mask( bavg ) )
 
 
 def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
@@ -4335,7 +4357,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     reg_iterations=[40,20,5] )
   if verbose:
       print("End rsfmri motion correction")
-      # ants.image_write( corrmo['motion_corrected'], '/tmp/temp.nii.gz' )
 
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
@@ -4345,8 +4366,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   t1reg = ants.registration( und, t1, "SyNBold" )
   if verbose:
       print("t1 2 bold done")
-#      ants.image_write( und, '/tmp/template_bold_masked.nii.gz' )
-#      ants.image_write( t1reg['warpedmovout'], '/tmp/t1tobold.nii.gz' )
   boldseg = ants.apply_transforms( und, t1segmentation,
     t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
@@ -4524,6 +4543,195 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid', tc='alternating', deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+  """
+  Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
+
+  Arguments
+  ---------
+  fmri : BOLD fmri antsImage
+
+  fmri_template : reference space for BOLD
+
+  t1head : ANTsImage
+    input 3-D T1 brain image (not brain extracted)
+
+  t1 : ANTsImage
+    input 3-D T1 brain image (brain extracted)
+
+  t1segmentation : ANTsImage
+    t1 segmentation - a six tissue segmentation image in T1 space
+
+  f : band pass limits for frequency filtering
+
+  spa : gaussian smoothing for spatial component
+
+  spt : gaussian smoothing for temporal component
+
+  nc  : number of components for compcor filtering
+
+  type_of_transform : SyN or Rigid
+
+  tc: string either alternating or split (default is alternating ie CTCTCT; split is CCCCTTTT)
+
+  deepmask: boolean
+
+  add_FD_to_nuisance: boolean
+
+  verbose : boolean
+
+  Returns
+  ---------
+  a dictionary containing the derived network maps
+
+  """
+  import numpy as np
+  import pandas as pd
+  import re
+  import math
+  from sklearn.linear_model import LinearRegression
+
+  def replicate_list(user_list, target_size):
+    # Calculate the number of times the list should be replicated
+    replication_factor = target_size // len(user_list)
+    # Replicate the list and handle any remaining elements
+    replicated_list = user_list * replication_factor
+    remaining_elements = target_size % len(user_list)
+    replicated_list += user_list[:remaining_elements]
+    return replicated_list
+
+  def one_hot_encode(char_list):
+    unique_chars = list(set(char_list))
+    encoding_dict = {char: [1 if char == c else 0 for c in unique_chars] for char in unique_chars}
+    encoded_matrix = np.array([encoding_dict[char] for char in char_list])
+    return encoded_matrix
+  
+  A = np.zeros((1,1))
+  fmri = ants.iMath( fmri, 'Normalize' )
+  if deepmask:
+      bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).morphology("close",2).iMath("FillHoles")
+  else:
+      rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
+      bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='nearestNeighbor' )
+  if verbose:
+      print("Begin perfusion motion correction")
+  mytrim=4 # trim will guarantee an even length
+  if fmri.shape[3] % 2 == 1:
+      mytrim = 5
+  corrmo = timeseries_reg(
+    fmri, fmri_template,
+    type_of_transform=type_of_transform,
+    total_sigma=0.0,
+    fdOffset=2.0,
+    trim = mytrim,
+    output_directory=None,
+    verbose=verbose,
+    syn_metric='cc',
+    syn_sampling=2,
+    reg_iterations=[40,20,5] )
+  if verbose:
+      print("End rsfmri motion correction")
+
+  ntp = corrmo['motion_corrected'].shape[3]
+  if tc == 'alternating':
+      tclist = replicate_list( ['C','T'], ntp )
+  else:
+      tclist = replicate_list( ['C'], int(ntp/2) ) + replicate_list( ['T'],  int(ntp/2) )
+
+  tclist = one_hot_encode( tclist )
+  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
+  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
+  bmask = bmask * tsnrmask
+  und = fmri_template * bmask
+  t1reg = ants.registration( und, t1, "SyNBold" )
+  if verbose:
+      print("t1 2 bold done")
+  boldseg = ants.apply_transforms( und, t1segmentation,
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  gmseg = ants.threshold_image( t1segmentation, 2, 2 )
+  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
+  gmseg = ants.threshold_image( gmseg, 1, 4 )
+  gmseg = ants.iMath( gmseg, 'MD', 1 )
+  gmseg = ants.apply_transforms( und, gmseg,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
+  csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
+               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
+  csfAndWM = ants.apply_transforms( und, csfAndWM,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+
+  mycompcor = ants.compcor( corrmo['motion_corrected'],
+    ncompcor=nc, quantile=0.90, mask = csfAndWM,
+    filter_type='polynomial', degree=2 )
+
+  nt = corrmo['motion_corrected'].shape[3]
+  tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
+  highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
+  goodtimes = np.where( corrmo['FD'] < 0.5 )
+  smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
+  simg = ants.smooth_image(corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
+
+  nuisance = mycompcor[ 'components' ]
+  nuisance = np.c_[ nuisance, mycompcor['basis'] ]
+  if add_FD_to_nuisance:
+      nuisance = np.c_[ nuisance, corrmo['FD'] ]
+
+  if verbose:
+    print("make sure nuisance is independent of TC")
+  nuisance = ants.regress_components( nuisance, tclist )
+
+  regression_mask = bmask.clone()
+  gmmat = ants.timeseries_to_matrix( simg, regression_mask )
+  if f[0] > 0 and f[1] < 1: # some would argue against this
+      gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) 
+  # gmmat = ants.regress_components( gmmat, nuisance )
+  # Perform linear regression to estimate perfusion
+  regression_model = LinearRegression()
+  regvars = np.hstack( (nuisance, tclist ))
+  coefind = regvars.shape[1]-1
+  regvars = regvars[:,range(coefind)]
+  regression_model.fit( regvars, gmmat )
+  coefind = regression_model.coef_.shape[1]-1
+  perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
+  meangmval = ( perfimg[ gmseg == 1 ] ).mean()
+  if meangmval < 0:
+      perfimg = perfimg * (-1.0)
+      meangmval = ( perfimg[ gmseg == 1 ] ).mean()
+  if verbose:
+    print("Coefficients:", regression_model.coef_)
+    print("Coef mean", regression_model.coef_.mean(axis=0)) 
+    print( regression_model.coef_.shape )
+    print( perfimg.max() )
+  # print("Intercept:", regression_model.intercept_)
+  # turn data following nuisance and gsr back to image format
+  gsrbold = ants.matrix_to_timeseries(simg, gmmat, regression_mask)
+  outdict = {}
+  outdict['meanBold'] = und
+  outdict['brainmask'] = bmask
+  rsfNuisance = pd.DataFrame( nuisance )
+  rsfNuisance['FD']=corrmo['FD']
+
+  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
+  trimmask = ants.iMath( bmask, "ME",2)
+  edgemask = ants.iMath( bmask, "ME",1) - trimmask
+  outdict['perfusion']=perfimg
+  outdict['perfusion_gm_mean']=meangmval
+  outdict['motion_corrected'] = corrmo['motion_corrected']
+  outdict['gmseg'] = gmseg
+  outdict['gsrbold'] = gsrbold
+  outdict['brain_mask'] = bmask
+  outdict['nuisance'] = rsfNuisance
+  outdict['tsnr'] = mytsnr
+  outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
+  outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
+  outdict['high_motion_count'] = (rsfNuisance['FD'] > FD_threshold ).sum()
+  outdict['high_motion_pct'] = (rsfNuisance['FD'] > FD_threshold ).sum() / rsfNuisance.shape[0]
+  outdict['FD_max'] = rsfNuisance['FD'].max()
+  outdict['FD_mean'] = rsfNuisance['FD'].mean()
+  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
+  return outdict
+
+
 
 def write_bvals_bvecs(bvals, bvecs, prefix ):
     ''' Write FSL FDT bvals and bvecs files
@@ -4595,6 +4803,7 @@ def mm(
     flair_image=None,
     nm_image_list=None,
     dw_image=[], bvals=[], bvecs=[],
+    perfusion_image=None,
     srmodel=None,
     do_tractography = False,
     do_kk = False,
@@ -4630,6 +4839,8 @@ def mm(
     bvals : list of bvals file names
 
     bvecs : list of bvecs file names
+
+    perfusion_image : single perfusion image
 
     srmodel : optional srmodel
 
@@ -4699,7 +4910,8 @@ def mm(
         'FA_summ' : None,
         'MD_summ' : None,
         'tractography' : None,
-        'tractography_connectivity' : None
+        'tractography_connectivity' : None,
+        'perf' : None,
     }
     normalization_dict = {
         'kk_norm': None,
@@ -4727,7 +4939,19 @@ def mm(
             print('kk')
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
-    ################################## do the rsf .....
+    if  perfusion_image is not None:
+        boldTemplate=get_average_rsf(perfusion_image)
+        if perfusion_image.shape[3] > 10: # FIXME - better heuristic?
+            output_dict['perf'] = bold_perfusion(
+                perfusion_image,
+                boldTemplate,
+                t1_image,
+                hier['brain_n4_dnz'],
+                t1atropos,
+                f=[0.0,math.inf],
+                spa = 1.0,
+                spt = 0.5,
+                nc = 6, verbose=verbose )    ################################## do the rsf .....
     if len(rsf_image) > 0:
         rsf_image = [i for i in rsf_image if i is not None]
         if verbose:
@@ -4993,6 +5217,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
 
     faderk = mdderk = fat1derk = mdt1derk = None
+
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         myop = output_prefix + separator
@@ -5105,6 +5330,26 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             # mm_wide.to_csv( fdfn )
         else:
             mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
+
+    if mm['perf'] is not None:
+        perfpro = mm['perf']
+        mm_wide['perf_gm_mean'] =  perfpro['perfusion_gm_mean']
+        mm_wide['perf_tsnr_mean'] =  perfpro['tsnr'].mean()
+        mm_wide['rsf_dvars_mean'] =  perfpro['dvars'].mean()
+        mm_wide['rsf_ssnr_mean'] =  perfpro['ssnr'].mean()
+        mm_wide['rsf_high_motion_count'] =  perfpro['high_motion_count']
+        mm_wide['rsf_evr'] =  perfpro['bold_evr']
+        mm_wide['rsf_FD_mean'] = perfpro['FD_mean']
+        mm_wide['rsf_FD_max'] = perfpro['FD_max']
+        if 'perf_dataframe' in perfpro.keys():
+            pderk = perfpro['perf_dataframe'].iloc[: , 1:]
+            mm_wide = pd.concat( [ mm_wide, pderk ], axis=1 )
+        else:
+            print("FIXME - perfusion dataframe")
+        mykey='perfusion'
+        tempfn = output_prefix + separator + mykey + '.nii.gz'
+        image_write_with_thumbnail( mm['perf'][mykey], tempfn )
+
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
     if verbose:
@@ -5611,7 +5856,7 @@ def mm_nrg(
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep, verbose=True )
                                 for mykey in normPro.keys():
                                     if normPro[mykey] is not None:
-                                        if visualize and normPro[mykey].components == 1:
+                                        if visualize and normPro[mykey].components == 1 and False:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
             return
@@ -5760,6 +6005,8 @@ def mm_csv(
             imfns=['filename']
         elif locmod == 'T2Flair':
             imfns=['flairid']
+        elif locmod == 'perf':
+            imfns=['perfid']
         elif locmod == 'NM2DMT':
             imfns=[]
             for i in range(11):
@@ -6095,6 +6342,22 @@ def mm_csv(
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
+                            if ( mymod == 'perf' )  and ishapelen == 4:
+                                dowrite=True
+                                tabPro, normPro = mm( t1, hier,
+                                    perfusion_image=img,
+                                    srmodel=None,
+                                    do_tractography=False,
+                                    do_kk=False,
+                                    do_normalization=templateTx,
+                                    group_template = normalization_template,
+                                    group_transform = groupTx,
+                                    test_run=test_run,
+                                    verbose=True )
+                                if tabPro['perf'] is not None and visualize:
+                                    maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
+                                    ants.plot( tabPro['perf']['perfusion'],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='perfusion image', filename=mymm+mysep+"perfusion.png" )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
@@ -6158,7 +6421,7 @@ def mm_csv(
                                 write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=t1wide, separator=mysep )
                                 for mykey in normPro.keys():
                                     if normPro[mykey] is not None and normPro[mykey].components == 1:
-                                        if visualize:
+                                        if visualize and False:
                                             ants.plot( template, normPro[mykey], axis=2, nslices=21, ncol=7, crop=True, title=mykey, filename=mymm+mysep+mykey+".png"   )
         if overmodX == nrg_modality_list[ len( nrg_modality_list ) - 1 ]:
             return
@@ -7970,6 +8233,7 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
         t1wfn = sorted(glob(f"{path_template}-T1w-*wide.csv"))
         dtfn = sorted(glob(f"{path_template}-DTI-*wide.csv"))
         rsfn = sorted(glob(f"{path_template}-rsfMRI-*wide.csv"))
+        perffn = sorted(glob(f"{path_template}-perf-*wide.csv"))
 
         hdf = pd.read_csv(hierfn[0])
         nums = [isinstance(df[col].iloc[0], (int, float)) for col in hdf.columns]
@@ -7990,7 +8254,10 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
         dtdf = dtdf.loc[:, nums]
         dtdf = pd.DataFrame(dtdf.mean(axis=0, skipna=True)).T
 
-        hdf = pd.concat([hdf, t1df, dtdf, rsdf], axis=1)
+        perfdf = myread_csv(perffn[0], corenames)
+        perfdf.loc[:, nums] = perfdf.loc[:, nums].add_prefix("perf_")
+
+        hdf = pd.concat([hdf, t1df, dtdf, rsdf, perfdf], axis=1)
 
         if x == 1:
             df.loc[:, hdf.columns] = hdf
@@ -8000,12 +8267,12 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
 
         print(np.random.choice(df.columns, 5))
 
-    demog = pd.read_csv("experienced_artillery_demog.csv")
-    df['Subject_Number'] = df[subject_col].str.replace("sub-", "").str.slice(0, 6)
-    demog = pd.merge(demog, df, left_on='Subject_Number', right_on='Subject_Number')
-
+#    demog = pd.read_csv("experienced_artillery_demog.csv")
+#    df['Subject_Number'] = df[subject_col].str.replace("sub-", "").str.slice(0, 6)
+#    demog = pd.merge(demog, df, left_on='Subject_Number', right_on='Subject_Number')
+#
     # Save the aggregated results to a new CSV file
-    demog.to_csv(output_csv, index=False)
+#    demog.to_csv(output_csv, index=False)
 
 # Example usage:
 # aggregate_antspymm_results("qcdfaol.csv", "expart_antspymm_imaging.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Your/Custom/Path/")
