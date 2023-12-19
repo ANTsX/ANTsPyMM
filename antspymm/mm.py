@@ -6854,7 +6854,7 @@ progress=False, verbose=False ):
     """
     extend a study data frame with wide outputs
 
-    sdf : the input study dataframe
+    sdf : the input study dataframe from antspymm QC output
 
     processing_dir:  the directory location of the processed data 
 
@@ -6877,8 +6877,8 @@ progress=False, verbose=False ):
     for k in range(len(musthavecols)):
         if not musthavecols[k] in sdf.keys():
             raise ValueError('sdf is missing column ' +musthavecols[k] + ' in merge_wides_to_study_dataframe' )
-    possible_iids = [ 'imageID', 'imageID', 'imageID', 'flairid', 'dtid1', 'dtid2', 'rsfid1', 'rsfid2', 'nmid1', 'nmid2', 'nmid3', 'nmid4', 'nmid5', 'nmid6', 'nmid7', 'nmid8', 'nmid9', 'nmid10' ]
-    modality_ids = [ 'T1wHierarchical', 'T1wHierarchicalSR', 'T1w', 'T2Flair', 'DTI', 'DTI', 'rsfMRI', 'rsfMRI', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT']
+    possible_iids = [ 'imageID', 'imageID', 'imageID', 'flairid', 'dtid1', 'dtid2', 'rsfid1', 'rsfid2', 'nmid1', 'nmid2', 'nmid3', 'nmid4', 'nmid5', 'nmid6', 'nmid7', 'nmid8', 'nmid9', 'nmid10', 'perfid' ]
+    modality_ids = [ 'T1wHierarchical', 'T1wHierarchicalSR', 'T1w', 'T2Flair', 'DTI', 'DTI', 'rsfMRI', 'rsfMRI', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'NM2DMT', 'perf']
     alldf=pd.DataFrame()
     for myk in sdf.index:
         if progress > 0 and int(myk) % int(progress) == 0:
@@ -8193,21 +8193,25 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     return addem
 
 
-def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/"):
+def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/", hiervariable='T1wHierarchical', verbose=False ):
     """
     Aggregate ANTsPyMM results from the specified CSV file and save the aggregated results to a new CSV file.
 
     Parameters:
-    - input_csv (str): File path of the input CSV file containing ANTsPyMM results.
-    - output_csv (str): File path of the output CSV file to save the aggregated results.
+    - input_csv (str): File path of the input CSV file containing ANTsPyMM QC results averaged and with outlier measurements.
     - subject_col (str): Name of the column to store subject IDs.
     - date_col (str): Name of the column to store date information.
     - image_col (str): Name of the column to store image IDs.
     - date_column (str): Name of the column representing the date information.
     - base_path (str): Base path for search paths. Defaults to "./Processed/ANTsExpArt/".
+    - hiervariable (str) : the string variable denoting the Hierarchical output
+    - verbose : boolean
 
     Note:
     This function is untested. Use with caution.
+
+    Example usage:
+    agg_df = aggregate_antspymm_results("qcdfaol.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Your/Custom/Path/")
 
     Author:
     Avants and ChatGPT
@@ -8216,12 +8220,20 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
     import numpy as np
     from glob import glob
 
+    def filter_df( indf, myprefix ):
+        nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
+        indf = indf.loc[:, nums]
+        indf=indf.loc[:, indf.dtypes != 'object' ]
+        indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
+        indf = indf.add_prefix( myprefix )
+        return( indf )
+
     def myread_csv(x, cnms):
         """
         Reads a CSV file and returns a DataFrame excluding specified columns.
 
         Parameters:
-        - x (str): File path of the CSV file.
+        - x (str): File path of the input CSV file describing the blind QC output
         - cnms (list): List of column names to exclude from the DataFrame.
 
         Returns:
@@ -8230,8 +8242,11 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
         df = pd.read_csv(x)
         return df.loc[:, ~df.columns.isin(cnms)]
 
+    import warnings
     # Warning message for untested function
-    print("Warning: This function is untested. Use with caution.")
+    warnings.warn("Warning: This function is not well tested. Use with caution.")
+
+    valmods = get_valid_modalities('long')
 
     # Read the input CSV file
     df = pd.read_csv(input_csv)
@@ -8243,7 +8258,7 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
     df[subject_col] = np.nan
     df[date_col] = date_column
     df[image_col] = np.nan
-
+    myct = 0
     for x in range(1, len(df) + 1):
         print(f"{x}...")
 
@@ -8254,51 +8269,36 @@ def aggregate_antspymm_results(input_csv, output_csv, subject_col='subjectID', d
 
         # Generalized search paths
         path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
-        hierfn = sorted(glob(f"{path_template}-T1wHierarchical-*wide.csv"))
-        t1wfn = sorted(glob(f"{path_template}-T1w-*wide.csv"))
-        dtfn = sorted(glob(f"{path_template}-DTI-*wide.csv"))
-        rsfn = sorted(glob(f"{path_template}-rsfMRI-*wide.csv"))
-        perffn = sorted(glob(f"{path_template}-perf-*wide.csv"))
+        if verbose:
+            print(path_template)
+        hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
+        if len( hierfn ) > 0:
+            hdf=t1df=dtdf=rsdf=perfdf=nmdf=flairdf=None
+            if verbose:
+                print(hierfn)
+            hdf = pd.read_csv(hierfn[0])
+            nums = [isinstance(hdf[col].iloc[0], (int, float)) for col in hdf.columns]
+            corenames = list(np.array(hdf.columns)[nums])
+            hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+            myct = myct + 1
+            dflist = [hdf]
 
-        hdf = pd.read_csv(hierfn[0])
-        nums = [isinstance(df[col].iloc[0], (int, float)) for col in hdf.columns]
-        corenames = list(np.array(hdf.columns)[nums])
+            for mymod in valmods:
+                t1wfn = sorted(glob( path_template+ "-" + mymod + "-*wide.csv" ) )
+                if len( t1wfn ) > 0 :
+                    if verbose:
+                        print(t1wfn)
+                    t1df = myread_csv(t1wfn[0], corenames)
+                    t1df = filter_df( t1df, mymod+'_')
+                    dflist = dflist + [t1df]
+                
+            hdf = pd.concat( dflist, axis=1)
 
-        hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+            if myct == 1:
+                df.loc[:, hdf.columns] = hdf
+            else:
+                commcols = list(set(hdf.columns).intersection(df.columns))
+                df.loc[x - 1, commcols] = hdf.iloc[0, commcols]
+    return( df )
 
-        t1df = myread_csv(t1wfn[0], corenames)
-        t1df.loc[:, nums] = t1df.loc[:, nums].add_prefix("T1w_")
-        t1df = t1df.loc[:, nums]
-        t1df = pd.DataFrame(t1df.mean(axis=0, skipna=True)).T
-
-        rsdf = myread_csv(rsfn[0], corenames)
-        rsdf.loc[:, nums] = rsdf.loc[:, nums].add_prefix("rsfMRI_")
-
-        dtdf = myread_csv(dtfn[0], corenames)
-        dtdf.loc[:, nums] = dtdf.loc[:, nums].add_prefix("DTI_")
-        dtdf = dtdf.loc[:, nums]
-        dtdf = pd.DataFrame(dtdf.mean(axis=0, skipna=True)).T
-
-        perfdf = myread_csv(perffn[0], corenames)
-        perfdf.loc[:, nums] = perfdf.loc[:, nums].add_prefix("perf_")
-
-        hdf = pd.concat([hdf, t1df, dtdf, rsdf, perfdf], axis=1)
-
-        if x == 1:
-            df.loc[:, hdf.columns] = hdf
-        else:
-            commcols = list(set(hdf.columns).intersection(df.columns))
-            df.loc[x - 1, commcols] = hdf.iloc[0, commcols]
-
-        print(np.random.choice(df.columns, 5))
-
-#    demog = pd.read_csv("experienced_artillery_demog.csv")
-#    df['Subject_Number'] = df[subject_col].str.replace("sub-", "").str.slice(0, 6)
-#    demog = pd.merge(demog, df, left_on='Subject_Number', right_on='Subject_Number')
-#
-    # Save the aggregated results to a new CSV file
-#    demog.to_csv(output_csv, index=False)
-
-# Example usage:
-# aggregate_antspymm_results("qcdfaol.csv", "expart_antspymm_imaging.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Your/Custom/Path/")
 
