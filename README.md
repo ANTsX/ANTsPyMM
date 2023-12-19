@@ -224,6 +224,10 @@ studycsv = antspymm.generate_mm_dataframe(
     rsf_filenames=[fns[2]])
 studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
+
+# aggregate the data after you've run on many subjects
+zz=antspymm.aggregate_antspymm_results("qcdfaol.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path='/Users/stnava/data/openneuro/processed/', verbose=True)
+
 ```
 
 ## NRG example
