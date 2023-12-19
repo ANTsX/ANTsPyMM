@@ -8288,10 +8288,12 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
 
     myct = 0
     for x in range( df.shape[0]):
-        print(f"{x}...")
+        if verbose:
+            print(f"{x}...")
         locind = df.index[x]
         temp = df['fn'].iloc[x].split("_")
-        print( temp )
+        if verbose:
+            print( temp )
         df[subject_col].iloc[x]=temp[0]
         df[date_col].iloc[x]=date_column
         df[image_col].iloc[x]=temp[1]
@@ -8324,7 +8326,8 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
                     dflist = dflist + [t1df]
                 
             hdf = pd.concat( dflist, axis=1)
-
+            if verbose:
+                print( df.loc[locind,'fn'] )
             if myct == 1:
                 subdf = df.iloc[[x]]
                 hdf.index = subdf.index.copy()
