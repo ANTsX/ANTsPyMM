@@ -79,6 +79,8 @@ __all__ = ['version',
     'novelty_detection_loop',
     'novelty_detection_quantile',
     'generate_mm_dataframe',
+    'aggregate_antspymm_results',
+    'aggregate_antspymm_results_sdf',
     'study_dataframe_from_matched_dataframe',
     'merge_wides_to_study_dataframe',
     'wmh']
@@ -8209,7 +8211,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     - verbose : boolean
 
     Note:
-    This function is untested. Use with caution.
+    This function is tested under limited circumstances. Use with caution.
 
     Example usage:
     agg_df = aggregate_antspymm_results("qcdfaol.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Your/Custom/Path/")
@@ -8300,6 +8302,157 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
 
         # Generalized search paths
         path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
+        if verbose:
+            print(path_template)
+        hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
+        if len( hierfn ) > 0:
+            hdf=t1df=dtdf=rsdf=perfdf=nmdf=flairdf=None
+            if verbose:
+                print(hierfn)
+            hdf = pd.read_csv(hierfn[0])
+            badnames = get_names_from_data_frame( ['Unnamed'], hdf )
+            hdf=hdf.drop(badnames, axis=1)
+            nums = [isinstance(hdf[col].iloc[0], (int, float)) for col in hdf.columns]
+            corenames = list(np.array(hdf.columns)[nums])
+            hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+            myct = myct + 1
+            dflist = [hdf]
+
+            for mymod in valid_modalities:
+                t1wfn = sorted(glob( path_template+ "-" + mymod + "-*wide.csv" ) )
+                if len( t1wfn ) > 0 :
+                    if verbose:
+                        print(t1wfn)
+                    t1df = myread_csv(t1wfn[0], corenames)
+                    t1df = filter_df( t1df, mymod+'_')
+                    dflist = dflist + [t1df]
+                
+            hdf = pd.concat( dflist, axis=1)
+            if verbose:
+                print( df.loc[locind,'fn'] )
+            if myct == 1:
+                subdf = df.iloc[[x]]
+                hdf.index = subdf.index.copy()
+                df = pd.concat( [df,hdf], axis=1)
+            else:
+                commcols = list(set(hdf.columns).intersection(df.columns))
+                df.loc[locind, commcols] = hdf.loc[0, commcols]
+    badnames = get_names_from_data_frame( ['Unnamed'], df )
+    df=df.drop(badnames, axis=1)
+    return( df )
+
+def aggregate_antspymm_results_sdf(
+    study_df, 
+    subject_col='subjectID', 
+    date_col='date', 
+    image_col='imageID', 
+    base_path="./", 
+    hiervariable='T1wHierarchical', 
+    valid_modalities=None, 
+    verbose=False ):
+    """
+    Aggregate ANTsPyMM results from the specified study data frame and store the aggregated results in a new data frame.
+
+    Parameters:
+    - study_df (pandas df): pandas data frame, output of generate_mm_dataframe.
+    - subject_col (str): Name of the column to store subject IDs.
+    - date_col (str): Name of the column to store date information.
+    - image_col (str): Name of the column to store image IDs.
+    - base_path (str): Base path for searching for processing outputs of ANTsPyMM.
+    - hiervariable (str) : the string variable denoting the Hierarchical output
+    - valid_modalities (str array) : identifies for each modality; if None will be replaced by get_valid_modalities(long=True)
+    - verbose : boolean
+
+    Note:
+    This function is tested under limited circumstances. Use with caution.
+
+    Example usage:
+    agg_df = aggregate_antspymm_results_sdf( studydf, subject_col='subjectID', date_col='date', image_col='imageID', base_path="./Your/Custom/Path/")
+
+    Author:
+    Avants and ChatGPT
+    """
+    import pandas as pd
+    import numpy as np
+    from glob import glob
+
+    def filter_df( indf, myprefix ):
+        nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
+        indf = indf.loc[:, nums]
+        indf=indf.loc[:, indf.dtypes != 'object' ]
+        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
+        indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
+        indf = indf.add_prefix( myprefix )
+        return( indf )
+
+    def myread_csv(x, cnms):
+        """
+        Reads a CSV file and returns a DataFrame excluding specified columns.
+
+        Parameters:
+        - x (str): File path of the input CSV file describing the blind QC output
+        - cnms (list): List of column names to exclude from the DataFrame.
+
+        Returns:
+        pd.DataFrame: DataFrame with specified columns excluded.
+        """
+        df = pd.read_csv(x)
+        return df.loc[:, ~df.columns.isin(cnms)]
+
+    import warnings
+    # Warning message for untested function
+    warnings.warn("Warning: This function is not well tested. Use with caution.")
+
+    if valid_modalities is None:
+        valid_modalities = get_valid_modalities('long')
+
+    # Read the input CSV file
+
+    # Filter rows where modality is 'T1w'
+    df = study_df[study_df['modality'] == 'T1w']
+    print( df.shape )
+    print("ANUS")
+    badnames = get_names_from_data_frame( ['Unnamed'], df )
+    df=df.drop(badnames, axis=1)
+    # prefilter df for data that exists
+    keep = np.tile( False, df.shape[0] )
+    for x in range(df.shape[0]):
+        myfn = os.path.basename( df['filename'].iloc[x] )
+        temp = myfn.split("_")
+        # Generalized search paths
+        myproj = df['projectID'].iloc[x]
+        mydate = df['date'].iloc[x]
+        myid = df['imageID'].iloc[x]
+        path_template = base_path + "/" + myproj +  "/" + temp[0] + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
+        # f"{base_path}{temp[0]}/{date_col}/*/*/*"
+        hierfn = sorted(glob( path_template + "*" + hiervariable + "-*wide.csv" ) )
+        if len( hierfn ) > 0:
+            keep[x]=True
+
+    
+    df=df[keep]
+    
+    if verbose:
+        print( "original input had shape " + str( df.shape[0] ) + " (T1 only) and we find " + str( (keep).sum() ) + " with hierarchical output defined by variable: " + hiervariable )
+        print( df.shape )
+
+    myct = 0
+    for x in range( df.shape[0]):
+        if verbose:
+            print(f"{x}...")
+        locind = df.index[x]
+        myfn = os.path.basename( df['filename'].iloc[x] )
+        temp = myfn.split("_")
+        if verbose:
+            print( temp )
+        # Generalized search paths
+        myproj = df['projectID'].iloc[x]
+        mydate = df['date'].iloc[x]
+        myid = df['imageID'].iloc[x]
+        path_template = base_path + "/" + myproj +  "/" + temp[0] + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
+
+        # Generalized search paths
+#        path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
         if verbose:
             print(path_template)
         hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
