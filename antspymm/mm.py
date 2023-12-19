@@ -8193,7 +8193,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     return addem
 
 
-def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/", hiervariable='T1wHierarchical', verbose=False ):
+def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/", hiervariable='T1wHierarchical', valid_modalities=None, verbose=False ):
     """
     Aggregate ANTsPyMM results from the specified CSV file and save the aggregated results to a new CSV file.
 
@@ -8205,6 +8205,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     - date_column (str): Name of the column representing the date information.
     - base_path (str): Base path for search paths. Defaults to "./Processed/ANTsExpArt/".
     - hiervariable (str) : the string variable denoting the Hierarchical output
+    - valid_modalities (str array) : identifies for each modality; if None will be replaced by get_valid_modalities(long=True)
     - verbose : boolean
 
     Note:
@@ -8247,7 +8248,8 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     # Warning message for untested function
     warnings.warn("Warning: This function is not well tested. Use with caution.")
 
-    valmods = get_valid_modalities('long')
+    if valid_modalities is None:
+        valid_modalities = get_valid_modalities('long')
 
     # Read the input CSV file
     df = pd.read_csv(input_csv)
@@ -8312,7 +8314,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
             myct = myct + 1
             dflist = [hdf]
 
-            for mymod in valmods:
+            for mymod in valid_modalities:
                 t1wfn = sorted(glob( path_template+ "-" + mymod + "-*wide.csv" ) )
                 if len( t1wfn ) > 0 :
                     if verbose:
