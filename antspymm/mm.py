@@ -8331,7 +8331,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
                 df = pd.concat( [df,hdf], axis=1)
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
-                df.iloc[x, commcols] = hdf.iloc[0, commcols]
+                df.loc[locind, commcols] = hdf.loc[0, commcols]
     badnames = get_names_from_data_frame( ['Unnamed'], df )
     df=df.drop(badnames, axis=1)
     return( df )
