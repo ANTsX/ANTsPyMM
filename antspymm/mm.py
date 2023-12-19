@@ -8224,6 +8224,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
         nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
         indf = indf.loc[:, nums]
         indf=indf.loc[:, indf.dtypes != 'object' ]
+        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
         indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
         indf = indf.add_prefix( myprefix )
         return( indf )
@@ -8253,19 +8254,45 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
 
     # Filter rows where modality is 'T1w'
     df = df[df['modality'] == 'T1w']
+    badnames = get_names_from_data_frame( ['Unnamed'], df )
+    df=df.drop(badnames, axis=1)
 
     # Add new columns for subject ID, date, and image ID
     df[subject_col] = np.nan
     df[date_col] = date_column
     df[image_col] = np.nan
-    myct = 0
-    for x in range(1, len(df) + 1):
-        print(f"{x}...")
+    df = df.astype({subject_col: str, date_col: str, image_col: str })
 
-        temp = df['fn'].iloc[x - 1].split("_")
-        df.at[x - 1, subject_col] = temp[0]
-        df.at[x - 1, date_col] = date_column
-        df.at[x - 1, image_col] = temp[1]
+#    if verbose:
+#        print( df.shape )
+#        print( df.dtypes )
+
+    # prefilter df for data that exists
+    keep = np.tile( False, df.shape[0] )
+    for x in range(df.shape[0]):
+        temp = df['fn'].iloc[x].split("_")
+        # Generalized search paths
+        path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
+        hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
+        if len( hierfn ) > 0:
+            keep[x]=True
+
+    
+    df=df[keep]
+    
+    if verbose:
+        print( "original input had shape " + str( df.shape[0] ) + " (T1 only) and we find " + str( (keep).sum() ) + " with hierarchical output defined by variable: " + hiervariable )
+        print( df.shape )
+
+    myct = 0
+    for x in range( df.shape[0]):
+        print(f"{x}...")
+        locind = df.index[x]
+        temp = df['fn'].iloc[x].split("_")
+        print( temp )
+        df[subject_col].iloc[x]=temp[0]
+        df[date_col].iloc[x]=date_column
+        df[image_col].iloc[x]=temp[1]
 
         # Generalized search paths
         path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
@@ -8277,6 +8304,8 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
             if verbose:
                 print(hierfn)
             hdf = pd.read_csv(hierfn[0])
+            badnames = get_names_from_data_frame( ['Unnamed'], hdf )
+            hdf=hdf.drop(badnames, axis=1)
             nums = [isinstance(hdf[col].iloc[0], (int, float)) for col in hdf.columns]
             corenames = list(np.array(hdf.columns)[nums])
             hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
@@ -8295,10 +8324,13 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
             hdf = pd.concat( dflist, axis=1)
 
             if myct == 1:
-                df.loc[:, hdf.columns] = hdf
+                hdf.index = df.index.copy()
+                df = pd.concat( [df,hdf], axis=1)
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
-                df.loc[x - 1, commcols] = hdf.iloc[0, commcols]
+                df.iloc[x, commcols] = hdf.iloc[0, commcols]
+    badnames = get_names_from_data_frame( ['Unnamed'], df )
+    df=df.drop(badnames, axis=1)
     return( df )
 
 
