@@ -8326,7 +8326,8 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
             hdf = pd.concat( dflist, axis=1)
 
             if myct == 1:
-                hdf.index = df.index.copy()
+                subdf = df.iloc[[x]]
+                hdf.index = subdf.index.copy()
                 df = pd.concat( [df,hdf], axis=1)
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
