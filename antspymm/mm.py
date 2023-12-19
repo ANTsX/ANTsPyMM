@@ -5335,12 +5335,12 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         perfpro = mm['perf']
         mm_wide['perf_gm_mean'] =  perfpro['perfusion_gm_mean']
         mm_wide['perf_tsnr_mean'] =  perfpro['tsnr'].mean()
-        mm_wide['rsf_dvars_mean'] =  perfpro['dvars'].mean()
-        mm_wide['rsf_ssnr_mean'] =  perfpro['ssnr'].mean()
-        mm_wide['rsf_high_motion_count'] =  perfpro['high_motion_count']
-        mm_wide['rsf_evr'] =  perfpro['bold_evr']
-        mm_wide['rsf_FD_mean'] = perfpro['FD_mean']
-        mm_wide['rsf_FD_max'] = perfpro['FD_max']
+        mm_wide['perf_dvars_mean'] =  perfpro['dvars'].mean()
+        mm_wide['perf_ssnr_mean'] =  perfpro['ssnr'].mean()
+        mm_wide['perf_high_motion_count'] =  perfpro['high_motion_count']
+        mm_wide['perf_evr'] =  perfpro['bold_evr']
+        mm_wide['perf_FD_mean'] = perfpro['FD_mean']
+        mm_wide['perf_FD_max'] = perfpro['FD_max']
         if 'perf_dataframe' in perfpro.keys():
             pderk = perfpro['perf_dataframe'].iloc[: , 1:]
             mm_wide = pd.concat( [ mm_wide, pderk ], axis=1 )
