@@ -4543,7 +4543,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid', tc='alternating', deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid', tc='alternating', deepmask=False, add_FD_to_nuisance=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4561,6 +4561,9 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math
 
   t1segmentation : ANTsImage
     t1 segmentation - a six tissue segmentation image in T1 space
+
+  t1dktcit : ANTsImage
+    t1 dkt cortex plus cit parcellation
 
   f : band pass limits for frequency filtering
 
@@ -4590,6 +4593,9 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math
   import re
   import math
   from sklearn.linear_model import LinearRegression
+
+  ex_path = os.path.expanduser( "~/.antspyt1w/" )
+  cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
 
   def replicate_list(user_list, target_size):
     # Calculate the number of times the list should be replicated
@@ -4648,6 +4654,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math
   if verbose:
       print("t1 2 bold done")
   boldseg = ants.apply_transforms( und, t1segmentation,
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  dktseg = ants.apply_transforms( und, t1dktcit,
     t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
@@ -4711,11 +4719,27 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, f=[0.0,math
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=corrmo['FD']
 
+
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
+
+  if verbose:
+      print("perfusion dataframe begin")
+  df_perf = antspyt1w.map_intensity_to_dataframe(
+        'dkt_cortex_cit_deep_brain',
+        perfimg,
+        dktseg)
+  df_perf = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+              {'perf' : df_perf},
+              col_names = ['Mean'] )
+  if verbose:
+      print("perfusion dataframe end")
+      print( df_perf )
+
   outdict['perfusion']=perfimg
   outdict['perfusion_gm_mean']=meangmval
+  outdict['perf_dataframe']=df_perf
   outdict['motion_corrected'] = corrmo['motion_corrected']
   outdict['gmseg'] = gmseg
   outdict['gsrbold'] = gsrbold
@@ -4948,6 +4972,7 @@ def mm(
                 t1_image,
                 hier['brain_n4_dnz'],
                 t1atropos,
+                hier['dkt_parc']['dkt_cortex'] + hier['cit168lab'],
                 f=[0.0,math.inf],
                 spa = 1.0,
                 spt = 0.5,
@@ -5333,14 +5358,14 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
 
     if mm['perf'] is not None:
         perfpro = mm['perf']
-        mm_wide['perf_gm_mean'] =  perfpro['perfusion_gm_mean']
-        mm_wide['perf_tsnr_mean'] =  perfpro['tsnr'].mean()
-        mm_wide['perf_dvars_mean'] =  perfpro['dvars'].mean()
-        mm_wide['perf_ssnr_mean'] =  perfpro['ssnr'].mean()
-        mm_wide['perf_high_motion_count'] =  perfpro['high_motion_count']
-        mm_wide['perf_evr'] =  perfpro['bold_evr']
-        mm_wide['perf_FD_mean'] = perfpro['FD_mean']
-        mm_wide['perf_FD_max'] = perfpro['FD_max']
+        mm_wide['gm_mean'] =  perfpro['perfusion_gm_mean']
+        mm_wide['tsnr_mean'] =  perfpro['tsnr'].mean()
+        mm_wide['dvars_mean'] =  perfpro['dvars'].mean()
+        mm_wide['ssnr_mean'] =  perfpro['ssnr'].mean()
+        mm_wide['high_motion_count'] =  perfpro['high_motion_count']
+        mm_wide['evr'] =  perfpro['bold_evr']
+        mm_wide['FD_mean'] = perfpro['FD_mean']
+        mm_wide['FD_max'] = perfpro['FD_max']
         if 'perf_dataframe' in perfpro.keys():
             pderk = perfpro['perf_dataframe'].iloc[: , 1:]
             mm_wide = pd.concat( [ mm_wide, pderk ], axis=1 )
