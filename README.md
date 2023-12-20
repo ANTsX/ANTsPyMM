@@ -414,6 +414,15 @@ for f in folders:
 pdoc -o ./docs antspymm --html
 ```
 
+## ssl error 
+
+if you get an odd certificate error when calling `force_download`, try:
+
+```python
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+``
+
 ## to publish a release
 
 ```
