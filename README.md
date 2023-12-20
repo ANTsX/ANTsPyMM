@@ -226,7 +226,10 @@ studycsv2 = studycsv.dropna(axis=1)
 mmrun = antspymm.mm_csv( studycsv2, mysep='_' )
 
 # aggregate the data after you've run on many subjects
-zz=antspymm.aggregate_antspymm_results("qcdfaol.csv", subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path='/Users/stnava/data/openneuro/processed/', verbose=True)
+# studycsv_all would be the vstacked studycsv2 data frames
+zz=antspymm.aggregate_antspymm_results_sdf( studycsv_all, 
+    subject_col='subjectID', date_col='date', image_col='imageID',  base_path=bd, 
+    splitsep='_', idsep='-', wild_card_modality_id=True, verbose=True)
 
 ```
 

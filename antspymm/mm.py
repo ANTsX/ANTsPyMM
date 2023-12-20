@@ -8343,24 +8343,33 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
 
 def aggregate_antspymm_results_sdf(
     study_df, 
+    project_col='projectID',
     subject_col='subjectID', 
     date_col='date', 
     image_col='imageID', 
     base_path="./", 
     hiervariable='T1wHierarchical', 
-    valid_modalities=None, 
+    splitsep='-',
+    idsep='-',
+    wild_card_modality_id=False,
     verbose=False ):
     """
-    Aggregate ANTsPyMM results from the specified study data frame and store the aggregated results in a new data frame.
+    Aggregate ANTsPyMM results from the specified study data frame and store the aggregated results in a new data frame.  This assumes data is organized on disk 
+    as follows:  rootdir/projectID/subjectID/date/outputid/imageid/ where 
+    outputid is modality-specific and created by ANTsPyMM processing.
 
     Parameters:
     - study_df (pandas df): pandas data frame, output of generate_mm_dataframe.
+    - project_col (str): Name of the column that stores the project ID
     - subject_col (str): Name of the column to store subject IDs.
     - date_col (str): Name of the column to store date information.
     - image_col (str): Name of the column to store image IDs.
     - base_path (str): Base path for searching for processing outputs of ANTsPyMM.
     - hiervariable (str) : the string variable denoting the Hierarchical output
-    - valid_modalities (str array) : identifies for each modality; if None will be replaced by get_valid_modalities(long=True)
+    - splitsep (str):  the separator used to split the filename
+    - idsep (str): the separator used to partition subjectid date and imageid 
+        for example, if idsep is - then we have subjectid-date-imageid
+    - wild_card_modality_id (bool): keep if False for safer execution
     - verbose : boolean
 
     Note:
@@ -8403,34 +8412,45 @@ def aggregate_antspymm_results_sdf(
     # Warning message for untested function
     warnings.warn("Warning: This function is not well tested. Use with caution.")
 
-    if valid_modalities is None:
-        valid_modalities = get_valid_modalities('long')
-
-    # Read the input CSV file
+    # if valid_modalities is None:
+    valid_modalities = get_valid_modalities('long')
+    vmoddict = {}
+    # Add key-value pairs
+    vmoddict['imageID'] = 'T1w'
+    vmoddict['flairid'] = 'T2Flair'
+    vmoddict['perfid'] = 'perf'
+    vmoddict['rsfid1'] = 'rsfMRI'
+    vmoddict['dtid1'] = 'DTI'
+    vmoddict['nmid1'] = 'NM2DMT'
 
     # Filter rows where modality is 'T1w'
     df = study_df[study_df['modality'] == 'T1w']
-    print( df.shape )
-    print("ANUS")
     badnames = get_names_from_data_frame( ['Unnamed'], df )
     df=df.drop(badnames, axis=1)
     # prefilter df for data that exists
     keep = np.tile( False, df.shape[0] )
     for x in range(df.shape[0]):
         myfn = os.path.basename( df['filename'].iloc[x] )
-        temp = myfn.split("_")
+        temp = myfn.split( splitsep )
         # Generalized search paths
-        myproj = df['projectID'].iloc[x]
-        mydate = df['date'].iloc[x]
-        myid = df['imageID'].iloc[x]
-        path_template = base_path + "/" + myproj +  "/" + temp[0] + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
-        # f"{base_path}{temp[0]}/{date_col}/*/*/*"
-        hierfn = sorted(glob( path_template + "*" + hiervariable + "-*wide.csv" ) )
+        sid0 = temp[0]
+        sid = str(df[subject_col].iloc[x])
+        if sid0 != sid:
+            warnings.warn("the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
+        myproj = str(df[project_col].iloc[x])
+        mydate = str(df[date_col].iloc[x])
+        myid = str(df[image_col].iloc[x])
+        path_template = base_path + "/" + myproj +  "/" + sid + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
+        hierfn = sorted(glob( path_template + "*" + hiervariable + "*wide.csv" ) )
         if len( hierfn ) > 0:
             keep[x]=True
 
-    
     df=df[keep]
+
+    if not df.index.is_unique:
+        warnings.warn("data frame does not have unique indices.  we therefore reset the index to allow the function to continue on." )
+        df = df.reset_index()
+
     
     if verbose:
         print( "original input had shape " + str( df.shape[0] ) + " (T1 only) and we find " + str( (keep).sum() ) + " with hierarchical output defined by variable: " + hiervariable )
@@ -8438,25 +8458,29 @@ def aggregate_antspymm_results_sdf(
 
     myct = 0
     for x in range( df.shape[0]):
+        print("\n\n-------------------------------------------------")
         if verbose:
             print(f"{x}...")
         locind = df.index[x]
         myfn = os.path.basename( df['filename'].iloc[x] )
-        temp = myfn.split("_")
+        sid = df[subject_col].iloc[x]
+        if sid0 != sid:
+            warnings.warn("the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
+        myproj = str(df[project_col].iloc[x])
+        mydate = str(df[date_col].iloc[x])
+        myid = str(df[image_col].iloc[x])
         if verbose:
+            print( myfn )
             print( temp )
-        # Generalized search paths
-        myproj = df['projectID'].iloc[x]
-        mydate = df['date'].iloc[x]
-        myid = df['imageID'].iloc[x]
-        path_template = base_path + "/" + myproj +  "/" + temp[0] + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
-
-        # Generalized search paths
-#        path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
+            print( "id " + sid  )
+        path_template = base_path + "/" + myproj +  "/" + sid + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
+        searchhier = path_template + "*" + hiervariable + "*wide.csv"
         if verbose:
-            print(path_template)
-        hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
-        if len( hierfn ) > 0:
+            print( searchhier )
+        hierfn = sorted( glob( searchhier ) )
+        if len( hierfn ) > 1:
+            raise ValueError("there are " + str( len( hierfn ) ) + " number of hier fns with search path " + searchhier )
+        if len( hierfn ) == 1:
             hdf=t1df=dtdf=rsdf=perfdf=nmdf=flairdf=None
             if verbose:
                 print(hierfn)
@@ -8467,23 +8491,55 @@ def aggregate_antspymm_results_sdf(
             corenames = list(np.array(hdf.columns)[nums])
             hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
             myct = myct + 1
+            hdf = hdf.add_prefix( "T1Hier_" )
             dflist = [hdf]
 
-            for mymod in valid_modalities:
-                t1wfn = sorted(glob( path_template+ "-" + mymod + "-*wide.csv" ) )
-                if len( t1wfn ) > 0 :
+            for mymod in vmoddict.keys():
+                print("\n\n************************* " + mymod + " *************************")
+                modalityclass = vmoddict[ mymod ]
+                if wild_card_modality_id:
+                    mymodid = '*'
+                else:
+                    mymodid = str( df[mymod].iloc[x] )
+                    if mymodid.lower() != "nan" and mymodid.lower() != "na":
+                        mymodid = os.path.basename( mymodid )
+                        mymodid = os.path.splitext( mymodid )[0]
+                        mymodid = os.path.splitext( mymodid )[0]
+                        temp = mymodid.split( idsep )
+                        mymodid = temp[ len( temp )-1 ]
+                    else:
+                        print("missing")
+                        continue
+                if verbose:
+                    print( "modality id is " + mymodid + " for modality " + modalityclass )
+                modalityclasssearch = modalityclass
+                if modalityclass in ['rsfMRI','DTI']:
+                    modalityclasssearch=modalityclass+"*"
+                path_template_m = base_path + "/" + myproj +  "/" + sid + "/" + mydate + '/' + modalityclasssearch + '/' + mymodid + "/"
+                modsearch = path_template_m + "*" + modalityclasssearch + "*wide.csv"
+                if verbose:
+                    print( modsearch )
+                t1wfn = sorted( glob( modsearch ) )
+                if len( t1wfn ) > 1:
+                    raise ValueError("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch )
+                if len( t1wfn ) == 1:
                     if verbose:
                         print(t1wfn)
                     t1df = myread_csv(t1wfn[0], corenames)
-                    t1df = filter_df( t1df, mymod+'_')
+                    t1df = filter_df( t1df, modalityclass+'_')
                     dflist = dflist + [t1df]
+                else:
+                    if verbose:
+                        print( " cannot find " + modsearch )
                 
             hdf = pd.concat( dflist, axis=1)
             if verbose:
-                print( df.loc[locind,'fn'] )
+                print( "count: " + str( myct ) )
             if myct == 1:
                 subdf = df.iloc[[x]]
                 hdf.index = subdf.index.copy()
+                print( hdf.index )
+                print( df.index )
                 df = pd.concat( [df,hdf], axis=1)
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
