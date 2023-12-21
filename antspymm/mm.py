@@ -4545,7 +4545,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid', tc='alternating', deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, nc = 6, type_of_transform='Rigid', tc='alternating', deepmask=False, add_FD_to_nuisance=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4569,9 +4569,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
 
   f : band pass limits for frequency filtering
 
-  spa : gaussian smoothing for spatial component
-
-  spt : gaussian smoothing for temporal component
+  spa : gaussian smoothing for spatial and temporal component e.g. (1,1,1,0) in physical space coordinates
 
   nc  : number of components for compcor filtering
 
@@ -4620,7 +4618,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
       bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).morphology("close",2).iMath("FillHoles")
   else:
       rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
-      bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='nearestNeighbor' )
+      bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
   if verbose:
       print("Begin perfusion motion correction")
   mytrim=4 # trim will guarantee an even length
@@ -4650,7 +4648,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
-  bmask = bmask * tsnrmask
+  bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
   if verbose:
@@ -4664,7 +4662,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   gmseg = ants.threshold_image( gmseg, 1, 4 )
   gmseg = ants.iMath( gmseg, 'MD', 1 )
   gmseg = ants.apply_transforms( und, gmseg,
-    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
                ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
@@ -4678,8 +4676,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
   highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
   goodtimes = np.where( corrmo['FD'] < 0.5 )
-  smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-  simg = ants.smooth_image(corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
+  simg = ants.smooth_image(corrmo['motion_corrected'], 
+                           spa, sigma_in_physical_coordinates = True )
 
   nuisance = mycompcor[ 'components' ]
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
@@ -4712,8 +4710,6 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
     print("Coef mean", regression_model.coef_.mean(axis=0)) 
     print( regression_model.coef_.shape )
     print( perfimg.max() )
-  # print("Intercept:", regression_model.intercept_)
-  # turn data following nuisance and gsr back to image format
   gsrbold = ants.matrix_to_timeseries(simg, gmmat, regression_mask)
   outdict = {}
   outdict['meanBold'] = und
@@ -4755,6 +4751,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
+  outdict['t1reg'] = t1reg
   return outdict
 
 
@@ -4945,6 +4942,7 @@ def mm(
         'DTI_norm': None,
         'FA_norm' : None,
         'MD_norm' : None,
+        'perf_norm' : None,
         'alff_norm' : None,
         'falff_norm' : None,
         'CinguloopercularTaskControl_norm' : None,
@@ -4967,7 +4965,7 @@ def mm(
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     if  perfusion_image is not None:
         boldTemplate=get_average_rsf(perfusion_image)
-        if perfusion_image.shape[3] > 10: # FIXME - better heuristic?
+        if perfusion_image.shape[3] > 8: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
                 perfusion_image,
                 boldTemplate,
@@ -4976,9 +4974,9 @@ def mm(
                 t1atropos,
                 hier['dkt_parc']['dkt_cortex'] + hier['cit168lab'],
                 f=[0.0,math.inf],
-                spa = 1.0,
-                spt = 0.5,
-                nc = 6, verbose=verbose )    ################################## do the rsf .....
+                spa = (1.0, 1.0, 1.0, 0.0),
+                nc = 6, verbose=verbose )    
+    ################################## do the rsf .....
     if len(rsf_image) > 0:
         rsf_image = [i for i in rsf_image if i is not None]
         if verbose:
@@ -5158,7 +5156,7 @@ def mm(
         if verbose:
             print('normalization')
         # might reconsider this template space - cropped and/or higher res?
-        template = ants.resample_image( template, [1,1,1], use_voxels=False )
+        # template = ants.resample_image( template, [1,1,1], use_voxels=False )
         # t1reg = ants.registration( template, hier['brain_n4_dnz'], "antsRegistrationSyNQuickRepro[s]")
         t1reg = do_normalization
         if do_kk:
@@ -5184,6 +5182,11 @@ def mm(
                 normalization_dict[rsfkey] = ants.apply_transforms(
                     group_template, rsfpro[netid],
                     group_transform+rsfrig['fwdtransforms'] )
+        if output_dict['perf'] is not None: # zizzer
+            comptx = group_transform + output_dict['perf']['t1reg']['invtransforms']
+            normalization_dict['perf_norm'] = ants.apply_transforms( group_template,
+                output_dict['perf']['perfusion'], comptx,
+                whichtoinvert=[False,False,True,False] )
         if nm_image_list is not None:
             nmpro = output_dict['NM']
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
@@ -6192,6 +6195,9 @@ def mm_csv(
                 hier['brain_n4_dnz'],
                 normalization_template_transform_type,
                 outprefix = normout, verbose=False )
+            myjac = ants.create_jacobian_determinant_image( template,
+                    greg['fwdtransforms'][0], do_log=True, geom=True )
+            image_write_with_thumbnail( myjac, normout + "logjacobian.nii.gz", thumb=False )
             if verbose:
                 print("end group template registration")
         else:
