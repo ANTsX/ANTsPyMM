@@ -8430,7 +8430,7 @@ def aggregate_antspymm_results_sdf(
     vmoddict['nmid1'] = 'NM2DMT'
 
     # Filter rows where modality is 'T1w'
-    df = study_df[study_df['modality'] == 'T1w']
+    df = study_df[ study_df['modality'] == 'T1w']
     badnames = get_names_from_data_frame( ['Unnamed'], df )
     df=df.drop(badnames, axis=1)
     # prefilter df for data that exists
@@ -8495,9 +8495,9 @@ def aggregate_antspymm_results_sdf(
             hdf=hdf.drop(badnames, axis=1)
             nums = [isinstance(hdf[col].iloc[0], (int, float)) for col in hdf.columns]
             corenames = list(np.array(hdf.columns)[nums])
-            hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+            # hdf.loc[:, nums] = hdf.loc[:, nums].add_prefix("T1Hier_")
+            hdf = hdf.add_prefix("T1Hier_")
             myct = myct + 1
-            hdf = hdf.add_prefix( "T1Hier_" )
             dflist = [hdf]
 
             for mymod in vmoddict.keys():
