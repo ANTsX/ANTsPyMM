@@ -8621,7 +8621,7 @@ def filter_image_files(image_paths, criteria='largest'):
     Returns:
     str: The file path of the selected image, or None if no valid images are found.
     """
-
+    import numpy as np
     if not image_paths:
         return None
 
