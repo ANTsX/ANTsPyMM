@@ -96,3 +96,5 @@ from .mm import map_scalar_to_labels
 from .mm import template_figure_with_overlay
 from .mm import brainmap_figure
 from .mm import bold_perfusion
+from .mm import filter_image_files
+from .mm import docsamson

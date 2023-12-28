@@ -83,6 +83,8 @@ __all__ = ['version',
     'aggregate_antspymm_results_sdf',
     'study_dataframe_from_matched_dataframe',
     'merge_wides_to_study_dataframe',
+    'filter_image_files',
+    'docsamson',
     'wmh']
 
 from pathlib import Path
@@ -151,6 +153,105 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
+def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None, verbose=True):
+    """
+    Processes image file names based on the specified imaging modality and other parameters.
+
+    The function selects file names from the provided dictionary `studycsv` based on the imaging modality.
+    It supports various modalities like T1w, T2Flair, perf, NM2DMT, rsfMRI, DTI, and configures the filenames accordingly.
+    The function can optionally print verbose output during processing.
+
+    Parameters:
+    locmod (str): The imaging modality. Options include 'T1w', 'T2Flair', 'perf', 'NM2DMT', 'rsfMRI', 'DTI'.
+    studycsv (dict): A dictionary with keys corresponding to imaging modalities and values as file names.
+    outputdir (str): Base directory for output files.
+    projid (str): Project identifier.
+    sid (str): Subject identifier.
+    dtid (str): Data acquisition time identifier.
+    mysep (str): Separator used in file naming.
+    t1iid (str, optional): Identifier related to T1-weighted images, used in naming output files when locmod is not 'T1w'.
+    verbose (bool, optional): If True, prints detailed information during execution.
+
+    Returns:
+    dict: A dictionary with keys 'modality', 'outprefix', and 'images'.
+        - 'modality' (str): The imaging modality used.
+        - 'outprefix' (str): The prefix for output file paths.
+        - 'images' (list): A list of processed image file names.
+
+    Notes:
+    - The function is designed to work within a specific workflow and might require adaptation for general use.
+
+    Examples:
+    >>> result = docsamson('T1w', studycsv, outputdir, projid, sid, dtid, mysep)
+    >>> print(result['modality'])
+    'T1w'
+    >>> print(result['outprefix'])
+    '/path/to/output/directory/T1w/some_identifier'
+    >>> print(result['images'])
+    ['image1.nii', 'image2.nii']
+    """
+
+    import os
+    import re
+
+    myimgsInput = []
+    myoutputPrefix = None
+    imfns = ['filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'flairid']
+    
+    # Define image file names based on the modality
+    if locmod == 'T1w':
+        imfns=['filename']
+    elif locmod == 'T2Flair':
+        imfns=['flairid']
+    elif locmod == 'perf':
+        imfns=['perfid']
+    elif locmod == 'NM2DMT':
+        imfns=[]
+        for i in range(11):
+            imfns.append('nmid' + str(i))
+    elif locmod == 'rsfMRI':
+        imfns=[]
+        for i in range(3):
+            imfns.append('rsfid' + str(i))
+    elif locmod == 'DTI':
+        imfns=[]
+        for i in range(3):
+            imfns.append('dtid' + str(i))
+
+    # Process each file name
+    for i in imfns:
+        if verbose:
+            print(i + " " + locmod)
+        if i in studycsv.keys():
+            fni = str(studycsv[i].iloc[0])
+            if verbose:
+                print(i + " " + fni + ' exists ' + str(os.path.exists(fni)))
+            if os.path.exists(fni):
+                myimgsInput.append(fni)
+                temp = os.path.basename(fni)
+                mysplit = temp.split(mysep)
+                iid = re.sub(".nii.gz", "", mysplit[-1])
+                iid = re.sub(".mha", "", iid)
+                iid = re.sub(".nii", "", iid)
+                iid2 = iid
+                if locmod != 'T1w' and t1iid is not None:
+                    iid2 = iid + "_" + t1iid
+                else:
+                    iid2 = t1iid
+                myoutputPrefix = os.path.join(outputdir, projid, sid, dtid, locmod, iid, projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid2)
+    
+    if verbose:
+        print(locmod)
+        print(myimgsInput)
+        print(myoutputPrefix)
+    
+    return {
+        'modality': locmod,
+        'outprefix': myoutputPrefix,
+        'images': myimgsInput
+    }
+
+
 def get_valid_modalities( long=False, asString=False, qc=False ):
     """
     return a list of valid modality identifiers used in NRG modality designation
@@ -161,11 +262,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     """
     if long:
-        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf" ]
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf", "T1wAlt" ]
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf" ]
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf", "T1wAlt" ]
     else:
-        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf"  ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf", "T1wAlt"  ]
     if not asString:
         return mymod
     else:
@@ -6027,55 +6128,7 @@ def mm_csv(
     filename = str(studycsv['filename'].iloc[0])
     if not exists(filename):
             raise ValueError('mm_nrg cannot find filename ' + filename + ' in mm_csv' )
-    def docsamson( locmod, t1iid=None, verbose=True ):
-        myimgsInput = []
-        myoutputPrefix = None
-        imfns = [ 'filename', 'rsfid1', 'rsfid2', 'dtid1', 'dtid2', 'flairid' ]
-        if locmod == 'T1w':
-            imfns=['filename']
-        elif locmod == 'T2Flair':
-            imfns=['flairid']
-        elif locmod == 'perf':
-            imfns=['perfid']
-        elif locmod == 'NM2DMT':
-            imfns=[]
-            for i in range(11):
-                imfns.append( 'nmid' + str(i) )
-        elif locmod == 'rsfMRI':
-            imfns=[]
-            for i in range(3):
-                imfns.append( 'rsfid' + str(i) )
-        elif locmod == 'DTI':
-            imfns=[]
-            for i in range(3):
-                imfns.append( 'dtid' + str(i) )
-        for i in imfns:
-            if verbose:
-                print( i + " " + locmod )
-            if i in studycsv.keys():
-                fni=str(studycsv[i].iloc[0])
-                if verbose:
-                    print( i + " " + fni + ' exists ' + str( exists( fni ) ) )
-                if exists( fni ):
-                    myimgsInput.append( fni )
-                    temp = os.path.basename( fni )
-                    mysplit = temp.split( mysep )
-                    iid = re.sub( ".nii.gz", "", mysplit[len(mysplit)-1] )
-                    iid = re.sub( ".mha", "", iid )
-                    iid = re.sub( ".nii", "", iid )
-                    iid2 = iid
-                    if locmod != 'T1w' and t1iid is not None:
-                        iid2=iid+"_"+t1iid
-                    myoutputPrefix = outputdir + "/" + projid + "/" + sid + "/" + dtid + "/" + locmod + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + locmod + mysep + iid2
-        if verbose:
-            print( locmod )
-            print( myimgsInput )
-            print( myoutputPrefix )
-        return {
-            'modality': locmod,
-            'outprefix': myoutputPrefix,
-            'images': myimgsInput
-            }
+
     # hierarchical
     # NOTE: if there are multiple T1s for this time point, should take
     # the one with the highest resnetGrade
@@ -6209,7 +6262,7 @@ def mm_csv(
     # other modalities (beyond T1) are treated individually
     for overmodX in nrg_modality_list:
         # define 1. input images 2. output prefix
-        mydoc = docsamson( overmodX, t1iid=t1iidUse )
+        mydoc = docsamson( overmodX, studycsv=studycsv, outputdir=outputdir, projid=projid, sid=sid, dtid=dtid, mysep=mysep,t1iid=t1iidUse )
         myimgsr = mydoc['images']
         mymm = mydoc['outprefix']
         mymod = mydoc['modality']
@@ -8555,3 +8608,60 @@ def aggregate_antspymm_results_sdf(
     return( df )
 
 
+
+def filter_image_files(image_paths, criteria='largest'):
+    """
+    Filters a list of image file paths based on specified criteria and returns 
+    the path of the image that best matches that criteria (smallest, largest, or brightest).
+
+    Args:
+    image_paths (list): A list of file paths to the images.
+    criteria (str): Criteria for selecting the image ('smallest', 'largest', 'brightest').
+
+    Returns:
+    str: The file path of the selected image, or None if no valid images are found.
+    """
+
+    if not image_paths:
+        return None
+
+    selected_image_path = None
+    if criteria == 'smallest' or criteria == 'largest':
+        extreme_volume = None
+
+        for path in image_paths:
+            try:
+                image = ants.image_read(path)
+                volume = np.prod(image.shape)
+
+                if criteria == 'largest':
+                    if extreme_volume is None or volume > extreme_volume:
+                        extreme_volume = volume
+                        selected_image_path = path
+                elif criteria == 'smallest':
+                    if extreme_volume is None or volume < extreme_volume:
+                        extreme_volume = volume
+                        selected_image_path = path
+
+            except Exception as e:
+                print(f"Error processing image {path}: {e}")
+
+    elif criteria == 'brightest':
+        max_brightness = None
+
+        for path in image_paths:
+            try:
+                image = ants.image_read(path)
+                brightness = np.mean(image.numpy())
+
+                if max_brightness is None or brightness > max_brightness:
+                    max_brightness = brightness
+                    selected_image_path = path
+
+            except Exception as e:
+                print(f"Error processing image {path}: {e}")
+
+    else:
+        raise ValueError("Criteria must be 'smallest', 'largest', or 'brightest'.")
+
+    return selected_image_path
