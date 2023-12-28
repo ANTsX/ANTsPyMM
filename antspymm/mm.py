@@ -6141,7 +6141,7 @@ def mm_csv(
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
     t1 = mm_read( t1fn, modality='T1w' )
     if enantiomorphic:
-        t1 = enantiomorphic_filling_without_mask( img, axis=0 )[0]
+        t1 = enantiomorphic_filling_without_mask( t1, axis=0 )[0]
     hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
     hierfnSR = outputdir + "/" + projid + "/"  + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
     hierfntest = hierfn + 'cerebellum.csv'
