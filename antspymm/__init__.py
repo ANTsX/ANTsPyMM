@@ -98,3 +98,4 @@ from .mm import brainmap_figure
 from .mm import bold_perfusion
 from .mm import filter_image_files
 from .mm import docsamson
+from .mm import enantiomorphic_filling_without_mask

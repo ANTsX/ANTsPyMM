@@ -85,6 +85,7 @@ __all__ = ['version',
     'merge_wides_to_study_dataframe',
     'filter_image_files',
     'docsamson',
+    'enantiomorphic_filling_without_mask',
     'wmh']
 
 from pathlib import Path
@@ -8606,6 +8607,41 @@ def aggregate_antspymm_results_sdf(
     badnames = get_names_from_data_frame( ['Unnamed'], df )
     df=df.drop(badnames, axis=1)
     return( df )
+
+def enantiomorphic_filling_without_mask( image, axis=0, intensity='low' ):
+    """
+    Perform an enantiomorphic lesion filling on an image without a lesion mask.
+
+    Args:
+    image (antsImage): The ants image to flip and fill
+    axis ( int ): the axis along which to reflect the image
+    intensity ( str ) : low or high
+
+    Returns:
+    ants.ANTsImage: The image after enantiomorphic filling.
+    """
+    imagen = ants.iMath( image, 'Normalize' )
+    imagen = ants.iMath( imagen, "TruncateIntensity", 1e-6, 0.98 )
+    imagen = ants.iMath( imagen, 'Normalize' )
+    # Create a mirror image (flipping left and right)
+    mirror_image = ants.reflect_image(imagen, axis=0, tx='SyN' )['warpedmovout']
+
+    # Create a symmetric version of the image by averaging the original and the mirror image
+    symmetric_image = imagen * 0.5 + mirror_image * 0.5
+
+    # Identify potential lesion areas by finding differences between the original and symmetric image
+    difference_image = image - symmetric_image
+    diffseg = ants.threshold_image(difference_image, "Otsu", 3 )
+    if intensity == 'low':
+        likely_lesion = ants.threshold_image( diffseg, 1,  1)
+    else:
+        likely_lesion = ants.threshold_image( diffseg, 3,  3)
+    likely_lesion = ants.smooth_image( likely_lesion, 3.0 ).iMath("Normalize")
+    lesionneg = ( imagen*0+1.0 ) - likely_lesion
+    filled_image = ants.image_clone(imagen)    
+    filled_image = imagen * lesionneg + mirror_image * likely_lesion
+
+    return filled_image, diffseg
 
 
 
