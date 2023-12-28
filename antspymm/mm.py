@@ -6012,7 +6012,8 @@ def mm_csv(
     normalization_template = None,
     normalization_template_output = None,
     normalization_template_transform_type = "antsRegistrationSyNRepro[s]",
-    normalization_template_spacing=None
+    normalization_template_spacing=None,
+    enantiomorphic=False
 ):
     """
     too dangerous to document ... use with care.
@@ -6082,6 +6083,8 @@ def mm_csv(
     normalization_template_transform_type : optional string transform type passed to ants.registration
 
     normalization_template_spacing : 3-tuple controlling the resolution at which registration is computed 
+    
+    enantiomorphic: boolean (WIP)
 
     Returns
     ---------
@@ -6137,6 +6140,8 @@ def mm_csv(
     if not exists( t1fn ):
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
     t1 = mm_read( t1fn, modality='T1w' )
+    if enantiomorphic:
+        t1 = enantiomorphic_filling_without_mask( img, axis=0 )[0]
     hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
     hierfnSR = outputdir + "/" + projid + "/"  + sid + "/" + dtid + "/" + "T1wHierarchicalSR" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchicalSR" + mysep + iid + mysep
     hierfntest = hierfn + 'cerebellum.csv'
