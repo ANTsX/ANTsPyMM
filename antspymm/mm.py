@@ -263,11 +263,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     """
     if long:
-        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf", "T1wAlt" ]
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf"]
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf", "T1wAlt" ]
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf" ]
     else:
-        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf", "T1wAlt"  ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf"  ]
     if not asString:
         return mymod
     else:
