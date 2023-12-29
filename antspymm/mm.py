@@ -8501,7 +8501,7 @@ def aggregate_antspymm_results_sdf(
         sid0 = temp[0]
         sid = str(df[subject_col].iloc[x])
         if sid0 != sid:
-            warnings.warn("the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
+            warnings.warn("OUTER: the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
             warnings.warn( "filename is : " +  myfn )
             warnings.warn( "sid is : " + sid )
             warnings.warn( "x is : " + str(x) )
@@ -8532,8 +8532,14 @@ def aggregate_antspymm_results_sdf(
         locind = df.index[x]
         myfn = os.path.basename( df['filename'].iloc[x] )
         sid = df[subject_col].iloc[x]
+        tempB = myfn.split( splitsep )
+        sid0 = tempB[0]
         if sid0 != sid:
-            warnings.warn("the id derived from the filename " + sid0 + " does not match the id stored in the data frame " + sid )
+            warnings.warn("INNER: the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid0 )
+            warnings.warn( "filename is : " +  myfn )
+            warnings.warn( "sid is : " + sid )
+            warnings.warn( "x is : " + str(x) )
+            warnings.warn( "index is : " + str(locind) )
         myproj = str(df[project_col].iloc[x])
         mydate = str(df[date_col].iloc[x])
         myid = str(df[image_col].iloc[x])
