@@ -8502,6 +8502,9 @@ def aggregate_antspymm_results_sdf(
         sid = str(df[subject_col].iloc[x])
         if sid0 != sid:
             warnings.warn("the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
+            warnings.warn( "filename is : " +  myfn )
+            warnings.warn( "sid is : " + sid )
+            warnings.warn( "x is : " + str(x) )
         myproj = str(df[project_col].iloc[x])
         mydate = str(df[date_col].iloc[x])
         myid = str(df[image_col].iloc[x])
