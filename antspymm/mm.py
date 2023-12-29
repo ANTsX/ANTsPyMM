@@ -8553,6 +8553,8 @@ def aggregate_antspymm_results_sdf(
             if verbose:
                 print(hierfn)
             hdf = pd.read_csv(hierfn[0])
+            if vervose:
+                print( hdf['vol_hemisphere_lefthemispheres'] )
             badnames = get_names_from_data_frame( ['Unnamed'], hdf )
             hdf=hdf.drop(badnames, axis=1)
             nums = [isinstance(hdf[col].iloc[0], (int, float)) for col in hdf.columns]
