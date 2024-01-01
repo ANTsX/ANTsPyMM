@@ -99,3 +99,6 @@ from .mm import bold_perfusion
 from .mm import filter_image_files
 from .mm import docsamson
 from .mm import enantiomorphic_filling_without_mask
+from .mm import loop_fmri_censoring
+from .mm import score_fmri_censoring
+from .mm import remove_elements_from_numpy_array
