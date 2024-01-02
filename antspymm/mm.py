@@ -440,6 +440,93 @@ def generate_mm_dataframe(
     studycsv = pd.DataFrame([ mydata ], columns=mycols)
     return studycsv
 
+import pandas as pd
+from os.path import exists
+
+def validate_filename(filename, keyword, error_message):
+    if filename is not None and keyword not in filename:
+        raise ValueError(error_message)
+
+def validate_modality(modality, valid_modalities):
+    if modality not in valid_modalities:
+        valid_modalities_str = ', '.join(valid_modalities)
+        raise ValueError(f'Modality {modality} not a valid mm modality: {valid_modalities_str}')
+
+def extend_list_to_length(lst, target_length, fill_value=None):
+    return lst + [fill_value] * (target_length - len(lst))
+
+def generate_mm_dataframe_gpt(
+        projectID, subjectID, date, imageUniqueID, modality, 
+        source_image_directory, output_image_directory, t1_filename, 
+        flair_filename=[], rsf_filenames=[], dti_filenames=[], nm_filenames=[], perf_filename=[]):
+    """
+    see help for generate_mm_dataframe - same as this
+    """
+    def check_pd_construction(data, columns):
+        return all(len(row) == len(columns) for row in data)
+
+    valid_modalities = get_valid_modalities()  
+
+    if not isinstance(t1_filename, str):
+        raise ValueError("t1_filename is not a string")
+    if not exists(t1_filename):
+        raise ValueError("t1_filename does not exist")
+
+    validate_modality(modality, valid_modalities)
+
+    if not exists(source_image_directory):
+        raise ValueError("source_image_directory does not exist")
+
+    rsf_filenames = extend_list_to_length(rsf_filenames, 2)
+    dti_filenames = extend_list_to_length(dti_filenames, 2)
+    nm_filenames = extend_list_to_length(nm_filenames, 10)
+
+    validate_filename(t1_filename, "T1w", "T1w is not in t1 filename " + t1_filename)
+
+    if flair_filename:
+        flair_filename = flair_filename[0] if isinstance(flair_filename, list) else flair_filename
+        validate_filename(flair_filename, "lair", "flair is not in flair filename " + flair_filename)
+
+    if perf_filename:
+        perf_filename = perf_filename[0] if isinstance(perf_filename, list) else perf_filename
+        validate_filename(perf_filename, "perf", "perf_filename is not a valid perfusion (perf) filename")
+
+    for k in nm_filenames:
+        if k: validate_filename(k, "NM", "NM is not in NM filename " + k)
+
+    for k in dti_filenames:
+        if k: validate_filename(k, "DTI", "DTI is not in DTI filename " + k)
+        if k: validate_filename(k, "dwi", "dwi is not in DTI filename " + k)
+
+    for k in rsf_filenames:
+        if k: validate_filename(k, "fMRI", "rsfMRI is not in rsfMRI filename " + k)
+        if k: validate_filename(k, "func", "func is not in rsfMRI filename " + k)
+
+    allfns = [t1_filename, flair_filename] + nm_filenames + dti_filenames + rsf_filenames + [perf_filename]
+    for k in allfns:
+        if k and not exists(k):
+            raise ValueError("image " + k + " does not exist")
+
+    coredata = [projectID, subjectID, date, imageUniqueID, modality,
+                source_image_directory, output_image_directory, t1_filename, 
+                flair_filename, perf_filename]
+    mydata0 = coredata + rsf_filenames + dti_filenames
+    mydata = mydata0 + nm_filenames
+
+    corecols = ['projectID', 'subjectID', 'date', 'imageID', 'modality',
+                'sourcedir', 'outputdir', 'filename', 'flairid', 'perfid']
+    mycols0 = corecols + ['rsfid1', 'rsfid2', 'dtid1', 'dtid2']
+    nmext = ['nmid1', 'nmid2', 'nmid3', 'nmid4', 'nmid5',
+             'nmid6', 'nmid7', 'nmid8', 'nmid9', 'nmid10', 'nmid11']
+    mycols = mycols0 + nmext
+
+    if not check_pd_construction([mydata], mycols):
+        raise ValueError("Error in generate_mm_dataframe: len(mycols) != len(mydata), indicating bad input parameters.")
+
+    studycsv = pd.DataFrame([mydata], columns=mycols)
+    return studycsv
+
+
 def parse_nrg_filename( x, separator='-' ):
     """
     split a NRG filename into its named parts
