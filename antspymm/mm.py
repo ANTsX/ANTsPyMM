@@ -530,6 +530,8 @@ def generate_mm_dataframe_gpt(
     mycols = mycols0 + nmext
 
     if not check_pd_construction([mydata], mycols):
+        print( mydata )
+        print( mycols )
         raise ValueError("Error in generate_mm_dataframe: len(mycols) != len(mydata), indicating bad input parameters.")
 
     studycsv = pd.DataFrame([mydata], columns=mycols)
