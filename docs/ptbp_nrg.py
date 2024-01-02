@@ -82,7 +82,8 @@ def process_files(pattern, modality, identifier):
 # Process different modalities
 rr = "images/PEDS*/*/*/"
 process_files(rr+"*t1.nii.gz", 'T1w', '000')
-process_files(rr+"*bold*.nii.gz", 'rsfMRI', '000')
+process_files(rr+"*bold_fc_1.nii.gz", 'rsfMRI', '000')
+process_files(rr+"*bold_fc_2.nii.gz", 'rsfMRI', '001')
 process_files(rr+"*pcasl*.nii.gz", 'perf', '000')
 # DTI specific processing
 dti_nums = [f"{i:04d}" for i in range(25)]
