@@ -312,6 +312,12 @@ def generate_mm_dataframe(
     #    raise ValueError("output_image_directory does not exist")
     if not exists( source_image_directory ):
         raise ValueError("source_image_directory does not exist")
+    if len( rsf_filenames ) > 2:
+        raise ValueError("len( rsf_filenames ) > 2")
+    if len( dti_filenames ) > 2:
+        raise ValueError("len( dti_filenames ) > 2")
+    if len( nm_filenames ) > 11:
+        raise ValueError("len( nm_filenames ) > 11")
     if len( rsf_filenames ) < 2:
         for k in range(len(rsf_filenames),2):
             rsf_filenames.append(None)
