@@ -443,8 +443,19 @@ def generate_mm_dataframe(
 import pandas as pd
 from os.path import exists
 
-def validate_filename(filename, keyword, error_message):
-    if filename is not None and keyword not in filename:
+def validate_filename(filename, valid_keywords, error_message):
+    """
+    Validate if the given filename contains any of the specified keywords.
+
+    Parameters:
+    - filename (str): The filename to validate.
+    - valid_keywords (list): A list of keywords to look for in the filename.
+    - error_message (str): The error message to raise if validation fails.
+
+    Raises:
+    - ValueError: If none of the keywords are found in the filename.
+    """
+    if filename is not None and not any(keyword in filename for keyword in valid_keywords):
         raise ValueError(error_message)
 
 def validate_modality(modality, valid_modalities):
@@ -481,26 +492,24 @@ def generate_mm_dataframe_gpt(
     dti_filenames = extend_list_to_length(dti_filenames, 2)
     nm_filenames = extend_list_to_length(nm_filenames, 10)
 
-    validate_filename(t1_filename, "T1w", "T1w is not in t1 filename " + t1_filename)
+    validate_filename(t1_filename, ["T1w"], "T1w is not in t1 filename " + t1_filename)
 
     if flair_filename:
         flair_filename = flair_filename[0] if isinstance(flair_filename, list) else flair_filename
-        validate_filename(flair_filename, "lair", "flair is not in flair filename " + flair_filename)
+        validate_filename(flair_filename, ["lair"], "flair is not in flair filename " + flair_filename)
 
     if perf_filename:
         perf_filename = perf_filename[0] if isinstance(perf_filename, list) else perf_filename
-        validate_filename(perf_filename, "perf", "perf_filename is not a valid perfusion (perf) filename")
+        validate_filename(perf_filename, ["perf"], "perf_filename is not a valid perfusion (perf) filename")
 
     for k in nm_filenames:
-        if k: validate_filename(k, "NM", "NM is not in NM filename " + k)
+        if k: validate_filename(k, ["NM"], "NM is not in NM filename " + k)
 
     for k in dti_filenames:
-        if k: validate_filename(k, "DTI", "DTI is not in DTI filename " + k)
-        if k: validate_filename(k, "dwi", "dwi is not in DTI filename " + k)
+        if k: validate_filename(k, ["DTI","dwi"], "DTI or dwi is not in DTI filename " + k)
 
     for k in rsf_filenames:
-        if k: validate_filename(k, "fMRI", "rsfMRI is not in rsfMRI filename " + k)
-        if k: validate_filename(k, "func", "func is not in rsfMRI filename " + k)
+        if k: validate_filename(k, ["fMRI","func"], "rsfMRI or func is not in rsfMRI filename " + k)
 
     allfns = [t1_filename, flair_filename] + nm_filenames + dti_filenames + rsf_filenames + [perf_filename]
     for k in allfns:
