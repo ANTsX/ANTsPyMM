@@ -5383,7 +5383,7 @@ def mm(
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     if  perfusion_image is not None:
-        boldTemplate, hlinds = antspymm.loop_timeseries_censoring( perfusion_image, 0.10 )
+        boldTemplate, hlinds = loop_timeseries_censoring( perfusion_image, 0.10 )
         boldTemplate = ants.get_average_of_timeseries( boldTemplate )
         if perfusion_image.shape[3] > 8: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
