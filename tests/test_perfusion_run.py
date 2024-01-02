@@ -39,6 +39,5 @@ fmri = ants.image_clone( imgp )
 fmri_template = ants.get_average_of_timeseries( imgp )
 print("do perf")
 perf = antspymm.bold_perfusion( imgp, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=4, spa=1.0,
-  outlier_threshold=0.2, add_FD_to_nuisance=True, verbose=True )
+  t1segmentation, dkt, nc=4, add_FD_to_nuisance=True, verbose=True )
 ants.plot( ants.iMath(perf['perfusion'],"Normalize"), axis=2, crop=True )

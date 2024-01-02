@@ -4650,7 +4650,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.5, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4761,7 +4761,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   nt = corrmo['motion_corrected'].shape[3]
   fmrimotcorr=corrmo['motion_corrected']
-  fmrimotcorr, hlinds = loop_fmri_censoring( fmrimotcorr, 0.20, verbose=True )
+  fmrimotcorr, hlinds = loop_fmri_censoring( fmrimotcorr, outlier_threshold, verbose=True )
   tclist = remove_elements_from_numpy_array( tclist, hlinds)
   corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
   nt = fmrimotcorr.shape[3]
@@ -4788,12 +4788,11 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
     ncompcor=nc, quantile=0.95, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
-  simg = ants.smooth_image(fmrimotcorr, 
-                           (spa,spa,spa,0.0), 
-                           sigma_in_physical_coordinates = True )
+  simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
   nuisance = mycompcor['basis']
   nuisance = np.c_[ nuisance, mycompcor['components'] ]
-  nuisance = np.c_[ nuisance, corrmo['FD'] ]
+  if add_FD_to_nuisance:
+    nuisance = np.c_[ nuisance, corrmo['FD'] ]
   if verbose:
     print("make sure nuisance is independent of TC")
   nuisance = ants.regress_components( nuisance, tclist )
