@@ -1,41 +1,60 @@
 import glob
 import os
 import pandas as pd
-import shutil
 from pathlib import Path
 import antspymm
+import shutil
 
-def create_directory_and_copy_file(file_path, destination_path):
+def create_directory_and_process_file(file_path, destination_path, use_symlinks=False):
     """
-    Create the directory for the destination path and copy the file to the new location.
+    Create the directory for the destination path and either copy the file or create a symbolic link
+    to the file in the new location, based on the user's choice.
 
     Parameters:
-    - file_path (str): The full path of the source file to be copied.
-    - destination_path (str): The full path of the destination file.
+    - file_path (str): The full path of the source file.
+    - destination_path (str): The full path of the destination file or symbolic link.
+    - use_symlinks (bool): If True, create symbolic links; otherwise, copy files.
     """
-    destination_dir = Path(destination_path).parent
+    destination_path = Path(destination_path)
+    destination_dir = destination_path.parent
     destination_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(file_path, destination_path)
+    file_path = os.path.abspath( file_path )
+    if use_symlinks and not destination_path.exists():
+        os.symlink(file_path, destination_path)
+    else:
+        shutil.copy(file_path, destination_path)
 
-def create_directory_and_copy_similar_files(file_path, destination_path):
+def create_directory_and_process_similar_files(file_path, destination_path, use_symlinks=False):
     """
-    Create the directory for the destination path and copy the file and any similarly named files
-    in the same directory to the new location.
+    Create the directory for the destination path and either copy the file and any similarly named files
+    or create symbolic links for them in the new location, based on the user's choice.
 
     Parameters:
-    - file_path (str): The full path of the source file to be copied.
-    - destination_path (str): The full path of the destination file.
+    - file_path (str): The full path of the source file.
+    - destination_path (str): The full path of the destination file or symbolic link.
+    - use_symlinks (bool): If True, create symbolic links; otherwise, copy files.
     """
-    source_dir = Path(file_path).parent
-    destination_dir = Path(destination_path).parent
-    file_stem = Path(file_path).stem
+    file_path = os.path.abspath( file_path )
+    file_path = Path(file_path)
+    destination_path = Path(destination_path)
+    source_dir = file_path.parent
+    destination_dir = destination_path.parent
+    file_stem = file_path.stem
 
     destination_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(file_path, destination_path)
+    if use_symlinks and not destination_path.exists():
+        os.symlink(file_path, destination_path)
+    else:
+        shutil.copy(file_path, destination_path)
 
     for file in source_dir.glob(file_stem + '.*'):
-        if file.name != Path(file_path).name:
-            shutil.copy(file, destination_dir / file.name)
+        destination_file = destination_dir / file.name
+        if file.name != file_path.name:
+            if use_symlinks and not destination_file.exists():
+                os.symlink(file, destination_file)
+            else:
+                shutil.copy(file, destination_file)
+
 
 def peds2nrg(file_path, outmod):
     """
@@ -58,7 +77,7 @@ def peds2nrg(file_path, outmod):
     })
     return mydf
 
-def process_files(pattern, modality, identifier):
+def process_files(pattern, modality, identifier, use_symlinks=False):
     """
     Process files based on a glob pattern and a specific modality.
 
@@ -66,6 +85,7 @@ def process_files(pattern, modality, identifier):
     - pattern (str): Glob pattern to match files.
     - modality (str): Modality to process.
     - identifier (str): Identifier for file naming.
+    - use_symlinks (bool): If True, create symbolic links; otherwise, copy files.
     """
     suids = glob.glob(pattern)
     if suids:
@@ -74,18 +94,21 @@ def process_files(pattern, modality, identifier):
             print(df)
             mynrg = antspymm.nrg_format_path('PTBP', df['id'].iloc[0], df['dt'].iloc[0], 
                                              df['modality'].iloc[0], identifier, separator='-')
+            destination_path = mynrg+'.nii.gz'
             if modality == 'DTI':
-                create_directory_and_copy_similar_files(df['filename'].iloc[0], mynrg+'.nii.gz')
+                create_directory_and_process_similar_files(df['filename'].iloc[0], destination_path, use_symlinks)
             else:
-                create_directory_and_copy_file(df['filename'].iloc[0], mynrg+'.nii.gz')
+                create_directory_and_process_file(df['filename'].iloc[0], destination_path, use_symlinks)
 
-# Process different modalities
-rr = "images/PEDS*/*/*/"
-process_files(rr+"*t1.nii.gz", 'T1w', '000')
-process_files(rr+"*bold_fc_1.nii.gz", 'rsfMRI', '000')
-process_files(rr+"*bold_fc_2.nii.gz", 'rsfMRI', '001')
-process_files(rr+"*pcasl*.nii.gz", 'perf', '000')
+# Example usage
+rr = "data/PEDS*/*/*/"
+use_symlinks = True  # Set to False to copy files instead
+process_files(rr+"*t1.nii.gz", 'T1w', '000', use_symlinks)
+process_files(rr+"*bold_fc_1.nii.gz", 'rsfMRI', '000', use_symlinks)
+process_files(rr+"*bold_fc_2.nii.gz", 'rsfMRI', '001', use_symlinks)
+process_files(rr+"*pcasl*.nii.gz", 'perf', '000', use_symlinks)
+
 # DTI specific processing
 dti_nums = [f"{i:04d}" for i in range(25)]
 for num in dti_nums:
-    process_files(rr +"*"+num+"_DTI*.nii.gz", 'DTI', num)
+    process_files(rr +"*"+num+"_DTI*.nii.gz", 'DTI', num, use_symlinks)
