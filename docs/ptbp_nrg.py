@@ -4,6 +4,26 @@ import pandas as pd
 from pathlib import Path
 import antspymm
 import shutil
+import re
+
+def get_full_extension(filename):
+    """
+    Get the full extension from a filename that may contain multiple dots.
+
+    Parameters:
+    - filename (str): The filename to extract the extension from.
+
+    Returns:
+    - str: The full extension of the file, including all parts after the first dot.
+    """
+    # Find the first occurrence of a dot
+    first_dot_index = filename.find('.')
+    if first_dot_index != -1:
+        full_extension = filename[first_dot_index:]
+    else:
+        full_extension = ''
+
+    return full_extension
 
 def create_directory_and_process_file(file_path, destination_path, use_symlinks=False):
     """
@@ -49,8 +69,16 @@ def create_directory_and_process_similar_files(file_path, destination_path, use_
         shutil.copy(file_path, destination_path)
 
     for file in source_dir.glob(file_stem + '.*'):
-        destination_file = destination_dir / file.name
+#        destination_file = destination_dir / file.name
+        newext = get_full_extension( str(file) )
+        oldext = get_full_extension( str(destination_path) )
+        newfilename = re.sub( oldext, newext, str(destination_path) )
+        destination_file = Path(newfilename)
         if file.name != file_path.name:
+            print( oldext )
+            print( newext )
+            print( newfilename )
+            derka
             if use_symlinks and not destination_file.exists():
                 os.symlink(file, destination_file)
             elif not use_symlinks:
