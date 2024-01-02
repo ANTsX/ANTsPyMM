@@ -21,7 +21,7 @@ def create_directory_and_process_file(file_path, destination_path, use_symlinks=
     file_path = os.path.abspath( file_path )
     if use_symlinks and not destination_path.exists():
         os.symlink(file_path, destination_path)
-    else:
+    elif not use_symlinks:
         shutil.copy(file_path, destination_path)
 
 def create_directory_and_process_similar_files(file_path, destination_path, use_symlinks=False):
@@ -40,11 +40,12 @@ def create_directory_and_process_similar_files(file_path, destination_path, use_
     source_dir = file_path.parent
     destination_dir = destination_path.parent
     file_stem = file_path.stem
+    file_stem = Path(file_stem).stem
 
     destination_dir.mkdir(parents=True, exist_ok=True)
     if use_symlinks and not destination_path.exists():
         os.symlink(file_path, destination_path)
-    else:
+    elif not use_symlinks:
         shutil.copy(file_path, destination_path)
 
     for file in source_dir.glob(file_stem + '.*'):
@@ -52,7 +53,7 @@ def create_directory_and_process_similar_files(file_path, destination_path, use_
         if file.name != file_path.name:
             if use_symlinks and not destination_file.exists():
                 os.symlink(file, destination_file)
-            else:
+            elif not use_symlinks:
                 shutil.copy(file, destination_file)
 
 
