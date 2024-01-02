@@ -31,13 +31,14 @@ if not 'dkt' in globals():
 type_of_transform='Rigid'
 tc='alternating'
 fmri = ants.image_read( idpfn )
-fmri_template, hlinds = antspymm.loop_fmri_censoring( fmri, 0.1 )
+fmri = antspymm.remove_volumes_from_timeseries( fmri, range(40,79))
+fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
 fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
 perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=8, type_of_transform=type_of_transform,
+  t1segmentation, dkt, nc=16, type_of_transform=type_of_transform,
   spa=(0.,0.,0.,0.),
-  outlier_threshold=0.5, add_FD_to_nuisance=False, verbose=True )
+  outlier_threshold=0.05, add_FD_to_nuisance=False, verbose=True )
 ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
 ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )

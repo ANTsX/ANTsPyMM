@@ -89,6 +89,7 @@ __all__ = ['version',
     'wmh',
     'remove_elements_from_numpy_array',
     'score_fmri_censoring',
+    'remove_volumes_from_timeseries',
     'loop_timeseries_censoring']
 
 from pathlib import Path
@@ -4828,7 +4829,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
         print("End 2nd rsfmri motion correction")
 
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    corrmo['motion_corrected'] = remove_volumes( corrmo['motion_corrected'], hlinds )
+    corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
 
   regression_mask = bmask.clone()
@@ -8283,7 +8284,7 @@ def remove_elements_from_numpy_array(original_array, indices_to_remove):
     else:
         raise ValueError("original_array must be either 1D or 2D.")
 
-def remove_volumes(time_series, volumes_to_remove):
+def remove_volumes_from_timeseries(time_series, volumes_to_remove):
     """
     Remove specified volumes from a time series.
 
@@ -8419,7 +8420,7 @@ def loop_timeseries_censoring(x, threshold=0.5, verbose=False):
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
         print("LOOP High Leverage Volumes:", high_leverage_volumes)
-    new_asl = remove_volumes(x, high_leverage_volumes)
+    new_asl = remove_volumes_from_timeseries(x, high_leverage_volumes)
     return new_asl, high_leverage_volumes
 
 

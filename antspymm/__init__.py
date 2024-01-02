@@ -102,3 +102,4 @@ from .mm import enantiomorphic_filling_without_mask
 from .mm import loop_timeseries_censoring
 from .mm import score_fmri_censoring
 from .mm import remove_elements_from_numpy_array
+from .mm import remove_volumes_from_timeseries
