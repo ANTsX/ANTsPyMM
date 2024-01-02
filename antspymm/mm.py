@@ -490,7 +490,7 @@ def generate_mm_dataframe_gpt(
 
     rsf_filenames = extend_list_to_length(rsf_filenames, 2)
     dti_filenames = extend_list_to_length(dti_filenames, 2)
-    nm_filenames = extend_list_to_length(nm_filenames, 10)
+    nm_filenames = extend_list_to_length(nm_filenames, 11)
 
     validate_filename(t1_filename, ["T1w"], "T1w is not in t1 filename " + t1_filename)
 
