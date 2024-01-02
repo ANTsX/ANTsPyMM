@@ -21,7 +21,7 @@ islocal = False
 idt = "sub-01_T1w" # example data from asl prep
 t1fn = antspymm.get_data( idt, target_extension=".nii.gz")
 idp = "sub-01_asl"
-imgp = ants.image_read( antspymm.get_data( idp, target_extension=".nii.gz") )
+fmri = ants.image_read( antspymm.get_data( idp, target_extension=".nii.gz") )
 #dkt
 if not 'dkt' in globals():
   t1head = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
@@ -32,12 +32,17 @@ if not 'dkt' in globals():
   dkt = antspynet.desikan_killiany_tourville_labeling( t1head )
 #################
 
-# this shows the guts of it all ....
+#################
 type_of_transform='Rigid'
 tc='alternating'
-fmri = ants.image_clone( imgp )
-fmri_template = ants.get_average_of_timeseries( imgp )
+fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
+fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
-perf = antspymm.bold_perfusion( imgp, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=4, add_FD_to_nuisance=True, verbose=True )
-ants.plot( ants.iMath(perf['perfusion'],"Normalize"), axis=2, crop=True )
+olthresh=0.2
+perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
+  t1segmentation, dkt, nc=4, type_of_transform=type_of_transform,
+  spa=(0.,0.,0.,0.),
+  outlier_threshold=olthresh, add_FD_to_nuisance=False, verbose=True )
+ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
+ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
+ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
