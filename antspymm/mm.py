@@ -89,7 +89,7 @@ __all__ = ['version',
     'wmh',
     'remove_elements_from_numpy_array',
     'score_fmri_censoring',
-    'loop_fmri_censoring']
+    'loop_timeseries_censoring']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -279,6 +279,7 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
             mymodchar = mymodchar + " " + str(x)
         return mymodchar
 
+
 def generate_mm_dataframe(
         projectID,
         subjectID,
@@ -294,6 +295,35 @@ def generate_mm_dataframe(
         nm_filenames=[],
         perf_filename=[]
 ):
+    """
+    Generate a DataFrame for medical imaging data with extensive validation of input parameters.
+
+    This function creates a DataFrame containing information about medical imaging files,
+    ensuring that filenames match expected patterns for their modalities and that all
+    required images exist. It also validates the number of filenames provided for specific
+    modalities like rsfMRI, DTI, and NM.
+
+    Parameters:
+    - projectID (str): Project identifier.
+    - subjectID (str): Subject identifier.
+    - date (str): Date of the imaging study.
+    - imageUniqueID (str): Unique image identifier.
+    - modality (str): Modality of the imaging study.
+    - source_image_directory (str): Directory of the source images.
+    - output_image_directory (str): Directory for output images.
+    - t1_filename (str): Filename of the T1-weighted image.
+    - flair_filename (list): List of filenames for FLAIR images.
+    - rsf_filenames (list): List of filenames for rsfMRI images.
+    - dti_filenames (list): List of filenames for DTI images.
+    - nm_filenames (list): List of filenames for NM images.
+    - perf_filename (list): List of filenames for perfusion images.
+
+    Returns:
+    - pandas.DataFrame: A DataFrame containing the validated imaging study information.
+
+    Raises:
+    - ValueError: If any validation checks fail or if the number of columns does not match the data.
+    """
     def check_pd_construction(data, columns):
         # Check if the length of columns matches the length of data in each row
         if all(len(row) == len(columns) for row in data):
@@ -4663,7 +4693,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4774,10 +4804,45 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   nt = corrmo['motion_corrected'].shape[3]
   fmrimotcorr=corrmo['motion_corrected']
-  fmrimotcorr, hlinds = loop_fmri_censoring( fmrimotcorr, outlier_threshold, verbose=True )
-  tclist = remove_elements_from_numpy_array( tclist, hlinds)
-  corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
-  nt = fmrimotcorr.shape[3]
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
+    tclist = remove_elements_from_numpy_array( tclist, hlinds)
+    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
+
+  # redo template and registration
+  fmri_template = ants.get_average_of_timeseries( fmrimotcorr )
+  rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
+  bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
+  corrmo = timeseries_reg(
+        fmri, fmri_template,
+        type_of_transform=type_of_transform,
+        total_sigma=0.0,
+        fdOffset=2.0,
+        trim = mytrim,
+        output_directory=None,
+        verbose=verbose,
+        syn_metric='cc',
+        syn_sampling=2,
+        reg_iterations=[40,20,5] )
+  if verbose:
+        print("End 2nd rsfmri motion correction")
+
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    corrmo['motion_corrected'] = remove_volumes( corrmo['motion_corrected'], hlinds )
+    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
+
+  regression_mask = bmask.clone()
+  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], regression_mask )
+  if f[0] > 0.0 and f[1] < 1.0: # some would argue against this
+        gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) 
+        corrmo['motion_corrected'] = ants.matrix_to_timeseries( simg, gmmat, regression_mask )
+
+  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
+  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
+  bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
+  nt = corrmo['motion_corrected'].shape[3]
+  fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
   boldseg = ants.apply_transforms( und, t1segmentation,
@@ -4821,7 +4886,9 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if meangmval < 0:
       perfimg = perfimg * (-1.0)
-      meangmval = ( perfimg[ gmseg == 1 ] ).mean()
+  negative_voxels = ( perfimg <= 0.0 ).sum() / bmask.sum()
+  perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
+  meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if verbose:
     print("Coefficients:", regression_model.coef_)
     print("Coef mean", regression_model.coef_.mean(axis=0)) 
@@ -4871,6 +4938,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['t1reg'] = t1reg
   outdict['outlier_volumes']=hlinds
+  outdict['negative_voxels']=negative_voxels
   return outdict
 
 
@@ -4981,8 +5049,8 @@ def bold_perfusion_old( fmri, fmri_template, t1head, t1, t1segmentation, t1dktci
   tclist = one_hot_encode( tclist )
 
   hlinds=None
-  if outlier_threshold < 1:
-    corrmo['motion_corrected'], hlinds = loop_fmri_censoring( 
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    corrmo['motion_corrected'], hlinds = loop_timeseries_censoring( 
         corrmo['motion_corrected'], outlier_threshold )
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
@@ -5307,7 +5375,8 @@ def mm(
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     if  perfusion_image is not None:
-        boldTemplate=get_average_rsf(perfusion_image)
+        boldTemplate, hlinds = antspymm.loop_timeseries_censoring( perfusion_image, 0.10 )
+        boldTemplate = ants.get_average_of_timeseries( boldTemplate )
         if perfusion_image.shape[3] > 8: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
                 perfusion_image,
@@ -5316,9 +5385,7 @@ def mm(
                 hier['brain_n4_dnz'],
                 t1atropos,
                 hier['dkt_parc']['dkt_cortex'] + hier['cit168lab'],
-                f=[0.0,math.inf],
-                spa = (1.0, 1.0, 1.0, 0.0),
-                nc = 6, verbose=verbose )    
+                verbose=verbose )    
     ################################## do the rsf .....
     if len(rsf_image) > 0:
         rsf_image = [i for i in rsf_image if i is not None]
@@ -8234,9 +8301,9 @@ def remove_volumes(time_series, volumes_to_remove):
     volumes_to_keep = [i for i in range(time_series.shape[3]) if i not in volumes_to_remove]
 
     # Select the volumes to keep
-    filtered_time_series = time_series[..., volumes_to_keep]
+    filtered_time_series = ants.from_numpy( time_series[..., volumes_to_keep] )
 
-    return filtered_time_series
+    return ants.copy_image_info( time_series, filtered_time_series )
 
 def flatten_time_series(time_series):
     """
@@ -8335,26 +8402,25 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_fmri_censoring(fmridnz, threshold=0.5, verbose=False):
+def loop_timeseries_censoring(x, threshold=0.5, verbose=False):
     """
-    Censor high leverage volumes from an fMRI time series using Local Outlier Probabilities (LoOP).
+    Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
     Parameters:
-    fmridnz (ANTsImage): A 4D fMRI time series image.
+    x (ANTsImage): A 4D time series image.
     threshold (float): Threshold for determining high leverage volumes based on LoOP scores.
     verbose (bool)
 
     Returns:
-    tuple: A tuple containing the censored fMRI time series (ANTsImage) and the indices of the high leverage volumes.
+    tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     """
-    flattened_series = flatten_time_series(fmridnz.numpy())
+    flattened_series = flatten_time_series(x.numpy())
     loop_scores = calculate_loop_scores(flattened_series)
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
         print("LOOP High Leverage Volumes:", high_leverage_volumes)
-    new_asl = remove_volumes(fmridnz, high_leverage_volumes)
-    new_asl = ants.from_numpy(new_asl)
-    return ants.copy_image_info(fmridnz, new_asl), high_leverage_volumes
+    new_asl = remove_volumes(x, high_leverage_volumes)
+    return new_asl, high_leverage_volumes
 
 
 def novelty_detection_ee(df_train, df_test, contamination=0.05):

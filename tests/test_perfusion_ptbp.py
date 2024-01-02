@@ -14,8 +14,12 @@ from scipy.stats import median_abs_deviation
 import math
 t1fn = "./PEDS049/20110217/T1w/000/PTBP-PEDS049-20110217-T1w-000.nii.gz"
 idpfn = "./PEDS049/20110217/perf/000/PTBP-PEDS049-20110217-perf-000.nii.gz"
-imgp = ants.image_read( idpfn )
-#dkt
+t1fn = "/tmp/data/PEDS015/20110812/Anatomy/PEDS015_20110812_mprage_t1.nii.gz"
+idpfn = "/tmp/data/PEDS015/20110812/PCASL/PEDS015_20110812_pcasl_1.nii.gz"
+t1fn = '/tmp/data/PEDS022/20111216/Anatomy/PEDS022_20111216_mprage_t1.nii.gz'
+idpfn = '/tmp/data/PEDS022/20111216/PCASL/PEDS022_20111216_pcasl_1.nii.gz'
+t1fn = '/tmp/data/PEDS041/20110127/Anatomy/PEDS041_20110127_mprage_t1.nii.gz'
+idpfn = '/tmp/data/PEDS041/20110127/PCASL/PEDS041_20110127_pcasl_1.nii.gz'
 if not 'dkt' in globals():
   t1head = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
   t1bxt = antspynet.brain_extraction( t1head, 't1' ).threshold_image( 0.3, 1.0 )
@@ -26,10 +30,14 @@ if not 'dkt' in globals():
 #################
 type_of_transform='Rigid'
 tc='alternating'
-fmri = ants.image_clone( imgp )
-fmri_template = ants.get_average_of_timeseries( imgp )
+fmri = ants.image_read( idpfn )
+fmri_template, hlinds = antspymm.loop_fmri_censoring( fmri, 0.1 )
+fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
-perf = antspymm.bold_perfusion( imgp, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=4,
-  outlier_threshold=0.2, add_FD_to_nuisance=True, verbose=True )
-# ants.plot( ants.iMath(perf['perfusion'],"Normalize"), axis=2, crop=True )
+perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
+  t1segmentation, dkt, nc=8, type_of_transform=type_of_transform,
+  spa=(0.,0.,0.,0.),
+  outlier_threshold=0.5, add_FD_to_nuisance=False, verbose=True )
+ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
+ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
+ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
