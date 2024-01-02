@@ -294,6 +294,12 @@ def generate_mm_dataframe(
         nm_filenames=[],
         perf_filename=[]
 ):
+    def check_pd_construction(data, columns):
+        # Check if the length of columns matches the length of data in each row
+        if all(len(row) == len(columns) for row in data):
+            return True
+        else:
+            return False
     from os.path import exists
     valid_modalities = get_valid_modalities()
     if not isinstance(t1_filename, str):
@@ -392,8 +398,9 @@ def generate_mm_dataframe(
         'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10', 'nmid11'
     ]
     mycols = mycols0 + nmext
-    studycsv = pd.DataFrame([ mydata ],
-        columns=mycols)
+    if not check_pd_construction( [mydata], mycols ) :
+        raise ValueError( "Error in generate_mm_dataframe: len( mycols ) != len( mydata ) which indicates a bad input parameter to this function." )
+    studycsv = pd.DataFrame([ mydata ], columns=mycols)
     return studycsv
 
 def parse_nrg_filename( x, separator='-' ):
