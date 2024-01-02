@@ -20,6 +20,8 @@ t1fn = '/tmp/data/PEDS022/20111216/Anatomy/PEDS022_20111216_mprage_t1.nii.gz'
 idpfn = '/tmp/data/PEDS022/20111216/PCASL/PEDS022_20111216_pcasl_1.nii.gz'
 t1fn = '/tmp/data/PEDS041/20110127/Anatomy/PEDS041_20110127_mprage_t1.nii.gz'
 idpfn = '/tmp/data/PEDS041/20110127/PCASL/PEDS041_20110127_pcasl_1.nii.gz'
+t1fn='/tmp/data/PEDS014/20100831/Anatomy/PEDS014_20100831_mprage_t1.nii.gz'
+idpfn='/tmp/data/PEDS014/20100831/PCASL/PEDS014_20100831_pcasl_1.nii.gz'
 if not 'dkt' in globals():
   t1head = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
   t1bxt = antspynet.brain_extraction( t1head, 't1' ).threshold_image( 0.3, 1.0 )
@@ -31,7 +33,6 @@ if not 'dkt' in globals():
 type_of_transform='Rigid'
 tc='alternating'
 fmri = ants.image_read( idpfn )
-fmri = antspymm.remove_volumes_from_timeseries( fmri, range(40,79))
 fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
 fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")

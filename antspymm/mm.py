@@ -4694,7 +4694,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, segment_timeseries=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4734,6 +4734,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
 
   add_FD_to_nuisance: boolean
 
+  segment_timeseries : boolean
+
   verbose : boolean
 
   Returns
@@ -4746,6 +4748,11 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   import re
   import math
   from sklearn.linear_model import LinearRegression
+
+  # remove outlier volumes
+  if segment_timeseries:
+    lo_vs_high = segment_timeseries_by_meanvalue(fmri)
+    fmri = remove_volumes_from_timeseries( fmri, lo_vs_high['lowermeans'] )
 
   ex_path = os.path.expanduser( "~/.antspyt1w/" )
   cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
