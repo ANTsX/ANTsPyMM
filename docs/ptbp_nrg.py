@@ -85,6 +85,6 @@ process_files(rr+"*t1.nii.gz", 'T1w', '000')
 process_files(rr+"*bold*.nii.gz", 'rsfMRI', '000')
 process_files(rr+"*pcasl*.nii.gz", 'perf', '000')
 # DTI specific processing
-dti_nums = ['0011', '0014', '0017', '0020']
+dti_nums = [f"{i:04d}" for i in range(25)]
 for num in dti_nums:
-    process_files(f"images/PEDS*/*/*/*{num}_DTI*.nii.gz", 'DTI', num)
+    process_files(rr +"*"+num+"_DTI*.nii.gz", 'DTI', num)
