@@ -476,6 +476,12 @@ def generate_mm_dataframe_gpt(
     def check_pd_construction(data, columns):
         return all(len(row) == len(columns) for row in data)
 
+    flair_filename.sort()
+    rsf_filenames.sort()
+    dti_filenames.sort()
+    nm_filenames.sort()
+    perf_filename.sort()
+    
     valid_modalities = get_valid_modalities()  
 
     if not isinstance(t1_filename, str):
@@ -9068,10 +9074,11 @@ def aggregate_antspymm_results_sdf(
     vmoddict['flairid'] = 'T2Flair'
     vmoddict['perfid'] = 'perf'
     vmoddict['rsfid1'] = 'rsfMRI'
-    vmoddict['rsfid2'] = 'rsfMRI'
+#    vmoddict['rsfid2'] = 'rsfMRI'
     vmoddict['dtid1'] = 'DTI'
-    vmoddict['dtid2'] = 'DTI'
+#    vmoddict['dtid2'] = 'DTI'
     vmoddict['nmid1'] = 'NM2DMT'
+#    vmoddict['nmid2'] = 'NM2DMT'
 
     # Filter rows where modality is 'T1w'
     df = study_df[ study_df['modality'] == 'T1w']
