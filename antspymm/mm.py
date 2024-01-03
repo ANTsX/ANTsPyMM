@@ -9068,7 +9068,9 @@ def aggregate_antspymm_results_sdf(
     vmoddict['flairid'] = 'T2Flair'
     vmoddict['perfid'] = 'perf'
     vmoddict['rsfid1'] = 'rsfMRI'
+    vmoddict['rsfid2'] = 'rsfMRI'
     vmoddict['dtid1'] = 'DTI'
+    vmoddict['dtid2'] = 'DTI'
     vmoddict['nmid1'] = 'NM2DMT'
 
     # Filter rows where modality is 'T1w'
