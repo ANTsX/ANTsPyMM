@@ -9019,6 +9019,9 @@ def aggregate_antspymm_results_sdf(
 
     Note:
     This function is tested under limited circumstances. Use with caution.
+    One particular gotcha is if the imageID is stored as a numeric value in the dataframe 
+    but is meant to be a string.  E.g. '000' (string) would be interpreted as 0 in the 
+    file name glob.  This would miss the extant (on disk) csv.
 
     Example usage:
     agg_df = aggregate_antspymm_results_sdf( studydf, subject_col='subjectID', date_col='date', image_col='imageID', base_path="./Your/Custom/Path/")
@@ -9113,7 +9116,7 @@ def aggregate_antspymm_results_sdf(
         myfn = os.path.basename( df['filename'].iloc[x] )
         sid = df[subject_col].iloc[x]
         tempB = myfn.split( splitsep )
-        sid0 = tempB[0]
+        sid0 = tempB[1]
         if sid0 != sid:
             warnings.warn("INNER: the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid0 )
             warnings.warn( "filename is : " +  myfn )
