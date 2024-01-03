@@ -9181,7 +9181,7 @@ def aggregate_antspymm_results_sdf(
                         print("missing")
                         continue
                 if verbose:
-                    print( "modality id is " + mymodid + " for modality " + modalityclass )
+                    print( "modality id is " + mymodid + " for modality " + modalityclass + ' modality specific id is ' + myid + " its date " +  mydate )
                 modalityclasssearch = modalityclass
                 if modalityclass in ['rsfMRI','DTI']:
                     modalityclasssearch=modalityclass+"*"
