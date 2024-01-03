@@ -481,7 +481,7 @@ def generate_mm_dataframe_gpt(
     dti_filenames.sort()
     nm_filenames.sort()
     perf_filename.sort()
-    
+
     valid_modalities = get_valid_modalities()  
 
     if not isinstance(t1_filename, str):
@@ -7424,6 +7424,8 @@ progress=False, verbose=False ):
                             if len( abintersect  ) > 0 :
                                 for qq in abintersect:
                                     mm.pop( qq )
+                        print(mm.index)
+                        print(csvrow.index)
                         mm.index=csvrow.index
                         uidname = mod_name + '_mmwide_filename'
                         mm[ uidname ] = rootid
@@ -9135,6 +9137,7 @@ def aggregate_antspymm_results_sdf(
         myproj = str(df[project_col].iloc[x])
         mydate = str(df[date_col].iloc[x])
         myid = str(df[image_col].iloc[x])
+        myt1id = myid
         if verbose:
             print( myfn )
             print( temp )
