@@ -7426,7 +7426,7 @@ progress=False, verbose=False ):
                                     mm.pop( qq )
                         print(mm.index)
                         print(csvrow.index)
-                        mm.index=csvrow.index
+                        # mm.index=csvrow.index
                         uidname = mod_name + '_mmwide_filename'
                         mm[ uidname ] = rootid
                         csvrow=pd.concat( [csvrow,mm], axis=1 )
