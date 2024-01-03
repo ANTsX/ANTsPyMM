@@ -7424,8 +7424,6 @@ progress=False, verbose=False ):
                             if len( abintersect  ) > 0 :
                                 for qq in abintersect:
                                     mm.pop( qq )
-                        print(mm.index)
-                        print(csvrow.index)
                         # mm.index=csvrow.index
                         uidname = mod_name + '_mmwide_filename'
                         mm[ uidname ] = rootid
@@ -9118,6 +9116,7 @@ def aggregate_antspymm_results_sdf(
         print( "original input had shape " + str( df.shape[0] ) + " (T1 only) and we find " + str( (keep).sum() ) + " with hierarchical output defined by variable: " + hiervariable )
         print( df.shape )
 
+    dfout = pd.DataFrame()
     myct = 0
     for x in range( df.shape[0]):
         print("\n\n-------------------------------------------------")
@@ -9206,18 +9205,13 @@ def aggregate_antspymm_results_sdf(
             hdf = pd.concat( dflist, axis=1)
             if verbose:
                 print( "count: " + str( myct ) )
-            if myct == 1:
-                subdf = df.iloc[[x]]
-                hdf.index = subdf.index.copy()
-                print( hdf.index )
-                print( df.index )
-                df = pd.concat( [df,hdf], axis=1)
-            else:
-                commcols = list(set(hdf.columns).intersection(df.columns))
-                df.loc[locind, commcols] = hdf.loc[0, commcols]
-    badnames = get_names_from_data_frame( ['Unnamed'], df )
-    df=df.drop(badnames, axis=1)
-    return( df )
+            subdf = df.iloc[[x]]
+            hdf.index = subdf.index.copy()
+            subdf = pd.concat( [subdf,hdf], axis=1)
+            dfout = pd.concat( [dfout,subdf], axis=0)
+    badnames = get_names_from_data_frame( ['Unnamed'], dfout )
+    dfout=dfout.drop(badnames, axis=1)
+    return( dfout )
 
 def enantiomorphic_filling_without_mask( image, axis=0, intensity='low' ):
     """
