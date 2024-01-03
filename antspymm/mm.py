@@ -784,7 +784,7 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     """
     iext='.nii.gz'
     from os.path import exists
-    musthavecols = ['projectID', 'subjectID','date','imageID','fn']
+    musthavecols = ['projectID', 'subjectID','date','imageID','filename']
     for k in range(len(musthavecols)):
         if not musthavecols[k] in matched_dataframe.keys():
             raise ValueError('matched_dataframe is missing column ' +musthavecols[k] + ' in study_dataframe_from_qc_dataframe' )
@@ -7354,7 +7354,7 @@ progress=False, verbose=False ):
     verbose : boolean
     """
     from os.path import exists
-    musthavecols = ['projectID', 'subjectID','date','imageID','fn']
+    musthavecols = ['projectID', 'subjectID','date','imageID','filename']
     for k in range(len(musthavecols)):
         if not musthavecols[k] in sdf.keys():
             raise ValueError('sdf is missing column ' +musthavecols[k] + ' in merge_wides_to_study_dataframe' )
