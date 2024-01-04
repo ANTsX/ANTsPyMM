@@ -1153,6 +1153,42 @@ def mm_read_to_3d( x, slice=None, modality='' ):
         return img
     return None
 
+def timeseries_n3(x):
+    """
+    Perform N3 bias field correction on a time-series image dataset using ANTsPy library.
+
+    This function processes a multi-dimensional image dataset, where the last dimension
+    represents different time points. It applies N3 bias field correction to each time point 
+    individually to correct intensity non-uniformity.
+
+    Parameters:
+    x (ndarray): A multi-dimensional array where the last dimension represents time points. 
+                 Each 'slice' along this dimension is a separate image to be corrected.
+
+    Returns:
+    ndarray: A multi-dimensional array of the same shape as x, with N3 bias field correction 
+             applied to each time slice.
+
+    The function works as follows:
+    - Initializes an empty list `mimg` to store the corrected images.
+    - Determines the number of time points in the input image series.
+    - Iterates over each time point, extracting the image slice and applying N3 bias 
+      field correction.
+    - The corrected images are then appended to the `mimg` list.
+    - Finally, the list of corrected images is converted back into a multi-dimensional 
+      array and returned.
+
+    Example:
+    corrected_images = timeseries_n3(image_data)
+    """
+    mimg = []
+    n = len(x.shape) - 1
+    for kk in range(x.shape[n]):
+        temp = ants.slice_image(x, axis=n, idx=kk)
+        temp = ants.n3_bias_field_correction(temp, downsample_factor=2)
+        mimg.append(temp)
+    return ants.list_to_ndimage(x, mimg)
+
 def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
     """
     will write the image and (optionally) a png thumbnail with (optional) overlay/underlay
@@ -4798,7 +4834,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (2.0, 2.0, 2.0, 0.0), nc = 4, type_of_transform='Rigid', tc='alternating', n_to_trim=4, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, segment_timeseries=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (2.0, 2.0, 2.0, 0.0), nc = 4, type_of_transform='Rigid', tc='alternating', n_to_trim=4, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=True, segment_timeseries=False, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4838,6 +4874,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
 
   add_FD_to_nuisance: boolean
 
+  n3: boolean
+
   segment_timeseries : boolean
 
   verbose : boolean
@@ -4860,6 +4898,9 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
 
   ex_path = os.path.expanduser( "~/.antspyt1w/" )
   cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
+
+  if n3:
+    fmri = timeseries_n3( fmri )
 
   def replicate_list(user_list, target_size):
     # Calculate the number of times the list should be replicated
