@@ -5001,12 +5001,30 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   negative_voxels = ( perfimg <= 0.0 ).sum() / bmask.sum()
   perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
+
+
+  # LaTeX code for Cerebral Blood Flow (CBF) calculation using ASL MRI
+  """
+CBF = \\frac{\\Delta M \\cdot \\lambda}{2 \\cdot T_1 \\cdot \\alpha \\cdot M_0 \\cdot (e^{-\\frac{w}{T_1}} - e^{-\\frac{w + \\tau}{T_1}})}
+
+Where:
+- \\Delta M is the difference in magnetization between labeled and control images.
+- \\lambda is the brain-blood partition coefficient, typically around 0.9 mL/g.
+- T_1 is the longitudinal relaxation time of blood, which is a tissue-specific constant.
+- \\alpha is the labeling efficiency.
+- M_0 is the equilibrium magnetization of brain tissue (from the M0 image).
+- w is the post-labeling delay, the time between the end of the labeling and the acquisition of the image.
+- \\tau is the labeling duration.
+  """
+  m0 = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
+  cbf = ants.image_clone( perfimg )
+  cbf[ m0 > 0 ] = cbf[ m0 > 0 ]/m0[ m0 > 0 ]
+  meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
     print("Coefficients:", regression_model.coef_)
     print("Coef mean", regression_model.coef_.mean(axis=0)) 
     print( regression_model.coef_.shape )
     print( perfimg.max() )
-  gsrbold = ants.matrix_to_timeseries(simg, gmmat, regression_mask)
   outdict = {}
   outdict['meanBold'] = und
   outdict['brainmask'] = bmask
@@ -5028,16 +5046,26 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   df_perf = antspyt1w.merge_hierarchical_csvs_to_wide_format(
               {'perf' : df_perf},
               col_names = ['Mean'] )
+  df_cbf = antspyt1w.map_intensity_to_dataframe(
+        'dkt_cortex_cit_deep_brain',
+        cbf,
+        dktseg)
+  df_cbf = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+              {'cbf' : df_cbf},
+              col_names = ['Mean'] )
+  df_cbf = df_cbf.add_prefix('cbf_')
+  df_perf = pd.concat( [df_perf,df_cbf], axis=1 )
   if verbose:
       print("perfusion dataframe end")
-      print( df_perf )
 
   outdict['perfusion']=perfimg
+  outdict['cbf']=cbf
+  outdict['m0']=m0
   outdict['perfusion_gm_mean']=meangmval
+  outdict['cbf_gm_mean']=meangmvalcbf
   outdict['perf_dataframe']=df_perf
   outdict['motion_corrected'] = corrmo['motion_corrected']
   outdict['gmseg'] = gmseg
-  outdict['gsrbold'] = gsrbold
   outdict['brain_mask'] = bmask
   outdict['nuisance'] = rsfNuisance
   outdict['tsnr'] = mytsnr
@@ -5709,6 +5737,9 @@ def mm(
             normalization_dict['perf_norm'] = ants.apply_transforms( group_template,
                 output_dict['perf']['perfusion'], comptx,
                 whichtoinvert=[False,False,True,False] )
+            normalization_dict['cbf_norm'] = ants.apply_transforms( group_template,
+                output_dict['perf']['cbf'], comptx,
+                whichtoinvert=[False,False,True,False] )
         if nm_image_list is not None:
             nmpro = output_dict['NM']
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
@@ -5886,6 +5917,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if mm['perf'] is not None:
         perfpro = mm['perf']
         mm_wide['gm_mean'] =  perfpro['perfusion_gm_mean']
+        mm_wide['gm_mean_cbf'] =  perfpro['cbf_gm_mean']
         mm_wide['tsnr_mean'] =  perfpro['tsnr'].mean()
         mm_wide['dvars_mean'] =  perfpro['dvars'].mean()
         mm_wide['ssnr_mean'] =  perfpro['ssnr'].mean()
@@ -5898,9 +5930,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             mm_wide = pd.concat( [ mm_wide, pderk ], axis=1 )
         else:
             print("FIXME - perfusion dataframe")
-        mykey='perfusion'
-        tempfn = output_prefix + separator + mykey + '.nii.gz'
-        image_write_with_thumbnail( mm['perf'][mykey], tempfn )
+        for mykey in ['perfusion','cbf']:
+            tempfn = output_prefix + separator + mykey + '.nii.gz'
+            image_write_with_thumbnail( mm['perf'][mykey], tempfn )
 
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
