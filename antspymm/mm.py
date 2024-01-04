@@ -5017,8 +5017,11 @@ Where:
 - \\tau is the labeling duration.
   """
   m0 = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
+  m0 = ants.smooth_image( m0, 2.0 )
   cbf = ants.image_clone( perfimg )
-  cbf[ m0 > 0 ] = cbf[ m0 > 0 ]/m0[ m0 > 0 ]
+  eps = 0.05
+  selection = m0 > eps & bmask >= 0.5 
+  cbf[ selection ] = cbf[ selection ]/m0[ selection ]
   meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
     print("Coefficients:", regression_model.coef_)
@@ -6902,6 +6905,8 @@ def mm_csv(
                                     maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
                                     ants.plot( tabPro['perf']['perfusion'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='perfusion image', filename=mymm+mysep+"perfusion.png" )
+                                    ants.plot( tabPro['perf']['cbf'],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='perfusion image', filename=mymm+mysep+"cbf.png" )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
