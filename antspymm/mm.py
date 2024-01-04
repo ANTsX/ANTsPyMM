@@ -3151,6 +3151,7 @@ def joint_dti_recon(
     dewarp_modality = 'FA',
     denoise=False,
     fit_method='WLS',
+    impute = True,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3200,6 +3201,8 @@ def joint_dti_recon(
     denoise: boolean
 
     fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
+
+    impute : boolean
 
     verbose : boolean
 
@@ -3294,6 +3297,9 @@ def joint_dti_recon(
     else:
         bval_LR=reg_LR['bvals']
         bvec_LR=reg_LR['bvecs']
+
+    if impute:
+        img_LRdwp=impute_dwi( img_LRdwp, True )
 
     if verbose:
         print("final recon", flush=True)
