@@ -5020,7 +5020,7 @@ Where:
   m0 = ants.smooth_image( m0, 2.0 )
   cbf = ants.image_clone( perfimg )
   eps = 0.05
-  selection = m0 > eps & bmask >= 0.5 
+  selection = m0 > eps and bmask >= 0.5 
   cbf[ selection ] = cbf[ selection ]/m0[ selection ]
   meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
