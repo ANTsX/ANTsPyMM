@@ -8417,6 +8417,86 @@ def remove_volumes_from_timeseries(time_series, volumes_to_remove):
 
     return ants.copy_image_info( time_series, filtered_time_series )
 
+
+def impute_timeseries(time_series, volumes_to_impute, method='linear'):
+    """
+    Impute specified volumes from a time series with interpolated values.
+
+    :param time_series: ANTsImage representing the time series (4D image).
+    :param volumes_to_impute: List of volume indices to impute.
+    :param method: Interpolation method ('linear' or other methods if implemented).
+    :return: ANTsImage with specified volumes imputed.
+    """
+    if not isinstance(time_series, ants.ANTsImage):
+        raise ValueError("time_series must be an ANTsImage.")
+
+    if time_series.dimension != 4:
+        raise ValueError("time_series must be a 4D image.")
+
+    # Convert time_series to numpy for manipulation
+    time_series_np = time_series.numpy()
+
+    for vol_idx in volumes_to_impute:
+        # Ensure the volume index is within the valid range
+        if vol_idx < 0 or vol_idx >= time_series_np.shape[3]:
+            raise ValueError(f"Volume index {vol_idx} is out of bounds.")
+
+        # Find neighboring volumes for interpolation
+        lower_idx = max(0, vol_idx - 1)
+        upper_idx = min(time_series_np.shape[3] - 1, vol_idx + 1)
+
+        if method == 'linear':
+            # Linear interpolation between the two nearest volumes
+            if lower_idx == vol_idx or upper_idx == vol_idx:
+                # Edge case: duplicate the closest volume
+                interpolated_volume = time_series_np[..., lower_idx]
+            else:
+                lower_volume = time_series_np[..., lower_idx]
+                upper_volume = time_series_np[..., upper_idx]
+                interpolated_volume = (lower_volume + upper_volume) / 2
+        else:
+            # Placeholder for other interpolation methods
+            raise NotImplementedError("Currently, only linear interpolation is implemented.")
+
+        # Replace the specified volume with the interpolated volume
+        time_series_np[..., vol_idx] = interpolated_volume
+
+    # Convert the numpy array back to ANTsImage
+    imputed_time_series = ants.from_numpy(time_series_np)
+    imputed_time_series = ants.copy_image_info(time_series, imputed_time_series)
+
+    return imputed_time_series
+
+
+
+def impute_dwi( dwi, verbose=False ):
+    """
+    Identify bad volumes in a dwi and impute them fully automatically.
+
+    :param dwi: ANTsImage representing the time series (4D image).
+    :param verbose: boolean
+    :return: ANTsImage automatically imputed.
+    """
+    list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
+    looped, list2 = loop_timeseries_censoring( dwi )
+    if verbose:
+        print( list1 )
+        print( list2 )
+    # Convert lists to sets
+    set1 = set(list(list1))
+    set2 = set(list(list2))
+    # Find the intersection
+    intersection = set1 & set2
+    # Find the complement of the intersection
+    complement = (set1 | set2) - intersection
+    if verbose:
+        print( "Imputing:")
+        print( complement )
+    if len( complement ) == 0:
+        return dwi
+    return impute_timeseries( dwi, complement )
+
+
 def flatten_time_series(time_series):
     """
     Flatten a 4D time series into a 2D array.
