@@ -4842,7 +4842,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.1, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4890,6 +4890,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
 
   trim_the_mask : float >= 0 post-hoc method for trimming the mask
 
+  upsample: boolean
+
   verbose : boolean
 
   Returns
@@ -4902,6 +4904,10 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   import re
   import math
   from sklearn.linear_model import LinearRegression
+
+  if upsample:
+      newspc = [2.0,2.0,2.0] + [ ants.get_spacing(fmri)[3] ]
+      fmri = ants.resample_image( fmri, newspc, interp_type=0 )
 
   # remove outlier volumes
   if segment_timeseries:
