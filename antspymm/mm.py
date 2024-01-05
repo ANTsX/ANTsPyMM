@@ -4840,7 +4840,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (2.0, 2.0, 2.0, 0.0), nc = 16, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.3333, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.1, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
