@@ -4906,7 +4906,11 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   from sklearn.linear_model import LinearRegression
 
   if upsample:
-      newspc = [2.0,2.0,2.0] + [ ants.get_spacing(fmri)[3] ]
+      spc = ants.get_spacing( fmri )
+      minspc = 2.0
+      if min(spc[0:3]) < minspc:
+          minspc = min(spc[0:3])
+      newspc = [minspc,minspc,minspc] + [ spc[3] ]
       fmri = ants.resample_image( fmri, newspc, interp_type=0 )
 
   # remove outlier volumes
