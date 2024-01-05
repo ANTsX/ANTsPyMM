@@ -3291,7 +3291,7 @@ def joint_dti_recon(
 
     if impute:
         img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
-    if impute and img_RLdwp is not None:
+    if impute and img_RL is not None:
         img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
 
     if img_RL is not None:
