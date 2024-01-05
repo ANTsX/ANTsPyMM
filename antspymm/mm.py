@@ -3299,7 +3299,7 @@ def joint_dti_recon(
         bvec_LR=reg_LR['bvecs']
 
     if impute:
-        img_LRdwp=impute_dwi( img_LRdwp, True )
+        img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
 
     if verbose:
         print("final recon", flush=True)
@@ -4840,7 +4840,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (2.0, 2.0, 2.0, 0.0), nc = 16, type_of_transform='Rigid', tc='alternating', n_to_trim=8, outlier_threshold=0.3333, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (2.0, 2.0, 2.0, 0.0), nc = 16, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.3333, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4883,6 +4883,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   n3: boolean
 
   segment_timeseries : boolean
+
+  cbf_scaling : float scales the CBF image value; current value learned from PTBP; users can set this according to the parameters of their own data.
 
   verbose : boolean
 
@@ -5064,11 +5066,13 @@ Where:
 - \\tau is the labeling duration.
   """
   m0 = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
-  m0 = ants.smooth_image( m0, 2.0 )
   cbf = ants.image_clone( perfimg )
-  eps = 0.05
+  eps = 0.1
   selection = m0 > eps and bmask >= 0.5 
+  if verbose:
+      print( "n voxels selected " + str( selection.sum() ) )
   cbf[ selection ] = cbf[ selection ]/m0[ selection ]
+  cbf = cbf * cbf_scaling
   meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
     print("Coefficients:", regression_model.coef_)
@@ -5080,10 +5084,6 @@ Where:
   outdict['brainmask'] = bmask
   rsfNuisance = pd.DataFrame( nuisance )
   rsfNuisance['FD']=corrmo['FD']
-
-  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
-  trimmask = ants.iMath( bmask, "ME",2)
-  edgemask = ants.iMath( bmask, "ME",1) - trimmask
 
   if verbose:
       print("perfusion dataframe begin")
@@ -6953,7 +6953,9 @@ def mm_csv(
                                     ants.plot( tabPro['perf']['perfusion'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='perfusion image', filename=mymm+mysep+"perfusion.png" )
                                     ants.plot( tabPro['perf']['cbf'],
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='perfusion image', filename=mymm+mysep+"cbf.png" )
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='CBF image', filename=mymm+mysep+"cbf.png" )
+                                    ants.plot( tabPro['perf']['m0'],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='M0 image', filename=mymm+mysep+"m0.png" )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
@@ -8553,16 +8555,17 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear'):
 
 
 
-def impute_dwi( dwi, verbose=False ):
+def impute_dwi( dwi, threshold = 0.10, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
     :param dwi: ANTsImage representing the time series (4D image).
+    :param threshold: threshold (0,1) for outlierness (lower means impute more data)
     :param verbose: boolean
     :return: ANTsImage automatically imputed.
     """
     list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
-    looped, list2 = loop_timeseries_censoring( dwi )
+    looped, list2 = loop_timeseries_censoring( dwi, threshold )
     if verbose:
         print( list1 )
         print( list2 )
