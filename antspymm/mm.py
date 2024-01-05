@@ -2963,7 +2963,7 @@ def dipy_dti_recon(
     mask_dilation = 2,
     mask_closing = 5,
     fit_method='WLS',
-    trim_the_mask=2,
+    trim_the_mask=2.0,
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -2988,7 +2988,7 @@ def dipy_dti_recon(
 
     fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel) ... if None, will not reconstruct DTI.
 
-    trim_the_mask : boolean post-hoc method for trimming the mask
+    trim_the_mask : float >=0 post-hoc method for trimming the mask
 
     verbose : boolean
 
@@ -4840,7 +4840,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.1, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.1, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4885,6 +4885,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   segment_timeseries : boolean
 
   cbf_scaling : float scales the CBF image value; current value learned from PTBP; users can set this according to the parameters of their own data.
+
+  trim_the_mask : float >= 0 post-hoc method for trimming the mask
 
   verbose : boolean
 
@@ -5049,7 +5051,6 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
       perfimg = perfimg * (-1.0)
   negative_voxels = ( perfimg <= 0.0 ).sum() / bmask.sum()
   perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
-  meangmval = ( perfimg[ gmseg == 1 ] ).mean()
 
 
   # LaTeX code for Cerebral Blood Flow (CBF) calculation using ASL MRI
@@ -5073,6 +5074,13 @@ Where:
       print( "n voxels selected " + str( selection.sum() ) )
   cbf[ selection ] = cbf[ selection ]/m0[ selection ]
   cbf = cbf * cbf_scaling
+  # change the brain mask based on high FA values
+  if trim_the_mask > 0.0 :
+    bmask = trim_dti_mask( cbf, bmask, trim_the_mask )
+    perfimg = perfimg * bmask
+    cbf = cbf * bmask
+
+  meangmval = ( perfimg[ gmseg == 1 ] ).mean()        
   meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
     print("Coefficients:", regression_model.coef_)
