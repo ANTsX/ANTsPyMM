@@ -8554,8 +8554,7 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear'):
     return imputed_time_series
 
 
-
-def impute_dwi( dwi, threshold = 0.10, verbose=False ):
+def impute_dwi( dwi, threshold = 0.05, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
