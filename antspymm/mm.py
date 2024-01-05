@@ -3289,6 +3289,11 @@ def joint_dti_recon(
     if verbose:
         print("recon after distortion correction", flush=True)
 
+    if impute:
+        img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
+    if impute and img_RLdwp is not None:
+        img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
+
     if img_RL is not None:
         img_LRdwp, bval_LR, bvec_LR = merge_dwi_data(
             img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'],
@@ -3297,9 +3302,6 @@ def joint_dti_recon(
     else:
         bval_LR=reg_LR['bvals']
         bvec_LR=reg_LR['bvecs']
-
-    if impute:
-        img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
 
     if verbose:
         print("final recon", flush=True)
@@ -7008,7 +7010,7 @@ def mm_csv(
                                         bvals = bvalfnList,
                                         bvecs = bvecfnList,
                                         srmodel=srmodel_DTI_mdl,
-                                        do_tractography=not test_run,
+                                        do_tractography=False,#not test_run,
                                         do_kk=False,
                                         do_normalization=templateTx,
                                         group_template = normalization_template,
@@ -8562,7 +8564,7 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear'):
     return imputed_time_series
 
 
-def impute_dwi( dwi, threshold = 0.05, verbose=False ):
+def impute_dwi( dwi, threshold = 0.20, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
