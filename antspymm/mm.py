@@ -7016,7 +7016,7 @@ def mm_csv(
                                         bvals = bvalfnList,
                                         bvecs = bvecfnList,
                                         srmodel=srmodel_DTI_mdl,
-                                        do_tractography=False,#not test_run,
+                                        do_tractography=not test_run,
                                         do_kk=False,
                                         do_normalization=templateTx,
                                         group_template = normalization_template,
