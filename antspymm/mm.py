@@ -4869,7 +4869,7 @@ def calculate_CBF(Delta_M, M_0, mask,
     return cbf
 
 
-def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=2.25, upsample=True, verbose=False ):
+def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.65, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=2.25, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -5016,10 +5016,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
       tclist = replicate_list( ['C'], int(ntp/2) ) + replicate_list( ['T'],  int(ntp/2) )
 
   tclist = one_hot_encode( tclist[0:ntp ] )
-  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
-  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
-  bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
     fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
@@ -5051,7 +5047,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
   regression_mask = bmask.clone()
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",5)
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
@@ -5061,7 +5057,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
-  gmseg = ants.iMath( gmseg, 'MD', 1 )
+  # gmseg = ants.iMath( gmseg, 'MD', 1 )
   gmseg = ants.apply_transforms( und, gmseg,
     t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   csfseg = ants.threshold_image( t1segmentation, 1, 1 )
@@ -5074,7 +5070,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.98, mask = csfAndWM,
+    ncompcor=nc, quantile=0.95, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
