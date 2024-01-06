@@ -469,7 +469,7 @@ def extend_list_to_length(lst, target_length, fill_value=None):
 def generate_mm_dataframe_gpt(
         projectID, subjectID, date, imageUniqueID, modality, 
         source_image_directory, output_image_directory, t1_filename, 
-        flair_filename=[], rsf_filenames=[], dti_filenames=[], nm_filenames=[], perf_filename=[]):
+        flair_filename=[], rsf_filenames=[], dti_filenames=[], nm_filenames=[], perf_filename=[] ):
     """
     see help for generate_mm_dataframe - same as this
     """
@@ -4842,7 +4842,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4864,8 +4864,6 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   t1dktcit : ANTsImage
     t1 dkt cortex plus cit parcellation
 
-  f : band pass limits for frequency filtering
-
   spa : gaussian smoothing for spatial and temporal component e.g. (1,1,1,0) in physical space coordinates
 
   nc  : number of components for compcor filtering
@@ -4875,6 +4873,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   tc: string either alternating or split (default is alternating ie CTCTCT; split is CCCCTTTT)
 
   n_to_trim: number of volumes to trim off the front of the time series to account for initial magnetic saturation effects or to allow the signal to reach a steady state. in some cases, trailing volumes or other outlier volumes may need to be rejected.  this code does not currently handle that issue.
+
+  m0_indices: which indices in the perfusion image are the m0.  if set, n_to_trim will be ignored.
 
   outlier_threshold (numeric): between zero (remove all) and one (remove none); automatically calculates outlierness and uses it to censor the time series.
 
@@ -4943,9 +4943,12 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   fmri = ants.iMath( fmri, 'Normalize' )
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
   bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
-  mytrim=n_to_trim # trim will guarantee an even length
-  if fmri.shape[3] % 2 == 1:
-      mytrim = n_to_trim+1
+  if m0_indices is None:
+    if n_to_trim is None:
+        n_to_trim=0
+    mytrim=n_to_trim
+  else:
+    mytrim = 0
   corrmo = timeseries_reg(
     fmri, fmri_template,
     type_of_transform=type_of_transform,
@@ -4960,11 +4963,20 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   if verbose:
       print("End rsfmri motion correction")
 
-  regression_mask = bmask.clone()
-  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], regression_mask )
-  if f[0] > 0 and f[1] < 1: # some would argue against this
-      gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) 
-      corrmo['motion_corrected'] = ants.matrix_to_timeseries( simg, gmmat, regression_mask )
+  fmri_u = ants.image_clone( fmri )
+  if m0_indices is not None:
+    not_m0 = list( range( fmri.shape[3] ) )
+    not_m0 = [x for x in not_m0 if x not in m0_indices]
+    if verbose:
+        print( m0_indices )
+        print( not_m0 )
+    # then remove it from the time series
+    m0 = remove_volumes_from_timeseries( corrmo['motion_corrected'], not_m0 )
+    m0 = ants.get_average_of_timeseries( m0 )
+    corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], m0_indices )
+    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], m0_indices )
+    fmri_u = remove_volumes_from_timeseries( fmri_u, m0_indices )
+    fmri_u = ants.iMath( fmri_u, 'Normalize' )
 
   ntp = corrmo['motion_corrected'].shape[3]
   if tc == 'alternating':
@@ -4972,7 +4984,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   else:
       tclist = replicate_list( ['C'], int(ntp/2) ) + replicate_list( ['T'],  int(ntp/2) )
 
-  tclist = one_hot_encode( tclist )
+  tclist = one_hot_encode( tclist[0:ntp ] )
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
@@ -4983,13 +4995,14 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
     fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
+    fmri_u = remove_volumes_from_timeseries( fmri_u, hlinds )
 
   # redo template and registration
-  fmri_template = ants.get_average_of_timeseries( fmrimotcorr )
+  fmri_template = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
   bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
   corrmo = timeseries_reg(
-        fmri, fmri_template,
+        fmri_u, fmri_template,
         type_of_transform=type_of_transform,
         total_sigma=0.0,
         fdOffset=2.0,
@@ -5002,16 +5015,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   if verbose:
         print("End 2nd rsfmri motion correction")
 
-  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
-    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
-
   regression_mask = bmask.clone()
-  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], regression_mask )
-  if f[0] > 0.0 and f[1] < 1.0: # some would argue against this
-        gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) 
-        corrmo['motion_corrected'] = ants.matrix_to_timeseries( simg, gmmat, regression_mask )
-
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
@@ -5064,7 +5068,6 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f
   negative_voxels = ( perfimg <= 0.0 ).sum() / bmask.sum()
   perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
 
-
   # LaTeX code for Cerebral Blood Flow (CBF) calculation using ASL MRI
   """
 CBF = \\frac{\\Delta M \\cdot \\lambda}{2 \\cdot T_1 \\cdot \\alpha \\cdot M_0 \\cdot (e^{-\\frac{w}{T_1}} - e^{-\\frac{w + \\tau}{T_1}})}
@@ -5078,9 +5081,14 @@ Where:
 - w is the post-labeling delay, the time between the end of the labeling and the acquisition of the image.
 - \\tau is the labeling duration.
   """
-  m0 = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
+  if m0_indices is None:
+    m0 = ants.get_average_of_timeseries( fmrimotcorr )
+  else:
+    # register m0 to current template
+    m0 = ants.registration( fmri_template, m0, 'Rigid' )['warpedmovout']
+    m0 = ants.iMath( m0, "Normalize ")
   cbf = ants.image_clone( perfimg )
-  eps = 0.1
+  eps = 0.02
   selection = m0 > eps and bmask >= 0.5 
   if verbose:
       print( "n voxels selected " + str( selection.sum() ) )
@@ -5150,231 +5158,6 @@ Where:
   outdict['outlier_volumes']=hlinds
   outdict['negative_voxels']=negative_voxels
   return outdict
-
-
-
-def bold_perfusion_old( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, f=[0.0,math.inf], FD_threshold=0.5, spa = 1.5, nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, outlier_threshold=0.5, deepmask=False, add_FD_to_nuisance=False, verbose=False ):
-  """
-  Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
-
-  Arguments
-  ---------
-  fmri : BOLD fmri antsImage
-
-  fmri_template : reference space for BOLD
-
-  t1head : ANTsImage
-    input 3-D T1 brain image (not brain extracted)
-
-  t1 : ANTsImage
-    input 3-D T1 brain image (brain extracted)
-
-  t1segmentation : ANTsImage
-    t1 segmentation - a six tissue segmentation image in T1 space
-
-  t1dktcit : ANTsImage
-    t1 dkt cortex plus cit parcellation
-
-  f : band pass limits for frequency filtering
-
-  spa : gaussian smoothing for spatial and temporal component e.g. (1,1,1,0) in physical space coordinates
-
-  nc  : number of components for compcor filtering
-
-  type_of_transform : SyN or Rigid
-
-  tc: string either alternating or split (default is alternating ie CTCTCT; split is CCCCTTTT)
-
-  n_to_trim: number of volumes to trim off the front of the time series to account for initial magnetic saturation effects or to allow the signal to reach a steady state. in some cases, trailing volumes or other outlier volumes may need to be rejected.  this code does not currently handle that issue.
-
-  outlier_threshold (numeric): between zero (remove all) and one (remove none); automatically calculates outlierness and uses it to censor the time series.
-
-  deepmask: boolean
-
-  add_FD_to_nuisance: boolean
-
-  verbose : boolean
-
-  Returns
-  ---------
-  a dictionary containing the derived network maps
-
-  """
-  import numpy as np
-  import pandas as pd
-  import re
-  import math
-  from sklearn.linear_model import LinearRegression
-
-  ex_path = os.path.expanduser( "~/.antspyt1w/" )
-  cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
-
-  def replicate_list(user_list, target_size):
-    # Calculate the number of times the list should be replicated
-    replication_factor = target_size // len(user_list)
-    # Replicate the list and handle any remaining elements
-    replicated_list = user_list * replication_factor
-    remaining_elements = target_size % len(user_list)
-    replicated_list += user_list[:remaining_elements]
-    return replicated_list
-
-  def one_hot_encode(char_list):
-    unique_chars = list(set(char_list))
-    encoding_dict = {char: [1 if char == c else 0 for c in unique_chars] for char in unique_chars}
-    encoded_matrix = np.array([encoding_dict[char] for char in char_list])
-    return encoded_matrix
-  
-  A = np.zeros((1,1))
-  fmri = ants.iMath( fmri, 'Normalize' )
-  if deepmask:
-      bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).morphology("close",2).iMath("FillHoles")
-  else:
-      rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
-      bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
-  if verbose:
-      print("Begin perfusion motion correction")
-  mytrim=n_to_trim # trim will guarantee an even length
-  if fmri.shape[3] % 2 == 1:
-      mytrim = n_to_trim+1
-  corrmo = timeseries_reg(
-    fmri, fmri_template,
-    type_of_transform=type_of_transform,
-    total_sigma=0.0,
-    fdOffset=2.0,
-    trim = mytrim,
-    output_directory=None,
-    verbose=verbose,
-    syn_metric='cc',
-    syn_sampling=2,
-    reg_iterations=[40,20,5] )
-  if verbose:
-      print("End rsfmri motion correction")
-
-  ntp = corrmo['motion_corrected'].shape[3]
-  if tc == 'alternating':
-      tclist = replicate_list( ['C','T'], ntp )
-  else:
-      tclist = replicate_list( ['C'], int(ntp/2) ) + replicate_list( ['T'],  int(ntp/2) )
-
-  tclist = one_hot_encode( tclist )
-
-  hlinds=None
-  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    corrmo['motion_corrected'], hlinds = loop_timeseries_censoring( 
-        corrmo['motion_corrected'], outlier_threshold )
-    tclist = remove_elements_from_numpy_array( tclist, hlinds)
-    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
-
-  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
-  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
-  bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
-  und = fmri_template * bmask
-  t1reg = ants.registration( und, t1, "SyNBold" )
-  if verbose:
-      print("t1 2 bold done")
-  boldseg = ants.apply_transforms( und, t1segmentation,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
-  dktseg = ants.apply_transforms( und, t1dktcit,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
-  gmseg = ants.threshold_image( t1segmentation, 2, 2 )
-  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
-  gmseg = ants.threshold_image( gmseg, 1, 4 )
-  gmseg = ants.iMath( gmseg, 'MD', 1 )
-  gmseg = ants.apply_transforms( und, gmseg,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
-  csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
-               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
-  csfAndWM = ants.apply_transforms( und, csfAndWM,
-    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-
-  mycompcor = ants.compcor( corrmo['motion_corrected'],
-    ncompcor=nc, quantile=0.90, mask = csfAndWM,
-    filter_type='polynomial', degree=2 )
-
-  nt = corrmo['motion_corrected'].shape[3]
-  tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
-  highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
-  goodtimes = np.where( corrmo['FD'] < 0.5 )
-  simg = ants.smooth_image(corrmo['motion_corrected'], 
-                           spa, sigma_in_physical_coordinates = True )
-
-  nuisance = mycompcor[ 'components' ]
-  nuisance = np.c_[ nuisance, mycompcor['basis'] ]
-  if add_FD_to_nuisance:
-      nuisance = np.c_[ nuisance, corrmo['FD'] ]
-
-  if verbose:
-    print("make sure nuisance is independent of TC")
-  nuisance = ants.regress_components( nuisance, tclist )
-
-  regression_mask = bmask.clone()
-  gmmat = ants.timeseries_to_matrix( simg, regression_mask )
-  if f[0] > 0 and f[1] < 1: # some would argue against this
-      gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) 
-  # gmmat = ants.regress_components( gmmat, nuisance )
-  # Perform linear regression to estimate perfusion
-  regression_model = LinearRegression()
-  regvars = np.hstack( (nuisance, tclist ))
-  coefind = regvars.shape[1]-1
-  regvars = regvars[:,range(coefind)]
-  regression_model.fit( regvars, gmmat )
-  coefind = regression_model.coef_.shape[1]-1
-  perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
-  meangmval = ( perfimg[ gmseg == 1 ] ).mean()
-  if meangmval < 0:
-      perfimg = perfimg * (-1.0)
-      meangmval = ( perfimg[ gmseg == 1 ] ).mean()
-  if verbose:
-    print("Coefficients:", regression_model.coef_)
-    print("Coef mean", regression_model.coef_.mean(axis=0)) 
-    print( regression_model.coef_.shape )
-    print( perfimg.max() )
-  gsrbold = ants.matrix_to_timeseries(simg, gmmat, regression_mask)
-  outdict = {}
-  outdict['meanBold'] = und
-  outdict['brainmask'] = bmask
-  rsfNuisance = pd.DataFrame( nuisance )
-  rsfNuisance['FD']=corrmo['FD']
-
-
-  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
-  trimmask = ants.iMath( bmask, "ME",2)
-  edgemask = ants.iMath( bmask, "ME",1) - trimmask
-
-  if verbose:
-      print("perfusion dataframe begin")
-  df_perf = antspyt1w.map_intensity_to_dataframe(
-        'dkt_cortex_cit_deep_brain',
-        perfimg,
-        dktseg)
-  df_perf = antspyt1w.merge_hierarchical_csvs_to_wide_format(
-              {'perf' : df_perf},
-              col_names = ['Mean'] )
-  if verbose:
-      print("perfusion dataframe end")
-      print( df_perf )
-
-  outdict['perfusion']=perfimg
-  outdict['perfusion_gm_mean']=meangmval
-  outdict['perf_dataframe']=df_perf
-  outdict['motion_corrected'] = corrmo['motion_corrected']
-  outdict['gmseg'] = gmseg
-  outdict['gsrbold'] = gsrbold
-  outdict['brain_mask'] = bmask
-  outdict['nuisance'] = rsfNuisance
-  outdict['tsnr'] = mytsnr
-  outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
-  outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
-  outdict['high_motion_count'] = (rsfNuisance['FD'] > FD_threshold ).sum()
-  outdict['high_motion_pct'] = (rsfNuisance['FD'] > FD_threshold ).sum() / rsfNuisance.shape[0]
-  outdict['FD_max'] = rsfNuisance['FD'].max()
-  outdict['FD_mean'] = rsfNuisance['FD'].mean()
-  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
-  outdict['t1reg'] = t1reg
-  outdict['outlier_volumes']=hlinds
-  return outdict
-
 
 
 def write_bvals_bvecs(bvals, bvecs, prefix ):
@@ -5457,6 +5240,8 @@ def mm(
     target_range = [0,1],
     dti_motion_correct = 'Rigid',
     dti_denoise = False,
+    perfusion_trim=10,
+    perfusion_m0=None,
     test_run = False,
     verbose = False ):
     """
@@ -5507,6 +5292,10 @@ def mm(
     dti_motion_correct : None Rigid or SyN
 
     dti_denoise : boolean
+
+    perfusion_trim : optional integer number of time volumes to exclude from the front of the perfusion time series
+
+    perfusion_m0 : optional list containing indices of the m0 in the perfusion time series
 
     test_run : boolean 
 
@@ -5587,7 +5376,7 @@ def mm(
     if  perfusion_image is not None:
         boldTemplate, hlinds = loop_timeseries_censoring( perfusion_image, 0.10 )
         boldTemplate = ants.get_average_of_timeseries( boldTemplate )
-        if perfusion_image.shape[3] > 8: # FIXME - better heuristic?
+        if perfusion_image.shape[3] > 1: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
                 perfusion_image,
                 boldTemplate,
@@ -5595,7 +5384,9 @@ def mm(
                 hier['brain_n4_dnz'],
                 t1atropos,
                 hier['dkt_parc']['dkt_cortex'] + hier['cit168lab'],
-                verbose=verbose )    
+                n_to_trim = perfusion_trim,
+                m0_indices = perfusion_m0,
+                verbose=verbose )
     ################################## do the rsf .....
     if len(rsf_image) > 0:
         rsf_image = [i for i in rsf_image if i is not None]
@@ -6535,7 +6326,9 @@ def mm_csv(
     normalization_template_output = None,
     normalization_template_transform_type = "antsRegistrationSyNRepro[s]",
     normalization_template_spacing=None,
-    enantiomorphic=False
+    enantiomorphic=False,
+    perfusion_trim = 10,
+    perfusion_m0 = None,
 ):
     """
     too dangerous to document ... use with care.
@@ -6607,6 +6400,10 @@ def mm_csv(
     normalization_template_spacing : 3-tuple controlling the resolution at which registration is computed 
     
     enantiomorphic: boolean (WIP)
+
+    perfusion_trim : optional integer number of time volumes to exclude from the front of the perfusion time series
+
+    perfusion_m0 : optional list containing indices of the m0 in the perfusion time series
 
     Returns
     ---------
@@ -6956,7 +6753,7 @@ def mm_csv(
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
-                            if ( mymod == 'perf' )  and ishapelen == 4:
+                            if ( mymod == 'perf' ) and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
                                     perfusion_image=img,
@@ -6967,6 +6764,8 @@ def mm_csv(
                                     group_template = normalization_template,
                                     group_transform = groupTx,
                                     test_run=test_run,
+                                    perfusion_trim=perfusion_trim,
+                                    perfusion_m0=perfusion_m0,
                                     verbose=True )
                                 if tabPro['perf'] is not None and visualize:
                                     maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
@@ -7032,7 +6831,7 @@ def mm_csv(
                                     mydti = tabPro['DTI']
                                     if visualize:
                                         maxslice = np.min( [21, mydti['recon_fa'] ] )
-                                        ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA (supposed to be better)', filename=mymm+mysep+"FAbetter.png"  )
+                                        ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA', filename=mymm+mysep+"FAbetter.png"  )
                                         ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
                                         ants.plot( mydti['recon_md'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='MD', filename=mymm+mysep+"MD.png"  )
                             if dowrite:
