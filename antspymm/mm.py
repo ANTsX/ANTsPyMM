@@ -5070,7 +5070,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.95, mask = csfAndWM,
+    ncompcor=nc, quantile=0.975, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
