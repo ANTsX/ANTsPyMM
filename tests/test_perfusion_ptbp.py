@@ -40,20 +40,9 @@ fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
 # olthresh=0.5
 perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
-  t1segmentation, dkt, type_of_transform=type_of_transform, verbose=True )
+  t1segmentation, dkt, trim_the_mask=3.0, verbose=True )
 ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
 ants.image_write( perf['cbf'], '/tmp/temp3ptb.nii.gz' )
 ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
 ants.plot( ants.iMath( perf['cbf'], "Normalize" ), axis=2, crop=True )
-
-if False:
-    print("do perf2")
-    perf2 = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
-    t1segmentation, dkt, nc=16, type_of_transform=type_of_transform,
-    spa=(0.,0.,0.,0.),
-    outlier_threshold=olthresh, 
-    add_FD_to_nuisance=False,
-    segment_timeseries=True,
-    verbose=True )
-    ants.plot( ants.iMath( perf2['perfusion'], "Normalize" ), axis=2, crop=True )
