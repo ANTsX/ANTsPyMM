@@ -37,7 +37,7 @@ tc='alternating'
 fmri = ants.image_read( idpfn )
 print("do perf")
 perf = antspymm.bold_perfusion( fmri, t1head, t1, 
-  t1segmentation, dkt, #trim_the_mask=3.0, outlier_threshold=0.5, 
+  t1segmentation, dkt, 
   verbose=True )
 ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
