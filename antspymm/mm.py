@@ -5066,7 +5066,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   regression_mask = bmask.clone()
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",5)
+  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",3)
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
