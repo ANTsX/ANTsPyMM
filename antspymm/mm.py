@@ -4869,7 +4869,7 @@ def calculate_CBF(Delta_M, M_0, mask,
     return cbf
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=3.0, upsample=True, verbose=False ):
+def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.80, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=3.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4968,6 +4968,9 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   
   A = np.zeros((1,1))
   fmri = ants.iMath( fmri, 'Normalize' )
+  fmri_template, hlinds = loop_timeseries_censoring( fmri, 0.10 )
+  fmri_template = ants.get_average_of_timeseries( fmri_template )
+  del hlinds
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
   bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
   if m0_indices is None:
@@ -4976,10 +4979,11 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
     mytrim=n_to_trim
   else:
     mytrim = 0
+  perf_total_sigma = 1.5
   corrmo = timeseries_reg(
     fmri, fmri_template,
     type_of_transform=type_of_transform,
-    total_sigma=0.0,
+    total_sigma=perf_total_sigma,
     fdOffset=2.0,
     trim = mytrim,
     output_directory=None,
@@ -4990,7 +4994,6 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   if verbose:
       print("End rsfmri motion correction")
 
-  fmri_u = ants.image_clone( fmri )
   if m0_indices is not None:
     not_m0 = list( range( fmri.shape[3] ) )
     not_m0 = [x for x in not_m0 if x not in m0_indices]
@@ -5000,10 +5003,11 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
     # then remove it from the time series
     m0 = remove_volumes_from_timeseries( corrmo['motion_corrected'], not_m0 )
     m0 = ants.get_average_of_timeseries( m0 )
-    corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], m0_indices )
+    corrmo['motion_corrected'] = remove_volumes_from_timeseries( 
+        corrmo['motion_corrected'], m0_indices )
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], m0_indices )
-    fmri_u = remove_volumes_from_timeseries( fmri_u, m0_indices )
-    fmri_u = ants.iMath( fmri_u, 'Normalize' )
+    fmri = remove_volumes_from_timeseries( fmri, m0_indices )
+    fmri = ants.iMath( fmri, 'Normalize' )
 
   ntp = corrmo['motion_corrected'].shape[3]
   if tc == 'alternating':
@@ -5016,22 +5020,20 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
-  nt = corrmo['motion_corrected'].shape[3]
   fmrimotcorr=corrmo['motion_corrected']
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
     fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
-    fmri_u = remove_volumes_from_timeseries( fmri_u, hlinds )
 
   # redo template and registration
   fmri_template = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
   bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
   corrmo = timeseries_reg(
-        fmri_u, fmri_template,
+        fmri, fmri_template,
         type_of_transform=type_of_transform,
-        total_sigma=0.0,
+        total_sigma=perf_total_sigma,
         fdOffset=2.0,
         trim = mytrim,
         output_directory=None,
@@ -5042,12 +5044,15 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   if verbose:
         print("End 2nd rsfmri motion correction")
 
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
+    corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
+
   regression_mask = bmask.clone()
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
-  nt = corrmo['motion_corrected'].shape[3]
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
@@ -5069,7 +5074,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.95, mask = csfAndWM,
+    ncompcor=nc, quantile=0.90, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
@@ -5403,12 +5408,9 @@ def mm(
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     if  perfusion_image is not None:
-        boldTemplate, hlinds = loop_timeseries_censoring( perfusion_image, 0.10 )
-        boldTemplate = ants.get_average_of_timeseries( boldTemplate )
         if perfusion_image.shape[3] > 1: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
                 perfusion_image,
-                boldTemplate,
                 t1_image,
                 hier['brain_n4_dnz'],
                 t1atropos,
