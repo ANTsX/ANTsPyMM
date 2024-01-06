@@ -5065,7 +5065,7 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if meangmval < 0:
       perfimg = perfimg * (-1.0)
-  negative_voxels = ( perfimg <= 0.0 ).sum() / bmask.sum()
+  negative_voxels = ( perfimg < 0.0 ).sum() / bmask.sum()
   perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
 
   # LaTeX code for Cerebral Blood Flow (CBF) calculation using ASL MRI
