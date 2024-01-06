@@ -4869,7 +4869,23 @@ def calculate_CBF(Delta_M, M_0, mask,
     return cbf
 
 
-def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.65, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=2.25, upsample=True, verbose=False ):
+def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
+                   FD_threshold=0.5,
+                   spa = (1.0, 1.0, 1.0, 0.0),
+                   nc = 6,
+                   type_of_transform='Rigid',
+                   tc='alternating',
+                   n_to_trim=10,
+                   m0_indices=None,
+                   outlier_threshold=0.5,
+                   deepmask=False,
+                   add_FD_to_nuisance=False,
+                   n3=False,
+                   segment_timeseries=False,
+                   cbf_scaling=8227.0,
+                   trim_the_mask=2.25,
+                   upsample=True,
+                   verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -4931,14 +4947,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
   import re
   import math
   from sklearn.linear_model import LinearRegression
-
-  if upsample:
-      spc = ants.get_spacing( fmri )
-      minspc = 2.0
-      if min(spc[0:3]) < minspc:
-          minspc = min(spc[0:3])
-      newspc = [minspc,minspc,minspc] + [ spc[3] ]
-      fmri = ants.resample_image( fmri, newspc, interp_type=0 )
 
   # remove outlier volumes
   if segment_timeseries:
@@ -5022,10 +5030,21 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
 
-  # redo template and registration
+  # redo template and registration at (potentially) upsampled scale
   fmri_template = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
+  if upsample:
+      spc = ants.get_spacing( fmri )
+      minspc = 2.0
+      if min(spc[0:3]) < minspc:
+          minspc = min(spc[0:3])
+      newspc = [minspc,minspc,minspc]
+      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 )
+
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
-  bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
+  bmask = ants.apply_transforms( fmri_template, 
+    ants.threshold_image(t1segmentation,1,6), 
+    rig['fwdtransforms'][0], 
+    interpolator='genericLabel' )
   corrmo = timeseries_reg(
         fmri, fmri_template,
         type_of_transform=type_of_transform,
