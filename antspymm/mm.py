@@ -4842,7 +4842,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 12, type_of_transform='Rigid', tc='alternating', n_to_trim=4, m0_indices=None, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=1242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 2, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.33, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=7227.0, trim_the_mask=6.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -5065,8 +5065,8 @@ def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, F
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if meangmval < 0:
       perfimg = perfimg * (-1.0)
-  negative_voxels = ( perfimg < 0.0 ).sum() / bmask.sum()
-  perfimg[ perfimg <= 0.0 ] = 0.0 # non-physiological
+  negative_voxels = ( perfimg < 0.0 ).sum() / np.prod( perfimg.shape ) * 100.0
+  perfimg[ perfimg < 0.0 ] = 0.0 # non-physiological
 
   # LaTeX code for Cerebral Blood Flow (CBF) calculation using ASL MRI
   """
@@ -5089,7 +5089,7 @@ Where:
     m0 = ants.iMath( m0reg['warpedmovout'], "Normalize" )
   cbf = ants.image_clone( perfimg )
   eps = 0.1
-  selection = m0 > eps and bmask >= 0.5 
+  selection = m0 > eps and bmask >= 0.5
   if verbose:
       print( "n voxels selected " + str( selection.sum() ) )
   cbf[ selection ] = cbf[ selection ]/m0[ selection ]

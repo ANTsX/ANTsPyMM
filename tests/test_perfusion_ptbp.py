@@ -39,7 +39,7 @@ print("do perf")
 olthresh=0.5
 perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
   t1segmentation, dkt, nc=12, type_of_transform=type_of_transform,
-  spa=(0.,0.,0.,0.), n_to_trim=4,
+  spa=(0.,0.,0.,0.), n_to_trim=10, cbf_scaling=7500,
   outlier_threshold=olthresh, add_FD_to_nuisance=False, verbose=True )
 ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
