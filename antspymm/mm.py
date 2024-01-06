@@ -4869,7 +4869,7 @@ def calculate_CBF(Delta_M, M_0, mask,
     return cbf
 
 
-def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.80, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=3.0, upsample=True, verbose=False ):
+def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.80, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=3.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
