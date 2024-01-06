@@ -22,6 +22,8 @@ t1fn='/tmp/data/PEDS014/20100831/Anatomy/PEDS014_20100831_mprage_t1.nii.gz'
 idpfn='/tmp/data/PEDS014/20100831/PCASL/PEDS014_20100831_pcasl_1.nii.gz'
 t1fn = "/Users/stnava/data/PTBP/PTBP/PEDS049/20110217/T1w/000/PTBP-PEDS049-20110217-T1w-000.nii.gz"
 idpfn = "/Users/stnava/data/PTBP/PTBP/PEDS049/20110217/perf/000/PTBP-PEDS049-20110217-perf-000.nii.gz"
+t1fn = "/Users/stnava/data/PTBP/PTBP/PEDS147/20131220/T1w/000/PTBP-PEDS147-20131220-T1w-000.nii.gz"
+idpfn = "/Users/stnava/data/PTBP/PTBP/PEDS147/20131220/perf/000/PTBP-PEDS147-20131220-perf-000.nii.gz"
 if not 'dkt' in globals():
   t1head = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
   t1bxt = antspynet.brain_extraction( t1head, 't1' ).threshold_image( 0.3, 1.0 )
@@ -36,11 +38,9 @@ fmri = ants.image_read( idpfn )
 fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
 fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
-olthresh=0.5
+# olthresh=0.5
 perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=12, type_of_transform=type_of_transform,
-  spa=(0.,0.,0.,0.), n_to_trim=10, cbf_scaling=7500,
-  outlier_threshold=olthresh, add_FD_to_nuisance=False, verbose=True )
+  t1segmentation, dkt, type_of_transform=type_of_transform, verbose=True )
 ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
 ants.image_write( perf['cbf'], '/tmp/temp3ptb.nii.gz' )

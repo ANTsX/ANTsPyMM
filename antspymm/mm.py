@@ -4842,7 +4842,34 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 2, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.33, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=7227.0, trim_the_mask=6.0, upsample=True, verbose=False ):
+def calculate_CBF(Delta_M, M_0, mask,
+                  Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5):
+    """
+    Calculate the Cerebral Blood Flow (CBF) where Delta_M and M_0 are antsImages 
+    and the other variables are scalars.  Guesses at default values are used here. 
+    We use the pCASL equation.  NOT YET TESTED.
+
+    Parameters:
+    Delta_M (antsImage): Change in magnetization (matrix)
+    M_0 (antsImage): Initial magnetization (matrix)
+    mask ( antsImage ): where to do the calculation
+    Lambda (float): Scalar
+    T_1 (float): Scalar representing relaxation time
+    Alpha (float): Scalar representing flip angle
+    w (float): Scalar
+    Tau (float): Scalar
+
+    Returns:
+    np.ndarray: CBF values (matrix)
+    """
+    cbf = M_0 * 0.0
+    sel = mask == 1
+    cbf[ sel ] <- Delta_M[ sel ] * 60. * 100. * (Lambda * T_1)/( M0[sel] * 2.0 * Alpha * 
+        (np.exp( -w * T_1) - np.exp(-(Tau + w) * T_1)))
+    return cbf
+
+
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 8, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.80, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8227.0, trim_the_mask=6.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -5092,7 +5119,9 @@ Where:
   selection = m0 > eps and bmask >= 0.5
   if verbose:
       print( "n voxels selected " + str( selection.sum() ) )
-  cbf[ selection ] = cbf[ selection ]/m0[ selection ]
+#  cbf[ selection ] = ( cbf[ selection ] * Lambda ) / 
+#    (m0[ selection ]  * 2.0 * T_1 * Alpha * 
+#      (exp(-w / T_1) - exp(-(w + Tau) / T_1)))
   cbf = cbf * cbf_scaling
   # change the brain mask based on high FA values
   if trim_the_mask > 0.0 :
