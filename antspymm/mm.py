@@ -4842,7 +4842,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
-def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 6, type_of_transform='Rigid', tc='alternating', n_to_trim=10, m0_indices=None, outlier_threshold=0.20, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=8242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
+def bold_perfusion( fmri, fmri_template, t1head, t1, t1segmentation, t1dktcit, FD_threshold=0.5, spa = (1.0, 1.0, 1.0, 0.0), nc = 12, type_of_transform='Rigid', tc='alternating', n_to_trim=4, m0_indices=None, outlier_threshold=0.50, deepmask=False, add_FD_to_nuisance=False, n3=False, segment_timeseries=False, cbf_scaling=1242.0, trim_the_mask=4.0, upsample=True, verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
 
@@ -5085,10 +5085,10 @@ Where:
     m0 = ants.get_average_of_timeseries( fmrimotcorr )
   else:
     # register m0 to current template
-    m0 = ants.registration( fmri_template, m0, 'Rigid' )['warpedmovout']
-    m0 = ants.iMath( m0, "Normalize ")
+    m0reg = ants.registration( fmri_template, m0, 'Rigid', verbose=False )
+    m0 = ants.iMath( m0reg['warpedmovout'], "Normalize" )
   cbf = ants.image_clone( perfimg )
-  eps = 0.02
+  eps = 0.1
   selection = m0 > eps and bmask >= 0.5 
   if verbose:
       print( "n voxels selected " + str( selection.sum() ) )
