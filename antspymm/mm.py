@@ -4885,6 +4885,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
                    cbf_scaling=8227.0,
                    trim_the_mask=2.25,
                    upsample=True,
+                   robust=False,
                    verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
@@ -4934,6 +4935,8 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   trim_the_mask : float >= 0 post-hoc method for trimming the mask
 
   upsample: boolean
+
+  robust: boolean
 
   verbose : boolean
 
@@ -5102,13 +5105,25 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   nuisance = ants.regress_components( nuisance, tclist )
   regression_mask = bmask.clone()
   gmmat = ants.timeseries_to_matrix( simg, regression_mask )
-  regression_model = LinearRegression()
   regvars = np.hstack( (nuisance, tclist ))
   coefind = regvars.shape[1]-1
   regvars = regvars[:,range(coefind)]
-  regression_model.fit( regvars, gmmat )
-  coefind = regression_model.coef_.shape[1]-1
-  perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
+  if robust: #
+    coeffs = np.zeros( gmmat.shape[1] )
+    # Loop over each outcome column in the outcomes matrix
+    predictor_of_interest_idx = regvars.shape[1]-1
+    for outcome_idx in range(gmmat.shape[1]):
+        outcome = gmmat[:, outcome_idx]  # Select one outcome column
+        model = sm.RLM(outcome, sm.add_constant(regvars), M=sm.robust.norms.HuberT())  # Huber's T norm for robust regression
+        results = model.fit()
+        coefficients = results.params  # Coefficients of all predictors
+        coeffs[outcome_idx] = coefficients[predictor_of_interest_idx]
+    perfimg = ants.make_image( regression_mask, coeffs )
+  else:
+    regression_model = LinearRegression()
+    regression_model.fit( regvars, gmmat )
+    coefind = regression_model.coef_.shape[1]-1
+    perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if meangmval < 0:
       perfimg = perfimg * (-1.0)
