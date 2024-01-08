@@ -5109,6 +5109,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   coefind = regvars.shape[1]-1
   regvars = regvars[:,range(coefind)]
   if robust: #
+    import statsmodels.api as sm
     coeffs = np.zeros( gmmat.shape[1] )
     # Loop over each outcome column in the outcomes matrix
     predictor_of_interest_idx = regvars.shape[1]-1
