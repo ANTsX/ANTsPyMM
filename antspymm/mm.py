@@ -4949,8 +4949,9 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   import pandas as pd
   import re
   import math
-  from sklearn.linear_model import RANSACRegressor, TheilSenRegressor, HuberRegressor, QuantileRegressor, LinearRegression
+  from sklearn.linear_model import RANSACRegressor, TheilSenRegressor, HuberRegressor, QuantileRegressor, LinearRegression, SGDRegressor
   from sklearn.multioutput import MultiOutputRegressor
+  from sklearn.preprocessing import StandardScaler
 
   # remove outlier volumes
   if segment_timeseries:
@@ -4963,8 +4964,23 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   if n3:
     fmri = timeseries_n3( fmri )
 
-  def select_regression_model(regression_model):
+  def select_regression_model(regression_model, min_samples=10 ):
+    if regression_model == 'sgd' :
+      sgd_regressor = SGDRegressor(penalty='elasticnet', alpha=1e-5, l1_ratio=0.15, max_iter=20000, tol=1e-3, random_state=42)
+      return sgd_regressor
+    elif regression_model == 'ransac':
+      ransac = RANSACRegressor(
+            min_samples=0.8,
+            max_trials=10,         # Maximum number of iterations
+#            min_samples=min_samples, # Minimum number samples to be chosen as inliers in each iteration
+#            stop_probability=0.80,  # Probability to stop the algorithm if a good subset is found
+#            stop_n_inliers=40,      # Stop if this number of inliers is found
+#            stop_score=0.8,         # Stop if the model score reaches this value
+#            n_jobs=int(os.getenv("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")) # Use all available CPU cores for parallel processing
+        )
+      return ransac
     models = {
+        'sgd':SGDRegressor,
         'ransac': RANSACRegressor,
         'theilsen': TheilSenRegressor,
         'huber': HuberRegressor,
@@ -5119,7 +5135,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   coefind = regvars.shape[1]-1
   regvars = regvars[:,range(coefind)]
   predictor_of_interest_idx = regvars.shape[1]-1
-  valid_perf_models = ['huber','quantile','theilsen','ransac', 'linear','SM']
+  valid_perf_models = ['huber','quantile','theilsen','ransac', 'sgd', 'linear','SM']
   if verbose:
     print( "begin perfusion estimation with " + perfusion_regression_model + " model " )
   if perfusion_regression_model == 'linear':
@@ -5139,6 +5155,8 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
         coeffs[outcome_idx] = coefficients[predictor_of_interest_idx]
     perfimg = ants.make_image( regression_mask, coeffs )
   elif perfusion_regression_model in valid_perf_models :
+    scaler = StandardScaler()
+    gmmat = scaler.fit_transform(gmmat)
     coeffs = np.zeros( gmmat.shape[1] )
     huber_regressor = select_regression_model( perfusion_regression_model )
     multioutput_model = MultiOutputRegressor(huber_regressor)
