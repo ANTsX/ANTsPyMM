@@ -5168,10 +5168,7 @@ Where:
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()        
   meangmvalcbf = ( cbf[ gmseg == 1 ] ).mean()
   if verbose:
-    print("Coefficients:", regression_model.coef_)
-    print("Coef mean", regression_model.coef_.mean(axis=0)) 
-    print( regression_model.coef_.shape )
-    print( perfimg.max() )
+    print("perfimg.max() " + str(  perfimg.max() ) )
   outdict = {}
   outdict['meanBold'] = und
   outdict['brainmask'] = bmask
