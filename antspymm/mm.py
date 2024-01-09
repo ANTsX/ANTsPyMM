@@ -5140,13 +5140,14 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     coeffs = np.zeros( gmmat.shape[1] )
     huber_regressor = select_regression_model( perfusion_regression_model )
     multioutput_model = MultiOutputRegressor(huber_regressor)
-    multioutput_model.fit(gmmat, regvars)
+    multioutput_model.fit( regvars, gmmat )
     ct=0
     for i, estimator in enumerate(multioutput_model.estimators_):
       coefficients = estimator.coef_
       coeffs[ct]=coefficients[predictor_of_interest_idx]
       ct=ct+1
     perfimg = ants.make_image( regression_mask, coeffs )
+    return multioutput_model, regression_mask, perfimg, coeffs
   else:
     raise ValueError( perfusion_regression_model + " regression model is not found.")
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
