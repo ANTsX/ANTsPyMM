@@ -4936,7 +4936,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
 
   upsample: boolean
 
-  perfusion_regression_model: string 'linear', 'ransac', 'theilsen', 'huber', 'quantile'
+  perfusion_regression_model: string 'linear', 'ransac', 'theilsen', 'huber', 'quantile', 'sgd'; 'linear' and 'huber' are the only ones that work ok by default and are relatively quick to compute.
 
   verbose : boolean
 
