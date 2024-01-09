@@ -5120,6 +5120,8 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   regvars = regvars[:,range(coefind)]
   predictor_of_interest_idx = regvars.shape[1]-1
   valid_perf_models = ['huber','quantile','theilsen','ransac', 'linear','SM']
+  if verbose:
+    print( "begin perfusion estimation with " + perfusion_regression_model + " model " )
   if perfusion_regression_model == 'linear':
     regression_model = LinearRegression()
     regression_model.fit( regvars, gmmat )
@@ -5147,7 +5149,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
       coeffs[ct]=coefficients[predictor_of_interest_idx]
       ct=ct+1
     perfimg = ants.make_image( regression_mask, coeffs )
-    return multioutput_model, regression_mask, perfimg, coeffs
   else:
     raise ValueError( perfusion_regression_model + " regression model is not found.")
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
