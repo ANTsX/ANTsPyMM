@@ -4949,7 +4949,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   import pandas as pd
   import re
   import math
-  from sklearn.linear_model import RANSACRegressor, TheilSenRegressor, HuberRegressor, QuantileRegressor
+  from sklearn.linear_model import RANSACRegressor, TheilSenRegressor, HuberRegressor, QuantileRegressor, LinearRegression
   from sklearn.multioutput import MultiOutputRegressor
 
   # remove outlier volumes

@@ -37,9 +37,12 @@ tc='alternating'
 fmri = ants.image_read( idpfn )
 print("do perf")
 perf = antspymm.bold_perfusion( fmri, t1head, t1, 
-  t1segmentation, dkt, verbose=True )
-ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
-ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
-ants.image_write( perf['cbf'], '/tmp/temp3ptb.nii.gz' )
-ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
-ants.plot( ants.iMath( perf['cbf'], "Normalize" ), axis=2, crop=True )
+  t1segmentation, dkt, perfusion_regression_model='linear', verbose=True )
+ants.plot( perf['cbf'], axis=2, crop=True )
+perfh = antspymm.bold_perfusion( fmri, t1head, t1, 
+  t1segmentation, dkt, perfusion_regression_model='huber', verbose=True )
+ants.plot( perfh['cbf'], axis=2, crop=True )
+# derka
+# ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
+# ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
+# ants.image_write( perf['cbf'], '/tmp/temp3ptb.nii.gz' )
