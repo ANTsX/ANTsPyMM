@@ -4885,7 +4885,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
                    cbf_scaling=8227.0,
                    trim_the_mask=2.25,
                    upsample=True,
-                   robust=False,
+                   perfusion_regression_model='linear',
                    verbose=False ):
   """
   Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
@@ -4936,7 +4936,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
 
   upsample: boolean
 
-  robust: boolean
+  perfusion_regression_model: string 'linear', 'ransac', 'theilsen', 'huber', 'quantile'
 
   verbose : boolean
 
@@ -4949,7 +4949,8 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   import pandas as pd
   import re
   import math
-  from sklearn.linear_model import LinearRegression
+  from sklearn.linear_model import RANSACRegressor, TheilSenRegressor, HuberRegressor, QuantileRegressor
+  from sklearn.multioutput import MultiOutputRegressor
 
   # remove outlier volumes
   if segment_timeseries:
@@ -4961,6 +4962,15 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
 
   if n3:
     fmri = timeseries_n3( fmri )
+
+  def select_regression_model(regression_model):
+    models = {
+        'ransac': RANSACRegressor,
+        'theilsen': TheilSenRegressor,
+        'huber': HuberRegressor,
+        'quantile': QuantileRegressor
+    }
+    return models.get(regression_model.lower(), LinearRegression)()
 
   def replicate_list(user_list, target_size):
     # Calculate the number of times the list should be replicated
@@ -5108,11 +5118,17 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   regvars = np.hstack( (nuisance, tclist ))
   coefind = regvars.shape[1]-1
   regvars = regvars[:,range(coefind)]
-  if robust: #
+  predictor_of_interest_idx = regvars.shape[1]-1
+  valid_perf_models = ['huber','quantile','theilsen','ransac', 'linear','SM']
+  if perfusion_regression_model == 'linear':
+    regression_model = LinearRegression()
+    regression_model.fit( regvars, gmmat )
+    coefind = regression_model.coef_.shape[1]-1
+    perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
+  elif perfusion_regression_model == 'SM': #
     import statsmodels.api as sm
     coeffs = np.zeros( gmmat.shape[1] )
     # Loop over each outcome column in the outcomes matrix
-    predictor_of_interest_idx = regvars.shape[1]-1
     for outcome_idx in range(gmmat.shape[1]):
         outcome = gmmat[:, outcome_idx]  # Select one outcome column
         model = sm.RLM(outcome, sm.add_constant(regvars), M=sm.robust.norms.HuberT())  # Huber's T norm for robust regression
@@ -5120,11 +5136,19 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
         coefficients = results.params  # Coefficients of all predictors
         coeffs[outcome_idx] = coefficients[predictor_of_interest_idx]
     perfimg = ants.make_image( regression_mask, coeffs )
+  elif perfusion_regression_model in valid_perf_models :
+    coeffs = np.zeros( gmmat.shape[1] )
+    huber_regressor = select_regression_model( perfusion_regression_model )
+    multioutput_model = MultiOutputRegressor(huber_regressor)
+    multioutput_model.fit(gmmat, regvars)
+    ct=0
+    for i, estimator in enumerate(multioutput_model.estimators_):
+      coefficients = estimator.coef_
+      coeffs[ct]=coefficients[predictor_of_interest_idx]
+      ct=ct+1
+    perfimg = ants.make_image( regression_mask, coeffs )
   else:
-    regression_model = LinearRegression()
-    regression_model.fit( regvars, gmmat )
-    coefind = regression_model.coef_.shape[1]-1
-    perfimg = ants.make_image( regression_mask, regression_model.coef_[:,coefind] )
+    raise ValueError( perfusion_regression_model + " regression model is not found.")
   meangmval = ( perfimg[ gmseg == 1 ] ).mean()
   if meangmval < 0:
       perfimg = perfimg * (-1.0)
