@@ -428,7 +428,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 ```
 rm -r -f build/ antspymm.egg-info/ dist/
 python3 setup.py sdist bdist_wheel
-python3 -m twine upload --verbose   dist/* 
-
+twine upload --repository antspymm dist/*
 ```
 
