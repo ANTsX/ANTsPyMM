@@ -37,13 +37,9 @@ tc='alternating'
 fmri = ants.image_read( idpfn )
 print("do perf")
 perfh = antspymm.bold_perfusion( fmri, t1head, t1, 
-  t1segmentation, dkt, perfusion_regression_model='huber', verbose=True )
-derka
-ants.plot( perfh['cbf'], axis=2, crop=True )
-perf = antspymm.bold_perfusion( fmri, t1head, t1, 
   t1segmentation, dkt, perfusion_regression_model='linear', verbose=True )
-ants.plot( perf['cbf'], axis=2, crop=True )
-# derka
-# ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
-# ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
-# ants.image_write( perf['cbf'], '/tmp/temp3ptb.nii.gz' )
+ants.plot( perfh['cbf'], axis=2, crop=True )
+# do your own CBF calculation
+mycbf = antspymm.calculate_CBF(
+  Delta_M=perfh['perfusion'], M_0=perfh['m0'], mask=perfh['brainmask'],
+  Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5)

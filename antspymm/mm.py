@@ -4842,6 +4842,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   return outdict
 
 
+
 def calculate_CBF(Delta_M, M_0, mask,
                   Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5):
     """
@@ -4863,15 +4864,17 @@ def calculate_CBF(Delta_M, M_0, mask,
     np.ndarray: CBF values (matrix)
     """
     cbf = M_0 * 0.0
-    sel = mask == 1
-    cbf[ sel ] <- Delta_M[ sel ] * 60. * 100. * (Lambda * T_1)/( M0[sel] * 2.0 * Alpha * 
+    m0thresh = np.quantile( M_0[mask==1], 0.1 )
+    sel = mask == 1 and M_0 > m0thresh
+    cbf[ sel ] = Delta_M[ sel ] * 60. * 100. * (Lambda * T_1)/( M_0[sel] * 2.0 * Alpha * 
         (np.exp( -w * T_1) - np.exp(-(Tau + w) * T_1)))
+    cbf[ cbf < 0.0]=0.0
     return cbf
 
 
 def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
                    FD_threshold=0.5,
-                   spa = (2., 2., 2., 0.),
+                   spa = (0., 0., 0., 0.),
                    nc = 3,
                    type_of_transform='Rigid',
                    tc='alternating',
@@ -4882,13 +4885,12 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
                    add_FD_to_nuisance=False,
                    n3=False,
                    segment_timeseries=False,
-                   cbf_scaling=8227.0,
-                   trim_the_mask=2.25,
+                   trim_the_mask=4.25,
                    upsample=True,
                    perfusion_regression_model='linear',
                    verbose=False ):
   """
-  Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.
+  Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.  The function uses defaults to quantify CBF but these will usually not be correct for your own data.  See the function calculate_CBF for an example of how one might do quantification based on the outputs of this function specifically the perfusion, m0 and mask images that are part of the output dictionary.
 
   Arguments
   ---------
@@ -4929,8 +4931,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   n3: boolean
 
   segment_timeseries : boolean
-
-  cbf_scaling : float scales the CBF image value; current value learned from PTBP; users can set this according to the parameters of their own data.
 
   trim_the_mask : float >= 0 post-hoc method for trimming the mask
 
@@ -5004,7 +5004,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     return encoded_matrix
   
   A = np.zeros((1,1))
-  fmri = ants.iMath( fmri, 'Normalize' )
+  # fmri = ants.iMath( fmri, 'Normalize' )
   fmri_template, hlinds = loop_timeseries_censoring( fmri, 0.10 )
   fmri_template = ants.get_average_of_timeseries( fmri_template )
   del hlinds
@@ -5044,7 +5044,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
         corrmo['motion_corrected'], m0_indices )
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], m0_indices )
     fmri = remove_volumes_from_timeseries( fmri, m0_indices )
-    fmri = ants.iMath( fmri, 'Normalize' )
+    # fmri = ants.iMath( fmri, 'Normalize' )
 
   ntp = corrmo['motion_corrected'].shape[3]
   if tc == 'alternating':
@@ -5193,17 +5193,15 @@ Where:
   else:
     # register m0 to current template
     m0reg = ants.registration( fmri_template, m0, 'Rigid', verbose=False )
-    m0 = ants.iMath( m0reg['warpedmovout'], "Normalize" )
+    m0 = m0reg['warpedmovout']
+    # m0 = ants.iMath( m0reg['warpedmovout'], "Normalize" )
   cbf = ants.image_clone( perfimg )
   eps = 0.1
   selection = m0 > eps and bmask >= 0.5
   if verbose:
       print( "n voxels selected " + str( selection.sum() ) )
-#  cbf[ selection ] = ( cbf[ selection ] * Lambda ) / 
-#    (m0[ selection ]  * 2.0 * T_1 * Alpha * 
-#      (exp(-w / T_1) - exp(-(w + Tau) / T_1)))
-  cbf = cbf * cbf_scaling
-  # change the brain mask based on high FA values
+  cbf = calculate_CBF(
+      Delta_M=perfimg, M_0=m0, mask=bmask )
   if trim_the_mask > 0.0 :
     bmask = trim_dti_mask( cbf, bmask, trim_the_mask )
     perfimg = perfimg * bmask
