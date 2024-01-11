@@ -51,9 +51,13 @@ ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
 
-The `ANTsPyMM` system takes advantage of template-based priors. 
+The `ANTsPyMM` system takes advantage of template-based priors and core T1 processing described in [doi: https://doi.org/10.1101/2023.01.17.23284693](doi: https://doi.org/10.1101/2023.01.17.23284693).
 
 * We quantify cortex with the Desikan-Killiany-Tourville parcellation ([DKT](https://doi.org/10.3389/fnins.2012.00171)).
+
+    * `*dktregions` refers to the segmentation label directly from the deep learning method.
+
+    * `*dktcortex` refers to the segmentation label restricted to the cortical segmentation that is provided by the tissue segmentation method.
 
 * Subcortical segmentation with deep learning and also SyN registration leverages the CIT168 atlas [10.1101/211201](https://doi.org/10.1101/211201).
 
@@ -68,6 +72,8 @@ The `ANTsPyMM` system takes advantage of template-based priors.
     * This approach is based on anatomical landmarks proposed in [Liu, A. et al. (2015)](https://doi.org/10.1007/s00401-015-1392-5).  The `deepNBM` method uses super-resolution segmentation to take advantage of manual labels performed on super-resolution training data.
 
     * The classic [Zaborszky, L. et al. (2008) "Stereotaxic probabilistic maps of the magnocellular cell groups in human basal forebrain." Neuroimage 42: 1127--1141](https://www.sciencedirect.com/science/article/abs/pii/S1053811908006903) also informed the manual labeling.
+
+    * Presented at Human Brain Mapping conference 2022.
 
 * The Mori JHU white matter atlas provides a parcellation of white matter regions ([paper here](https://www.sciencedirect.com/science/article/abs/pii/S105381190700688X?via%3Dihub)) which are applied to diffusion weighted images.
 
