@@ -684,24 +684,24 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
     jdf = pd.DataFrame()
     for k in range(len(fns)):
         temp=pd.read_csv(fns[k])
-        if not 'fn' in temp.keys():
-            temp['fn']=fns[k]
+        if not 'filename' in temp.keys():
+            temp['filename']=fns[k]
         jdf=pd.concat( [jdf,temp])
     if set_index_to_fn:
         jdf.reset_index(drop=True)
         if "Unnamed: 0" in jdf.columns:
             holder=jdf.pop( "Unnamed: 0" )
-        jdf.set_index('fn')
+        jdf.set_index('filename')
     return jdf
 
 
-def outlierness_by_modality( qcdf, uid='fn', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
+def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
     """
     Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.  This function will impute missing columns with the mean.
 
     Args:
     - qcdf: (Pandas DataFrame) Dataframe containing columns with outlier information for each modality.
-    - uid: (str) Unique identifier for a subject. Default is 'fn'.
+    - uid: (str) Unique identifier for a subject. Default is 'filename'.
     - outlier_columns: (list) List of columns containing outlier information. Default is ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol'].
     - verbose: (bool) If True, prints information for each modality. Default is False.
 
@@ -799,7 +799,7 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     sid=str(csvrow['subjectID'].iloc[0] )
     dt=str(csvrow['date'].iloc[0])
     iid=str(csvrow['imageID'].iloc[0])
-    nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['fn'].iloc[0]+iext) )
+    nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['filename'].iloc[0]+iext) )
     if not exists( nrgt1fn ):
         raise ValueError("T1 " + nrgt1fn + " does not exist in study_dataframe_from_qc_dataframe")
     flList=[]
@@ -920,7 +920,7 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     return mxdfin[useit]
 
 
-def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_loop',  verbose=False ):
+def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column='ol_loop',  verbose=False ):
     """
     Find the best multiple modality dataset at each time point
 
@@ -1022,7 +1022,7 @@ def match_modalities( qc_dataframe, unique_identifier='fn', outlier_column='ol_l
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = fldf['imageID'][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['fn'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['filename'][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = fldf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
@@ -1085,7 +1085,7 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         msel = msel1 | msel2 | msel3 | msel4
     if sum(msel) == 0:
         return {'raw': None, 'filt': None}
-    uids = list(mmdf['fn'][msel])
+    uids = list(mmdf['filename'][msel])
     metasub = mmdf[msel]
 
     if verbose:
@@ -1105,7 +1105,7 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
         metasub['date']='NA'
-    metasubq = highest_quality_repeat(metasub, 'fn', 'date', 'negol')
+    metasubq = highest_quality_repeat(metasub, 'filename', 'date', 'negol')
 
     if verbose:
         print(f"{wmod} {metasubq.shape[0]} post")
@@ -8451,7 +8451,7 @@ def blind_image_assessment(
         if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=['fn', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
+        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=['filename', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
         outdf = pd.concat( [outdf, df ], axis=0 )
         if verbose:
             print( outdf )
@@ -8477,11 +8477,11 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     # Get modalities to select
     m0sel = qc_full['modality'].isin(modalities)
     # Get unique ids
-    uid = qc_full['fn'] + "_" + qc_full['modality'].astype(str)
+    uid = qc_full['filename'] + "_" + qc_full['modality'].astype(str)
     to_average = uid.unique()
     # Define column indices
     contcols = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol', 'spc0', 'spc1', 'spc2', 'org0','org1','org2', 'dimx', 'dimy', 'dimz', 'slice']
-    ocols = ['fn','modality', 'mriseries', 'mrimfg', 'mrimodel']
+    ocols = ['filename','modality', 'mriseries', 'mrimfg', 'mrimodel']
     # restrict to columns we "know"
     qc_full = qc_full[ocols+contcols]
     # Create empty meta dataframe
@@ -9255,7 +9255,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     # prefilter df for data that exists
     keep = np.tile( False, df.shape[0] )
     for x in range(df.shape[0]):
-        temp = df['fn'].iloc[x].split("_")
+        temp = df['filename'].iloc[x].split("_")
         # Generalized search paths
         path_template = f"{base_path}{temp[0]}/{date_column}/*/*/*"
         hierfn = sorted(glob( path_template + "-" + hiervariable + "-*wide.csv" ) )
@@ -9274,7 +9274,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
         if verbose:
             print(f"{x}...")
         locind = df.index[x]
-        temp = df['fn'].iloc[x].split("_")
+        temp = df['filename'].iloc[x].split("_")
         if verbose:
             print( temp )
         df[subject_col].iloc[x]=temp[0]
@@ -9310,7 +9310,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
                 
             hdf = pd.concat( dflist, axis=1)
             if verbose:
-                print( df.loc[locind,'fn'] )
+                print( df.loc[locind,'filename'] )
             if myct == 1:
                 subdf = df.iloc[[x]]
                 hdf.index = subdf.index.copy()
