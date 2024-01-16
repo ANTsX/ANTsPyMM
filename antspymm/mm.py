@@ -9402,6 +9402,7 @@ def aggregate_antspymm_results_sdf(
     from glob import glob
 
     def filter_df( indf, myprefix ):
+        print( indf.columns )
         nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
         indf = indf.loc[:, nums]
         indf=indf.loc[:, indf.dtypes != 'object' ]
