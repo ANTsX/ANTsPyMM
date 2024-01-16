@@ -686,7 +686,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
         temp=pd.read_csv(fns[k])
         if not 'filename' in temp.keys():
             temp['filename']=fns[k]
-        jdf=pd.concat( [jdf,temp], ignore_index=True )
+        jdf=pd.concat( [jdf,temp], axis=0, ignore_index=False )
     if set_index_to_fn:
         jdf.reset_index(drop=True)
         if "Unnamed: 0" in jdf.columns:
@@ -7688,7 +7688,7 @@ progress=False, verbose=False ):
         else:
             csvrow=csvrow.loc[:,~csvrow.columns.duplicated()]
             alldf = alldf.loc[:,~alldf.columns.duplicated()]
-            alldf = pd.concat( [alldf, csvrow], axis=0, ignore_index=True)
+            alldf = pd.concat( [alldf, csvrow], axis=0, ignore_index=False )
     return alldf
 
 def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality, separator='-', progress=None, verbose=False ):
@@ -7708,7 +7708,7 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
             for y in fnsnm:
                 temp=read_mm_csv( y, colprefix=moddersub+'_', is_t1=False, separator=separator, verbose=verbose )
                 if temp is not None:
-                    nmdf=pd.concat( [nmdf, temp], axis=0, ignore_index=True)
+                    nmdf=pd.concat( [nmdf, temp], axis=0, ignore_index=False )
     return nmdf
 
 def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator='-', verbose = 0 ) :
@@ -7733,7 +7733,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator='-', verbose = 0 ) :
     for y in mm_wide_csvs:
         temp=read_mm_csv( y, colprefix='T1Hier_', separator=separator, is_t1=True )
         if temp is not None:
-            hierdf=pd.concat( [hierdf, temp], axis=0, ignore_index=True)
+            hierdf=pd.concat( [hierdf, temp], axis=0, ignore_index=False )
     if verbose > 0:
         mypro=50
     else:
@@ -7846,8 +7846,8 @@ def threaded_bind_wide_mm_csvs( mm_wide_csvs, n_workers ):
         results = []
         for future in futures.as_completed(to_do):
             res0, res1 = future.result()
-            alldf=pd.concat(  [alldf, res0 ], axis=0, ignore_index=True )
-            alldfavg=pd.concat(  [alldfavg, res1 ], axis=0, ignore_index=True )
+            alldf=pd.concat(  [alldf, res0 ], axis=0, ignore_index=False )
+            alldfavg=pd.concat(  [alldfavg, res1 ], axis=0, ignore_index=False )
     return alldf, alldfavg
 
 
@@ -7936,7 +7936,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len(v1)
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=False )
 
     if verbose:
         print("do DTI")
@@ -7990,7 +7990,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len( dt0[1:] )
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=False )
 
 
     # first task - sort by u_hier_id
@@ -8049,7 +8049,8 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                     jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
                 else:
                     jmmUniq.loc[u][fl_names[1:]] = nanList * temp.shape[1]
-                joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
+                joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], 
+                                            axis=0, ignore_index=False )
 
     return jmmUniq, jmm, joinDiagnostics
 
@@ -8453,7 +8454,7 @@ def blind_image_assessment(
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
         df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=['filename', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
-        outdf = pd.concat( [outdf, df ], axis=0, ignore_index=True )
+        outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
     if viz_filename is not None:
@@ -9339,13 +9340,13 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
                     t1df = filter_df( t1df, mymod+'_')
                     dflist = dflist + [t1df]
                 
-            hdf = pd.concat( dflist, axis=1, ignore_index=True)
+            hdf = pd.concat( dflist, axis=1, ignore_index=True )
             if verbose:
                 print( df.loc[locind,'filename'] )
             if myct == 1:
                 subdf = df.iloc[[x]]
                 hdf.index = subdf.index.copy()
-                df = pd.concat( [df,hdf], axis=1, ignore_index=True)
+                df = pd.concat( [df,hdf], axis=1, ignore_index=True )
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
                 df.loc[locind, commcols] = hdf.loc[0, commcols]
@@ -9569,7 +9570,7 @@ def aggregate_antspymm_results_sdf(
             subdf = df.iloc[[x]]
             hdf.index = subdf.index.copy()
             subdf = pd.concat( [subdf,hdf], axis=1, ignore_index=True)
-            dfout = pd.concat( [dfout,subdf], axis=0, ignore_index=True)
+            dfout = pd.concat( [dfout,subdf], axis=0, ignore_index=False )
     badnames = get_names_from_data_frame( ['Unnamed'], dfout )
     dfout=dfout.drop(badnames, axis=1)
     return( dfout )
