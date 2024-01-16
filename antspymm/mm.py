@@ -9574,7 +9574,9 @@ def aggregate_antspymm_results_sdf(
                     print( modsearch )
                 t1wfn = sorted( glob( modsearch ) )
                 if len( t1wfn ) > 1:
-                    raise ValueError("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch )
+                    t1wfn = [ t1wfn[ len(t1wfn)-1 ] ]
+                    warnings.warn("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch + " we take the last of these " + t1wfn[0] )
+#                    raise ValueError("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch )
                 if len( t1wfn ) == 1:
                     if verbose:
                         print(t1wfn)
