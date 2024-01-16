@@ -686,7 +686,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
         temp=pd.read_csv(fns[k])
         if not 'filename' in temp.keys():
             temp['filename']=fns[k]
-        jdf=pd.concat( [jdf,temp], ignore_index=True, ignore_index=True)
+        jdf=pd.concat( [jdf,temp], ignore_index=True )
     if set_index_to_fn:
         jdf.reset_index(drop=True)
         if "Unnamed: 0" in jdf.columns:
