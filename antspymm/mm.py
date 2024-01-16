@@ -4597,7 +4597,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.01,0.1], FD_threshold=0.5, spa = 1.0, spt = 0.5, nc = 6, type_of_transform='Rigid',
+    f=[0.01,0.1], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid',
     outlier_threshold=0.8,
     verbose=False ):
   """
