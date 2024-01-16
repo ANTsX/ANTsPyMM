@@ -686,7 +686,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
         temp=pd.read_csv(fns[k])
         if not 'filename' in temp.keys():
             temp['filename']=fns[k]
-        jdf=pd.concat( [jdf,temp])
+        jdf=pd.concat( [jdf,temp], ignore_index=True, ignore_index=True)
     if set_index_to_fn:
         jdf.reset_index(drop=True)
         if "Unnamed: 0" in jdf.columns:
@@ -4171,7 +4171,7 @@ def dwi_streamline_connectivity_old(
             pathdfw,
             Mdfw,
             Tdfw,
-            Ctdfw ], axis=1 )
+            Ctdfw ], axis=1, ignore_index=True )
 
     return {
           'connectivity': allconnexwide,
@@ -4236,7 +4236,7 @@ def hierarchical_modality_summary(
         if verbose:
             print( mappedw.keys() )
         if mydf.shape[0] > 0:
-            mydf = pd.concat( [ mydf, mappedw], axis=1 )
+            mydf = pd.concat( [ mydf, mappedw], axis=1, ignore_index=True )
         else:
             mydf = mappedw
         return mydf
@@ -4707,7 +4707,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
   goodtimes = np.where( corrmo['FD'] < 0.5 )
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-  simg = ants.smooth_image(corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
+  simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
 
   nuisance = mycompcor[ 'components' ]
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
@@ -5477,7 +5477,7 @@ Where:
               {'cbf' : df_cbf},
               col_names = ['Mean'] )
   df_cbf = df_cbf.add_prefix('cbf_')
-  df_perf = pd.concat( [df_perf,df_cbf], axis=1 )
+  df_perf = pd.concat( [df_perf,df_cbf], axis=1, ignore_index=True )
   if verbose:
       print("perfusion dataframe end")
 
@@ -6037,7 +6037,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         fat1derk,
         mdt1derk,
         cnxderk
-        ], axis=1 )
+        ], axis=1, ignore_index=True )
     mm_wide = mm_wide.copy()
     if mm['NM'] is not None:
         mm_wide['NM_avg_signaltonoise'] = mm['NM']['NM_avg_signaltonoise']
@@ -6075,7 +6075,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             myop = output_prefix + separator + mykey + '.nii.gz'
             image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
         rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
-        mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1 )
+        mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=True )
         # falff and alff
         search_key='alffPoint'
         alffkeys = [key for key, val in rsfpro.items() if search_key in key]
@@ -6130,7 +6130,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['FD_max'] = perfpro['FD_max']
         if 'perf_dataframe' in perfpro.keys():
             pderk = perfpro['perf_dataframe'].iloc[: , 1:]
-            mm_wide = pd.concat( [ mm_wide, pderk ], axis=1 )
+            mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=True )
         else:
             print("FIXME - perfusion dataframe")
         for mykey in ['perfusion','cbf']:
@@ -7585,7 +7585,7 @@ def read_mm_csv( x, is_t1=False, colprefix=None, separator='-', verbose=False ):
         return None
     if colprefix is not None:
         xdf.columns=colprefix + xdf.columns
-    return pd.concat( [df,xdf], axis=1 )
+    return pd.concat( [df,xdf], axis=1, ignore_index=True )
 
 def merge_wides_to_study_dataframe( sdf, processing_dir, separator='-', sid_is_int=True, id_is_int=True, date_is_int=True, report_missing=False,
 progress=False, verbose=False ):
@@ -7678,7 +7678,7 @@ progress=False, verbose=False ):
                         # mm.index=csvrow.index
                         uidname = mod_name + '_mmwide_filename'
                         mm[ uidname ] = rootid
-                        csvrow=pd.concat( [csvrow,mm], axis=1 )
+                        csvrow=pd.concat( [csvrow,mm], axis=1, ignore_index=True )
                 else:
                     if verbose and report_missing:
                         print( nrgwidefn + " absent")
@@ -7708,7 +7708,7 @@ def assemble_modality_specific_dataframes( mm_wide_csvs, hierdfin, nrg_modality,
             for y in fnsnm:
                 temp=read_mm_csv( y, colprefix=moddersub+'_', is_t1=False, separator=separator, verbose=verbose )
                 if temp is not None:
-                    nmdf=pd.concat( [nmdf, temp], axis=0)
+                    nmdf=pd.concat( [nmdf, temp], axis=0, ignore_index=True)
     return nmdf
 
 def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator='-', verbose = 0 ) :
@@ -7733,7 +7733,7 @@ def bind_wide_mm_csvs( mm_wide_csvs, merge=True, separator='-', verbose = 0 ) :
     for y in mm_wide_csvs:
         temp=read_mm_csv( y, colprefix='T1Hier_', separator=separator, is_t1=True )
         if temp is not None:
-            hierdf=pd.concat( [hierdf, temp], axis=0)
+            hierdf=pd.concat( [hierdf, temp], axis=0, ignore_index=True)
     if verbose > 0:
         mypro=50
     else:
@@ -7846,8 +7846,8 @@ def threaded_bind_wide_mm_csvs( mm_wide_csvs, n_workers ):
         results = []
         for future in futures.as_completed(to_do):
             res0, res1 = future.result()
-            alldf=pd.concat(  [alldf, res0 ], axis=0 )
-            alldfavg=pd.concat(  [alldfavg, res1 ], axis=0 )
+            alldf=pd.concat(  [alldf, res0 ], axis=0, ignore_index=True )
+            alldfavg=pd.concat(  [alldfavg, res1 ], axis=0, ignore_index=True )
     return alldf, alldfavg
 
 
@@ -7936,7 +7936,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len(v1)
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
 
     if verbose:
         print("do DTI")
@@ -7990,7 +7990,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                         jmm.loc[k, dt0[1:]] = nanList * len( dt0[1:] )
                     if verbose:
                         print( joinDiagnosticsLoc )
-                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                    joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
 
 
     # first task - sort by u_hier_id
@@ -8049,7 +8049,7 @@ def average_mm_df( jmm_in, diagnostic_n=25, corr_thresh=0.9, verbose=False ):
                     jmmUniq.loc[u][fl_names[1:]] = temp.mean(axis=0)
                 else:
                     jmmUniq.loc[u][fl_names[1:]] = nanList * temp.shape[1]
-                joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0)
+                joinDiagnostics = pd.concat( [joinDiagnostics, joinDiagnosticsLoc], axis=0, ignore_index=True)
 
     return jmmUniq, jmm, joinDiagnostics
 
@@ -8453,7 +8453,7 @@ def blind_image_assessment(
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
         df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=['filename', 'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
-        outdf = pd.concat( [outdf, df ], axis=0 )
+        outdf = pd.concat( [outdf, df ], axis=0, ignore_index=True )
         if verbose:
             print( outdf )
     if viz_filename is not None:
@@ -9339,13 +9339,13 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
                     t1df = filter_df( t1df, mymod+'_')
                     dflist = dflist + [t1df]
                 
-            hdf = pd.concat( dflist, axis=1)
+            hdf = pd.concat( dflist, axis=1, ignore_index=True)
             if verbose:
                 print( df.loc[locind,'filename'] )
             if myct == 1:
                 subdf = df.iloc[[x]]
                 hdf.index = subdf.index.copy()
-                df = pd.concat( [df,hdf], axis=1)
+                df = pd.concat( [df,hdf], axis=1, ignore_index=True)
             else:
                 commcols = list(set(hdf.columns).intersection(df.columns))
                 df.loc[locind, commcols] = hdf.loc[0, commcols]
@@ -9563,13 +9563,13 @@ def aggregate_antspymm_results_sdf(
                     if verbose:
                         print( " cannot find " + modsearch )
                 
-            hdf = pd.concat( dflist, axis=1)
+            hdf = pd.concat( dflist, axis=1, ignore_index=True)
             if verbose:
                 print( "count: " + str( myct ) )
             subdf = df.iloc[[x]]
             hdf.index = subdf.index.copy()
-            subdf = pd.concat( [subdf,hdf], axis=1)
-            dfout = pd.concat( [dfout,subdf], axis=0)
+            subdf = pd.concat( [subdf,hdf], axis=1, ignore_index=True)
+            dfout = pd.concat( [dfout,subdf], axis=0, ignore_index=True)
     badnames = get_names_from_data_frame( ['Unnamed'], dfout )
     dfout=dfout.drop(badnames, axis=1)
     return( dfout )
