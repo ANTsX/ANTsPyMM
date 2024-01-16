@@ -4658,10 +4658,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       print("End rsfmri motion correction")
 
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    fmrimotcorr, hlinds = loop_timeseries_censoring( corrmo['motion_corrected'], outlier_threshold, verbose=verbose )
+    fmrimotcorr, hlinds = loop_timeseries_censoring( corrmo['motion_corrected'], threshold=outlier_threshold, verbose=verbose )
     corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
-    fmrimotcorr = impute_timeseries( fmrimotcorr, hlinds, method='linear')
-    corrmo['motion_corrected'] = fmrimotcorr
+    corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
     
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
