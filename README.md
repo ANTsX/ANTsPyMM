@@ -315,8 +315,8 @@ for each subject/timepoint, one would run:
 studyfn="matched_mm_data2.csv"
 df=pd.read_csv( studyfn )
 index = 20 # 20th subject/timepoint
-csvfns = df['fn']
-csvrow = df[ df['fn'] == csvfns[index] ]
+csvfns = df['filename']
+csvrow = df[ df['filename'] == csvfns[index] ]
 csvrow['projectID']='MyStudy'
 
 ############################################################################################

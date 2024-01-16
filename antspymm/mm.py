@@ -4597,9 +4597,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid',
+    f=[0.01,0.1], FD_threshold=0.5, spa = 1.0, spt = 0.5, nc = 6, type_of_transform='Rigid',
+    outlier_threshold=0.8,
     verbose=False ):
-
   """
   Compute resting state network correlation maps based on the J Power labels.
   This will output a map for each of the major network systems.
@@ -4657,6 +4657,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if verbose:
       print("End rsfmri motion correction")
 
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    fmrimotcorr, hlinds = loop_timeseries_censoring( corrmo['motion_corrected'], outlier_threshold, verbose=verbose )
+    corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
+    fmrimotcorr = impute_timeseries( fmrimotcorr, hlinds, method='linear')
+    corrmo['motion_corrected'] = fmrimotcorr
+    
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
@@ -5766,11 +5772,7 @@ def mm(
                 rsf_image,
                 boldTemplate,
                 hier['brain_n4_dnz'],
-                t1atropos,
-                f=[0.03,0.08],
-                spa = 1.0,
-                spt = 0.5,
-                nc = 6, verbose=verbose )
+                t1atropos, verbose=verbose )
     if nm_image_list is not None:
         if verbose:
             print('nm')
@@ -8618,6 +8620,36 @@ def wmh( flair, t1, t1seg,
         'wmh_evr' : flair_evr,
         'wmh_SNR' : flairsnr,
         'convexhull_mask': distmask }
+
+
+def replace_elements_in_numpy_array(original_array, indices_to_replace, new_value):
+    """
+    Replace specified elements or rows in a numpy array with a new value.
+
+    Parameters:
+    original_array (numpy.ndarray): A numpy array in which elements or rows are to be replaced.
+    indices_to_replace (list or numpy.ndarray): Indices of elements or rows to be replaced.
+    new_value: The new value to replace the specified elements or rows.
+
+    Returns:
+    numpy.ndarray: A new numpy array with the specified elements or rows replaced. If the input array is None,
+                   the function returns None.
+    """
+
+    if original_array is None:
+        return None
+
+    if original_array.ndim == 1:
+        # Replace elements in a 1D array
+        original_array[indices_to_replace] = new_value
+    elif original_array.ndim == 2:
+        # Replace rows in a 2D array
+        original_array[indices_to_replace, :] = new_value
+    else:
+        raise ValueError("original_array must be either 1D or 2D.")
+
+    return original_array
+
 
 
 def remove_elements_from_numpy_array(original_array, indices_to_remove):
