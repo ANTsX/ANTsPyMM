@@ -9403,6 +9403,19 @@ def aggregate_antspymm_results_sdf(
     import numpy as np
     from glob import glob
 
+    def progress_reporter(current_step, total_steps, width=50):
+        # Calculate the proportion of progress
+        progress = current_step / total_steps
+        # Calculate the number of 'filled' characters in the progress bar
+        filled_length = int(width * progress)
+        # Create the progress bar string
+        bar = '█' * filled_length + '-' * (width - filled_length)
+        # Print the progress bar with percentage
+        print(f'\rProgress: |{bar}| {int(100 * progress)}%', end='\r')
+        # Print a new line when the progress is complete
+        if current_step == total_steps:
+            print()
+
     def filter_df( indf, myprefix ):
         indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
         if indf.shape[0] == 0:
@@ -9485,15 +9498,17 @@ def aggregate_antspymm_results_sdf(
     dfout = pd.DataFrame()
     myct = 0
     for x in range( df.shape[0]):
-        print("\n\n-------------------------------------------------")
         if verbose:
+            print("\n\n-------------------------------------------------")
             print(f"{x}...")
+        else:
+            progress_reporter(x, df.shape[0], width=500)
         locind = df.index[x]
         myfn = os.path.basename( df['filename'].iloc[x] )
         sid = str( df[subject_col].iloc[x] )
         tempB = myfn.split( splitsep )
         sid0 = str(tempB[1])
-        if sid0 != sid:
+        if sid0 != sid and verbose:
             warnings.warn("INNER: the id derived from the filename " + str(sid) + " does not match the id stored in the data frame " + str(sid0) )
             warnings.warn( "filename is : " +  str(myfn) )
             warnings.warn( "sid is : " + str(sid) )
@@ -9531,7 +9546,8 @@ def aggregate_antspymm_results_sdf(
             dflist = [hdf]
 
             for mymod in vmoddict.keys():
-                print("\n\n************************* " + mymod + " *************************")
+                if verbose:
+                    print("\n\n************************* " + mymod + " *************************")
                 modalityclass = vmoddict[ mymod ]
                 if wild_card_modality_id:
                     mymodid = '*'
@@ -9544,7 +9560,8 @@ def aggregate_antspymm_results_sdf(
                         temp = mymodid.split( idsep )
                         mymodid = temp[ len( temp )-1 ]
                     else:
-                        print("missing")
+                        if verbose:
+                            print("missing")
                         continue
                 if verbose:
                     print( "modality id is " + mymodid + " for modality " + modalityclass + ' modality specific subj ' + sid + ' modality specific id is ' + myid + " its date " +  mydate )
