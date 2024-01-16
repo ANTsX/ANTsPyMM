@@ -9486,7 +9486,7 @@ def aggregate_antspymm_results_sdf(
             print(f"{x}...")
         locind = df.index[x]
         myfn = os.path.basename( df['filename'].iloc[x] )
-        sid = srt( df[subject_col].iloc[x] )
+        sid = str( df[subject_col].iloc[x] )
         tempB = myfn.split( splitsep )
         sid0 = str(tempB[1])
         if sid0 != sid:
