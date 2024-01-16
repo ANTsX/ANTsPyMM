@@ -7610,7 +7610,7 @@ progress=False, verbose=False ):
     verbose : boolean
     """
     from os.path import exists
-    musthavecols = ['projectID', 'subjectID','date','imageID','filename']
+    musthavecols = ['projectID', 'subjectID','date','imageID']
     for k in range(len(musthavecols)):
         if not musthavecols[k] in sdf.keys():
             raise ValueError('sdf is missing column ' +musthavecols[k] + ' in merge_wides_to_study_dataframe' )
