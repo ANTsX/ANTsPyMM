@@ -9237,10 +9237,12 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     from glob import glob
 
     def filter_df( indf, myprefix ):
+        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
+        if indf.shape[0] == 0:
+          return( indf )
         nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
         indf = indf.loc[:, nums]
         indf=indf.loc[:, indf.dtypes != 'object' ]
-        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
         indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
         indf = indf.add_prefix( myprefix )
         return( indf )
@@ -9402,11 +9404,12 @@ def aggregate_antspymm_results_sdf(
     from glob import glob
 
     def filter_df( indf, myprefix ):
-        print( indf.columns )
+        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
+        if indf.shape[0] == 0:
+          return( indf )
         nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
         indf = indf.loc[:, nums]
         indf=indf.loc[:, indf.dtypes != 'object' ]
-        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
         indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
         indf = indf.add_prefix( myprefix )
         return( indf )
