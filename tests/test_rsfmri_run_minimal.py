@@ -31,8 +31,19 @@ if not "t1" in globals():
     t1segmentation = t1seg['segmentation_image']
 
 print("do rsf")
-imgrm=antspymm.remove_volumes_from_timeseries( img1, list(range(30,420)) )
 rsf = antspymm.resting_state_fmri_networks(
-  imgrm, und, t1 * t1bxt, t1segmentation, nc=12, 
-  outlier_threshold=0.2, verbose=True )
-ants.plot( und, rsf['DefaultMode'], crop=True, axis=2 )
+  img1, und, t1 * t1bxt, t1segmentation, 
+  impute=False,
+  scrub=False,
+  verbose=True )
+rsfscrub = antspymm.resting_state_fmri_networks(
+  img1, und, t1 * t1bxt, t1segmentation, 
+  impute=False,
+  scrub=True,
+  verbose=True )
+rsfimp = antspymm.resting_state_fmri_networks(
+  img1, und, t1 * t1bxt, t1segmentation, 
+  impute=False,
+  scrub=True,
+  verbose=True )
+

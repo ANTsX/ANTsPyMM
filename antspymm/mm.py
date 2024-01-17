@@ -4597,9 +4597,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=0.5, spa = None, spt = None, 
+    f=[0.008,0.1], FD_threshold=100.0, spa = None, spt = None, 
     nc = 6, type_of_transform='Rigid',
-    outlier_threshold=0.5,
+    outlier_threshold=0.20,
     ica_components = 0,
     impute = False,
     scrub = False,
@@ -4767,7 +4767,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if ica_components > 0:
     if verbose:
         print("include ica components as nuisance: " + str(ica_components))
-    ica = FastICA(n_components=ica_components, max_iter=10000, tol=0.001 )
+    ica = FastICA(n_components=ica_components, max_iter=10000, tol=0.001, random_state=42 )
     globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], csfAndWM )
     nuisance_ica = ica.fit_transform(globalmat)  # Reconstruct signals
     nuisance = np.c_[ nuisance, nuisance_ica ]
