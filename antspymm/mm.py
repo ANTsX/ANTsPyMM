@@ -4597,9 +4597,12 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.01,0.1], FD_threshold=0.5, spa = None, spt = None, nc = 6, type_of_transform='Rigid',
+    f=[0.008,0.1], FD_threshold=0.5, spa = None, spt = None, 
+    nc = 6, type_of_transform='Rigid',
     outlier_threshold=0.5,
-    ica_components = 6,
+    ica_components = 0,
+    impute = False,
+    scrub = False,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4629,6 +4632,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   ica_components : integer if greater than 0 then include ica components
 
+  impute : boolean if True, then use imputation
+
+  scrub : boolean if True, then use censoring (scrubbing)
+
   verbose : boolean
 
   Returns
@@ -4648,7 +4655,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if spa is None:
     spa = mean_of_list( fmrispc[0:3] ) * 1.0
   if spt is None:
-    spt = fmrispc[3]
+    spt = fmrispc[3] * 0.5
       
   import numpy as np
   import pandas as pd
@@ -4671,22 +4678,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     syn_metric='cc',
     syn_sampling=2,
     reg_iterations=[40,20,5] )
+  
   if verbose:
       print("End rsfmri motion correction")
+      print("big code block below does anatomically based mapping")
 
-  hlinds = find_indices( corrmo['FD'], FD_threshold )
-  if verbose:
-        print("high motion indices")
-        print( hlinds )
-  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], threshold=outlier_threshold, verbose=verbose )
-    hlinds.extend( hlinds2 )
-
-  if len( hlinds ) > 0 :
-    hlinds = list(set(hlinds)) # make unique
-    corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
-    corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
-    
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
@@ -4707,9 +4703,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
                ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-
   nt = corrmo['motion_corrected'].shape[3]
-
   myvoxes = range(powers_areal_mni_itk.shape[0])
   anat = powers_areal_mni_itk['Anatomy']
   syst = powers_areal_mni_itk['SystemName']
@@ -4722,17 +4716,47 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     whichtoinvert = ( True, False, True, False ) )
   locations = pts2bold.iloc[:,:3].values
   ptImg = ants.make_points_image( locations, bmask, radius = 2 )
-
   tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
-  highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
-  goodtimes = np.where( corrmo['FD'] < 0.5 )
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
   simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
 
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
+  if f[0] > 0 and f[1] < 1.0:
+    if verbose:
+        print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
+    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    corrmo['motion_corrected'] = ants.matrix_to_timeseries( corrmo['motion_corrected'], globalmat, bmask )
   del globalmat
 
+  hlinds = find_indices( corrmo['FD'], FD_threshold )
+  if verbose:
+    print("high motion indices")
+    print( hlinds )
+  if outlier_threshold < 1.0 and outlier_threshold > 0.0:
+    fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], 
+      threshold=outlier_threshold, verbose=verbose )
+    hlinds.extend( hlinds2 )
+
+  if len( hlinds ) > 0 :
+    hlinds = list(set(hlinds)) # make unique
+    if impute and not scrub:
+        corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
+        corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
+        simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
+    elif scrub:
+        corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
+        corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
+        simgimp = impute_timeseries( simg, hlinds, method='linear')
+        simg = remove_volumes_from_timeseries( simg, hlinds )
+    else:
+        simgimp = simg
+  else:
+    simgimp = simg
+    
+  globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
+  globalsignal = globalmat.mean( axis = 1 )
+  del globalmat
   if verbose:
     print("include compcor components as nuisance: " + str(nc))
   mycompcor = ants.compcor( corrmo['motion_corrected'],
@@ -4743,26 +4767,22 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if ica_components > 0:
     if verbose:
         print("include ica components as nuisance: " + str(ica_components))
-    ica = FastICA(n_components=ica_components)
+    ica = FastICA(n_components=ica_components, max_iter=10000, tol=0.001 )
     globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], csfAndWM )
     nuisance_ica = ica.fit_transform(globalmat)  # Reconstruct signals
     nuisance = np.c_[ nuisance, nuisance_ica ]
     del globalmat
+
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
   nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
   gmmat = ants.timeseries_to_matrix( simg, gmseg )
   gmmat = ants.regress_components( gmmat, nuisance )
-  if f[0] > 0 and f[1] < 1.0:
-    if verbose:
-        print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
-    gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    # nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
   # turn data following nuisance and gsr back to image format
   gsrbold = ants.matrix_to_timeseries(simg, gmmat, gmseg)
 
-  myfalff=alff_image( simg, bmask, flo=f[0], fhi=f[1], nuisance=nuisance )
+  myfalff=alff_image( simgimp, bmask, flo=f[0], fhi=f[1] )
 
   outdict = {}
   outdict['meanBold'] = und
@@ -4809,8 +4829,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     if dfnImg.max() >= 1:
         dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-        if f[0] > 0 and f[1] < 1:
-            dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
         dfnmat = ants.regress_components( dfnmat, nuisance )
         dfnsignal = dfnmat.mean( axis = 1 )
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
