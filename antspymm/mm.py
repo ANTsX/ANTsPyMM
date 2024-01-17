@@ -4597,8 +4597,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.01,0.1], FD_threshold=0.5, spa = None, spt = None, nc = 24, type_of_transform='Rigid',
+    f=[0.01,0.1], FD_threshold=0.5, spa = None, spt = None, nc = 6, type_of_transform='Rigid',
     outlier_threshold=0.5,
+    ica_components = 6,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4625,6 +4626,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   nc  : number of components for compcor filtering
 
   type_of_transform : SyN or Rigid
+
+  ica_components : integer if greater than 0 then include ica components
 
   verbose : boolean
 
@@ -4730,10 +4733,21 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
 
+  if verbose:
+    print("include compcor components as nuisance: " + str(nc))
   mycompcor = ants.compcor( corrmo['motion_corrected'],
     ncompcor=nc, quantile=0.90, mask = csfAndWM,
     filter_type='polynomial', degree=1 )
   nuisance = mycompcor[ 'components' ]
+
+  if ica_components > 0:
+    if verbose:
+        print("include ica components as nuisance: " + str(ica_components))
+    ica = FastICA(n_components=ica_components)
+    globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], csfAndWM )
+    nuisance_ica = ica.fit_transform(globalmat)  # Reconstruct signals
+    nuisance = np.c_[ nuisance, nuisance_ica ]
+    del globalmat
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
   nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
