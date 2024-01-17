@@ -111,7 +111,7 @@ import re
 import datetime as dt
 from collections import Counter
 import tempfile
-
+import warnings
 
 from dipy.core.histeq import histeq
 import dipy.reconst.dti as dti
@@ -4597,7 +4597,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.01,0.1], FD_threshold=0.5, spa = 1.5, spt = 0.5, nc = 6, type_of_transform='Rigid',
+    f=[0.01,0.1], FD_threshold=0.5, spa = 2.0, spt = 0.5, nc = 6, type_of_transform='Rigid',
     outlier_threshold=0.8,
     verbose=False ):
   """
@@ -4618,7 +4618,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   f : band pass limits for frequency filtering
 
-  spa : gaussian smoothing for spatial component
+  spa : gaussian smoothing for spatial component (physical coordinates)
 
   spt : gaussian smoothing for temporal component
 
@@ -4633,6 +4633,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   a dictionary containing the derived network maps
 
   """
+
+  def find_indices(lst, value):
+    return [index for index, element in enumerate(lst) if element > value]
+
   import numpy as np
   import pandas as pd
   import re
@@ -4657,8 +4661,16 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if verbose:
       print("End rsfmri motion correction")
 
+  hlinds = find_indices( corrmo['FD'], FD_threshold )
+  if verbose:
+        print("high motion indices")
+        print( hlinds )
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    fmrimotcorr, hlinds = loop_timeseries_censoring( corrmo['motion_corrected'], threshold=outlier_threshold, verbose=verbose )
+    fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], threshold=outlier_threshold, verbose=verbose )
+    hlinds.extend( hlinds2 )
+
+  if len( hlinds ) > 0 :
+    hlinds = list(set(hlinds)) # make unique
     corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
     corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
     
@@ -4683,11 +4695,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
 
-  # get falff and alff
-  mycompcor = ants.compcor( corrmo['motion_corrected'],
-    ncompcor=nc, quantile=0.90, mask = csfAndWM,
-    filter_type='polynomial', degree=2 )
-
   nt = corrmo['motion_corrected'].shape[3]
 
   myvoxes = range(powers_areal_mni_itk.shape[0])
@@ -4706,17 +4713,27 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
   highMotionTimes = np.where( corrmo['FD'] >= 1.0 )
   goodtimes = np.where( corrmo['FD'] < 0.5 )
-  smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = F
-  simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = False )
+  smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
+  simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
 
+  globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
+  globalsignal = globalmat.mean( axis = 1 )
+  del globalmat
+
+  mycompcor = ants.compcor( corrmo['motion_corrected'],
+    ncompcor=nc, quantile=0.95, mask = csfAndWM,
+    filter_type='polynomial', degree=2 )
   nuisance = mycompcor[ 'components' ]
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
   nuisance = np.c_[ nuisance, corrmo['FD'] ]
+  nuisance = np.c_[ nuisance, globalsignal ]
 
   gmmat = ants.timeseries_to_matrix( simg, gmseg )
-  gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-  gmsignal = gmmat.mean( axis = 1 )
-  nuisance = np.c_[ nuisance, gmsignal ]
+  if f[0] > 0 and f[1] < 1.0:
+    if verbose:
+        print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
+    gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
   gmmat = ants.regress_components( gmmat, nuisance )
   # turn data following nuisance and gsr back to image format
   gsrbold = ants.matrix_to_timeseries(simg, gmmat, gmseg)
@@ -4768,7 +4785,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     if dfnImg.max() >= 1:
         dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-        dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
+        if f[0] > 0 and f[1] < 1:
+            dfnmat = ants.bandpass_filter_matrix( dfnmat, tr = tr, lowf=f[0], highf=f[1]  )
         dfnmat = ants.regress_components( dfnmat, nuisance )
         dfnsignal = dfnmat.mean( axis = 1 )
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
@@ -4844,6 +4862,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
+  outdict['n_outliers'] = len(hlinds)
   return outdict
 
 
@@ -5501,6 +5520,7 @@ Where:
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['t1reg'] = t1reg
   outdict['outlier_volumes']=hlinds
+  outdict['n_outliers']=len(hlinds)
   outdict['negative_voxels']=negative_voxels
   return outdict
 
@@ -6087,6 +6107,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
         # mm_wide['rsf_high_motion_pct'] = rsfpro['rsf_high_motion_pct'] # BUG : rsf_high_motion_pct does not exist
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
+        mm_wide['rsf_n_outliers'] =  rsfpro['n_outliers']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
         mm_wide['rsf_FD_max'] = rsfpro['FD_max']
         mm_wide['rsf_alff_mean'] = rsfpro['alff_mean']
@@ -6126,6 +6147,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['ssnr_mean'] =  perfpro['ssnr'].mean()
         mm_wide['high_motion_count'] =  perfpro['high_motion_count']
         mm_wide['evr'] =  perfpro['bold_evr']
+        mm_wide['n_outliers'] =  perfpro['n_outliers']
         mm_wide['FD_mean'] = perfpro['FD_mean']
         mm_wide['FD_max'] = perfpro['FD_max']
         if 'perf_dataframe' in perfpro.keys():
@@ -8639,12 +8661,22 @@ def replace_elements_in_numpy_array(original_array, indices_to_replace, new_valu
     if original_array is None:
         return None
 
+    max_index = original_array.size if original_array.ndim == 1 else original_array.shape[0]
+
+    # Filter out invalid indices and check for any out-of-bounds indices
+    valid_indices = []
+    for idx in indices_to_replace:
+        if idx < max_index:
+            valid_indices.append(idx)
+        else:
+            warnings.warn(f"Warning: Index {idx} is out of bounds and will be ignored.")
+
     if original_array.ndim == 1:
         # Replace elements in a 1D array
-        original_array[indices_to_replace] = new_value
+        original_array[valid_indices] = new_value
     elif original_array.ndim == 2:
         # Replace rows in a 2D array
-        original_array[indices_to_replace, :] = new_value
+        original_array[valid_indices, :] = new_value
     else:
         raise ValueError("original_array must be either 1D or 2D.")
 
