@@ -43,7 +43,10 @@ rsfscrub = antspymm.resting_state_fmri_networks(
   verbose=True )
 rsfimp = antspymm.resting_state_fmri_networks(
   img1, und, t1 * t1bxt, t1segmentation, 
-  impute=False,
-  scrub=True,
+  impute=True,
+  scrub=False,
   verbose=True )
+ants.plot( und, rsf['DefaultMode'], crop=True, axis=2 )
+ants.plot( und, rsfscrub['DefaultMode'], crop=True, axis=2 )
+ants.plot( und, rsfimp['DefaultMode'], crop=True, axis=2 )
 

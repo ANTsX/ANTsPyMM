@@ -4661,12 +4661,14 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   import pandas as pd
   import re
   import math
+  # point data resources
   A = np.zeros((1,1))
   powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
   fmri = ants.iMath( fmri, 'Normalize' )
   bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).iMath("FillHoles")
   if verbose:
       print("Begin rsfmri motion correction")
+  # mot-co
   corrmo = timeseries_reg(
     fmri, fmri_template,
     type_of_transform=type_of_transform,
@@ -4683,10 +4685,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       print("End rsfmri motion correction")
       print("big code block below does anatomically based mapping")
 
+  # filter mask based on TSNR
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
   bmask = bmask * tsnrmask
+
+  # anatomical mapping
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
   if verbose:
@@ -4716,19 +4721,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     whichtoinvert = ( True, False, True, False ) )
   locations = pts2bold.iloc[:,:3].values
   ptImg = ants.make_points_image( locations, bmask, radius = 2 )
+
+  # optional smoothing
   tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
   simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
 
-  globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-  globalsignal = globalmat.mean( axis = 1 )
-  if f[0] > 0 and f[1] < 1.0:
-    if verbose:
-        print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
-    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    corrmo['motion_corrected'] = ants.matrix_to_timeseries( corrmo['motion_corrected'], globalmat, bmask )
-  del globalmat
-
+  # collect censoring indices
   hlinds = find_indices( corrmo['FD'], FD_threshold )
   if verbose:
     print("high motion indices")
@@ -4737,23 +4736,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], 
       threshold=outlier_threshold, verbose=verbose )
     hlinds.extend( hlinds2 )
-
-  if len( hlinds ) > 0 :
-    hlinds = list(set(hlinds)) # make unique
-    if impute and not scrub:
-        corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
-        corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
-        simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
-    elif scrub:
-        corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
-        corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
-        simgimp = impute_timeseries( simg, hlinds, method='linear')
-        simg = remove_volumes_from_timeseries( simg, hlinds )
-    else:
-        simgimp = simg
-  else:
-    simgimp = simg
+  hlinds = list(set(hlinds)) # make unique
     
+  # nuisance
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
@@ -4773,16 +4758,48 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     nuisance = np.c_[ nuisance, nuisance_ica ]
     del globalmat
 
+  # concat all nuisance data
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
   nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
-  gmmat = ants.timeseries_to_matrix( simg, gmseg )
-  gmmat = ants.regress_components( gmmat, nuisance )
-  # turn data following nuisance and gsr back to image format
-  gsrbold = ants.matrix_to_timeseries(simg, gmmat, gmseg)
+  # bandpass any data collected before here -- if bandpass requested
+  if f[0] > 0 and f[1] < 1.0:
+    if verbose:
+        print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
+    globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
+    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    corrmo['motion_corrected'] = ants.matrix_to_timeseries( corrmo['motion_corrected'], globalmat, bmask )
+    globalmat = ants.timeseries_to_matrix( simg, bmask )
+    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    simg = ants.matrix_to_timeseries( simg, globalmat, bmask )
+    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
 
-  myfalff=alff_image( simgimp, bmask, flo=f[0], fhi=f[1] )
+  if len( hlinds ) > 0 :
+    if impute and not scrub:
+        corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
+        corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
+        simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
+    elif scrub:
+        corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
+        corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
+        simgimp = impute_timeseries( simg, hlinds, method='linear')
+        simg = remove_volumes_from_timeseries( simg, hlinds )
+    else:
+        simgimp = simg
+  else:
+    simgimp = simg
+
+  # now regress what is left
+  gmmat = ants.timeseries_to_matrix( simg, bmask )
+  gmmat = ants.regress_components( gmmat, nuisance )
+  simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
+  # now regress what is left - not smooth
+  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
+  gmmat = ants.regress_components( gmmat, nuisance )
+  corrmo['motion_corrected'] = ants.matrix_to_timeseries(corrmo['motion_corrected'], gmmat, bmask)
+
+  myfalff=alff_image( simg, bmask  )
 
   outdict = {}
   outdict['meanBold'] = und
@@ -4802,7 +4819,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
     ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    meanROI[:,i] = ants.timeseries_to_matrix( gsrbold, ptImage).mean(axis=1)
+    meanROI[:,i] = ants.timeseries_to_matrix( corrmo['motion_corrected'], ptImage).mean(axis=1)
 
   # get full correlation matrix
   corMat = np.corrcoef(meanROI, rowvar=False)
@@ -4828,13 +4845,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     if dfnImg.max() >= 1:
-        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-        dfnmat = ants.regress_components( dfnmat, nuisance )
+        dfnmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
         dfnsignal = dfnmat.mean( axis = 1 )
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
         for k in range( gmmat.shape[1] ):
             gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
-        corrImg = ants.make_image( gmseg, gmmatDFNCorr  )
+        corrImg = ants.make_image( bmask, gmmatDFNCorr  )
         outdict[ netname ] = corrImg
     else:
         outdict[ netname ] = None
@@ -4849,7 +4865,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       netnamei = re.sub( " ", "", networks[numofnets[i]] )
       netnamei = re.sub( "-", "", netnamei )
       newnames.append( netnamei  )
-      binmask = ants.threshold_image( outdict[ netnamei ], 0.2, 1.0 )
       ww = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
       dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
       for j in range( len( numofnets ) ):
