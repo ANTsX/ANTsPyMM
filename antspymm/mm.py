@@ -4597,8 +4597,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
        }
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.01,0.2], FD_threshold=0.5, spa = 2.0, spt = 0.5, nc = 12, type_of_transform='Rigid',
-    outlier_threshold=0.8,
+    f=[0.01,0.1], FD_threshold=0.5, spa = None, spt = None, nc = 24, type_of_transform='Rigid',
+    outlier_threshold=0.5,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4633,10 +4633,20 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   a dictionary containing the derived network maps
 
   """
-
+  from sklearn.decomposition import FastICA
   def find_indices(lst, value):
     return [index for index, element in enumerate(lst) if element > value]
 
+  def mean_of_list(lst):
+    if not lst:  # Check if the list is not empty
+        return 0  # Return 0 or appropriate value for an empty list
+    return sum(lst) / len(lst)
+  fmrispc = list(ants.get_spacing( fmri ))
+  if spa is None:
+    spa = mean_of_list( fmrispc[0:3] ) * 1.0
+  if spt is None:
+    spt = fmrispc[3]
+      
   import numpy as np
   import pandas as pd
   import re
@@ -4721,20 +4731,20 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   del globalmat
 
   mycompcor = ants.compcor( corrmo['motion_corrected'],
-    ncompcor=nc, quantile=0.95, mask = csfAndWM,
-    filter_type='polynomial', degree=2 )
+    ncompcor=nc, quantile=0.90, mask = csfAndWM,
+    filter_type='polynomial', degree=1 )
   nuisance = mycompcor[ 'components' ]
   nuisance = np.c_[ nuisance, mycompcor['basis'] ]
   nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
   gmmat = ants.timeseries_to_matrix( simg, gmseg )
+  gmmat = ants.regress_components( gmmat, nuisance )
   if f[0] > 0 and f[1] < 1.0:
     if verbose:
         print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
     gmmat = ants.bandpass_filter_matrix( gmmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-  gmmat = ants.regress_components( gmmat, nuisance )
+    # nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
   # turn data following nuisance and gsr back to image format
   gsrbold = ants.matrix_to_timeseries(simg, gmmat, gmseg)
 
@@ -5035,7 +5045,7 @@ def bold_perfusion_minimal(
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.975, mask = bmask,
+    ncompcor=nc, quantile=0.90, mask = bmask,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
@@ -5367,7 +5377,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.975, mask = csfAndWM,
+    ncompcor=nc, quantile=0.90, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
