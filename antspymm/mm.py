@@ -4782,6 +4782,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
     elif scrub:
         corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
+        nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
         corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
         simgimp = impute_timeseries( simg, hlinds, method='linear')
         simg = remove_volumes_from_timeseries( simg, hlinds )
@@ -4790,17 +4791,21 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   else:
     simgimp = simg
 
-  # now regress what is left
+  if verbose:
+    print("now regress nuisance")
   gmmat = ants.timeseries_to_matrix( simg, bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
   simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
-  # now regress what is left - not smooth
+  if verbose:
+    print( "now regress nuisance - not smooth" )
   gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
   corrmo['motion_corrected'] = ants.matrix_to_timeseries(corrmo['motion_corrected'], gmmat, bmask)
 
+  # falff/alff stuff
   myfalff=alff_image( simg, bmask  )
 
+  # structure the output data
   outdict = {}
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
