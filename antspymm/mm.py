@@ -4758,6 +4758,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       print("End rsfmri motion correction")
       print("big code block below does anatomically based mapping")
 
+  high_motion_count=(corrmo['FD'] > FD_threshold ).sum()
+  high_motion_pct=high_motion_count / fmri.shape[3]
 
   # filter mask based on TSNR
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
@@ -5001,8 +5003,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
-  outdict['high_motion_count'] = (rsfNuisance['FD'] > FD_threshold ).sum()
-  outdict['high_motion_pct'] = (rsfNuisance['FD'] > FD_threshold ).sum() / rsfNuisance.shape[0]
+  outdict['high_motion_count'] = high_motion_count
+  outdict['high_motion_pct'] = high_motion_pct
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
@@ -6255,7 +6257,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
         mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
-        # mm_wide['rsf_high_motion_pct'] = rsfpro['rsf_high_motion_pct'] # BUG : rsf_high_motion_pct does not exist
+        mm_wide['rsf_high_motion_pct'] = rsfpro['high_motion_pct']
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_n_outliers'] =  rsfpro['n_outliers']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
@@ -6264,6 +6266,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['rsf_alff_sd'] = rsfpro['alff_sd']
         mm_wide['rsf_falff_mean'] = rsfpro['falff_mean']
         mm_wide['rsf_falff_sd'] = rsfpro['falff_sd']
+        mm_wide['rsf_nc'] = rsfpro['nc']
+        mm_wide['rsf_n_outliers'] = rsfpro['n_outliers']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
         # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
