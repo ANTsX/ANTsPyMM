@@ -9641,17 +9641,6 @@ def aggregate_antspymm_results_sdf(
         if current_step == total_steps:
             print()
 
-    def filter_df( indf, myprefix ):
-        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
-        if indf.shape[0] == 0:
-          return( indf )
-        nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
-        indf = indf.loc[:, nums]
-        indf=indf.loc[:, indf.dtypes != 'object' ]
-        indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
-        indf = indf.add_prefix( myprefix )
-        return( indf )
-
     def myread_csv(x, cnms):
         """
         Reads a CSV file and returns a DataFrame excluding specified columns.
