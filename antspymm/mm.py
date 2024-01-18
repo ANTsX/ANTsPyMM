@@ -4637,7 +4637,7 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.008,0.1], FD_threshold=0.35, spa = None, spt = None, 
-    nc = 0.95, type_of_transform='Rigid',
+    nc = 0.80, type_of_transform='Rigid',
     outlier_threshold=0.20,
     ica_components = 0,
     impute = False,
@@ -4818,7 +4818,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
-  compcorquantile=0.90
+  compcorquantile=0.975
   if nc < 1:
     globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM, compcorquantile )
     nc = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
@@ -5179,8 +5179,9 @@ def bold_perfusion_minimal(
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
+  compcorquantile = 0.975
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.90, mask = bmask,
+    ncompcor=nc, quantile=compcorquantile, mask = bmask,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
@@ -5511,8 +5512,9 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  compcorquantile = 0.975
   mycompcor = ants.compcor( fmrimotcorr,
-    ncompcor=nc, quantile=0.90, mask = csfAndWM,
+    ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
   tr = ants.get_spacing( fmrimotcorr )[3]
   simg = ants.smooth_image(fmrimotcorr, spa, sigma_in_physical_coordinates = True )
