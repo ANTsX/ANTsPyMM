@@ -4596,11 +4596,49 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_count': len( list_nm_images )
        }
 
+
+
+def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
+    """
+    Estimate the optimal number of PCA components to represent the given data.
+
+    :param data: The data matrix (samples x features).
+    :param variance_threshold: Threshold for cumulative explained variance (default 0.95).
+    :param plot: If True, plot the cumulative explained variance graph (default False).
+    :return: The optimal number of principal components.
+    """
+    import numpy as np
+    from sklearn.decomposition import PCA
+    import matplotlib.pyplot as plt
+
+    # Perform PCA
+    pca = PCA()
+    pca.fit(data)
+
+    # Calculate cumulative explained variance
+    cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+
+    # Determine the number of components for desired explained variance
+    n_components = np.where(cumulative_variance >= variance_threshold)[0][0] + 1
+
+    # Optionally plot the explained variance
+    if plot:
+        plt.figure(figsize=(8, 4))
+        plt.plot(cumulative_variance, linewidth=2)
+        plt.axhline(y=variance_threshold, color='r', linestyle='--')
+        plt.axvline(x=n_components - 1, color='r', linestyle='--')
+        plt.xlabel('Number of Components')
+        plt.ylabel('Cumulative Explained Variance')
+        plt.title('Explained Variance by Number of Principal Components')
+        plt.show()
+
+    return n_components
+
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=100.0, spa = None, spt = None, 
-    nc = 6, type_of_transform='Rigid',
+    f=[0.008,0.1], FD_threshold=0.5, spa = None, spt = None, 
+    nc = 0.95, type_of_transform='Rigid',
     outlier_threshold=0.20,
-    ica_components = 6,
+    ica_components = 0,
     impute = True,
     scrub = False,
     verbose=False ):
@@ -4626,7 +4664,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   spt : gaussian smoothing for temporal component
 
-  nc  : number of components for compcor filtering
+  nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance
 
   type_of_transform : SyN or Rigid
 
@@ -4643,6 +4681,40 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   a dictionary containing the derived network maps
 
   """
+
+  import numpy as np
+# Assuming core and utils are modules or packages with necessary functions
+
+  def compute_tSTD(M, quantile, x=0, axis=0):
+    stdM = np.std(M, axis=axis)
+    # set bad values to x
+    stdM[stdM == 0] = x
+    stdM[np.isnan(stdM)] = x
+    tt = round(quantile * 100)
+    threshold_std = np.percentile(stdM, tt)
+    return {'tSTD': stdM, 'threshold_std': threshold_std}
+
+  def get_compcor_matrix(boldImage, mask, quantile):
+    """
+    Compute the compcor matrix.
+
+    :param boldImage: The bold image.
+    :param mask: The mask to apply, if None, it will be computed.
+    :param quantile: Quantile for computing threshold in tSTD.
+    :return: The compor matrix.
+    """
+    if mask is None:
+        temp = ants.slice_image(boldImage, axis=boldImage.dimension - 1, idx=0)
+        mask = ants.get_mask(temp)
+
+    imagematrix = ants.timeseries_to_matrix(boldImage, mask)
+    temp = compute_tSTD(imagematrix, quantile, 0)
+    tsnrmask = ants.make_image(mask, temp['tSTD'])
+    tsnrmask = ants.threshold_image(tsnrmask, temp['threshold_std'], temp['tSTD'].max())
+    M = ants.timeseries_to_matrix(boldImage, tsnrmask)
+    return M
+
+
   from sklearn.decomposition import FastICA
   def find_indices(lst, value):
     return [index for index, element in enumerate(lst) if element > value]
@@ -4653,7 +4725,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     return sum(lst) / len(lst)
   fmrispc = list(ants.get_spacing( fmri ))
   if spa is None:
-    spa = mean_of_list( fmrispc[0:3] ) * 2.0
+    spa = mean_of_list( fmrispc[0:3] ) * 0.5
   if spt is None:
     spt = fmrispc[3] * 0.5
       
@@ -4684,6 +4756,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if verbose:
       print("End rsfmri motion correction")
       print("big code block below does anatomically based mapping")
+
 
   # filter mask based on TSNR
   mytsnr = tsnr( corrmo['motion_corrected'], bmask )
@@ -4727,6 +4800,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
   simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
 
+  ants.image_write(corrmo['motion_corrected'],'/tmp/tempZZZ.nii.gz')
+
   # collect censoring indices
   hlinds = find_indices( corrmo['FD'], FD_threshold )
   if verbose:
@@ -4742,6 +4817,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
+  if nc < 1:
+    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM )
+    nc = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
+    del globalmat
   if verbose:
     print("include compcor components as nuisance: " + str(nc))
   mycompcor = ants.compcor( corrmo['motion_corrected'],
@@ -4775,6 +4854,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     simg = ants.matrix_to_timeseries( simg, globalmat, bmask )
     nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
 
+  nuisanceall = nuisance.copy()
   if len( hlinds ) > 0 :
     if impute and not scrub:
         corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
@@ -4782,9 +4862,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
     elif scrub:
         corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
-        nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
         corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
         simgimp = impute_timeseries( simg, hlinds, method='linear')
+        nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
         simg = remove_volumes_from_timeseries( simg, hlinds )
     else:
         simgimp = simg
@@ -4793,17 +4873,17 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   if verbose:
     print("now regress nuisance")
+
+  gmmat = ants.timeseries_to_matrix( simgimp, bmask )
+  gmmat = ants.regress_components( gmmat, nuisanceall )
+  simgimp = ants.matrix_to_timeseries(simgimp, gmmat, bmask)
+
   gmmat = ants.timeseries_to_matrix( simg, bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
   simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
-#  if verbose:
-#    print( "now regress nuisance - not smooth" )
-#  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-#  gmmat = ants.regress_components( gmmat, nuisance )
-#  corrmo['motion_corrected'] = ants.matrix_to_timeseries(corrmo['motion_corrected'], gmmat, bmask)
 
   # falff/alff stuff
-  myfalff=alff_image( simg, bmask  )
+  myfalff=alff_image( simgimp, bmask  )
 
   # structure the output data
   outdict = {}
@@ -4925,6 +5005,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['n_outliers'] = len(hlinds)
+  outdict['nc'] = nc
   return outdict
 
 
@@ -5826,8 +5907,10 @@ def mm(
             # build a template then join the images
             if verbose:
                 print("initial average for rsf")
-            rsfavg1=get_average_rsf(rsf_image1)
-            rsfavg2=get_average_rsf(rsf_image2)
+            rsfavg1, hlinds = loop_timeseries_censoring( rsf_image1, 0.1 )
+            rsfavg1=get_average_rsf(rsfavg1)
+            rsfavg2, hlinds = loop_timeseries_censoring( rsf_image2, 0.1 )
+            rsfavg2=get_average_rsf(rsfavg2)
             if verbose:
                 print("template average for rsf")
             init_temp = ants.image_clone( rsfavg1 )
@@ -5847,7 +5930,8 @@ def mm(
                 rsf_image = rsf_image2
         elif len( rsf_image ) == 1:
             rsf_image = rsf_image[0]
-            boldTemplate=get_average_rsf(rsf_image)
+            boldTemplate, hlinds = loop_timeseries_censoring( rsf_image, 0.1 )
+            boldTemplate = get_average_rsf(boldTemplate)
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
             output_dict['rsf'] = resting_state_fmri_networks(
                 rsf_image,
@@ -8794,13 +8878,14 @@ def remove_volumes_from_timeseries(time_series, volumes_to_remove):
     return ants.copy_image_info( time_series, filtered_time_series )
 
 
-def impute_timeseries(time_series, volumes_to_impute, method='linear'):
+def impute_timeseries(time_series, volumes_to_impute, method='linear', verbose=False):
     """
     Impute specified volumes from a time series with interpolated values.
 
     :param time_series: ANTsImage representing the time series (4D image).
     :param volumes_to_impute: List of volume indices to impute.
     :param method: Interpolation method ('linear' or other methods if implemented).
+    :param verbose: boolean
     :return: ANTsImage with specified volumes imputed.
     """
     if not isinstance(time_series, ants.ANTsImage):
@@ -8811,25 +8896,36 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear'):
 
     # Convert time_series to numpy for manipulation
     time_series_np = time_series.numpy()
+    total_volumes = time_series_np.shape[3]
+
+    # Create a complement list of volumes not to impute
+    volumes_not_to_impute = [i for i in range(total_volumes) if i not in volumes_to_impute]
+
+    # Define the lower and upper bounds
+    min_valid_index = min(volumes_not_to_impute)
+    max_valid_index = max(volumes_not_to_impute)
 
     for vol_idx in volumes_to_impute:
         # Ensure the volume index is within the valid range
-        if vol_idx < 0 or vol_idx >= time_series_np.shape[3]:
+        if vol_idx < 0 or vol_idx >= total_volumes:
             raise ValueError(f"Volume index {vol_idx} is out of bounds.")
 
-        # Find neighboring volumes for interpolation
-        lower_idx = max(0, vol_idx - 1)
-        upper_idx = min(time_series_np.shape[3] - 1, vol_idx + 1)
+        # Find the nearest valid lower index within the bounds
+        lower_candidates = [v for v in volumes_not_to_impute if v <= vol_idx]
+        lower_idx = max(lower_candidates) if lower_candidates else min_valid_index
+
+        # Find the nearest valid upper index within the bounds
+        upper_candidates = [v for v in volumes_not_to_impute if v >= vol_idx]
+        upper_idx = min(upper_candidates) if upper_candidates else max_valid_index
+
+        if verbose:
+            print(f"Imputing volume {vol_idx} using indices {lower_idx} and {upper_idx}")
 
         if method == 'linear':
             # Linear interpolation between the two nearest volumes
-            if lower_idx == vol_idx or upper_idx == vol_idx:
-                # Edge case: duplicate the closest volume
-                interpolated_volume = time_series_np[..., lower_idx]
-            else:
-                lower_volume = time_series_np[..., lower_idx]
-                upper_volume = time_series_np[..., upper_idx]
-                interpolated_volume = (lower_volume + upper_volume) / 2
+            lower_volume = time_series_np[..., lower_idx]
+            upper_volume = time_series_np[..., upper_idx]
+            interpolated_volume = (lower_volume + upper_volume) / 2
         else:
             # Placeholder for other interpolation methods
             raise NotImplementedError("Currently, only linear interpolation is implemented.")
@@ -8842,7 +8938,6 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear'):
     imputed_time_series = ants.copy_image_info(time_series, imputed_time_series)
 
     return imputed_time_series
-
 
 def impute_dwi( dwi, threshold = 0.20, verbose=False ):
     """
