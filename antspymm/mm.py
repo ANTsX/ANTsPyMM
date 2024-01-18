@@ -9440,7 +9440,7 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
         indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
         if indf.shape[0] == 0:
           return( indf )
-        nums = [isinstance(indf[col].iloc[0], (int, float)) for col in indf.columns]
+        nums = [isinstance(indf[col].iloc[0], (object, int, float)) for col in indf.columns]
         indf = indf.loc[:, nums]
         indf=indf.loc[:, indf.dtypes != 'object' ]
         indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
