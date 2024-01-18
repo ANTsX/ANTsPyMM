@@ -4796,11 +4796,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   gmmat = ants.timeseries_to_matrix( simg, bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
   simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
-  if verbose:
-    print( "now regress nuisance - not smooth" )
-  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-  gmmat = ants.regress_components( gmmat, nuisance )
-  corrmo['motion_corrected'] = ants.matrix_to_timeseries(corrmo['motion_corrected'], gmmat, bmask)
+#  if verbose:
+#    print( "now regress nuisance - not smooth" )
+#  gmmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
+#  gmmat = ants.regress_components( gmmat, nuisance )
+#  corrmo['motion_corrected'] = ants.matrix_to_timeseries(corrmo['motion_corrected'], gmmat, bmask)
 
   # falff/alff stuff
   myfalff=alff_image( simg, bmask  )
@@ -4824,7 +4824,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
     ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
-    meanROI[:,i] = ants.timeseries_to_matrix( corrmo['motion_corrected'], ptImage).mean(axis=1)
+    meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
 
   # get full correlation matrix
   corMat = np.corrcoef(meanROI, rowvar=False)
@@ -4850,7 +4850,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     if dfnImg.max() >= 1:
-        dfnmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
+        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
         dfnsignal = dfnmat.mean( axis = 1 )
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
         for k in range( gmmat.shape[1] ):
