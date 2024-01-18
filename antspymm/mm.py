@@ -8034,6 +8034,9 @@ def get_names_from_data_frame(x, demogIn, exclusions=None):
     antspymm.get_names_from_data_frame( ['a','e'], df )
     antspymm.get_names_from_data_frame( ['e'], df, exclusions='N' )
     """
+    # Check if x is a string and convert it to a list
+    if isinstance(x, str):
+        x = [x]
     def get_unique( qq ):
         unique = []
         for number in qq:
