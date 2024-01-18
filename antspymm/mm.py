@@ -9408,6 +9408,42 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     return addem
 
 
+def filter_df(indf, myprefix):
+    """
+    Process and filter a pandas DataFrame, removing certain columns, 
+    filtering based on data types, computing the mean of numeric columns, 
+    and adding a prefix to column names.
+
+    Parameters:
+    indf (pandas.DataFrame): The input DataFrame to be processed.
+    myprefix (str): A string prefix to be added to the column names 
+                    of the processed DataFrame.
+
+    Steps:
+    1. Removes columns with names containing 'Unnamed'.
+    2. If the DataFrame has no rows, it returns the empty DataFrame.
+    3. Filters out columns based on the type of the first element, 
+       keeping those that are of type `object`, `int`, or `float`.
+    4. Removes columns that are of `object` dtype.
+    5. Calculates the mean of the remaining columns, skipping NaN values.
+    6. Adds the specified `myprefix` to the column names.
+
+    Returns:
+    pandas.DataFrame: A transformed DataFrame with a single row containing 
+                      the mean values of the filtered columns, and with 
+                      column names prefixed as specified.
+    """
+    indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
+    if indf.shape[0] == 0:
+        return indf
+    nums = [isinstance(indf[col].iloc[0], (object, int, float)) for col in indf.columns]
+    indf = indf.loc[:, nums]
+    indf = indf.loc[:, indf.dtypes != 'object']
+    indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
+    indf = indf.add_prefix(myprefix)
+    return indf
+
+
 def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='date', image_col='imageID', date_column='ses-1', base_path="./Processed/ANTsExpArt/", hiervariable='T1wHierarchical', valid_modalities=None, verbose=False ):
     """
     Aggregate ANTsPyMM results from the specified CSV file and save the aggregated results to a new CSV file.
@@ -9435,17 +9471,6 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     import pandas as pd
     import numpy as np
     from glob import glob
-
-    def filter_df( indf, myprefix ):
-        indf = indf.loc[:, ~indf.columns.str.contains('Unnamed*', na=False, regex=True)]
-        if indf.shape[0] == 0:
-          return( indf )
-        nums = [isinstance(indf[col].iloc[0], (object, int, float)) for col in indf.columns]
-        indf = indf.loc[:, nums]
-        indf=indf.loc[:, indf.dtypes != 'object' ]
-        indf = pd.DataFrame(indf.mean(axis=0, skipna=True)).T
-        indf = indf.add_prefix( myprefix )
-        return( indf )
 
     def myread_csv(x, cnms):
         """
