@@ -4602,7 +4602,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     outlier_threshold=0.20,
     ica_components = 0,
     impute = False,
-    scrub = False,
+    scrub = True,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4856,7 +4856,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         for k in range( gmmat.shape[1] ):
             gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
         corrImg = ants.make_image( bmask, gmmatDFNCorr  )
-        outdict[ netname ] = corrImg
+        outdict[ netname ] = corrImg * gmseg
     else:
         outdict[ netname ] = None
     ct = ct + 1
@@ -4888,6 +4888,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['corr'] = A
   outdict['corr_wide'] = A_wide
   outdict['brainmask'] = bmask
+  outdict['gmmask'] = gmseg
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
   # add global mean and standard deviation for post-hoc z-scoring
@@ -4914,7 +4915,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   trimmask = ants.iMath( bmask, "ME",2)
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
   outdict['motion_corrected'] = corrmo['motion_corrected']
-  outdict['brain_mask'] = bmask
   outdict['nuisance'] = rsfNuisance
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
@@ -6148,7 +6148,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['flair_evr'] = mm['flair']['wmh_evr']
         mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
-        mynets = list([ 'meanBold', 'brain_mask', 'motion_corrected', 'alff', 'falff',
+        mynets = list([ 'meanBold', 'brainmask', 'motion_corrected', 'alff', 'falff',
             'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
             'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience',
             'Subcortical', 'DorsalAttention', 'tsnr'] )
