@@ -4817,14 +4817,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
+  compcorquantile=0.90
   if nc < 1:
-    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM )
+    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM, compcorquantile )
     nc = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
     del globalmat
   if verbose:
     print("include compcor components as nuisance: " + str(nc))
   mycompcor = ants.compcor( corrmo['motion_corrected'],
-    ncompcor=nc, quantile=0.90, mask = csfAndWM,
+    ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=1 )
   nuisance = mycompcor[ 'components' ]
 
