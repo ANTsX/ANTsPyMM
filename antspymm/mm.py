@@ -4600,9 +4600,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.008,0.1], FD_threshold=100.0, spa = None, spt = None, 
     nc = 6, type_of_transform='Rigid',
     outlier_threshold=0.20,
-    ica_components = 0,
-    impute = False,
-    scrub = True,
+    ica_components = 6,
+    impute = True,
+    scrub = False,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4653,7 +4653,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     return sum(lst) / len(lst)
   fmrispc = list(ants.get_spacing( fmri ))
   if spa is None:
-    spa = mean_of_list( fmrispc[0:3] ) * 1.0
+    spa = mean_of_list( fmrispc[0:3] ) * 2.0
   if spt is None:
     spt = fmrispc[3] * 0.5
       
