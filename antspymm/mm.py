@@ -3151,7 +3151,8 @@ def joint_dti_recon(
     dewarp_modality = 'FA',
     denoise=False,
     fit_method='WLS',
-    impute = True,
+    impute = False,
+    scrub = True,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3203,6 +3204,8 @@ def joint_dti_recon(
     fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel)
 
     impute : boolean
+
+    scrub : boolean
 
     verbose : boolean
 
@@ -3291,8 +3294,12 @@ def joint_dti_recon(
 
     if impute:
         img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
+    elif scrub:
+        img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'] = scrub_dwi( img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'], verbose=True )
     if impute and img_RL is not None:
         img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
+    elif scrub and img_RL is not None:
+        img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'] = scrub_dwi( img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'], verbose=True )
 
     if img_RL is not None:
         img_LRdwp, bval_LR, bvec_LR = merge_dwi_data(
@@ -8977,6 +8984,36 @@ def impute_dwi( dwi, threshold = 0.20, verbose=False ):
     if len( complement ) == 0:
         return dwi
     return impute_timeseries( dwi, complement )
+
+def scrub_dwi( dwi, bval, bvec, threshold = 0.20, verbose=False ):
+    """
+    Identify bad volumes in a dwi and impute them fully automatically.
+
+    :param dwi: ANTsImage representing the time series (4D image).
+    :param bval: bval array
+    :param bvec: bvec array
+    :param threshold: threshold (0,1) for outlierness (lower means impute more data)
+    :param verbose: boolean
+    :return: ANTsImage automatically imputed.
+    """
+    list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
+    looped, list2 = loop_timeseries_censoring( dwi, threshold )
+    if verbose:
+        print( list1 )
+        print( list2 )
+    # Convert lists to sets
+    set1 = set(list(list1))
+    set2 = set(list(list2))
+    # Find the intersection
+    intersection = set1 & set2
+    # Find the complement of the intersection
+    complement = list( (set1 | set2) - intersection )
+    if verbose:
+        print( "scrubbing:")
+        print( complement )
+    if len( complement ) == 0:
+        return dwi, bval, bvec
+    return remove_volumes_from_timeseries( dwi, complement ), remove_elements_from_numpy_array( bval, complement ), remove_elements_from_numpy_array( bvec, complement )
 
 
 def flatten_time_series(time_series):
