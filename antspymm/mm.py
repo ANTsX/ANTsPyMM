@@ -4810,8 +4810,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
   simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
 
-  ants.image_write(corrmo['motion_corrected'],'/tmp/tempZZZ.nii.gz')
-
   # collect censoring indices
   hlinds = find_indices( corrmo['FD'], FD_threshold )
   if verbose:
@@ -4819,7 +4817,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     print( hlinds )
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
     fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], 
-      threshold=outlier_threshold, verbose=verbose )
+      threshold=outlier_threshold, mask=None, verbose=verbose )
     hlinds.extend( hlinds2 )
   hlinds = list(set(hlinds)) # make unique
     
@@ -5152,7 +5150,7 @@ def bold_perfusion_minimal(
   fmrimotcorr=corrmo['motion_corrected']
   hlinds = None
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
+    fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, mask=None, verbose=verbose )
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
 
@@ -5459,7 +5457,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   tclist = one_hot_encode( tclist[0:ntp ] )
   fmrimotcorr=corrmo['motion_corrected']
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
-    fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, verbose=verbose )
+    fmrimotcorr, hlinds = loop_timeseries_censoring( fmrimotcorr, outlier_threshold, mask=None, verbose=verbose )
     tclist = remove_elements_from_numpy_array( tclist, hlinds)
     corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds )
 
@@ -8895,6 +8893,19 @@ def remove_volumes_from_timeseries(time_series, volumes_to_remove):
 
     return ants.copy_image_info( time_series, filtered_time_series )
 
+def remove_elements_from_list(original_list, elements_to_remove):
+    """
+    Remove specified elements from a list.
+
+    Parameters:
+    original_list (list): The original list from which elements will be removed.
+    elements_to_remove (list): A list of elements that need to be removed from the original list.
+
+    Returns:
+    list: A new list with the specified elements removed.
+    """
+    return [element for element in original_list if element not in elements_to_remove]
+
 
 def impute_timeseries(time_series, volumes_to_impute, method='linear', verbose=False):
     """
@@ -8957,27 +8968,27 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear', verbose=F
 
     return imputed_time_series
 
-def impute_dwi( dwi, threshold = 0.20, verbose=False ):
+def impute_dwi( dwi, threshold = 0.20, imputeb0=False, mask=None, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
     :param dwi: ANTsImage representing the time series (4D image).
     :param threshold: threshold (0,1) for outlierness (lower means impute more data)
+    :param imputeb0: boolean will impute the b0 with dwi if True
+    :param mask: restricts to a region of interest
     :param verbose: boolean
     :return: ANTsImage automatically imputed.
     """
     list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
-    looped, list2 = loop_timeseries_censoring( dwi, threshold )
+    if imputeb0:
+        dwib = impute_timeseries( dwi, list1 ) # focus on the dwi - not the b0
+        looped, list2 = loop_timeseries_censoring( dwib, threshold, mask )
+    else:
+        looped, list2 = loop_timeseries_censoring( dwi, threshold, mask )
     if verbose:
         print( list1 )
         print( list2 )
-    # Convert lists to sets
-    set1 = set(list(list1))
-    set2 = set(list(list2))
-    # Find the intersection
-    intersection = set1 & set2
-    # Find the complement of the intersection
-    complement = (set1 | set2) - intersection
+    complement = remove_elements_from_list( list2, list1 )
     if verbose:
         print( "Imputing:")
         print( complement )
@@ -8985,7 +8996,7 @@ def impute_dwi( dwi, threshold = 0.20, verbose=False ):
         return dwi
     return impute_timeseries( dwi, complement )
 
-def scrub_dwi( dwi, bval, bvec, threshold = 0.20, verbose=False ):
+def scrub_dwi( dwi, bval, bvec, threshold = 0.20, imputeb0=False, mask=None, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
@@ -8993,21 +9004,21 @@ def scrub_dwi( dwi, bval, bvec, threshold = 0.20, verbose=False ):
     :param bval: bval array
     :param bvec: bvec array
     :param threshold: threshold (0,1) for outlierness (lower means impute more data)
+    :param imputeb0: boolean will impute the b0 with dwi if True
+    :param mask: restricts to a region of interest
     :param verbose: boolean
     :return: ANTsImage automatically imputed.
     """
     list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
-    looped, list2 = loop_timeseries_censoring( dwi, threshold )
+    if imputeb0:
+        dwib = impute_timeseries( dwi, list1 ) # focus on the dwi - not the b0
+        looped, list2 = loop_timeseries_censoring( dwib, threshold, mask )
+    else:
+        looped, list2 = loop_timeseries_censoring( dwi, threshold, mask )
     if verbose:
         print( list1 )
         print( list2 )
-    # Convert lists to sets
-    set1 = set(list(list1))
-    set2 = set(list(list2))
-    # Find the intersection
-    intersection = set1 & set2
-    # Find the complement of the intersection
-    complement = list( (set1 | set2) - intersection )
+    complement = remove_elements_from_list( list2, list1 )
     if verbose:
         print( "scrubbing:")
         print( complement )
@@ -9115,19 +9126,23 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, verbose=False):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=False):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
     Parameters:
     x (ANTsImage): A 4D time series image.
     threshold (float): Threshold for determining high leverage volumes based on LoOP scores.
+    mask (antsImage): restricts to a ROI
     verbose (bool)
 
     Returns:
     tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     """
-    flattened_series = flatten_time_series(x.numpy())
+    if mask is not None:
+        flattened_series = flatten_time_series(x.numpy())
+    else:
+        flattened_series = ants.timeseries_to_matrix( x, mask )
     loop_scores = calculate_loop_scores(flattened_series)
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
