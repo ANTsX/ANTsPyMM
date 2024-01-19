@@ -4643,9 +4643,9 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=0.35, spa = None, spt = None, 
-    nc = 0.80, type_of_transform='Rigid',
-    outlier_threshold=0.20,
+    f=[0.008,0.1], FD_threshold=0.5, spa = None, spt = None, 
+    nc = 0.90, type_of_transform='Rigid',
+    outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
     scrub = True,
