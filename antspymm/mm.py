@@ -4643,12 +4643,12 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=2.0, spa = None, spt = None, 
-    nc = 10, type_of_transform='SyN',
+    f=[0.008,0.1], FD_threshold=200.0, spa = None, spt = None, 
+    nc = 10, type_of_transform='Rigid',
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
-    scrub = False,
+    scrub = True,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4763,7 +4763,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   
   if verbose:
       print("End rsfmri motion correction")
-      print("big code block below does anatomically based mapping")
+      print("=== next anatomically based mapping ===")
 
   high_motion_count=(corrmo['FD'] > FD_threshold ).sum()
   high_motion_pct=high_motion_count / fmri.shape[3]
@@ -4834,7 +4834,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     print("include compcor components as nuisance: " + str(nc))
   mycompcor = ants.compcor( corrmo['motion_corrected'],
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
-    filter_type='polynomial', degree=1 )
+    filter_type='polynomial', degree=2 )
   nuisance = mycompcor[ 'components' ]
 
   if ica_components > 0:
