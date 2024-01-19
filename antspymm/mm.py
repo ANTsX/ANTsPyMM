@@ -4643,12 +4643,12 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=0.5, spa = None, spt = None, 
-    nc = 0.90, type_of_transform='Rigid',
+    f=[0.008,0.1], FD_threshold=2.0, spa = None, spt = None, 
+    nc = 10, type_of_transform='Rigid',
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
-    scrub = True,
+    scrub = False,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4825,7 +4825,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
-  compcorquantile=0.975
+  compcorquantile=0.95
   if nc < 1:
     globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM, compcorquantile )
     nc = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
@@ -5186,7 +5186,7 @@ def bold_perfusion_minimal(
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
-  compcorquantile = 0.975
+  compcorquantile=0.95
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = bmask,
     filter_type='polynomial', degree=2 )
@@ -5519,7 +5519,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  compcorquantile = 0.975
+  compcorquantile=0.95
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
