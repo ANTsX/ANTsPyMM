@@ -4644,7 +4644,7 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.008,0.1], FD_threshold=2.0, spa = None, spt = None, 
-    nc = 10, type_of_transform='Rigid',
+    nc = 10, type_of_transform='SyN',
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
@@ -4674,7 +4674,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance
 
-  type_of_transform : SyN or Rigid
+  type_of_transform : SyN or Rigid - SyN better when dealing with data likely to have nonlinear distortions eg data with different phase encoding directions
 
   ica_components : integer if greater than 0 then include ica components
 
@@ -4752,7 +4752,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   corrmo = timeseries_reg(
     fmri, fmri_template,
     type_of_transform=type_of_transform,
-    total_sigma=0.0,
+    total_sigma=0.5,
     fdOffset=2.0,
     trim = 8,
     output_directory=None,
