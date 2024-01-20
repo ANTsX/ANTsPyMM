@@ -7529,17 +7529,18 @@ def mm_csv(
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
-                                    maxslice = np.min( [21, tabPro['rsf']['meanBold'].shape[2] ] )
-                                    ants.plot( tabPro['rsf']['meanBold'],
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=mymm+mysep+"meanBOLD.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=mymm+mysep+"boldALFF.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
+                                    if not isinstance( tabPro['rsf'], list ): # FIXMEFN
+                                        maxslice = np.min( [21, tabPro['rsf']['meanBold'].shape[2] ] )
+                                        ants.plot( tabPro['rsf']['meanBold'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=mymm+mysep+"meanBOLD.png" )
+                                        ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=mymm+mysep+"boldALFF.png" )
+                                        ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
+                                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
+                                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'perf' ) and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
