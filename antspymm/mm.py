@@ -6164,11 +6164,10 @@ def mm(
             # Initialize the parameters DataFrame
             df = pd.DataFrame(columns=["loop", "cens", "HM", "ff"])
             # Nested loops
-            proct = 0
-            for loop in [0.25, 0.50, 0.75]:
+            for loop in [0.25]:
                 for cens in [True, False]:
-                    for HM in [1.0, 5.0]:
-                        for ff in ['broad', 'mid', 'tight']:
+                    for HM in [1.0]:
+                        for ff in ['broad']:
                             # Create a DataFrame for the current iteration
                             local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
                             # Append the local DataFrame to the main DataFrame
@@ -6198,9 +6197,6 @@ def mm(
                                 upsample=False,
                                 verbose=verbose ) # default
                             rsfprolist.append( rsf0 )
-                            proct = proct + 1
-                            if proct == 2:
-                                break
             output_dict['rsf'] = rsfprolist
     if nm_image_list is not None:
         if verbose:
