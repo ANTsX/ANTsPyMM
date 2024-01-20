@@ -9315,6 +9315,7 @@ def calculate_loop_scores(flattened_series, n_neighbors=20):
     scaler = StandardScaler()
     scaler.fit(flattened_series)
     data = scaler.transform(flattened_series)
+    data=np.nan_to_num(data, nan=0)
     if n_neighbors > int(flattened_series.shape[0]/2.0):
         n_neighbors = int(flattened_series.shape[0]/2.0)
     neigh = NearestNeighbors(n_neighbors=n_neighbors, metric='minkowski')
