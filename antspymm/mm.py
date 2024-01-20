@@ -3152,7 +3152,7 @@ def joint_dti_recon(
     denoise=False,
     fit_method='WLS',
     impute = False,
-    scrub = True,
+    censor = True,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3205,7 +3205,7 @@ def joint_dti_recon(
 
     impute : boolean
 
-    scrub : boolean
+    censor : boolean
 
     verbose : boolean
 
@@ -3294,12 +3294,12 @@ def joint_dti_recon(
 
     if impute:
         img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
-    elif scrub:
-        img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'] = scrub_dwi( img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'], verbose=True )
+    elif censor:
+        img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'] = censor_dwi( img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'], verbose=True )
     if impute and img_RL is not None:
         img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
-    elif scrub and img_RL is not None:
-        img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'] = scrub_dwi( img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'], verbose=True )
+    elif censor and img_RL is not None:
+        img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'] = censor_dwi( img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'], verbose=True )
 
     if img_RL is not None:
         img_LRdwp, bval_LR, bvec_LR = merge_dwi_data(
@@ -4643,12 +4643,13 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.1], FD_threshold=200.0, spa = None, spt = None, 
-    nc = 10, type_of_transform='Rigid',
+    f=[0.008,0.2], FD_threshold=5.0, spa = None, spt = None, 
+    nc = 5, type_of_transform='Rigid',
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
-    scrub = True,
+    censor = True,
+    despike = 2.5,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4666,13 +4667,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   t1segmentation : ANTsImage
     t1 segmentation - a six tissue segmentation image in T1 space
 
-  f : band pass limits for frequency filtering
+  f : band pass limits for frequency filtering; we use high-pass here as per Shirer 2015
 
   spa : gaussian smoothing for spatial component (physical coordinates)
 
   spt : gaussian smoothing for temporal component
 
-  nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance
+  nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance; 10 wrt Shirer 2015 5 from csf and 5 from wm
 
   type_of_transform : SyN or Rigid - SyN better when dealing with data likely to have nonlinear distortions eg data with different phase encoding directions
 
@@ -4680,13 +4681,24 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   impute : boolean if True, then use imputation
 
-  scrub : boolean if True, then use censoring (scrubbing)
+  censor : boolean if True, then use censoring (censoring)
+
+  despike : if this is greater than zero will run voxel-wise despiking in the 3dDespike (afni) sense; after motion-correction
 
   verbose : boolean
 
   Returns
   ---------
   a dictionary containing the derived network maps
+
+  References
+  ---------
+
+  10.1162/netn_a_00071 "Methods that included global signal regression were the most consistently effective de-noising strategies."
+
+  10.1016/j.neuroimage.2019.116157 "frontal and default model networks are most reliable whereas subcortical neteworks are least reliable"  "the most comprehensive studies of pipeline effects on edge-level reliability have been done by shirer (2015) and Parkes (2018)" "slice timing correction has minimal impact" "use of low-pass or narrow filter (discarding  high frequency information) reduced both reliability and signal-noise separation"
+
+  10.1016/j.neuroimage.2017.12.073: Our results indicate that (1) simple linear regression of regional fMRI time series against head motion parameters and WM/CSF signals (with or without expansion terms) is not sufficient to remove head motion artefacts; (2) aCompCor pipelines may only be viable in low-motion data; (3) volume censoring performs well at minimising motion-related artefact but a major benefit of this approach derives from the exclusion of high-motion individuals; (4) while not as effective as volume censoring, ICA-AROMA performed well across our benchmarks for relatively low cost in terms of data loss; (5) the addition of global signal regression improved the performance of nearly all pipelines on most benchmarks, but exacerbated the distance-dependence of correlations between motion and functional connec- tivity; and (6) group comparisons in functional connectivity between healthy controls and schizophrenia patients are highly dependent on preprocessing strategy. We offer some recommendations for best practice and outline simple analyses to facilitate transparent reporting of the degree to which a given set of findings may be affected by motion-related artefact.
 
   """
 
@@ -4765,6 +4777,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       print("End rsfmri motion correction")
       print("=== next anatomically based mapping ===")
 
+  despiking_count = np.zeros( corrmo['motion_corrected'].shape[3] )
+  if despike > 0.0:
+      corrmo['motion_corrected'], despiking_count = despike_time_series_afni( corrmo['motion_corrected'], c1=despike )
+
+  despiking_count_summary = despiking_count.sum() / np.prod( corrmo['motion_corrected'].shape )
   high_motion_count=(corrmo['FD'] > FD_threshold ).sum()
   high_motion_pct=high_motion_count / fmri.shape[3]
 
@@ -4791,6 +4808,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
                ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  csf = ants.threshold_image( t1segmentation, 1, 1 )
+  csf = ants.apply_transforms( und, csf, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  wm = ants.threshold_image( t1segmentation, 3, 3 ).morphology("erode",1)
+  wm = ants.apply_transforms( und, wm, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   nt = corrmo['motion_corrected'].shape[3]
   myvoxes = range(powers_areal_mni_itk.shape[0])
   anat = powers_areal_mni_itk['Anatomy']
@@ -4825,17 +4846,23 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
-  compcorquantile=0.95
+  compcorquantile=0.90
+  nc_wm=nc_csf=nc
   if nc < 1:
-    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csfAndWM, compcorquantile )
-    nc = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
+    globalmat = get_compcor_matrix( corrmo['motion_corrected'], wm, compcorquantile )
+    nc_wm = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
+    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csf, compcorquantile )
+    nc_csf = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
     del globalmat
   if verbose:
-    print("include compcor components as nuisance: " + str(nc))
-  mycompcor = ants.compcor( corrmo['motion_corrected'],
-    ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
+    print("include compcor components as nuisance: csf " + str(nc_csf) + " wm " + str(nc_wm))
+  mycompcor_csf = ants.compcor( corrmo['motion_corrected'],
+    ncompcor=nc_csf, quantile=compcorquantile, mask = csf,
     filter_type='polynomial', degree=2 )
-  nuisance = mycompcor[ 'components' ]
+  mycompcor_wm = ants.compcor( corrmo['motion_corrected'],
+    ncompcor=nc_wm, quantile=compcorquantile, mask = wm,
+    filter_type='polynomial', degree=2 )
+  nuisance = np.c_[ mycompcor_csf[ 'components' ], mycompcor_wm[ 'components' ] ]
 
   if ica_components > 0:
     if verbose:
@@ -4847,8 +4874,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     del globalmat
 
   # concat all nuisance data
-  nuisance = np.c_[ nuisance, mycompcor['basis'] ]
-  nuisance = np.c_[ nuisance, corrmo['FD'] ]
+  # nuisance = np.c_[ nuisance, mycompcor['basis'] ]
+  # nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
   # bandpass any data collected before here -- if bandpass requested
@@ -4865,11 +4892,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   nuisanceall = nuisance.copy()
   if len( hlinds ) > 0 :
-    if impute and not scrub:
+    if impute and not censor:
         corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
         corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
         simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
-    elif scrub:
+    elif censor:
         corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
         corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
         simgimp = impute_timeseries( simg, hlinds, method='linear')
@@ -5010,11 +5037,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
   outdict['high_motion_count'] = high_motion_count
   outdict['high_motion_pct'] = high_motion_pct
+  outdict['despiking_count_summary'] = despiking_count_summary
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['n_outliers'] = len(hlinds)
-  outdict['nc'] = nc
+  outdict['nc_wm'] = nc_wm
+  outdict['nc_csf'] = nc_csf
+  outdict['minutes_original_data'] = ( tr * fmri.shape[3] ) / 60.0 # minutes of useful data
+  outdict['minutes_censored_data'] = ( tr * simg.shape[3] ) / 60.0 # minutes of useful data
   return outdict
 
 
@@ -5046,6 +5077,98 @@ def calculate_CBF(Delta_M, M_0, mask,
         (np.exp( -w * T_1) - np.exp(-(Tau + w) * T_1)))
     cbf[ cbf < 0.0]=0.0
     return cbf
+
+def despike_time_series_afni(image, c1=2.5, c2=4):
+    """
+    Despike a time series image using L1 polynomial fitting and nonlinear filtering.
+    Based on afni 3dDespike
+
+    :param image: ANTsPy image object containing time series data.
+    :param c1: Spike threshold value. Default is 2.5.
+    :param c2: Upper range of allowed deviation. Default is 4.
+    :return: Despiked ANTsPy image object.
+    """
+    data = image.numpy()  # Convert to numpy array
+    despiked_data = np.copy(data)  # Create a copy for despiked data
+    curve = despiked_data * 0.0
+
+    def l1_fit_polynomial(time_series, degree=2):
+        """
+        Fit a polynomial of given degree to the time series using least squares.
+        
+        :param time_series: 1D numpy array of voxel time series data.
+        :param degree: Degree of the polynomial to fit.
+        :return: Fitted polynomial values for the time series.
+        """
+        t = np.arange(len(time_series))
+        coefs = np.polyfit(t, time_series, degree)
+        polynomial = np.polyval(coefs, t)
+        return polynomial
+
+    # L1 fit a smooth-ish curve to each voxel time series
+    # Curve fitting for each voxel
+    for x in range(data.shape[0]):
+        for y in range(data.shape[1]):
+            for z in range(data.shape[2]):
+                voxel_time_series = data[x, y, z, :]
+                curve[x, y, z, :] = l1_fit_polynomial(voxel_time_series, degree=2)
+
+    # Compute the MAD of the residuals
+    residuals = data - curve
+    mad = np.median(np.abs(residuals - np.median(residuals, axis=-1, keepdims=True)), axis=-1, keepdims=True)
+    sigma = np.sqrt(np.pi / 2) * mad
+
+    # Despike algorithm
+    spike_counts = np.zeros( image.shape[3] )
+    for i in range(data.shape[-1]):
+        s = (data[..., i] - curve[..., i]) / sigma[..., 0]
+        ww = s > c1
+        s_prime = np.where( ww, c1 + (c2 - c1) * np.tanh((s - c1) / (c2 - c1)), s)
+        spike_counts[i] = ww.sum()
+        despiked_data[..., i] = curve[..., i] + s_prime * sigma[..., 0]
+
+    # Convert back to ANTsPy image
+    despiked_image = ants.from_numpy(despiked_data)
+    return ants.copy_image_info( image, despiked_image ), spike_counts
+
+def despike_time_series(image, threshold=3.0, replacement='threshold' ):
+    """
+    Despike a time series image.
+    
+    :param image: ANTsPy image object containing time series data.
+    :param threshold: z-score value to identify spikes. Default is 3.
+    :param replacement: median or threshold - the latter is similar 3DDespike but simpler
+    :return: Despiked ANTsPy image object.
+    """
+    # Convert image to numpy array
+    data = image.numpy()
+    
+    # Calculate the mean and standard deviation along the time axis
+    mean = np.mean(data, axis=-1)
+    std = np.std(data, axis=-1)
+
+    # Identify spikes: points where the deviation from the mean exceeds the threshold
+    spikes = np.abs(data - mean[..., np.newaxis]) > threshold * std[..., np.newaxis]
+
+    # Replace spike values
+    spike_counts = np.zeros( image.shape[3] )
+    for i in range(data.shape[-1]):
+        slice = data[..., i]
+        spike_locations = spikes[..., i]
+        spike_counts[i] = spike_locations.sum()
+        if replacement == 'median':
+            slice[spike_locations] = np.median(slice)  # Replace with median or another method
+        else:
+	    # Calculate threshold values (mean ± threshold * std)
+            threshold_values = mean + np.sign(slice - mean) * threshold * std
+            slice[spike_locations] = threshold_values[spike_locations]
+        data[..., i] = slice
+    # Convert back to ANTsPy image
+    despike_image = ants.from_numpy(data)
+    despike_image = ants.copy_image_info( image, despike_image )
+    return despike_image, spike_counts
+
+
 
 def bold_perfusion_minimal( 
         fmri, 
@@ -5186,7 +5309,7 @@ def bold_perfusion_minimal(
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
-  compcorquantile=0.95
+  compcorquantile=0.90
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = bmask,
     filter_type='polynomial', degree=2 )
@@ -5519,7 +5642,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  compcorquantile=0.95
+  compcorquantile=0.90
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
@@ -6263,6 +6386,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
         mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
         mm_wide['rsf_high_motion_pct'] = rsfpro['high_motion_pct']
+        mm_wide['rsf_minutes_original_data'] = rsfpro['minutes_original_data']
+        mm_wide['rsf_minutes_censored_data'] = rsfpro['minutes_censored_data']
+        mm_wide['rsf_despiking_count_summary'] = rsfpro['despiking_count_summary']
         mm_wide['rsf_evr'] =  rsfpro['bold_evr']
         mm_wide['rsf_n_outliers'] =  rsfpro['n_outliers']
         mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
@@ -6271,7 +6397,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['rsf_alff_sd'] = rsfpro['alff_sd']
         mm_wide['rsf_falff_mean'] = rsfpro['falff_mean']
         mm_wide['rsf_falff_sd'] = rsfpro['falff_sd']
-        mm_wide['rsf_nc'] = rsfpro['nc']
+        mm_wide['rsf_nc_wm'] = rsfpro['nc_wm']
+        mm_wide['rsf_nc_csf'] = rsfpro['nc_csf']
         mm_wide['rsf_n_outliers'] = rsfpro['n_outliers']
         ofn = output_prefix + separator + 'rsfcorr.csv'
         rsfpro['corr'].to_csv( ofn )
@@ -8996,7 +9123,7 @@ def impute_dwi( dwi, threshold = 0.20, imputeb0=False, mask=None, verbose=False 
         return dwi
     return impute_timeseries( dwi, complement )
 
-def scrub_dwi( dwi, bval, bvec, threshold = 0.20, imputeb0=False, mask=None, verbose=False ):
+def censor_dwi( dwi, bval, bvec, threshold = 0.20, imputeb0=False, mask=None, verbose=False ):
     """
     Identify bad volumes in a dwi and impute them fully automatically.
 
@@ -9020,7 +9147,7 @@ def scrub_dwi( dwi, bval, bvec, threshold = 0.20, imputeb0=False, mask=None, ver
         print( list2 )
     complement = remove_elements_from_list( list2, list1 )
     if verbose:
-        print( "scrubbing:")
+        print( "censoring:")
         print( complement )
     if len( complement ) == 0:
         return dwi, bval, bvec

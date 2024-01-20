@@ -108,9 +108,11 @@ from .mm import remove_elements_from_numpy_array
 from .mm import remove_volumes_from_timeseries
 from .mm import impute_timeseries
 from .mm import impute_dwi
-from .mm import scrub_dwi
+from .mm import censor_dwi
 from .mm import timeseries_n3
 from .mm import calculate_CBF
 from .mm import estimate_optimal_pca_components
 from .mm import filter_df
 from .mm import remove_elements_from_list
+from .mm import despike_time_series
+from .mm import despike_time_series_afni
