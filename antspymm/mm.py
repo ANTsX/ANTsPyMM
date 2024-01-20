@@ -1228,6 +1228,20 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
                     pass
     return
 
+def convert_floats_in_dict(data_dict):
+    """
+    Convert values in the dictionary from float32 or float64 to float.
+
+    :param data_dict: A dictionary with values of various types.
+    :return: Dictionary with float32 and float64 values converted to float.
+    """
+    converted_dict = {}
+    for key, value in data_dict.items():
+        if isinstance(value, (np.float32, np.float64)):
+            converted_dict[key] = float(value)
+        else:
+            converted_dict[key] = value
+    return converted_dict
 
 def mc_resample_image_to_target( x , y, interp_type='linear' ):
     """
@@ -1309,6 +1323,7 @@ def timeseries_reg(
     fdOffset=2.0,
     trim = 0,
     output_directory=None,
+    return_numpy_motion_parameters=False,
     verbose=False, **kwargs
 ):
     """
@@ -1330,6 +1345,8 @@ def timeseries_reg(
 
     output_directory : string
             output will be placed in this directory plus a numeric extension.
+
+    return_numpy_motion_parameters : boolean
 
     verbose: boolean
 
@@ -1452,6 +1469,10 @@ def timeseries_reg(
         else:
             motion_corrected.append(avg_b0)
 
+    motion_parameters = motion_parameters[trim:len(motion_parameters)]
+    if return_numpy_motion_parameters:
+        motion_parameters = read_ants_transforms_to_numpy( motion_parameters )
+
     if remove_it:
         import shutil
         shutil.rmtree(output_directory, ignore_errors=True )
@@ -1470,7 +1491,7 @@ def timeseries_reg(
     avg_b0_4d = ants.make_image(d4siz,0,spacing=spc,origin=myorg,direction=mydir4d)
     return {
         "motion_corrected": ants.list_to_ndimage(avg_b0_4d, motion_corrected[trim:len(motion_corrected)]),
-        "motion_parameters": motion_parameters[trim:len(motion_parameters)],
+        "motion_parameters": motion_parameters,
         "FD": FD[trim:len(FD)]
     }
 
@@ -2754,6 +2775,29 @@ def dti_template(
         print("done")
     return bavg, wavg
 
+def read_ants_transforms_to_numpy(transform_files, type_of_transform='Rigid' ):
+    """
+    Read a list of ANTs transform files and convert them to a NumPy array.
+
+    :param transform_files: List of file paths to ANTs transform files.
+    :param type_of_transform: usually Rigid - will attempt to adapt to non-rigid when possible.
+    :return: NumPy array of the transforms.
+    """
+    transforms = []
+    for file in transform_files:
+        # Read the transform using ANTs
+        if type_of_transform in ['Rigid','Affine','Similarity'] and len(file) == 1 :
+            transform = ants.read_transform(file[0])
+        elif len( file ) == 2:
+            transform = ants.read_transform(file[1])
+        # Convert the transform parameters to a NumPy array
+        # This depends on the specific type and format of the transform
+        # For example, for an affine transform:
+        np_transform = np.array(ants.get_ants_transform_parameters(transform)[0:9])
+        # Append the numpy representation to the list
+        transforms.append(np_transform)
+    return np.array(transforms)
+
 def t1_based_dwi_brain_extraction(
     t1w_head,
     t1w,
@@ -3369,7 +3413,7 @@ def joint_dti_recon(
     fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
     dti_itself = get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
-    return {
+    return convert_floats_in_dict( {
         'dti': dti_itself,
         'recon_fa':reconFA,
         'recon_fa_summary':df_FA_JHU_ORRL_bfwide,
@@ -3397,7 +3441,7 @@ def joint_dti_recon(
         'ssnr_dwi': slice_snr( img_LRdwp, bgmask, fgmask, non_b0_idx),
         'fa_evr': fa_evr,
         'fa_SNR': fa_SNR
-    }
+    } )
 
 
 def middle_slice_snr( x, background_dilation=5 ):
@@ -4643,17 +4687,26 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.2], FD_threshold=5.0, spa = None, spt = None, 
+    f=[0.008,0.2],
+    FD_threshold=5.0, 
+    spa = None, 
+    spt = None, 
     nc = 5, type_of_transform='Rigid',
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
     censor = True,
     despike = 2.5,
+    motion_as_nuisance = True,
+    upsample = True,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
-  This will output a map for each of the major network systems.
+  This will output a map for each of the major network systems.  This function 
+  will by default upsample data to 2mm during the registration process if data 
+  is below that resolution.
+
+  registration - despike - anatomy - smooth - nuisance - bandpass - regress.nuisance - censor - falff - correlations
 
   Arguments
   ---------
@@ -4685,6 +4738,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   despike : if this is greater than zero will run voxel-wise despiking in the 3dDespike (afni) sense; after motion-correction
 
+  motion_as_nuisance: boolean will add motion and first derivative of motion as nuisance
+
+  upsample : boolean
+
   verbose : boolean
 
   Returns
@@ -4700,10 +4757,36 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   10.1016/j.neuroimage.2017.12.073: Our results indicate that (1) simple linear regression of regional fMRI time series against head motion parameters and WM/CSF signals (with or without expansion terms) is not sufficient to remove head motion artefacts; (2) aCompCor pipelines may only be viable in low-motion data; (3) volume censoring performs well at minimising motion-related artefact but a major benefit of this approach derives from the exclusion of high-motion individuals; (4) while not as effective as volume censoring, ICA-AROMA performed well across our benchmarks for relatively low cost in terms of data loss; (5) the addition of global signal regression improved the performance of nearly all pipelines on most benchmarks, but exacerbated the distance-dependence of correlations between motion and functional connec- tivity; and (6) group comparisons in functional connectivity between healthy controls and schizophrenia patients are highly dependent on preprocessing strategy. We offer some recommendations for best practice and outline simple analyses to facilitate transparent reporting of the degree to which a given set of findings may be affected by motion-related artefact.
 
+  10.1016/j.dcn.2022.101087 : We found that: 1) the most efficacious pipeline for both noise removal and information recovery included censoring, GSR, bandpass filtering, and head motion parameter (HMP) regression, 2) ICA-AROMA performed similarly to HMP regression and did not obviate the need for censoring, 3) GSR had a minimal impact on connectome fingerprinting but improved ISC, and 4) the strictest censoring approaches reduced motion correlated edges but negatively impacted identifiability.
+
   """
 
   import numpy as np
 # Assuming core and utils are modules or packages with necessary functions
+
+  if upsample:
+      spc = ants.get_spacing( fmri )
+      minspc = 2.0
+      if min(spc[0:3]) < minspc:
+          minspc = min(spc[0:3])
+      newspc = [minspc,minspc,minspc]
+      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 )
+
+  def temporal_derivative_same_shape(array):
+    """
+    Compute the temporal derivative of a 2D numpy array along the 0th axis (time)
+    and ensure the output has the same shape as the input.
+
+    :param array: 2D numpy array with time as the 0th axis.
+    :return: 2D numpy array of the temporal derivative with the same shape as input.
+    """
+    derivative = np.diff(array, axis=0)
+    
+    # Append a row to maintain the same shape
+    # You can choose to append a row of zeros or the last row of the derivative
+    # Here, a row of zeros is appended
+    zeros_row = np.zeros((1, array.shape[1]))
+    return np.vstack((zeros_row, derivative ))
 
   def compute_tSTD(M, quantile, x=0, axis=0):
     stdM = np.std(M, axis=axis)
@@ -4771,7 +4854,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     verbose=verbose,
     syn_metric='cc',
     syn_sampling=2,
-    reg_iterations=[40,20,5] )
+    reg_iterations=[40,20,5],
+    return_numpy_motion_parameters=True )
   
   if verbose:
       print("End rsfmri motion correction")
@@ -4801,7 +4885,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
-  gmseg = ants.iMath( gmseg, 'MD', 1 )
+  if not upsample:
+    gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMEFN
   gmseg = ants.apply_transforms( und, gmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
@@ -4838,15 +4923,16 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     print( hlinds )
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
     fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], 
-      threshold=outlier_threshold, mask=None, verbose=verbose )
+      threshold=outlier_threshold, verbose=verbose )
     hlinds.extend( hlinds2 )
+    del fmrimotcorr
   hlinds = list(set(hlinds)) # make unique
-    
+
   # nuisance
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
   globalsignal = globalmat.mean( axis = 1 )
   del globalmat
-  compcorquantile=0.90
+  compcorquantile=0.50
   nc_wm=nc_csf=nc
   if nc < 1:
     globalmat = get_compcor_matrix( corrmo['motion_corrected'], wm, compcorquantile )
@@ -4864,6 +4950,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     filter_type='polynomial', degree=2 )
   nuisance = np.c_[ mycompcor_csf[ 'components' ], mycompcor_wm[ 'components' ] ]
 
+  if motion_as_nuisance:
+      if verbose:
+          print("include motion as nuisance")
+          print( corrmo['motion_parameters'].shape )
+      deriv = temporal_derivative_same_shape( corrmo['motion_parameters']  )
+      nuisance = np.c_[ nuisance, corrmo['motion_parameters'], deriv ]
+
   if ica_components > 0:
     if verbose:
         print("include ica components as nuisance: " + str(ica_components))
@@ -4878,41 +4971,42 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
+  if censor or impute:
+    simgimp = impute_timeseries( simg, hlinds, method='linear')
+  else:
+    simgimp = simg
+
+  if impute:
+    simg = simgimp
+
   # bandpass any data collected before here -- if bandpass requested
   if f[0] > 0 and f[1] < 1.0:
     if verbose:
         print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
-    globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    corrmo['motion_corrected'] = ants.matrix_to_timeseries( corrmo['motion_corrected'], globalmat, bmask )
+    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
     globalmat = ants.timeseries_to_matrix( simg, bmask )
     globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
     simg = ants.matrix_to_timeseries( simg, globalmat, bmask )
-    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    globalmat = ants.timeseries_to_matrix( simgimp, bmask )
+    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
+    simgimp = ants.matrix_to_timeseries( simgimp, globalmat, bmask )
+    del globalmat
 
-  nuisanceall = nuisance.copy()
+  if verbose:
+    print("now regress nuisance")
+
+  gmmat = ants.timeseries_to_matrix( simgimp, bmask )
+  gmmat = ants.regress_components( gmmat, nuisance )
+  simgimp = ants.matrix_to_timeseries(simgimp, gmmat, bmask)
+
   if len( hlinds ) > 0 :
-    if impute and not censor:
-        corrmo['FD'] = replace_elements_in_numpy_array( corrmo['FD'], hlinds, corrmo['FD'].mean() )
-        corrmo['motion_corrected'] = impute_timeseries( corrmo['motion_corrected'], hlinds, method='linear')
-        simg = simgimp = impute_timeseries( simg, hlinds, method='linear')
-    elif censor:
-        corrmo['FD'] = remove_elements_from_numpy_array( corrmo['FD'], hlinds  )
-        corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
-        simgimp = impute_timeseries( simg, hlinds, method='linear')
+    if censor:
         nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
         simg = remove_volumes_from_timeseries( simg, hlinds )
     else:
         simgimp = simg
   else:
     simgimp = simg
-
-  if verbose:
-    print("now regress nuisance")
-
-  gmmat = ants.timeseries_to_matrix( simgimp, bmask )
-  gmmat = ants.regress_components( gmmat, nuisanceall )
-  simgimp = ants.matrix_to_timeseries(simgimp, gmmat, bmask)
 
   gmmat = ants.timeseries_to_matrix( simg, bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
@@ -5003,6 +5097,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   A_wide.columns = newnames_wide
   outdict['corr'] = A
   outdict['corr_wide'] = A_wide
+  outdict['fmri_template'] = fmri_template
   outdict['brainmask'] = bmask
   outdict['gmmask'] = gmseg
   outdict['alff'] = myfalff['alff']
@@ -5025,7 +5120,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
 
   rsfNuisance = pd.DataFrame( nuisance )
-  rsfNuisance['FD']=corrmo['FD']
 
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
@@ -5038,16 +5132,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['high_motion_count'] = high_motion_count
   outdict['high_motion_pct'] = high_motion_pct
   outdict['despiking_count_summary'] = despiking_count_summary
-  outdict['FD_max'] = rsfNuisance['FD'].max()
-  outdict['FD_mean'] = rsfNuisance['FD'].mean()
+  outdict['FD_max'] = corrmo['FD'].max()
+  outdict['FD_mean'] = corrmo['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['n_outliers'] = len(hlinds)
   outdict['nc_wm'] = nc_wm
   outdict['nc_csf'] = nc_csf
   outdict['minutes_original_data'] = ( tr * fmri.shape[3] ) / 60.0 # minutes of useful data
   outdict['minutes_censored_data'] = ( tr * simg.shape[3] ) / 60.0 # minutes of useful data
-  return outdict
-
+  return convert_floats_in_dict( outdict )
 
 
 def calculate_CBF(Delta_M, M_0, mask,
@@ -5309,7 +5402,7 @@ def bold_perfusion_minimal(
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
-  compcorquantile=0.90
+  compcorquantile=0.50
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = bmask,
     filter_type='polynomial', degree=2 )
@@ -5388,7 +5481,7 @@ def bold_perfusion_minimal(
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['outlier_volumes']=hlinds
   outdict['negative_voxels']=negative_voxels
-  return outdict
+  return convert_floats_in_dict( outdict )
 
 
 def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
@@ -5642,7 +5735,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  compcorquantile=0.90
+  compcorquantile=0.50
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
@@ -5799,7 +5892,7 @@ Where:
   outdict['outlier_volumes']=hlinds
   outdict['n_outliers']=len(hlinds)
   outdict['negative_voxels']=negative_voxels
-  return outdict
+  return convert_floats_in_dict( outdict )
 
 
 def write_bvals_bvecs(bvals, bvecs, prefix ):
@@ -6067,11 +6160,48 @@ def mm(
             boldTemplate, hlinds = loop_timeseries_censoring( rsf_image, 0.1 )
             boldTemplate = get_average_rsf(boldTemplate)
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
-            output_dict['rsf'] = resting_state_fmri_networks(
-                rsf_image,
-                boldTemplate,
-                hier['brain_n4_dnz'],
-                t1atropos, verbose=verbose )
+            rsfprolist = []
+            # Initialize the parameters DataFrame
+            df = pd.DataFrame(columns=["loop", "cens", "HM", "ff"])
+            # Nested loops
+            proct = 0
+            for loop in [0.25, 0.50, 0.75]:
+                for cens in [True, False]:
+                    for HM in [1.0, 5.0]:
+                        for ff in ['broad', 'mid', 'tight']:
+                            # Create a DataFrame for the current iteration
+                            local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
+                            # Append the local DataFrame to the main DataFrame
+                            df = pd.concat([df, local_df], ignore_index=True)
+                            f = [0.008,0.2]
+                            if ff == 'mid':
+                                f = [0.01,0.1]
+                            elif ff == 'tight':
+                                f = [0.03,0.08]
+                            rsf0 = resting_state_fmri_networks(
+                                rsf_image,
+                                boldTemplate,
+                                hier['brain_n4_dnz'],
+                                t1atropos,
+                                f=f,
+                                FD_threshold=HM, 
+                                spa = None, 
+                                spt = None, 
+                                nc = 5,
+                                type_of_transform='Rigid',
+                                outlier_threshold=loop,
+                                ica_components = 0,
+                                impute = False,
+                                censor = cens,
+                                despike = 2.5,
+                                motion_as_nuisance = True,
+                                upsample=False,
+                                verbose=verbose ) # default
+                            rsfprolist.append( rsf0 )
+                            proct = proct + 1
+                            if proct == 2:
+                                break
+            output_dict['rsf'] = rsfprolist
     if nm_image_list is not None:
         if verbose:
             print('nm')
@@ -6228,13 +6358,14 @@ def mm(
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
-            rsfpro = output_dict['rsf']
-            rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
-            for netid in mynets:
-                rsfkey = netid + "_norm"
-                normalization_dict[rsfkey] = ants.apply_transforms(
-                    group_template, rsfpro[netid],
-                    group_transform+rsfrig['fwdtransforms'] )
+            if False:
+                rsfpro = output_dict['rsf'] # FIXME
+                rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
+                for netid in mynets:
+                    rsfkey = netid + "_norm"
+                    normalization_dict[rsfkey] = ants.apply_transforms(
+                        group_template, rsfpro[netid],
+                        group_transform+rsfrig['fwdtransforms'] )
         if output_dict['perf'] is not None: # zizzer
             comptx = group_transform + output_dict['perf']['t1reg']['invtransforms']
             normalization_dict['perf_norm'] = ants.apply_transforms( group_template,
@@ -6370,41 +6501,48 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
             'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience',
             'Subcortical', 'DorsalAttention', 'tsnr'] )
-        rsfpro = mm['rsf']
-        for mykey in mynets:
-            myop = output_prefix + separator + mykey + '.nii.gz'
-            image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
-        rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
-        mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
-        # falff and alff
-        search_key='alffPoint'
-        alffkeys = [key for key, val in rsfpro.items() if search_key in key]
-        for myalf in alffkeys:
-            mm_wide[ myalf ]=rsfpro[myalf]
-        mm_wide['rsf_tsnr_mean'] =  rsfpro['tsnr'].mean()
-        mm_wide['rsf_dvars_mean'] =  rsfpro['dvars'].mean()
-        mm_wide['rsf_ssnr_mean'] =  rsfpro['ssnr'].mean()
-        mm_wide['rsf_high_motion_count'] =  rsfpro['high_motion_count']
-        mm_wide['rsf_high_motion_pct'] = rsfpro['high_motion_pct']
-        mm_wide['rsf_minutes_original_data'] = rsfpro['minutes_original_data']
-        mm_wide['rsf_minutes_censored_data'] = rsfpro['minutes_censored_data']
-        mm_wide['rsf_despiking_count_summary'] = rsfpro['despiking_count_summary']
-        mm_wide['rsf_evr'] =  rsfpro['bold_evr']
-        mm_wide['rsf_n_outliers'] =  rsfpro['n_outliers']
-        mm_wide['rsf_FD_mean'] = rsfpro['FD_mean']
-        mm_wide['rsf_FD_max'] = rsfpro['FD_max']
-        mm_wide['rsf_alff_mean'] = rsfpro['alff_mean']
-        mm_wide['rsf_alff_sd'] = rsfpro['alff_sd']
-        mm_wide['rsf_falff_mean'] = rsfpro['falff_mean']
-        mm_wide['rsf_falff_sd'] = rsfpro['falff_sd']
-        mm_wide['rsf_nc_wm'] = rsfpro['nc_wm']
-        mm_wide['rsf_nc_csf'] = rsfpro['nc_csf']
-        mm_wide['rsf_n_outliers'] = rsfpro['n_outliers']
-        ofn = output_prefix + separator + 'rsfcorr.csv'
-        rsfpro['corr'].to_csv( ofn )
-        # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
-        ofn2 = output_prefix + separator + 'nodescorr.csv'
-        rsfpro['fullCorrMat'].to_csv( ofn2 )
+        fcnxpro=99
+        for rsfpro in mm['rsf']:
+            fcnxpro=fcnxpro+1
+            pronum = 'fcnxpro'+str(fcnxpro)
+            print("FIXMEFN HEY BETTY DAVIS EYES + " + pronum )
+            for mykey in mynets:
+                myop = output_prefix + separator + pronum + mykey + '.nii.gz'
+                image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
+            rsfpro['corr_wide'].add_prefix(pronum)
+            rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
+            # falff and alff
+            search_key='alffPoint'
+            alffkeys = [key for key, val in rsfpro.items() if search_key in key]
+            for myalf in alffkeys:
+                mm_wide[ pronum+"_"+myalf ]=rsfpro[myalf]
+            mm_wide['rsf'+pronum+'_tsnr_mean'] =  rsfpro['tsnr'].mean()
+            mm_wide['rsf'+pronum+'_dvars_mean'] =  rsfpro['dvars'].mean()
+            mm_wide['rsf'+pronum+'_ssnr_mean'] =  rsfpro['ssnr'].mean()
+            mm_wide['rsf'+pronum+'_high_motion_count'] =  rsfpro['high_motion_count']
+            mm_wide['rsf'+pronum+'_high_motion_pct'] = rsfpro['high_motion_pct']
+            mm_wide['rsf'+pronum+'_minutes_original_data'] = rsfpro['minutes_original_data']
+            mm_wide['rsf'+pronum+'_minutes_censored_data'] = rsfpro['minutes_censored_data']
+            mm_wide['rsf'+pronum+'_despiking_count_summary'] = rsfpro['despiking_count_summary']
+            mm_wide['rsf'+pronum+'_evr'] =  rsfpro['bold_evr']
+            mm_wide['rsf'+pronum+'_n_outliers'] =  rsfpro['n_outliers']
+            mm_wide['rsf'+pronum+'_FD_mean'] = rsfpro['FD_mean']
+            mm_wide['rsf'+pronum+'_FD_max'] = rsfpro['FD_max']
+            mm_wide['rsf'+pronum+'_alff_mean'] = rsfpro['alff_mean']
+            mm_wide['rsf'+pronum+'_alff_sd'] = rsfpro['alff_sd']
+            mm_wide['rsf'+pronum+'_falff_mean'] = rsfpro['falff_mean']
+            mm_wide['rsf'+pronum+'_falff_sd'] = rsfpro['falff_sd']
+            mm_wide['rsf'+pronum+'_nc_wm'] = rsfpro['nc_wm']
+            mm_wide['rsf'+pronum+'_nc_csf'] = rsfpro['nc_csf']
+            mm_wide['rsf'+pronum+'_n_outliers'] = rsfpro['n_outliers']
+            ofn = output_prefix + separator + pronum + 'rsfcorr.csv'
+            rsfpro['corr'].to_csv( ofn )
+            # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
+            ofn2 = output_prefix + separator + pronum + 'nodescorr.csv'
+            rsfpro['fullCorrMat'].to_csv( ofn2 )
+            print("FIXMEFN WRITE TO " + output_prefix + separator + pronum + ".csv")
+            mm_wide.to_csv( output_prefix + separator + pronum + ".csv" )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
@@ -9175,6 +9313,8 @@ def calculate_loop_scores(flattened_series, n_neighbors=20):
     from PyNomaly import loop
     from sklearn.neighbors import NearestNeighbors
     from sklearn.preprocessing import StandardScaler
+    # replace nans with zero
+    flattened_series=np.nan_to_num(flattened_series, nan=0)
     scaler = StandardScaler()
     scaler.fit(flattened_series)
     data = scaler.transform(flattened_series)
@@ -9266,7 +9406,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=False):
     Returns:
     tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     """
-    if mask is not None:
+    if mask is None:
         flattened_series = flatten_time_series(x.numpy())
     else:
         flattened_series = ants.timeseries_to_matrix( x, mask )

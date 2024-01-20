@@ -116,3 +116,4 @@ from .mm import filter_df
 from .mm import remove_elements_from_list
 from .mm import despike_time_series
 from .mm import despike_time_series_afni
+from .mm import convert_floats_in_dict
