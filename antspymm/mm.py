@@ -6164,10 +6164,10 @@ def mm(
             # Initialize the parameters DataFrame
             df = pd.DataFrame(columns=["loop", "cens", "HM", "ff"])
             # Nested loops
-            for loop in [0.25]:
+            for loop in [0.25,0.5,0.75]:
                 for cens in [True, False]:
-                    for HM in [1.0]:
-                        for ff in ['broad']:
+                    for HM in [1.0,5.0]:
+                        for ff in ['broad','mid','tight']:
                             # Create a DataFrame for the current iteration
                             local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
                             # Append the local DataFrame to the main DataFrame
@@ -6501,7 +6501,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         for rsfpro in mm['rsf']:
             fcnxpro=fcnxpro+1
             pronum = 'fcnxpro'+str(fcnxpro)
-            print("FIXMEFN HEY BETTY DAVIS EYES + " + pronum )
+            # print("FIXMEFN HEY BETTY DAVIS EYES + " + pronum )
             for mykey in mynets:
                 myop = output_prefix + separator + pronum + mykey + '.nii.gz'
                 image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
@@ -6537,8 +6537,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
             ofn2 = output_prefix + separator + pronum + 'nodescorr.csv'
             rsfpro['fullCorrMat'].to_csv( ofn2 )
-            print("FIXMEFN WRITE TO " + output_prefix + separator + pronum + ".csv")
-            mm_wide.to_csv( output_prefix + separator + pronum + ".csv" )
+#            print("FIXMEFN WRITE TO " + output_prefix + separator + pronum + ".csv")
+#            mm_wide.to_csv( output_prefix + separator + pronum + ".csv" )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
