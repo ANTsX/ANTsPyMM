@@ -6238,6 +6238,8 @@ def mm(
                     for ff in freqsearch:
                         for CC in CCsearch:
                             local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
+                            if verbose:
+                                print( local_df )
                             df = pd.concat([df, local_df], ignore_index=True)
                             f = defaultf
                             if ff == 'mid':
