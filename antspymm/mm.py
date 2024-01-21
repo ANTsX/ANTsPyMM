@@ -2775,26 +2775,23 @@ def dti_template(
         print("done")
     return bavg, wavg
 
-def read_ants_transforms_to_numpy(transform_files, type_of_transform='Rigid' ):
+def read_ants_transforms_to_numpy(transform_files ):
     """
     Read a list of ANTs transform files and convert them to a NumPy array.
+    The function filters out any files that are not .mat and will only  use
+    the first .mat in each entry of the list.
 
-    :param transform_files: List of file paths to ANTs transform files.
-    :param type_of_transform: usually Rigid - will attempt to adapt to non-rigid when possible.
+    :param transform_files: List of lists of file paths to ANTs transform files.  
     :return: NumPy array of the transforms.
     """
+    extension = '.mat'
+    # Filter the list of lists
+    filtered_lists = [[string for string in sublist if string.endswith(extension)] 
+                    for sublist in transform_files]
     transforms = []
-    for file in transform_files:
-        # Read the transform using ANTs
-        if type_of_transform in ['Rigid','Affine','Similarity'] and len(file) == 1 :
-            transform = ants.read_transform(file[0])
-        elif len( file ) == 2:
-            transform = ants.read_transform(file[1])
-        # Convert the transform parameters to a NumPy array
-        # This depends on the specific type and format of the transform
-        # For example, for an affine transform:
+    for file in filtered_lists:
+        transform = ants.read_transform(file[0])
         np_transform = np.array(ants.get_ants_transform_parameters(transform)[0:9])
-        # Append the numpy representation to the list
         transforms.append(np_transform)
     return np.array(transforms)
 
