@@ -6168,10 +6168,11 @@ def mm(
             HM=5.0
             loop=1.0
             CC = 5
+            defaultf = [ 0.008,0.15 ]
             for ff in ['broad','mid','tight']:
                 local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
                 df = pd.concat([df, local_df], ignore_index=True)
-                f = [0.008,0.2]
+                f = defaultf
                 if ff == 'mid':
                     f = [0.01,0.1]
                 elif ff == 'tight':
@@ -6200,7 +6201,7 @@ def mm(
                     for ff in ['broad','mid','tight']:
                         local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
                         df = pd.concat([df, local_df], ignore_index=True)
-                        f = [0.008,0.2]
+                        f = defaultf
                         if ff == 'mid':
                             f = [0.01,0.1]
                         elif ff == 'tight':
