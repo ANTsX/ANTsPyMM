@@ -159,27 +159,36 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
-
-
-def clean_tmp_directory(age_hours=1):
+def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=None, log_file_path=None):
     """
     Clean the /tmp directory by removing files and directories older than a certain number of hours.
-    Works on both Linux and macOS.
+    Optionally uses sudo and can filter files by extensions.
 
     :param age_hours: Age in hours to consider files and directories for deletion.
+    :param use_sudo: Whether to use sudo for removal commands.
+    :param extensions: List of file extensions to delete. If None, all files are considered.
+    :param log_file_path: Path to the log file. If None, a default path will be used based on the OS.
 
     # Usage
-    # clean_tmp_directory(age_hours=1)
-
+    # Example: clean_tmp_directory(age_hours=1, use_sudo=True, extensions=['.log', '.tmp'])
     """
-    # Determine the tmp directory and log file path based on the operating system
     import os
     import platform
     import subprocess
     from datetime import datetime, timedelta
+
+    # Determine the tmp directory based on the operating system
     tmp_dir = '/tmp'
-    log_dir = '/var/log' if platform.system() == 'Linux' else os.path.expanduser('~/Library/Logs')
-    log_file = os.path.join(log_dir, 'clean_tmp.log')
+
+    # Set the log file path
+    if log_file_path is None:
+        if platform.system() == 'Linux':
+            log_file = '/var/log/clean_tmp.log'
+        else:
+            home_dir = os.path.expanduser('~')
+            log_file = os.path.join(home_dir, 'Library/Logs/clean_tmp.log')
+    else:
+        log_file = log_file_path
 
     current_time = datetime.now()
     for item in os.listdir(tmp_dir):
@@ -190,16 +199,18 @@ def clean_tmp_directory(age_hours=1):
             # Calculate the age of the file/directory
             item_age = current_time - datetime.fromtimestamp(item_stat.st_mtime)
             if item_age > timedelta(hours=age_hours):
-                if os.path.isdir(item_path):
-                    subprocess.run(['rm', '-rf', item_path])
-                else:
-                    os.remove(item_path)
+                # Check for file extensions if provided
+                if extensions is None or any(item.endswith(ext) for ext in extensions):
+                    # Construct the removal command
+                    rm_command = ['sudo', 'rm', '-rf', item_path] if use_sudo else ['rm', '-rf', item_path]
+                    subprocess.run(rm_command)
 
                 with open(log_file, 'a') as log:
                     log.write(f"{datetime.now()}: Deleted {item_path}\n")
         except Exception as e:
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
+
 
 
 
