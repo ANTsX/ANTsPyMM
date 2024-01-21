@@ -6162,22 +6162,50 @@ def mm(
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
             rsfprolist = []
             # Initialize the parameters DataFrame
-            df = pd.DataFrame(columns=["loop", "cens", "HM", "ff"])
-            # Nested loops
+            df = pd.DataFrame(columns=["loop", "cens", "HM", "ff" ] )
+            # first - no censoring - just explore compcor
+            cens=False
+            HM=5.0
+            loop=1.0
+            CC = 5
+            for ff in ['broad','mid','tight']:
+                local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
+                df = pd.concat([df, local_df], ignore_index=True)
+                f = [0.008,0.2]
+                if ff == 'mid':
+                    f = [0.01,0.1]
+                elif ff == 'tight':
+                    f = [0.03,0.08]
+                rsf0 = resting_state_fmri_networks(
+                    rsf_image, boldTemplate, hier['brain_n4_dnz'], t1atropos,
+                    f=f,
+                    FD_threshold=HM, 
+                    spa = None, spt = None, 
+                    nc = CC, 
+                    type_of_transform='Rigid',
+                    outlier_threshold=loop,
+                    ica_components = 0,
+                    impute = False,
+                    censor = cens,
+                    despike = 2.5,
+                    motion_as_nuisance = True,
+                    upsample=False,
+                    verbose=verbose ) # default
+                rsfprolist.append( rsf0 )
+
+            # test impact of censoring
+            cens = True
             for loop in [0.25,0.5,0.75]:
-                for cens in [True, False]:
-                    for HM in [1.0,5.0]:
-                        for ff in ['broad','mid','tight']:
-                            # Create a DataFrame for the current iteration
-                            local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
-                            # Append the local DataFrame to the main DataFrame
-                            df = pd.concat([df, local_df], ignore_index=True)
-                            f = [0.008,0.2]
-                            if ff == 'mid':
-                                f = [0.01,0.1]
-                            elif ff == 'tight':
-                                f = [0.03,0.08]
-                            rsf0 = resting_state_fmri_networks(
+                for HM in [1.0, 5.0, 50.0 ]:
+                    for ff in ['broad','mid','tight']:
+                        local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
+                        df = pd.concat([df, local_df], ignore_index=True)
+                        f = [0.008,0.2]
+                        if ff == 'mid':
+                            f = [0.01,0.1]
+                        elif ff == 'tight':
+                            f = [0.03,0.08]
+                        rsf0 = resting_state_fmri_networks(
                                 rsf_image,
                                 boldTemplate,
                                 hier['brain_n4_dnz'],
@@ -6186,7 +6214,7 @@ def mm(
                                 FD_threshold=HM, 
                                 spa = None, 
                                 spt = None, 
-                                nc = 5,
+                                nc = CC,
                                 type_of_transform='Rigid',
                                 outlier_threshold=loop,
                                 ica_components = 0,
@@ -6196,7 +6224,7 @@ def mm(
                                 motion_as_nuisance = True,
                                 upsample=False,
                                 verbose=verbose ) # default
-                            rsfprolist.append( rsf0 )
+                        rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
     if nm_image_list is not None:
         if verbose:
