@@ -6290,9 +6290,9 @@ def mm(
             CCsearch = [5,0.5]
             defaultf = [ 0.008,0.15 ]
             freqsearch = ['broad','mid','tight'] # 
-            freqsearch = ['broad','tight'] # fast
-            CCsearch = [0.5]               # fast
-            docens=False                    # fast
+#            freqsearch = ['broad','tight'] # fast
+#            CCsearch = [0.5]               # fast
+            docens=True                     # explore censoring
             for ff in freqsearch:
                 for CC in CCsearch:
                     local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
