@@ -199,11 +199,11 @@ def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=None, log_file_p
                     rm_command = ['sudo', 'rm', '-rf', item_path] if use_sudo else ['rm', '-rf', item_path]
                     subprocess.run(rm_command)
 
-                if log_file_path is not None
+                if log_file_path is not None:
                     with open(log_file, 'a') as log:
                         log.write(f"{datetime.now()}: Deleted {item_path}\n")
         except Exception as e:
-            if log_file_path is not None
+            if log_file_path is not None:
                 with open(log_file, 'a') as log:
                     log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
 
