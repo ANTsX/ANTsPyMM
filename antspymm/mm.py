@@ -1410,7 +1410,7 @@ def timeseries_reg(
     verbose=False, **kwargs
 ):
     """
-    Correct time-series data for motion - with deformation.
+    Correct time-series data for motion.
 
     Arguments
     ---------
@@ -1508,7 +1508,6 @@ def timeseries_reg(
             myperc = round( k / nTimePoints * 100)
             print(myperc, end="%.", flush=True)
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
-        temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, "Normalize")
         txprefix = ofnL+str(k % 2).zfill(4)+"_"
         if temp.numpy().var() > 0:
@@ -2012,7 +2011,6 @@ def dti_reg(
         else:
             fixed=ants.image_clone( adw )
         temp = ants.slice_image(image, axis=idim - 1, idx=k)
-        temp = ants.n4_bias_field_correction( temp )
         temp = ants.iMath(temp, "Normalize")
         txprefix = ofnL+str(k).zfill(4)+"rig_"
         txprefix2 = ofnL+str(k % 2).zfill(4)+"def_"
@@ -4937,6 +4935,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).iMath("FillHoles")
   if verbose:
       print("Begin rsfmri motion correction")
+  debug=False
+  if debug:
+      ants.image_write( fmri_template, '/tmp/fmri_template.nii.gz' )
+      ants.image_write( fmri, '/tmp/fmri.nii.gz' )
+      print("debug wrote fmri and fmri_template")
   # mot-co
   corrmo = timeseries_reg(
     fmri, fmri_template,
@@ -5120,7 +5123,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   nVolumes = simg.shape[3]
   meanROI = np.zeros([nVolumes, nPoints])
   roiNames = []
-  debug=False
   if debug:
       ptImgAll = und * 0.
   for i in range(nPoints):
@@ -6184,7 +6186,7 @@ def mm(
     #####################
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    mynets = list([ 'meanBold', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode',
+    mynets = list([ 'meanBold', 'fmri_template', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode',
         'MemoryRetrieval', 'VentralAttention', 'Visual',
         'FrontoparietalTaskControl', 'Salience', 'Subcortical',
         'DorsalAttention'])
@@ -6267,7 +6269,6 @@ def mm(
             if verbose:
                 print("join the 2 rsf")
             if rsf_image1.shape[3] > 10 and rsf_image2.shape[3] > 10:
-                my_motion_tx = 'SyN'
                 leadvols = list(range(8))
                 rsf_image2 = remove_volumes_from_timeseries( rsf_image2, leadvols )
                 rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
@@ -6310,7 +6311,7 @@ def mm(
                     rsf0 = resting_state_fmri_networks(
                         rsf_image, boldTemplate, hier['brain_n4_dnz'], t1atropos,
                         f=f,
-                        FD_threshold=HM, 
+                        FD_threshold=HM,
                         spa = None, spt = None, 
                         nc = CC, 
                         type_of_transform=my_motion_tx,
@@ -6665,7 +6666,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         fcnxpro=99
         for rsfpro in mm['rsf']:
             fcnxpro=fcnxpro+1
-            pronum = 'fcnxpro'+str(fcnxpro)
+            pronum = 'fcnxpro'+str(fcnxpro)+"_"
             new_rsf_wide = dict_to_dataframe( rsfpro )
             new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
             new_rsf_wide = new_rsf_wide.add_prefix( pronum )
