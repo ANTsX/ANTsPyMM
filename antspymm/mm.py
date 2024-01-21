@@ -181,13 +181,7 @@ def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=None, log_file_p
     tmp_dir = '/tmp'
 
     # Set the log file path
-    if log_file_path is None:
-        if platform.system() == 'Linux':
-            log_file = '/var/log/clean_tmp.log'
-        else:
-            home_dir = os.path.expanduser('~')
-            log_file = os.path.join(home_dir, 'Library/Logs/clean_tmp.log')
-    else:
+    if log_file_path is not None:
         log_file = log_file_path
 
     current_time = datetime.now()
@@ -205,15 +199,13 @@ def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=None, log_file_p
                     rm_command = ['sudo', 'rm', '-rf', item_path] if use_sudo else ['rm', '-rf', item_path]
                     subprocess.run(rm_command)
 
-                with open(log_file, 'a') as log:
-                    log.write(f"{datetime.now()}: Deleted {item_path}\n")
+                if log_file_path is not None
+                    with open(log_file, 'a') as log:
+                        log.write(f"{datetime.now()}: Deleted {item_path}\n")
         except Exception as e:
-            with open(log_file, 'a') as log:
-                log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
-
-
-
-
+            if log_file_path is not None
+                with open(log_file, 'a') as log:
+                    log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
 
 
 def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None, verbose=True):
