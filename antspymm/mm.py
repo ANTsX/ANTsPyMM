@@ -159,7 +159,7 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
-def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=None, log_file_path=None):
+def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
     """
     Clean the /tmp directory by removing files and directories older than a certain number of hours.
     Optionally uses sudo and can filter files by extensions.
