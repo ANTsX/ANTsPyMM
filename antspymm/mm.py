@@ -91,7 +91,8 @@ __all__ = ['version',
     'score_fmri_censoring',
     'remove_volumes_from_timeseries',
     'loop_timeseries_censoring',
-    'clean_tmp_directory']
+    'clean_tmp_directory',
+    'dict_to_dataframe']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -159,6 +160,34 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
+def dict_to_dataframe(data_dict):
+    """
+    Convert a dictionary to a pandas DataFrame, excluding items that cannot be processed by pandas.
+
+    :param data_dict: Dictionary to be converted.
+    :return: DataFrame representation of the dictionary.
+    """
+    processed_data = {}
+    list_length = None
+
+    for key, value in data_dict.items():
+        # Check if value is a scalar
+        if isinstance(value, (int, float, str, bool)):
+            processed_data[key] = [value]
+        # Check if value is a list of scalars
+        elif isinstance(value, list) and all(isinstance(item, (int, float, str, bool)) for item in value):
+            continue
+            # Ensure all lists have the same length
+            if list_length is None:
+                list_length = len(value)
+            if len(value) == list_length:
+                processed_data[key] = value
+            else:
+                # Skip this key if list lengths are not consistent
+                continue
+
+    return pd.DataFrame.from_dict(processed_data)
+
 def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
     """
     Clean the /tmp directory by removing files and directories older than a certain number of hours.
@@ -206,6 +235,7 @@ def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=[ '.nii', '.nii.
             if log_file_path is not None:
                 with open(log_file, 'a') as log:
                     log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
+
 
 
 def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None, verbose=True):
@@ -6629,44 +6659,19 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         for rsfpro in mm['rsf']:
             fcnxpro=fcnxpro+1
             pronum = 'fcnxpro'+str(fcnxpro)
-            # print("FIXMEFN HEY BETTY DAVIS EYES + " + pronum )
+            new_rsf_wide = antspymm.dict_to_dataframe( rsfpro )
+            new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
+            new_rsf_wide = new_rsf_wide.add_prefix( pronum )
+            new_rsf_wide.set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [mm_wide, new_rsf_wide ], axis=1, ignore_index=False )
             for mykey in mynets:
                 myop = output_prefix + separator + pronum + mykey + '.nii.gz'
                 image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
-            rsfpro['corr_wide'].add_prefix(pronum)
-            rsfpro['corr_wide'].set_index( mm_wide.index, inplace=True )
-            mm_wide = pd.concat( [ mm_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
-            # falff and alff
-            search_key='alffPoint'
-            alffkeys = [key for key, val in rsfpro.items() if search_key in key]
-            for myalf in alffkeys:
-                mm_wide[ pronum+"_"+myalf ]=rsfpro[myalf]
-            mm_wide['rsf'+pronum+'_tsnr_mean'] =  rsfpro['tsnr'].mean()
-            mm_wide['rsf'+pronum+'_dvars_mean'] =  rsfpro['dvars'].mean()
-            mm_wide['rsf'+pronum+'_ssnr_mean'] =  rsfpro['ssnr'].mean()
-            mm_wide['rsf'+pronum+'_high_motion_count'] =  rsfpro['high_motion_count']
-            mm_wide['rsf'+pronum+'_high_motion_pct'] = rsfpro['high_motion_pct']
-            mm_wide['rsf'+pronum+'_minutes_original_data'] = rsfpro['minutes_original_data']
-            mm_wide['rsf'+pronum+'_minutes_censored_data'] = rsfpro['minutes_censored_data']
-            mm_wide['rsf'+pronum+'_despiking_count_summary'] = rsfpro['despiking_count_summary']
-            mm_wide['rsf'+pronum+'_evr'] =  rsfpro['bold_evr']
-            mm_wide['rsf'+pronum+'_n_outliers'] =  rsfpro['n_outliers']
-            mm_wide['rsf'+pronum+'_FD_mean'] = rsfpro['FD_mean']
-            mm_wide['rsf'+pronum+'_FD_max'] = rsfpro['FD_max']
-            mm_wide['rsf'+pronum+'_alff_mean'] = rsfpro['alff_mean']
-            mm_wide['rsf'+pronum+'_alff_sd'] = rsfpro['alff_sd']
-            mm_wide['rsf'+pronum+'_falff_mean'] = rsfpro['falff_mean']
-            mm_wide['rsf'+pronum+'_falff_sd'] = rsfpro['falff_sd']
-            mm_wide['rsf'+pronum+'_nc_wm'] = rsfpro['nc_wm']
-            mm_wide['rsf'+pronum+'_nc_csf'] = rsfpro['nc_csf']
-            mm_wide['rsf'+pronum+'_n_outliers'] = rsfpro['n_outliers']
             ofn = output_prefix + separator + pronum + 'rsfcorr.csv'
             rsfpro['corr'].to_csv( ofn )
             # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
             ofn2 = output_prefix + separator + pronum + 'nodescorr.csv'
             rsfpro['fullCorrMat'].to_csv( ofn2 )
-#            print("FIXMEFN WRITE TO " + output_prefix + separator + pronum + ".csv")
-#            mm_wide.to_csv( output_prefix + separator + pronum + ".csv" )
     if mm['DTI'] is not None:
         mydti = mm['DTI']
         mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
@@ -6682,7 +6687,6 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             mm_wide['dti_FD_mean'] = mydti['framewise_displacement'].mean()
             mm_wide['dti_FD_max'] = mydti['framewise_displacement'].max()
             fdfn = output_prefix + separator + '_fd.csv'
-            # mm_wide.to_csv( fdfn )
         else:
             mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
 
