@@ -90,7 +90,8 @@ __all__ = ['version',
     'remove_elements_from_numpy_array',
     'score_fmri_censoring',
     'remove_volumes_from_timeseries',
-    'loop_timeseries_censoring']
+    'loop_timeseries_censoring',
+    'clean_tmp_directory']
 
 from pathlib import Path
 from pathlib import PurePath
@@ -157,6 +158,52 @@ def version( ):
               'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
+
+
+
+def clean_tmp_directory(age_hours=1):
+    """
+    Clean the /tmp directory by removing files and directories older than a certain number of hours.
+    Works on both Linux and macOS.
+
+    :param age_hours: Age in hours to consider files and directories for deletion.
+
+    # Usage
+    # clean_tmp_directory(age_hours=1)
+
+    """
+    # Determine the tmp directory and log file path based on the operating system
+    import os
+    import platform
+    import subprocess
+    from datetime import datetime, timedelta
+    tmp_dir = '/tmp'
+    log_dir = '/var/log' if platform.system() == 'Linux' else os.path.expanduser('~/Library/Logs')
+    log_file = os.path.join(log_dir, 'clean_tmp.log')
+
+    current_time = datetime.now()
+    for item in os.listdir(tmp_dir):
+        try:
+            item_path = os.path.join(tmp_dir, item)
+            item_stat = os.stat(item_path)
+
+            # Calculate the age of the file/directory
+            item_age = current_time - datetime.fromtimestamp(item_stat.st_mtime)
+            if item_age > timedelta(hours=age_hours):
+                if os.path.isdir(item_path):
+                    subprocess.run(['rm', '-rf', item_path])
+                else:
+                    os.remove(item_path)
+
+                with open(log_file, 'a') as log:
+                    log.write(f"{datetime.now()}: Deleted {item_path}\n")
+        except Exception as e:
+            with open(log_file, 'a') as log:
+                log.write(f"{datetime.now()}: Error deleting {item_path}: {e}\n")
+
+
+
+
 
 def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None, verbose=True):
     """
@@ -4695,7 +4742,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     censor = True,
     despike = 2.5,
     motion_as_nuisance = True,
-    upsample = True,
+    upsample = False,
+    clean_tmp = False,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4739,6 +4787,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   upsample : boolean
 
+  clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing
+
   verbose : boolean
 
   Returns
@@ -4759,6 +4809,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   """
 
   import warnings
+
+  if clean_tmp:
+    clean_tmp_directory( age_hours= 1.0 )
+
   remove_it=True
   output_directory = tempfile.mkdtemp()
   output_directory_w = output_directory + "/ts_t1_reg/"
@@ -6228,6 +6282,7 @@ def mm(
                         despike = 2.5,
                         motion_as_nuisance = True,
                         upsample=False,
+                        clean_tmp=True,
                         verbose=verbose ) # default
                     rsfprolist.append( rsf0 )
 
@@ -6264,6 +6319,7 @@ def mm(
                                     despike = 2.5,
                                     motion_as_nuisance = True,
                                     upsample=False,
+                                    clean_tmp=True,
                                     verbose=verbose ) # default
                             rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
