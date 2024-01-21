@@ -188,7 +188,7 @@ def dict_to_dataframe(data_dict):
 
     return pd.DataFrame.from_dict(processed_data)
 
-def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
+def clean_tmp_directory(age_hours=1., use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
     """
     Clean the /tmp directory by removing files and directories older than a certain number of hours.
     Optionally uses sudo and can filter files by extensions.
@@ -205,6 +205,9 @@ def clean_tmp_directory(age_hours=1, use_sudo=False, extensions=[ '.nii', '.nii.
     import platform
     import subprocess
     from datetime import datetime, timedelta
+
+    if not isinstance(age_hours, float):
+        return
 
     # Determine the tmp directory based on the operating system
     tmp_dir = '/tmp'
@@ -4776,7 +4779,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     despike = 2.5,
     motion_as_nuisance = True,
     upsample = False,
-    clean_tmp = False,
+    clean_tmp = None,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4820,7 +4823,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   upsample : boolean
 
-  clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing
+  clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing.  if this is set, the float value clean_tmp will be interpreted as the age in hours of files to be cleaned.
 
   verbose : boolean
 
@@ -4843,8 +4846,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   import warnings
 
-  if clean_tmp:
-    clean_tmp_directory( age_hours= 1.0 )
+  if clean_tmp is not None:
+    clean_tmp_directory( age_hours = clean_tmp )
 
   remove_it=True
   output_directory = tempfile.mkdtemp()
@@ -6277,16 +6280,19 @@ def mm(
             boldTemplate, hlinds = loop_timeseries_censoring( rsf_image, 0.1 )
             boldTemplate = get_average_rsf(boldTemplate)
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
-            rsfprolist = []
+            rsfprolist = [] # FIXMEFN
             # Initialize the parameters DataFrame
             # first - no censoring - just explore compcor
             df = pd.DataFrame()
             cens=False
             HM=5.0
             loop=1.0
-            CCsearch = [5]
+            CCsearch = [5,0.5]
             defaultf = [ 0.008,0.15 ]
-            freqsearch = ['broad','mid','tight']
+            freqsearch = ['broad','mid','tight'] # 
+            freqsearch = ['broad','tight'] # fast
+            CCsearch = [0.5]               # fast
+            docens=False                    # fast
             for ff in freqsearch:
                 for CC in CCsearch:
                     local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
@@ -6315,46 +6321,47 @@ def mm(
                         despike = 2.5,
                         motion_as_nuisance = True,
                         upsample=False,
-                        clean_tmp=True,
+                        clean_tmp=0.66,
                         verbose=verbose ) # default
                     rsfprolist.append( rsf0 )
 
             # test impact of censoring
-            cens = True
-            for loop in [0.25,0.5,0.75]:
-                for HM in [1.0, 5.0, 50.0 ]:
-                    for ff in freqsearch:
-                        for CC in CCsearch:
-                            local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
-                            if verbose:
-                                print( local_df )
-                            df = pd.concat([df, local_df], ignore_index=True)
-                            f = defaultf
-                            if ff == 'mid':
-                                f = [0.01,0.1]
-                            elif ff == 'tight':
-                                f = [0.03,0.08]
-                            rsf0 = resting_state_fmri_networks(
-                                    rsf_image,
-                                    boldTemplate,
-                                    hier['brain_n4_dnz'],
-                                    t1atropos,
-                                    f=f,
-                                    FD_threshold=HM, 
-                                    spa = None, 
-                                    spt = None, 
-                                    nc = CC,
-                                    type_of_transform='Rigid',
-                                    outlier_threshold=loop,
-                                    ica_components = 0,
-                                    impute = False,
-                                    censor = cens,
-                                    despike = 2.5,
-                                    motion_as_nuisance = True,
-                                    upsample=False,
-                                    clean_tmp=True,
-                                    verbose=verbose ) # default
-                            rsfprolist.append( rsf0 )
+            if docens:
+                cens = True
+                for loop in [0.25,0.5,0.75]:
+                    for HM in [1.0, 5.0, 50.0 ]:
+                        for ff in freqsearch:
+                            for CC in CCsearch:
+                                local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
+                                if verbose:
+                                    print( local_df )
+                                df = pd.concat([df, local_df], ignore_index=True)
+                                f = defaultf
+                                if ff == 'mid':
+                                    f = [0.01,0.1]
+                                elif ff == 'tight':
+                                    f = [0.03,0.08]
+                                rsf0 = resting_state_fmri_networks(
+                                        rsf_image,
+                                        boldTemplate,
+                                        hier['brain_n4_dnz'],
+                                        t1atropos,
+                                        f=f,
+                                        FD_threshold=HM, 
+                                        spa = None, 
+                                        spt = None, 
+                                        nc = CC,
+                                        type_of_transform='Rigid',
+                                        outlier_threshold=loop,
+                                        ica_components = 0,
+                                        impute = False,
+                                        censor = cens,
+                                        despike = 2.5,
+                                        motion_as_nuisance = True,
+                                        upsample=False,
+                                        clean_tmp=0.66,
+                                        verbose=verbose ) # default
+                                rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
     if nm_image_list is not None:
         if verbose:
@@ -6659,7 +6666,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         for rsfpro in mm['rsf']:
             fcnxpro=fcnxpro+1
             pronum = 'fcnxpro'+str(fcnxpro)
-            new_rsf_wide = antspymm.dict_to_dataframe( rsfpro )
+            new_rsf_wide = dict_to_dataframe( rsfpro )
             new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
             new_rsf_wide = new_rsf_wide.add_prefix( pronum )
             new_rsf_wide.set_index( mm_wide.index, inplace=True )
