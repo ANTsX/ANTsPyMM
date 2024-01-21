@@ -4703,7 +4703,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   """
   Compute resting state network correlation maps based on the J Power labels.
   This will output a map for each of the major network systems.  This function 
-  will by default upsample data to 2mm during the registration process if data 
+  will by optionally upsample data to 2mm during the registration process if data 
   is below that resolution.
 
   registration - despike - anatomy - smooth - nuisance - bandpass - regress.nuisance - censor - falff - correlations
@@ -4760,6 +4760,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   10.1016/j.dcn.2022.101087 : We found that: 1) the most efficacious pipeline for both noise removal and information recovery included censoring, GSR, bandpass filtering, and head motion parameter (HMP) regression, 2) ICA-AROMA performed similarly to HMP regression and did not obviate the need for censoring, 3) GSR had a minimal impact on connectome fingerprinting but improved ISC, and 4) the strictest censoring approaches reduced motion correlated edges but negatively impacted identifiability.
 
   """
+
+  import warnings
+  remove_it=True
+  output_directory = tempfile.mkdtemp()
+  output_directory_w = output_directory + "/ts_t1_reg/"
+  os.makedirs(output_directory_w,exist_ok=True)
+  ofnt1tx = tempfile.NamedTemporaryFile(delete=False,suffix='t1_deformation',dir=output_directory_w).name
 
   import numpy as np
 # Assuming core and utils are modules or packages with necessary functions
@@ -4877,7 +4884,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   # anatomical mapping
   und = fmri_template * bmask
-  t1reg = ants.registration( und, t1, "SyNBold" )
+  t1reg = ants.registration( und, t1, "SyNBold", outprefix=ofnt1tx )
   if verbose:
       print("t1 2 bold done")
   boldseg = ants.apply_transforms( und, t1segmentation,
@@ -4930,7 +4937,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   # nuisance
   globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-  globalsignal = globalmat.mean( axis = 1 )
+  globalsignal = np.nanmean( globalmat, axis = 1 )
   del globalmat
   compcorquantile=0.50
   nc_wm=nc_csf=nc
@@ -5026,6 +5033,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   nVolumes = simg.shape[3]
   meanROI = np.zeros([nVolumes, nPoints])
   roiNames = []
+  debug=False
+  if debug:
+      ptImgAll = und * 0.
   for i in range(nPoints):
     # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
     netLabel = re.sub( " ", "", pts2bold.loc[i,'SystemName'])
@@ -5034,7 +5044,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
     ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    if debug:
+      ptImgAll = ptImgAll + ptImage
     meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
+
+  if debug:
+      ants.image_write( simg, '/tmp/simg.nii.gz' )
+      ants.image_write( ptImgAll, '/tmp/ptImgAll.nii.gz' )
+      ants.image_write( und, '/tmp/und.nii.gz' )
+      ants.image_write( und, '/tmp/und.nii.gz' )
 
   # get full correlation matrix
   corMat = np.corrcoef(meanROI, rowvar=False)
@@ -5061,10 +5079,18 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
     if dfnImg.max() >= 1:
         dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-        dfnsignal = dfnmat.mean( axis = 1 )
+        dfnsignal = np.nanmean( dfnmat, axis = 1 )
+        nan_count_dfn = np.count_nonzero( np.isnan( dfnsignal) )
+        if nan_count_dfn > 0 :
+            warnings.warn( " mynet " + netnames[ mynet ] + " vs " +  " mean-signal has nans " + str( nan_count_dfn ) ) 
         gmmatDFNCorr = np.zeros( gmmat.shape[1] )
-        for k in range( gmmat.shape[1] ):
-            gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
+        if nan_count_dfn == 0:
+            for k in range( gmmat.shape[1] ):
+                nan_count_gm = np.count_nonzero( np.isnan( gmmat[:,k]) )
+                if debug and False:
+                    print( str( k ) +  " nans gm " + str(nan_count_gm)  )
+                if nan_count_gm == 0:
+                    gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
         corrImg = ants.make_image( bmask, gmmatDFNCorr  )
         outdict[ netname ] = corrImg * gmseg
     else:
@@ -5120,6 +5146,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
 
   rsfNuisance = pd.DataFrame( nuisance )
+  if remove_it:
+    import shutil
+    shutil.rmtree(output_directory, ignore_errors=True )
 
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
@@ -6125,6 +6154,7 @@ def mm(
                 verbose=verbose )
     ################################## do the rsf .....
     if len(rsf_image) > 0:
+        my_motion_tx = 'Rigid'
         rsf_image = [i for i in rsf_image if i is not None]
         if verbose:
             print('rsf length ' + str( len( rsf_image ) ) )
@@ -6150,6 +6180,9 @@ def mm(
             if verbose:
                 print("join the 2 rsf")
             if rsf_image1.shape[3] > 10 and rsf_image2.shape[3] > 10:
+                my_motion_tx = 'SyN'
+                leadvols = list(range(8))
+                rsf_image2 = remove_volumes_from_timeseries( rsf_image2, leadvols )
                 rsf_image = merge_timeseries_data( rsf_image1, rsf_image2 )
             elif rsf_image1.shape[3] > rsf_image2.shape[3]:
                 rsf_image = rsf_image1
@@ -6162,16 +6195,21 @@ def mm(
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
             rsfprolist = []
             # Initialize the parameters DataFrame
-            df = pd.DataFrame(columns=["loop", "cens", "HM", "ff" ] )
             # first - no censoring - just explore compcor
+            df = pd.DataFrame()
             cens=False
             HM=5.0
             loop=1.0
             CC = 5
             defaultf = [ 0.008,0.15 ]
             for ff in ['broad','mid','tight']:
-                local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
-                df = pd.concat([df, local_df], ignore_index=True)
+                local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
+                if verbose:
+                    print( local_df )
+                if df.shape[0] == 0:
+                    df = local_df
+                else:
+                    df = pd.concat([df, local_df], ignore_index=True)
                 f = defaultf
                 if ff == 'mid':
                     f = [0.01,0.1]
@@ -6183,7 +6221,7 @@ def mm(
                     FD_threshold=HM, 
                     spa = None, spt = None, 
                     nc = CC, 
-                    type_of_transform='Rigid',
+                    type_of_transform=my_motion_tx,
                     outlier_threshold=loop,
                     ica_components = 0,
                     impute = False,
@@ -6199,7 +6237,7 @@ def mm(
             for loop in [0.25,0.5,0.75]:
                 for HM in [1.0, 5.0, 50.0 ]:
                     for ff in ['broad','mid','tight']:
-                        local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff]})
+                        local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
                         df = pd.concat([df, local_df], ignore_index=True)
                         f = defaultf
                         if ff == 'mid':
