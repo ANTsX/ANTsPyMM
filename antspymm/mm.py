@@ -160,33 +160,54 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
-def dict_to_dataframe(data_dict):
+
+
+def dict_to_dataframe(data_dict,verbose=False):
     """
     Convert a dictionary to a pandas DataFrame, excluding items that cannot be processed by pandas.
 
     :param data_dict: Dictionary to be converted.
+    :param verbose: boolean
     :return: DataFrame representation of the dictionary.
     """
     processed_data = {}
     list_length = None
-
+    def mean_of_list(lst):
+        if not lst:  # Check if the list is not empty
+            return 0  # Return 0 or appropriate value for an empty list
+        return sum(lst) / len(lst)
+    
     for key, value in data_dict.items():
         # Check if value is a scalar
         if isinstance(value, (int, float, str, bool)):
             processed_data[key] = [value]
         # Check if value is a list of scalars
         elif isinstance(value, list) and all(isinstance(item, (int, float, str, bool)) for item in value):
-            continue
-            # Ensure all lists have the same length
-            if list_length is None:
-                list_length = len(value)
-            if len(value) == list_length:
-                processed_data[key] = value
+            meanvalue = mean_of_list( value )
+            newkey = key+"_mean"
+            print( " Key " + key + " is list with mean " + str(meanvalue) + " to " + newkey )
+            if newkey not in data_dict.keys():
+                processed_data[newkey] = meanvalue
+        elif isinstance(value, np.ndarray) and all(isinstance(item, (int, float, str, bool)) for item in value):
+            meanvalue = value.mean()
+            newkey = key+"_mean"
+            if verbose:
+                print( " Key " + key + " is nparray with mean " + str(meanvalue) + " to " + newkey )
+            if newkey not in data_dict.keys():
+                processed_data[newkey] = meanvalue
+        elif isinstance(value, ants.ANTsImage):
+            meanvalue = value.mean()
+            newkey = key+"_mean"
+            if newkey not in data_dict.keys():
+                if verbose:
+                    print( " Key " + key + " is antsimage with mean " + str(meanvalue) + " to " + newkey )
+                processed_data[newkey] = meanvalue
             else:
-                # Skip this key if list lengths are not consistent
-                continue
+                if verbose:
+                    print( " Key " + key + " is antsimage with mean " + str(meanvalue) + " but " + newkey + " already exists" )
 
     return pd.DataFrame.from_dict(processed_data)
+
 
 def clean_tmp_directory(age_hours=1., use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
     """
@@ -4768,10 +4789,10 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.03,0.08],
-    FD_threshold=1.0, 
-    spa = None, 
-    spt = None, 
-    nc = 5, 
+    FD_threshold=0.5,
+    spa = None,
+    spt = None,
+    nc = 0.8,
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
