@@ -4792,12 +4792,12 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03,0.08],
+    f=[0.008, 0.15],
     FD_threshold=0.5,
     spa = None,
     spt = None,
     nc = 0.8,
-    outlier_threshold=0.50,
+    outlier_threshold=0.750,
     ica_components = 0,
     impute = False,
     censor = True,
@@ -6314,88 +6314,131 @@ def mm(
             boldTemplate = get_average_rsf(boldTemplate)
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
             rsfprolist = [] # FIXMEFN
-            # Initialize the parameters DataFrame
-            # first - no censoring - just explore compcor
-            df = pd.DataFrame()
-            cens=False
-            HM=1.0 # best by PTBP
-            hmsearch = [0.5, 1.0, 5.0 ]
-            loopsearch = [ 0.25, 0.5, 0.75, 1.0 ]
-            loop = 1.0
-            CCsearch = [ 5, 0.80 ]
-            defaultf = [ 0.008, 0.15 ]
-            freqsearch = ['broad','mid','tight'] # 
-            # for debuggin
-            # rsf_image = remove_volumes_from_timeseries( rsf_image, list(range(80,2000))) 
-            docens=True                     # explore censoring
-            for ff in freqsearch:
-                for CC in CCsearch:
-                    local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
-                    if verbose:
-                        print( local_df )
-                    if df.shape[0] == 0:
-                        df = local_df
-                    else:
-                        df = pd.concat([df, local_df], ignore_index=True)
-                    f = defaultf
-                    if ff == 'mid':
-                        f = [0.01,0.1]
-                    elif ff == 'tight':
-                        f = [0.03,0.08]
-                    rsf0 = resting_state_fmri_networks(
-                        rsf_image, boldTemplate, hier['brain_n4_dnz'], t1atropos,
-                        f=f,
-                        FD_threshold=HM,
-                        spa = None, spt = None, 
-                        nc = CC, 
-                        outlier_threshold=loop,
-                        ica_components = 0,
-                        impute = False,
-                        censor = cens,
-                        despike = 2.5,
-                        motion_as_nuisance = True,
-                        upsample=False,
-                        clean_tmp=0.66,
-                        verbose=verbose ) # default
-                    rsfprolist.append( rsf0 )
-
-            # test impact of censoring
-            if docens:
-                cens = True
-                for loop in loopsearch:
-                    for HM in hmsearch:
-                        for ff in freqsearch:
-                            for CC in CCsearch:
-                                local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
-                                if verbose:
-                                    print( local_df )
-                                df = pd.concat([df, local_df], ignore_index=True)
-                                f = defaultf
-                                if ff == 'mid':
-                                    f = [0.01,0.1]
-                                elif ff == 'tight':
-                                    f = [0.03,0.08]
-                                rsf0 = resting_state_fmri_networks(
-                                        rsf_image,
-                                        boldTemplate,
-                                        hier['brain_n4_dnz'],
-                                        t1atropos,
-                                        f=f,
-                                        FD_threshold=HM, 
-                                        spa = None, 
-                                        spt = None, 
-                                        nc = CC,
-                                        outlier_threshold=loop,
-                                        ica_components = 0,
-                                        impute = False,
-                                        censor = cens,
-                                        despike = 2.5,
-                                        motion_as_nuisance = True,
-                                        upsample=False,
-                                        clean_tmp=0.66,
-                                        verbose=verbose ) # default
-                                rsfprolist.append( rsf0 )
+            # Create the parameter DataFrame
+            df = pd.DataFrame({
+                "num": [143, 122, 129],
+                "loop": [0.75, 0.25, 0.50],
+                "cens": [True, True, True],
+                "HM": [0.5, 5.0, 0.5],
+                "ff": ["broad", "tight", "tight"],
+                "CC": [0.8, 5.0, 0.8]
+            }, index=[0, 1, 2])
+            for p in range(df.shape[0]):
+                if verbose:
+                    print("rsf parameters")
+                    print( df.iloc[p] )
+                if df['loop'].iloc[p] == 'broad':
+                    f=[ 0.008, 0.15 ]
+                elif df['loop'].iloc[p] == 'tight':
+                    f=[ 0.03, 0.08 ]
+                HM = df['HM'].iloc[p]
+                CC = df['CC'].iloc[p]
+                loop= df['loop'].iloc[p]
+                cens =df['cens'].iloc[p]
+                rsf0 = resting_state_fmri_networks(
+                                            rsf_image,
+                                            boldTemplate,
+                                            hier['brain_n4_dnz'],
+                                            t1atropos,
+                                            f=f,
+                                            FD_threshold=HM, 
+                                            spa = None, 
+                                            spt = None, 
+                                            nc = CC,
+                                            outlier_threshold=loop,
+                                            ica_components = 0,
+                                            impute = False,
+                                            censor = cens,
+                                            despike = 2.5,
+                                            motion_as_nuisance = True,
+                                            upsample=False,
+                                            clean_tmp=0.66,
+                                            verbose=verbose ) # default
+                rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
+            if False:  # this is the old parameter search stuff
+                # Initialize the parameters DataFrame
+                # first - no censoring - just explore compcor
+                df = pd.DataFrame()
+                cens=False
+                HM=1.0 # best by PTBP
+                hmsearch = [0.5, 1.0, 5.0 ]
+                loopsearch = [ 0.25, 0.5, 0.75, 1.0 ]
+                loop = 1.0
+                CCsearch = [ 5, 0.80 ]
+                defaultf = [ 0.008, 0.15 ]
+                freqsearch = ['broad','mid','tight'] # 
+                # for debuggin
+                # rsf_image = remove_volumes_from_timeseries( rsf_image, list(range(80,2000))) 
+                docens=True                     # explore censoring
+                for ff in freqsearch:
+                    for CC in CCsearch:
+                        local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
+                        if verbose:
+                            print( local_df )
+                        if df.shape[0] == 0:
+                            df = local_df
+                        else:
+                            df = pd.concat([df, local_df], ignore_index=True)
+                        f = defaultf
+                        if ff == 'mid':
+                            f = [0.01,0.1]
+                        elif ff == 'tight':
+                            f = [0.03,0.08]
+                        rsf0 = resting_state_fmri_networks(
+                            rsf_image, boldTemplate, hier['brain_n4_dnz'], t1atropos,
+                            f=f,
+                            FD_threshold=HM,
+                            spa = None, spt = None, 
+                            nc = CC, 
+                            outlier_threshold=loop,
+                            ica_components = 0,
+                            impute = False,
+                            censor = cens,
+                            despike = 2.5,
+                            motion_as_nuisance = True,
+                            upsample=False,
+                            clean_tmp=0.66,
+                            verbose=verbose ) # default
+                        rsfprolist.append( rsf0 )
+
+                # test impact of censoring
+                if docens:
+                    cens = True
+                    for loop in loopsearch:
+                        for HM in hmsearch:
+                            for ff in freqsearch:
+                                for CC in CCsearch:
+                                    local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
+                                    if verbose:
+                                        print( local_df )
+                                    df = pd.concat([df, local_df], ignore_index=True)
+                                    f = defaultf
+                                    if ff == 'mid':
+                                        f = [0.01,0.1]
+                                    elif ff == 'tight':
+                                        f = [0.03,0.08]
+                                    rsf0 = resting_state_fmri_networks(
+                                            rsf_image,
+                                            boldTemplate,
+                                            hier['brain_n4_dnz'],
+                                            t1atropos,
+                                            f=f,
+                                            FD_threshold=HM, 
+                                            spa = None, 
+                                            spt = None, 
+                                            nc = CC,
+                                            outlier_threshold=loop,
+                                            ica_components = 0,
+                                            impute = False,
+                                            censor = cens,
+                                            despike = 2.5,
+                                            motion_as_nuisance = True,
+                                            upsample=False,
+                                            clean_tmp=0.66,
+                                            verbose=verbose ) # default
+                                    rsfprolist.append( rsf0 )
+                output_dict['rsf'] = rsfprolist
     if nm_image_list is not None:
         if verbose:
             print('nm')
