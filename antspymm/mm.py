@@ -1311,17 +1311,19 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
                     pass
     return
 
-def convert_floats_in_dict(data_dict):
+def convert_np_in_dict(data_dict):
     """
-    Convert values in the dictionary from float32 or float64 to float.
+    Convert values in the dictionary from nupmy float or int to regular float or int.
 
     :param data_dict: A dictionary with values of various types.
-    :return: Dictionary with float32 and float64 values converted to float.
+    :return: Dictionary with numpy values converted.
     """
     converted_dict = {}
     for key, value in data_dict.items():
         if isinstance(value, (np.float32, np.float64)):
             converted_dict[key] = float(value)
+        elif isinstance(value, (np.int8,  np.uint8, np.int16,  np.uint16, np.int32,  np.uint32, np.int64,  np.uint64)):
+            converted_dict[key] = int(value)
         else:
             converted_dict[key] = value
     return converted_dict
@@ -3491,7 +3493,7 @@ def joint_dti_recon(
     fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
     dti_itself = get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
-    return convert_floats_in_dict( {
+    return convert_np_in_dict( {
         'dti': dti_itself,
         'recon_fa':reconFA,
         'recon_fa_summary':df_FA_JHU_ORRL_bfwide,
@@ -4765,11 +4767,11 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008,0.15],
-    FD_threshold=5.0, 
+    f=[0.03,0.08],
+    FD_threshold=1.0, 
     spa = None, 
     spt = None, 
-    nc = 5, type_of_transform='Rigid',
+    nc = 5, 
     outlier_threshold=0.50,
     ica_components = 0,
     impute = False,
@@ -4806,8 +4808,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   spt : gaussian smoothing for temporal component
 
   nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance; 10 wrt Shirer 2015 5 from csf and 5 from wm
-
-  type_of_transform : SyN or Rigid - SyN better when dealing with data likely to have nonlinear distortions eg data with different phase encoding directions
 
   ica_components : integer if greater than 0 then include ica components
 
@@ -4847,6 +4847,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if clean_tmp is not None:
     clean_tmp_directory( age_hours = clean_tmp )
 
+  type_of_transform='Rigid' # , # should probably not change this
   remove_it=True
   output_directory = tempfile.mkdtemp()
   output_directory_w = output_directory + "/ts_t1_reg/"
@@ -5033,9 +5034,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   nc_wm=nc_csf=nc
   if nc < 1:
     globalmat = get_compcor_matrix( corrmo['motion_corrected'], wm, compcorquantile )
-    nc_wm = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
+    nc_wm = int(estimate_optimal_pca_components( data=globalmat, variance_threshold=nc))
     globalmat = get_compcor_matrix( corrmo['motion_corrected'], csf, compcorquantile )
-    nc_csf = estimate_optimal_pca_components( data=globalmat, variance_threshold=nc)
+    nc_csf = int(estimate_optimal_pca_components( data=globalmat, variance_threshold=nc))
     del globalmat
   if verbose:
     print("include compcor components as nuisance: csf " + str(nc_csf) + " wm " + str(nc_wm))
@@ -5247,6 +5248,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
+  outdict['bandpass_freq_0']=f[0]
+  outdict['bandpass_freq_1']=f[1]
+  outdict['censor']=int(censor)
+  outdict['spatial_smoothing']=spa
+  outdict['outlier_threshold']=outlier_threshold
+  outdict['FD_threshold']=outlier_threshold
   outdict['high_motion_count'] = high_motion_count
   outdict['high_motion_pct'] = high_motion_pct
   outdict['despiking_count_summary'] = despiking_count_summary
@@ -5254,11 +5261,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['FD_mean'] = corrmo['FD'].mean()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['n_outliers'] = len(hlinds)
-  outdict['nc_wm'] = nc_wm
-  outdict['nc_csf'] = nc_csf
+  outdict['nc_wm'] = int(nc_wm)
+  outdict['nc_csf'] = int(nc_csf)
   outdict['minutes_original_data'] = ( tr * fmri.shape[3] ) / 60.0 # minutes of useful data
   outdict['minutes_censored_data'] = ( tr * simg.shape[3] ) / 60.0 # minutes of useful data
-  return convert_floats_in_dict( outdict )
+  return convert_np_in_dict( outdict )
 
 
 def calculate_CBF(Delta_M, M_0, mask,
@@ -5599,7 +5606,7 @@ def bold_perfusion_minimal(
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
   outdict['outlier_volumes']=hlinds
   outdict['negative_voxels']=negative_voxels
-  return convert_floats_in_dict( outdict )
+  return convert_np_in_dict( outdict )
 
 
 def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
@@ -6010,7 +6017,7 @@ Where:
   outdict['outlier_volumes']=hlinds
   outdict['n_outliers']=len(hlinds)
   outdict['negative_voxels']=negative_voxels
-  return convert_floats_in_dict( outdict )
+  return convert_np_in_dict( outdict )
 
 
 def write_bvals_bvecs(bvals, bvecs, prefix ):
@@ -6286,13 +6293,15 @@ def mm(
             # first - no censoring - just explore compcor
             df = pd.DataFrame()
             cens=False
-            HM=5.0
-            loop=1.0
-            CCsearch = [5,0.5]
-            defaultf = [ 0.008,0.15 ]
+            HM=1.0 # best by PTBP
+            hmsearch = [0.5, 1.0, 5.0 ]
+            loopsearch = [ 0.25, 0.5, 0.75, 1.0 ]
+            loop = 1.0
+            CCsearch = [ 5, 0.80 ]
+            defaultf = [ 0.008, 0.15 ]
             freqsearch = ['broad','mid','tight'] # 
-#            freqsearch = ['broad','tight'] # fast
-#            CCsearch = [0.5]               # fast
+            # for debuggin
+            # rsf_image = remove_volumes_from_timeseries( rsf_image, list(range(80,2000))) 
             docens=True                     # explore censoring
             for ff in freqsearch:
                 for CC in CCsearch:
@@ -6314,7 +6323,6 @@ def mm(
                         FD_threshold=HM,
                         spa = None, spt = None, 
                         nc = CC, 
-                        type_of_transform=my_motion_tx,
                         outlier_threshold=loop,
                         ica_components = 0,
                         impute = False,
@@ -6329,8 +6337,8 @@ def mm(
             # test impact of censoring
             if docens:
                 cens = True
-                for loop in [0.25,0.5,0.75]:
-                    for HM in [1.0, 5.0, 50.0 ]:
+                for loop in loopsearch:
+                    for HM in hmsearch:
                         for ff in freqsearch:
                             for CC in CCsearch:
                                 local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
@@ -6352,7 +6360,6 @@ def mm(
                                         spa = None, 
                                         spt = None, 
                                         nc = CC,
-                                        type_of_transform='Rigid',
                                         outlier_threshold=loop,
                                         ica_components = 0,
                                         impute = False,
@@ -6667,10 +6674,14 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         for rsfpro in mm['rsf']:
             fcnxpro=fcnxpro+1
             pronum = 'fcnxpro'+str(fcnxpro)+"_"
+            if verbose:
+                print("Collect rsf data " + pronum)
             new_rsf_wide = dict_to_dataframe( rsfpro )
             new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
             new_rsf_wide = new_rsf_wide.add_prefix( pronum )
             new_rsf_wide.set_index( mm_wide.index, inplace=True )
+            ofn = output_prefix + separator + pronum + '.csv'
+            new_rsf_wide.to_csv( ofn )
             mm_wide = pd.concat( [mm_wide, new_rsf_wide ], axis=1, ignore_index=False )
             for mykey in mynets:
                 myop = output_prefix + separator + pronum + mykey + '.nii.gz'
