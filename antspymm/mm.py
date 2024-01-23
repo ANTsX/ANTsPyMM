@@ -4805,6 +4805,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     motion_as_nuisance = True,
     upsample = False,
     clean_tmp = None,
+    paramset='unset',
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
@@ -4871,6 +4872,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   if clean_tmp is not None:
     clean_tmp_directory( age_hours = clean_tmp )
+
+  if nc > 1:
+    nc = int(nc)
+  else:
+    nc=float(nc)
 
   type_of_transform='Rigid' # , # should probably not change this
   remove_it=True
@@ -5140,6 +5146,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   # structure the output data
   outdict = {}
+  outdict['paramset'] = paramset
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
 
@@ -6321,16 +6328,18 @@ def mm(
                 "cens": [True, True, True],
                 "HM": [0.5, 5.0, 0.5],
                 "ff": ["broad", "tight", "tight"],
-                "CC": [0.8, 5.0, 0.8]
+                "CC": [0.8, 5, 0.8]
             }, index=[0, 1, 2])
             for p in range(df.shape[0]):
                 if verbose:
                     print("rsf parameters")
                     print( df.iloc[p] )
-                if df['loop'].iloc[p] == 'broad':
+                if df['ff'].iloc[p] == 'broad':
                     f=[ 0.008, 0.15 ]
-                elif df['loop'].iloc[p] == 'tight':
+                elif df['ff'].iloc[p] == 'tight':
                     f=[ 0.03, 0.08 ]
+                else:
+                    raise ValueError("we do not recognize this parameter choice for frequency filtering: " + df['ff'].iloc[p] )
                 HM = df['HM'].iloc[p]
                 CC = df['CC'].iloc[p]
                 loop= df['loop'].iloc[p]
@@ -6353,6 +6362,7 @@ def mm(
                                             motion_as_nuisance = True,
                                             upsample=False,
                                             clean_tmp=0.66,
+                                            paramset=df['num'].iloc[p],
                                             verbose=verbose ) # default
                 rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
@@ -6740,7 +6750,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             'Subcortical', 'DorsalAttention', 'tsnr'] )
         fcnxpro=99
         for rsfpro in mm['rsf']:
-            fcnxpro=fcnxpro+1
+            fcnxpro=str( rsfpro['paramset']  )
             pronum = 'fcnxpro'+str(fcnxpro)+"_"
             if verbose:
                 print("Collect rsf data " + pronum)
@@ -7748,18 +7758,19 @@ def mm_csv(
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
-                                    if not isinstance( tabPro['rsf'], list ): # FIXMEFN
-                                        maxslice = np.min( [21, tabPro['rsf']['meanBold'].shape[2] ] )
-                                        ants.plot( tabPro['rsf']['meanBold'],
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=mymm+mysep+"meanBOLD.png" )
-                                        ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['alff'],"Normalize"),
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=mymm+mysep+"boldALFF.png" )
-                                        ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
-                                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
-                                        ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
+                                    for tpro in tabPro['rsf']: # FIXMEFN
+                                        maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
+                                        tproprefix = mymm+mysep+tpro['paramset']+mysep
+                                        ants.plot( tpro['meanBold'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=tproprefix+"meanBOLD.png" )
+                                        ants.plot( tpro['meanBold'], ants.iMath(tpro['alff'],"Normalize"),
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=tproprefix+"boldALFF.png" )
+                                        ants.plot( tpro['meanBold'], ants.iMath(tpro['falff'],"Normalize"),
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=tproprefix+"boldfALFF.png" )
+                                        ants.plot( tpro['meanBold'], tpro['DefaultMode'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=tproprefix+"boldDefaultMode.png" )
+                                        ants.plot( tpro['meanBold'], tpro['FrontoparietalTaskControl'],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=tproprefix+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'perf' ) and ishapelen == 4:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
