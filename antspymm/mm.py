@@ -7760,7 +7760,7 @@ def mm_csv(
                                 if tabPro['rsf'] is not None and visualize:
                                     for tpro in tabPro['rsf']: # FIXMEFN
                                         maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
-                                        tproprefix = mymm+mysep+tpro['paramset']+mysep
+                                        tproprefix = mymm+mysep+str(tpro['paramset'])+mysep
                                         ants.plot( tpro['meanBold'],
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=tproprefix+"meanBOLD.png" )
                                         ants.plot( tpro['meanBold'], ants.iMath(tpro['alff'],"Normalize"),
