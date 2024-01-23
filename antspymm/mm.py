@@ -162,11 +162,14 @@ def version( ):
 
 
 
-def dict_to_dataframe(data_dict,verbose=False):
+def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
     Convert a dictionary to a pandas DataFrame, excluding items that cannot be processed by pandas.
 
     :param data_dict: Dictionary to be converted.
+    :param convert_lists: boolean
+    :param convert_arrays: boolean
+    :param convert_images: boolean
     :param verbose: boolean
     :return: DataFrame representation of the dictionary.
     """
@@ -182,20 +185,21 @@ def dict_to_dataframe(data_dict,verbose=False):
         if isinstance(value, (int, float, str, bool)):
             processed_data[key] = [value]
         # Check if value is a list of scalars
-        elif isinstance(value, list) and all(isinstance(item, (int, float, str, bool)) for item in value):
+        elif isinstance(value, list) and all(isinstance(item, (int, float, str, bool)) for item in value) and convert_lists:
             meanvalue = mean_of_list( value )
             newkey = key+"_mean"
-            print( " Key " + key + " is list with mean " + str(meanvalue) + " to " + newkey )
-            if newkey not in data_dict.keys():
+            if verbose:
+                print( " Key " + key + " is list with mean " + str(meanvalue) + " to " + newkey )
+            if newkey not in data_dict.keys() and convert_lists:
                 processed_data[newkey] = meanvalue
-        elif isinstance(value, np.ndarray) and all(isinstance(item, (int, float, str, bool)) for item in value):
+        elif isinstance(value, np.ndarray) and all(isinstance(item, (int, float, str, bool)) for item in value) and convert_arrays:
             meanvalue = value.mean()
             newkey = key+"_mean"
             if verbose:
                 print( " Key " + key + " is nparray with mean " + str(meanvalue) + " to " + newkey )
             if newkey not in data_dict.keys():
                 processed_data[newkey] = meanvalue
-        elif isinstance(value, ants.ANTsImage):
+        elif isinstance(value, ants.ANTsImage) and convert_images:
             meanvalue = value.mean()
             newkey = key+"_mean"
             if newkey not in data_dict.keys():
