@@ -6389,6 +6389,10 @@ def mm(
                     f=[ 0.008, 0.15 ]
                 elif df['ff'].iloc[p] == 'tight':
                     f=[ 0.03, 0.08 ]
+                elif df['ff'].iloc[p] == 'mid':
+                    f=[ 0.01, 0.1 ]
+                elif df['ff'].iloc[p] == 'mid2':
+                    f=[ 0.01, 0.08 ]
                 else:
                     raise ValueError("we do not recognize this parameter choice for frequency filtering: " + df['ff'].iloc[p] )
                 HM = df['HM'].iloc[p]
