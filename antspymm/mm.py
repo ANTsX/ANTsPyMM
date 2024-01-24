@@ -4790,14 +4790,70 @@ def estimate_optimal_pca_components(data, variance_threshold=0.80, plot=False):
 
     return n_components
 
+import numpy as np
+
+def compute_PerAF_voxel(time_series):
+    """
+    Compute the Percentage Amplitude Fluctuation (PerAF) for a given time series.
+
+    10.1371/journal.pone.0227021
+
+    PerAF = 100/n * sum(|(x_i - m)/m|) 
+    where m = 1/n * sum(x_i), x_i is the signal intensity at each time point, 
+    and n is the total number of time points.
+
+    :param time_series: Numpy array of time series data
+    :return: Computed PerAF value
+    """
+    n = len(time_series)
+    m = np.mean(time_series)
+    perAF = 100 / n * np.sum(np.abs((time_series - m) / m))
+    return perAF
+
+def calculate_trimmed_mean(data, proportion_to_trim):
+    """
+    Calculate the trimmed mean for a given data array.
+
+    :param data: A numpy array of data.
+    :param proportion_to_trim: Proportion (0 to 0.5) of data to trim from each end.
+    :return: The trimmed mean of the data.
+    """
+    from scipy import stats
+    return stats.trim_mean(data, proportion_to_trim)
+
+def PerAF( x, mask, globalmean=True ):
+    """
+    Compute the Percentage Amplitude Fluctuation (PerAF) for a given time series.
+
+    10.1371/journal.pone.0227021
+
+    PerAF = 100/n * sum(|(x_i - m)/m|) 
+    where m = 1/n * sum(x_i), x_i is the signal intensity at each time point, 
+    and n is the total number of time points.
+
+    :param x: time series antsImage
+    :param mask: brain mask
+    :param globalmean: boolean if True divide by the globalmean in the brain mask
+    :return: Computed PerAF image
+    """
+    time_series = ants.timeseries_to_matrix( x, mask )
+    n = time_series.shape[1]
+    vec = np.zeros( n )
+    for i in range(n):
+        vec[i] = compute_PerAF_voxel( time_series[:,i] )
+    outimg = ants.make_image( mask, vec )
+    if globalmean:
+        outimg = outimg / calculate_trimmed_mean( vec, 0.01 )
+    return outimg
+
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.008, 0.15],
-    FD_threshold=0.5,
+    f=[0.03, 0.08],
+    FD_threshold=5.0,
     spa = None,
     spt = None,
-    nc = 0.8,
-    outlier_threshold=0.750,
+    nc = 5,
+    outlier_threshold=0.250,
     ica_components = 0,
     impute = False,
     censor = True,
@@ -4837,7 +4893,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   ica_components : integer if greater than 0 then include ica components
 
-  impute : boolean if True, then use imputation
+  impute : boolean if True, then use imputation in f/ALFF, PerAF calculation
 
   censor : boolean if True, then use censoring (censoring)
 
@@ -4950,7 +5006,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     if not lst:  # Check if the list is not empty
         return 0  # Return 0 or appropriate value for an empty list
     return sum(lst) / len(lst)
-  fmrispc = list(ants.get_spacing( fmri ))
+  fmrispc = list( ants.get_spacing( fmri ) )
   if spa is None:
     spa = mean_of_list( fmrispc[0:3] ) * 1.0
   if spt is None:
@@ -5100,13 +5156,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # nuisance = np.c_[ nuisance, corrmo['FD'] ]
   nuisance = np.c_[ nuisance, globalsignal ]
 
-  if censor or impute:
+  if impute:
     simgimp = impute_timeseries( simg, hlinds, method='linear')
   else:
     simgimp = simg
 
-  if impute:
-    simg = simgimp
+  # falff/alff stuff  def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
+  myfalff=alff_image( simgimp, bmask, flo=f[0], fhi=f[1], nuisance=nuisance  )
 
   # bandpass any data collected before here -- if bandpass requested
   if f[0] > 0 and f[1] < 1.0:
@@ -5116,33 +5172,20 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     globalmat = ants.timeseries_to_matrix( simg, bmask )
     globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
     simg = ants.matrix_to_timeseries( simg, globalmat, bmask )
-    globalmat = ants.timeseries_to_matrix( simgimp, bmask )
-    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    simgimp = ants.matrix_to_timeseries( simgimp, globalmat, bmask )
-    del globalmat
 
   if verbose:
     print("now regress nuisance")
 
-  gmmat = ants.timeseries_to_matrix( simgimp, bmask )
-  gmmat = ants.regress_components( gmmat, nuisance )
-  simgimp = ants.matrix_to_timeseries(simgimp, gmmat, bmask)
 
   if len( hlinds ) > 0 :
     if censor:
         nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
         simg = remove_volumes_from_timeseries( simg, hlinds )
-    else:
-        simgimp = simg
-  else:
-    simgimp = simg
 
   gmmat = ants.timeseries_to_matrix( simg, bmask )
   gmmat = ants.regress_components( gmmat, nuisance )
   simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
 
-  # falff/alff stuff
-  myfalff=alff_image( simgimp, bmask  )
 
   # structure the output data
   outdict = {}
@@ -5256,6 +5299,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['falff_mean'] = (myfalff['falff'][myfalff['falff']!=0]).mean()
   outdict['falff_sd'] = (myfalff['falff'][myfalff['falff']!=0]).std()
 
+  perafimg = PerAF( simgimp, bmask )
   for k in range(1,270):
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
@@ -5264,8 +5308,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         anatname='Unk'
     fname='falffPoint'+str(k)+anatname
     aname='alffPoint'+str(k)+anatname
+    pname='perafPoint'+str(k)+anatname
     outdict[fname]=(outdict['falff'][ptImg==k]).mean()
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
+    outdict[pname]=(perafimg[ptImg==k]).mean()
 
   rsfNuisance = pd.DataFrame( nuisance )
   if remove_it:
@@ -5277,6 +5323,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   edgemask = ants.iMath( bmask, "ME",1) - trimmask
   outdict['motion_corrected'] = corrmo['motion_corrected']
   outdict['nuisance'] = rsfNuisance
+  outdict['PerAF'] = perafimg
   outdict['tsnr'] = mytsnr
   outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
@@ -6323,12 +6370,12 @@ def mm(
             rsfprolist = [] # FIXMERSF
             # Create the parameter DataFrame
             df = pd.DataFrame({
-                "num": [143, 122, 129],
-                "loop": [0.75, 0.25, 0.50],
+                "num": [134, 122, 129],
+                "loop": [0.50, 0.25, 0.50],
                 "cens": [True, True, True],
-                "HM": [0.5, 5.0, 0.5],
-                "ff": ["broad", "tight", "tight"],
-                "CC": [0.8, 5, 0.8]
+                "HM": [1.0, 5.0, 0.5],
+                "ff": ["tight", "tight", "tight"],
+                "CC": [5, 5, 0.8]
             }, index=[0, 1, 2])
             for p in range(df.shape[0]):
                 if verbose:
@@ -7767,6 +7814,8 @@ def mm_csv(
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=tproprefix+"boldALFF.png" )
                                         ants.plot( tpro['meanBold'], ants.iMath(tpro['falff'],"Normalize"),
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=tproprefix+"boldfALFF.png" )
+                                        ants.plot( tpro['meanBold'], ants.iMath(tpro['PerAF'],"Normalize"),
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='PerAF', filename=tproprefix+"PerAF.png" )
                                         ants.plot( tpro['meanBold'], tpro['DefaultMode'],
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=tproprefix+"boldDefaultMode.png" )
                                         ants.plot( tpro['meanBold'], tpro['FrontoparietalTaskControl'],
@@ -8176,6 +8225,10 @@ def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
         falffvec[n]=temp['falff']
     alffi=ants.make_image( mask, alffvec )
     falffi=ants.make_image( mask, falffvec )
+    alfftrimmedmean = calculate_trimmed_mean( alffvec, 0.01 )
+    falfftrimmedmean = calculate_trimmed_mean( falffvec, 0.01 )
+    alffi=alffi / alfftrimmedmean
+    falffi=falffi / falfftrimmedmean
     return {  'alff': alffi, 'falff': falffi }
 
 
