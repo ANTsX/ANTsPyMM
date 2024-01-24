@@ -5015,7 +5015,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
   if not upsample:
-    gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMEFN
+    gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMERSF
   gmseg = ants.apply_transforms( und, gmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
@@ -6320,7 +6320,7 @@ def mm(
             boldTemplate, hlinds = loop_timeseries_censoring( rsf_image, 0.1 )
             boldTemplate = get_average_rsf(boldTemplate)
         if rsf_image.shape[3] > 10: # FIXME - better heuristic?
-            rsfprolist = [] # FIXMEFN
+            rsfprolist = [] # FIXMERSF
             # Create the parameter DataFrame
             df = pd.DataFrame({
                 "num": [143, 122, 129],
@@ -7758,7 +7758,7 @@ def mm_csv(
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
-                                    for tpro in tabPro['rsf']: # FIXMEFN
+                                    for tpro in tabPro['rsf']: # FIXMERSF
                                         maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
                                         tproprefix = mymm+mysep+str(tpro['paramset'])+mysep
                                         ants.plot( tpro['meanBold'],
