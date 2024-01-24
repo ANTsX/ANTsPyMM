@@ -4413,6 +4413,12 @@ def hierarchical_modality_summary(
     #        "mtl_description", modality_name, dfout, extra='', verbose=verbose  )
     return dfout
 
+def get_rsf_outputs():
+    rsfout = list([ 'meanBold', 'fmri_template', 'alff', 'falff', 'PerAF', 
+                   'CinguloopercularTaskControl', 'DefaultMode', 
+                   'MemoryRetrieval', 'VentralAttention', 'Visual',
+                   'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
+    return rsfout
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
@@ -6272,10 +6278,7 @@ def mm(
     #####################
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    mynets = list([ 'meanBold', 'fmri_template', 'alff', 'falff', 'CinguloopercularTaskControl', 'DefaultMode',
-        'MemoryRetrieval', 'VentralAttention', 'Visual',
-        'FrontoparietalTaskControl', 'Salience', 'Subcortical',
-        'DorsalAttention'])
+    mynets = get_rsf_outputs()
     output_dict = {
         'kk': None,
         'rsf': None,
@@ -6793,10 +6796,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['flair_evr'] = mm['flair']['wmh_evr']
         mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
-        mynets = list([ 'meanBold', 'brainmask', 'motion_corrected', 'alff', 'falff',
-            'CinguloopercularTaskControl', 'DefaultMode', 'MemoryRetrieval',
-            'VentralAttention', 'Visual', 'FrontoparietalTaskControl', 'Salience',
-            'Subcortical', 'DorsalAttention', 'tsnr'] )
+        mynets = get_rsf_outputs()
         fcnxpro=99
         for rsfpro in mm['rsf']:
             fcnxpro=str( rsfpro['paramset']  )
@@ -7816,7 +7816,7 @@ def mm_csv(
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=tproprefix+"boldALFF.png" )
                                         ants.plot( tpro['meanBold'], ants.iMath(tpro['falff'],"Normalize"),
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=tproprefix+"boldfALFF.png" )
-                                        ants.plot( tpro['meanBold'], ants.iMath(tpro['PerAF'],"Normalize"),
+                                        ants.plot( tpro['PerAF'],
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='PerAF', filename=tproprefix+"PerAF.png" )
                                         ants.plot( tpro['meanBold'], tpro['DefaultMode'],
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=tproprefix+"boldDefaultMode.png" )
