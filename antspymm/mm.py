@@ -6375,7 +6375,8 @@ def mm(
                 "cens": [True, True, True],
                 "HM": [1.0, 5.0, 0.5],
                 "ff": ["tight", "tight", "tight"],
-                "CC": [5, 5, 0.8]
+                "CC": [5, 5, 0.8],
+                "imp": [True, True, True]
             }, index=[0, 1, 2])
             for p in range(df.shape[0]):
                 if verbose:
@@ -6391,6 +6392,7 @@ def mm(
                 CC = df['CC'].iloc[p]
                 loop= df['loop'].iloc[p]
                 cens =df['cens'].iloc[p]
+                imp = df['imp'].iloc[p]
                 rsf0 = resting_state_fmri_networks(
                                             rsf_image,
                                             boldTemplate,
@@ -6403,7 +6405,7 @@ def mm(
                                             nc = CC,
                                             outlier_threshold=loop,
                                             ica_components = 0,
-                                            impute = False,
+                                            impute = imp,
                                             censor = cens,
                                             despike = 2.5,
                                             motion_as_nuisance = True,
