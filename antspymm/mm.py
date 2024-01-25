@@ -3154,16 +3154,20 @@ def dipy_dti_recon(
     -------
     >>> import antspymm
     """
-
-
-    if b0_idx is None:
-        b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-
     if isinstance(bvecsfn, str):
         bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     else: # assume we already read them
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
+
+    bvecs, nanlist = repair_bvecs( bvecs )      
+    if len( nanlist ) > 0:
+        image = remove_volumes_from_timeseries( image, nanlist )
+        bvals = remove_elements_from_numpy_array( bvals )
+
+    if b0_idx is None:
+        b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod='bold'
@@ -3207,10 +3211,7 @@ def dipy_dti_recon(
         RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
         return tenfit, FA, MD1, RGB
 
-    import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009:
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
-        bvecs=bvecs/np.linalg.norm(bvecs)  
+    bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
@@ -3762,10 +3763,7 @@ def dwi_deterministic_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009:
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
-        bvecs=bvecs/np.linalg.norm(bvecs)
+    bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -3847,6 +3845,15 @@ def dwi_deterministic_tracking(
           'peak_indices': peak_indices
           }
 
+def repair_bvecs( bvecs ):
+    bvecnorm = np.linalg.norm(bvecs,axis=1).reshape( bvecs.shape[0],1 )
+    # bvecnormnan = np.isnan( bvecnorm )
+    # nan_indices = list( np.unique( np.where(np.isnan(bvecs))[0]))
+    # bvecs = remove_elements_from_numpy_array( bvecs, nan_indices )
+    if abs(np.linalg.norm(bvecs)-1) > 0.009:
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
+        bvecs=np.where(bvecnorm > 1e-16, bvecs / bvecnorm, 0)
+    return bvecs
 
 
 def dwi_closest_peak_tracking(
@@ -3934,10 +3941,7 @@ def dwi_closest_peak_tracking(
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
-    import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009:
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
-        bvecs=bvecs/np.linalg.norm(bvecs)  
+    bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
