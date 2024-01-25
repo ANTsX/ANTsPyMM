@@ -5090,8 +5090,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   t1reg = ants.registration( und, t1, "SyNBold", outprefix=ofnt1tx )
   if verbose:
       print("t1 2 bold done")
-  boldseg = ants.apply_transforms( und, t1segmentation,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
@@ -5107,19 +5105,24 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   csf = ants.apply_transforms( und, csf, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wm = ants.threshold_image( t1segmentation, 3, 3 ).morphology("erode",1)
   wm = ants.apply_transforms( und, wm, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  nt = corrmo['motion_corrected'].shape[3]
-  myvoxes = range(powers_areal_mni_itk.shape[0])
-  syst = powers_areal_mni_itk['SystemName']
   if powers:
     ch2 = mm_read( ants.get_ants_data( "ch2" ) )
   else:
     ch2 = mm_read( get_data( "PPMI_template0_brain", target_extension='.nii.gz' ) )
   treg = ants.registration( t1, ch2, 'SyN' )
-  concatx2 = treg['invtransforms'] + t1reg['invtransforms']
-  pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
-    whichtoinvert = ( True, False, True, False ) )
-  locations = pts2bold.iloc[:,:3].values
-  ptImg = ants.make_points_image( locations, bmask, radius = 2 )
+  if powers:
+    concatx2 = treg['invtransforms'] + t1reg['invtransforms']
+    pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
+        whichtoinvert = ( True, False, True, False ) )
+    locations = pts2bold.iloc[:,:3].values
+    ptImg = ants.make_points_image( locations, bmask, radius = 2 )
+  else:
+    concatx2 = t1reg['fwdtransforms'] + treg['fwdtransforms']    
+    rsfsegfn = get_data('ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic', target_extension=".nii.gz")
+    rsfsegimg = ants.image_read( rsfsegfn )
+    ptImg = ants.apply_transforms( und, rsfsegimg, concatx2, interpolator='nearestNeighbor' ) * bmask
+    pts2bold = powers_areal_mni_itk
+    # ants.plot( und, ptImg, crop=True, axis=2 )
 
   # optional smoothing
   tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
@@ -5218,24 +5221,33 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['coords'] = coords
   outdict['dfnname']=dfnname
   outdict['meanBold'] = und
-  outdict['pts2bold'] = pts2bold
 
   # add correlation matrix that captures each node pair
   # some of the spheres overlap so extract separately from each ROI
-  nPoints = pts2bold['ROI'].max()
+  if powers:
+    nPoints = int(pts2bold['ROI'].max())
+    pointrange = list(range(int(nPoints)))
+  else:
+    nPoints = int(ptImg.max())
+    pointrange = list(range(int(nPoints)))
   nVolumes = simg.shape[3]
   meanROI = np.zeros([nVolumes, nPoints])
   roiNames = []
   if debug:
       ptImgAll = und * 0.
-  for i in range(nPoints):
+  for i in pointrange:
     # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
     netLabel = re.sub( " ", "", pts2bold.loc[i,'SystemName'])
     netLabel = re.sub( "-", "", netLabel )
     netLabel = re.sub( "/", "", netLabel )
     roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
     roiNames.append( roiLabel )
-    ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    if powers:
+        ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    else:
+        #print("Doing " + pts2bold.loc[i,'SystemName'] + " at " + str(i) )
+        #ptImage = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==pts2bold.loc[i,'SystemName']],binarize=True)
+        ptImage=ants.threshold_image( ptImg, pts2bold.loc[i,'ROI'], pts2bold.loc[i,'ROI'] )
     if debug:
       ptImgAll = ptImgAll + ptImage
     meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
@@ -5255,7 +5267,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['fullCorrMat'] = outputMat
 
   networks = powers_areal_mni_itk['SystemName'].unique()
-
   # this is just for human readability - reminds us of which we choose by default
   if powers:
     netnames = ['Cingulo-opercular Task Control', 'Default Mode',
@@ -5267,16 +5278,17 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     netnames = networks
     numofnets = list(range(len(netnames)))
  
-  print( netnames )
-  print( numofnets )
-    
   ct = 0
   for mynet in numofnets:
     netname = re.sub( " ", "", networks[mynet] )
     netname = re.sub( "-", "", netname )
     ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
-    dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    if powers:
+        dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+    else:
+        dfnImg = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==networks[mynet]],binarize=True)
     if dfnImg.max() >= 1:
+        print("DO: " + netname )
         dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
         dfnsignal = np.nanmean( dfnmat, axis = 1 )
         nan_count_dfn = np.count_nonzero( np.isnan( dfnsignal) )
@@ -5967,8 +5979,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
-  boldseg = ants.apply_transforms( und, t1segmentation,
-    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
