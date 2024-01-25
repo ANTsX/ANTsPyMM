@@ -5284,7 +5284,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )
           newnames_wide.append( netnamei + "_2_" + netnamej )
-          A[i,j] = outdict[ netnamej ][ dfnImg == 1].mean()
+          subbit = dfnImg == 1
+          if subbit.sum() > 0 and netnamej in outdict:
+              A[i,j] = outdict[ netnamej ][ subbit ].mean()
+          else:
+              A[i,j] = 0
           A_wide[0,ct] = A[i,j]
           ct=ct+1
 
