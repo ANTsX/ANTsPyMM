@@ -7739,6 +7739,7 @@ def mm_csv(
                         visualize=False
                         dowrite=False
                         print(f"An error occurred while processing {overmodX}: {e}")
+                        pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
                         nmpro = tabPro['NM']
@@ -7794,6 +7795,7 @@ def mm_csv(
                                         visualize=False
                                         dowrite=False
                                         print(f"An error occurred while processing {overmodX}: {e}")
+                                        pass
                                     if visualize:
                                         maxslice = np.min( [21, hier['brain_n4_dnz'].shape[2] ] )
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
@@ -7816,6 +7818,7 @@ def mm_csv(
                                         visualize=False
                                         dowrite=False
                                         print(f"An error occurred while processing {overmodX}: {e}")
+                                        pass
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
                                     ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png", flat=True )
@@ -7851,6 +7854,7 @@ def mm_csv(
                                         visualize=False
                                         dowrite=False
                                         print(f"An error occurred while processing {overmodX}: {e}")
+                                        pass
                                 if tabPro['rsf'] is not None and visualize:
                                     for tpro in tabPro['rsf']: # FIXMERSF
                                         maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
@@ -7888,6 +7892,7 @@ def mm_csv(
                                         dowrite=False
                                         tabPro={'perf':None}
                                         print(f"An error occurred while processing {overmodX}: {e}")
+                                        pass
                                 if tabPro['perf'] is not None and visualize:
                                     maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
                                     ants.plot( tabPro['perf']['perfusion'],
@@ -7955,6 +7960,7 @@ def mm_csv(
                                             dowrite=False
                                             tabPro={'DTI':None}
                                             print(f"An error occurred while processing {overmodX}: {e}")
+                                            pass
                                     mydti = tabPro['DTI']
                                     if visualize and tabPro['DTI'] is not None:
                                         maxslice = np.min( [21, mydti['recon_fa'] ] )
