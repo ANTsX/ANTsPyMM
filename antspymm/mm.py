@@ -161,6 +161,15 @@ def version( ):
               }
 
 
+def get_antsimage_keys(dictionary):
+    """
+    Return the keys of the dictionary where the values are ANTsImages.
+
+    :param dictionary: A dictionary to inspect
+    :return: A list of keys for which the values are ANTsImages
+    """
+    return [key for key, value in dictionary.items() if isinstance(value, ants.ANTsImage)]
+
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
@@ -4866,6 +4875,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     censor = True,
     despike = 2.5,
     motion_as_nuisance = True,
+    powers = True,
     upsample = False,
     clean_tmp = None,
     paramset='unset',
@@ -4907,6 +4917,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   despike : if this is greater than zero will run voxel-wise despiking in the 3dDespike (afni) sense; after motion-correction
 
   motion_as_nuisance: boolean will add motion and first derivative of motion as nuisance
+
+  powers : boolean if True use Powers nodes otherwise 2023 Yeo 500 homotopic nodes (10.1016/j.neuroimage.2023.120010)
 
   upsample : boolean
 
@@ -5025,7 +5037,13 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   import math
   # point data resources
   A = np.zeros((1,1))
-  powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
+  dfnname='DefaultMode'
+  if powers:
+      powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
+      coords='powers'
+  else:
+      powers_areal_mni_itk = pd.read_csv( get_data('ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic', target_extension=".csv")) # yeo 2023 coordinates
+      coords='yeo_17_500_2023'
   fmri = ants.iMath( fmri, 'Normalize' )
   bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).iMath("FillHoles")
   if verbose:
@@ -5091,11 +5109,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   wm = ants.apply_transforms( und, wm, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   nt = corrmo['motion_corrected'].shape[3]
   myvoxes = range(powers_areal_mni_itk.shape[0])
-  anat = powers_areal_mni_itk['Anatomy']
   syst = powers_areal_mni_itk['SystemName']
-  Brod = powers_areal_mni_itk['Brodmann']
-  xAAL  = powers_areal_mni_itk['AAL']
-  ch2 = mm_read( ants.get_ants_data( "ch2" ) )
+  if powers:
+    ch2 = mm_read( ants.get_ants_data( "ch2" ) )
+  else:
+    ch2 = mm_read( get_data( "PPMI_template0_brain", target_extension='.nii.gz' ) )
   treg = ants.registration( t1, ch2, 'SyN' )
   concatx2 = treg['invtransforms'] + t1reg['invtransforms']
   pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
@@ -5197,6 +5215,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # structure the output data
   outdict = {}
   outdict['paramset'] = paramset
+  outdict['coords'] = coords
+  outdict['dfnname']=dfnname
   outdict['meanBold'] = und
   outdict['pts2bold'] = pts2bold
 
@@ -5237,13 +5257,20 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   networks = powers_areal_mni_itk['SystemName'].unique()
 
   # this is just for human readability - reminds us of which we choose by default
-  netnames = ['Cingulo-opercular Task Control', 'Default Mode',
-                'Memory Retrieval', 'Ventral Attention', 'Visual',
-                'Fronto-parietal Task Control', 'Salience', 'Subcortical',
-                'Dorsal Attention']
-  # cerebellar is 12
+  if powers:
+    netnames = ['Cingulo-opercular Task Control', 'Default Mode',
+                    'Memory Retrieval', 'Ventral Attention', 'Visual',
+                    'Fronto-parietal Task Control', 'Salience', 'Subcortical',
+                    'Dorsal Attention']
+    numofnets = [3,5,6,7,8,9,10,11,13]
+  else:
+    netnames = networks
+    numofnets = list(range(len(netnames)))
+ 
+  print( netnames )
+  print( numofnets )
+    
   ct = 0
-  numofnets = [3,5,6,7,8,9,10,11,13]
   for mynet in numofnets:
     netname = re.sub( " ", "", networks[mynet] )
     netname = re.sub( "-", "", netname )
@@ -5329,6 +5356,12 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if remove_it:
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True )
+
+  if not powers:
+    dfnsum=outdict['DefaultA']+outdict['DefaultB']+outdict['DefaultC']
+    outdict['DefaultMode']=dfnsum
+    dfnsum=outdict['VisCent']+outdict['VisPeri']
+    outdict['Visual']=dfnsum
 
   nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
   trimmask = ants.iMath( bmask, "ME",2)
@@ -6284,7 +6317,6 @@ def mm(
     #####################
     t1imgbrn = hier['brain_n4_dnz']
     t1atropos = hier['dkt_parc']['tissue_segmentation']
-    mynets = get_rsf_outputs()
     output_dict = {
         'kk': None,
         'rsf': None,
@@ -6670,7 +6702,7 @@ def mm(
             if False:
                 rsfpro = output_dict['rsf'] # FIXME
                 rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
-                for netid in mynets:
+                for netid in get_antsimage_keys( rsfpro ):
                     rsfkey = netid + "_norm"
                     normalization_dict[rsfkey] = ants.apply_transforms(
                         group_template, rsfpro[netid],
@@ -6806,7 +6838,6 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         mm_wide['flair_evr'] = mm['flair']['wmh_evr']
         mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
     if mm['rsf'] is not None:
-        mynets = get_rsf_outputs()
         fcnxpro=99
         for rsfpro in mm['rsf']:
             fcnxpro=str( rsfpro['paramset']  )
@@ -6820,7 +6851,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             ofn = output_prefix + separator + pronum + '.csv'
             new_rsf_wide.to_csv( ofn )
             mm_wide = pd.concat( [mm_wide, new_rsf_wide ], axis=1, ignore_index=False )
-            for mykey in mynets:
+            for mykey in get_antsimage_keys( rsfpro ):
                 myop = output_prefix + separator + pronum + mykey + '.nii.gz'
                 image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
             ofn = output_prefix + separator + pronum + 'rsfcorr.csv'
@@ -7311,6 +7342,7 @@ def mm_nrg(
                                     test_run=test_run,
                                     verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
+                                    dfn=tabPro['rsf']['dfnname']
                                     maxslice = np.min( [21, tabPro['rsf']['meanBold'].shape[2] ] )
                                     ants.plot( tabPro['rsf']['meanBold'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='meanBOLD', filename=mymm+mysep+"meanBOLD.png" )
@@ -7318,10 +7350,8 @@ def mm_nrg(
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=mymm+mysep+"boldALFF.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], ants.iMath(tabPro['rsf']['falff'],"Normalize"),
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['DefaultMode'],
+                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf'][dfn],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
-                                    ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf']['FrontoparietalTaskControl'],
-                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=mymm+mysep+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 dowrite=True
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
@@ -7867,12 +7897,9 @@ def mm_csv(
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=tproprefix+"boldALFF.png" )
                                         ants.plot( tpro['meanBold'], ants.iMath(tpro['falff'],"Normalize"),
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=tproprefix+"boldfALFF.png" )
-#                                        ants.plot( ants.iMath(tpro['PerAF'],"Normalize"),
-#                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='PerAF', filename=tproprefix+"PerAF.png" )
-                                        ants.plot( tpro['meanBold'], tpro['DefaultMode'],
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=tproprefix+"boldDefaultMode.png" )
-                                        ants.plot( tpro['meanBold'], tpro['FrontoparietalTaskControl'],
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=tproprefix+"boldFrontoparietalTaskControl.png"  )
+                                        dfn=tpro['dfnname']
+                                        ants.plot( tpro['meanBold'], tpro[dfn],
+                                            axis=2, nslices=maxslice, ncol=7, crop=True, title=dfn, filename=tproprefix+"boldDefaultMode.png" )
                             if ( mymod == 'perf' ) and ishapelen == 4:
                                 dowrite=True
                                 try:
