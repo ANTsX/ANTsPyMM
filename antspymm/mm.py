@@ -7807,8 +7807,10 @@ def mm_csv(
                                     if ishapelen2 != 4 or 1 in img2.shape:
                                         img2 = None
                                 if 1 in img.shape:
-                                    dowrite=False
                                     warnings.warn( 'rsfMRI image shape suggests it is an incorrectly converted mosaic image - will not process.')
+                                    dowrite=False
+                                    tabPro={'rsf':None}
+                                    normPro={'rsf':None}
                                 else:
                                     dowrite=True
                                     tabPro, normPro = mm( t1, hier,
