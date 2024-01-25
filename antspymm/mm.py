@@ -7724,7 +7724,8 @@ def mm_csv(
                     else:
                         print( mdlfn + " does not exist - wont use SR")
                 if not testloop:
-                    tabPro, normPro = mm( t1, hier,
+                    try:
+                        tabPro, normPro = mm( t1, hier,
                             nm_image_list = nmlist,
                             srmodel=srmodel_NM_mdl,
                             do_tractography=False,
@@ -7734,6 +7735,10 @@ def mm_csv(
                             group_transform = groupTx,
                             test_run=test_run,
                             verbose=True )
+                    except Exception as e:
+                        visualize=False
+                        dowrite=False
+                        print(f"An error occurred while processing {overmodX}: {e}")
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
                         nmpro = tabPro['NM']
@@ -7775,15 +7780,20 @@ def mm_csv(
                                     dowrite=True
                                     if verbose:
                                         print('start kk')
-                                    tabPro, normPro = mm( t1, hier,
-                                        srmodel=None,
-                                        do_tractography=False,
-                                        do_kk=True,
-                                        do_normalization=templateTx,
-                                        group_template = normalization_template,
-                                        group_transform = groupTx,
-                                        test_run=test_run,
-                                        verbose=True )
+                                    try:
+                                        tabPro, normPro = mm( t1, hier,
+                                            srmodel=None,
+                                            do_tractography=False,
+                                            do_kk=True,
+                                            do_normalization=templateTx,
+                                            group_template = normalization_template,
+                                            group_transform = groupTx,
+                                            test_run=test_run,
+                                            verbose=True )
+                                    except Exception as e:
+                                        visualize=False
+                                        dowrite=False
+                                        print(f"An error occurred while processing {overmodX}: {e}")
                                     if visualize:
                                         maxslice = np.min( [21, hier['brain_n4_dnz'].shape[2] ] )
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
@@ -7791,16 +7801,21 @@ def mm_csv(
                                         cmap='plasma', filename=mymm+mysep+"kkthickness.png" )
                             if mymod == 'T2Flair' and ishapelen == 3 and np.min(img.shape) > 15:
                                 dowrite=True
-                                tabPro, normPro = mm( t1, hier,
-                                    flair_image = img,
-                                    srmodel=None,
-                                    do_tractography=False,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    group_template = normalization_template,
-                                    group_transform = groupTx,
-                                    test_run=test_run,
-                                    verbose=True )
+                                try:
+                                    tabPro, normPro = mm( t1, hier,
+                                        flair_image = img,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
+                                        test_run=test_run,
+                                        verbose=True )
+                                except Exception as e:
+                                        visualize=False
+                                        dowrite=False
+                                        print(f"An error occurred while processing {overmodX}: {e}")
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
                                     ants.plot_ortho( img, crop=True, title='Flair', filename=mymm+mysep+"flair.png", flat=True )
@@ -7821,16 +7836,21 @@ def mm_csv(
                                     normPro={'rsf':None}
                                 else:
                                     dowrite=True
-                                    tabPro, normPro = mm( t1, hier,
-                                        rsf_image=[img,img2],
-                                        srmodel=None,
-                                        do_tractography=False,
-                                        do_kk=False,
-                                        do_normalization=templateTx,
-                                        group_template = normalization_template,
-                                        group_transform = groupTx,
-                                        test_run=test_run,
-                                        verbose=True )
+                                    try:
+                                        tabPro, normPro = mm( t1, hier,
+                                            rsf_image=[img,img2],
+                                            srmodel=None,
+                                            do_tractography=False,
+                                            do_kk=False,
+                                            do_normalization=templateTx,
+                                            group_template = normalization_template,
+                                            group_transform = groupTx,
+                                            test_run=test_run,
+                                            verbose=True )
+                                    except Exception as e:
+                                        visualize=False
+                                        dowrite=False
+                                        print(f"An error occurred while processing {overmodX}: {e}")
                                 if tabPro['rsf'] is not None and visualize:
                                     for tpro in tabPro['rsf']: # FIXMERSF
                                         maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
@@ -7849,19 +7869,25 @@ def mm_csv(
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='FrontoparietalTaskControl', filename=tproprefix+"boldFrontoparietalTaskControl.png"  )
                             if ( mymod == 'perf' ) and ishapelen == 4:
                                 dowrite=True
-                                tabPro, normPro = mm( t1, hier,
-                                    perfusion_image=img,
-                                    srmodel=None,
-                                    do_tractography=False,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    group_template = normalization_template,
-                                    group_transform = groupTx,
-                                    test_run=test_run,
-                                    perfusion_trim=perfusion_trim,
-                                    perfusion_m0_image=perfusion_m0_image,
-                                    perfusion_m0=perfusion_m0,
-                                    verbose=True )
+                                try:
+                                    tabPro, normPro = mm( t1, hier,
+                                        perfusion_image=img,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
+                                        test_run=test_run,
+                                        perfusion_trim=perfusion_trim,
+                                        perfusion_m0_image=perfusion_m0_image,
+                                        perfusion_m0=perfusion_m0,
+                                        verbose=True )
+                                except Exception as e:
+                                        visualize=False
+                                        dowrite=False
+                                        tabPro={'perf':None}
+                                        print(f"An error occurred while processing {overmodX}: {e}")
                                 if tabPro['perf'] is not None and visualize:
                                     maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
                                     ants.plot( tabPro['perf']['perfusion'],
@@ -7909,22 +7935,28 @@ def mm_csv(
                                             srmodel_DTI_mdl = tf.keras.models.load_model( mdlfn, compile=False )
                                         else:
                                             print(mdlfn + " does not exist - wont use SR")
-                                    tabPro, normPro = mm( t1, hier,
-                                        dw_image=imgList,
-                                        bvals = bvalfnList,
-                                        bvecs = bvecfnList,
-                                        srmodel=srmodel_DTI_mdl,
-                                        do_tractography=not test_run,
-                                        do_kk=False,
-                                        do_normalization=templateTx,
-                                        group_template = normalization_template,
-                                        group_transform = groupTx,
-                                        dti_motion_correct = dti_motion_correct,
-                                        dti_denoise = dti_denoise,
-                                        test_run=test_run,
-                                        verbose=True )
+                                    try:
+                                        tabPro, normPro = mm( t1, hier,
+                                            dw_image=imgList,
+                                            bvals = bvalfnList,
+                                            bvecs = bvecfnList,
+                                            srmodel=srmodel_DTI_mdl,
+                                            do_tractography=not test_run,
+                                            do_kk=False,
+                                            do_normalization=templateTx,
+                                            group_template = normalization_template,
+                                            group_transform = groupTx,
+                                            dti_motion_correct = dti_motion_correct,
+                                            dti_denoise = dti_denoise,
+                                            test_run=test_run,
+                                            verbose=True )
+                                    except Exception as e:
+                                            visualize=False
+                                            dowrite=False
+                                            tabPro={'DTI':None}
+                                            print(f"An error occurred while processing {overmodX}: {e}")
                                     mydti = tabPro['DTI']
-                                    if visualize:
+                                    if visualize and tabPro['DTI'] is not None:
                                         maxslice = np.min( [21, mydti['recon_fa'] ] )
                                         ants.plot( mydti['recon_fa'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='FA', filename=mymm+mysep+"FAbetter.png"  )
                                         ants.plot( mydti['recon_fa'], mydti['jhu_labels'], axis=2, nslices=maxslice, ncol=7, crop=True, title='FA + JHU', filename=mymm+mysep+"FAJHU.png"  )
