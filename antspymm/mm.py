@@ -5288,7 +5288,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     else:
         dfnImg = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==networks[mynet]],binarize=True)
     if dfnImg.max() >= 1:
-        print("DO: " + netname )
+        if verbose:
+            print("DO: " + coords + " " + netname )
         dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
         dfnsignal = np.nanmean( dfnmat, axis = 1 )
         nan_count_dfn = np.count_nonzero( np.isnan( dfnsignal) )
