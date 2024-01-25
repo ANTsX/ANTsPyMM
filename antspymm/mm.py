@@ -7820,8 +7820,8 @@ def mm_csv(
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='ALFF', filename=tproprefix+"boldALFF.png" )
                                         ants.plot( tpro['meanBold'], ants.iMath(tpro['falff'],"Normalize"),
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=tproprefix+"boldfALFF.png" )
-                                        ants.plot( ants.iMath(tpro['PerAF'],"Normalize"),
-                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='PerAF', filename=tproprefix+"PerAF.png" )
+#                                        ants.plot( ants.iMath(tpro['PerAF'],"Normalize"),
+#                                            axis=2, nslices=maxslice, ncol=7, crop=True, title='PerAF', filename=tproprefix+"PerAF.png" )
                                         ants.plot( tpro['meanBold'], tpro['DefaultMode'],
                                             axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=tproprefix+"boldDefaultMode.png" )
                                         ants.plot( tpro['meanBold'], tpro['FrontoparietalTaskControl'],
