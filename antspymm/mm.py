@@ -3762,7 +3762,8 @@ def dwi_deterministic_tracking(
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009 and False:
+    if abs(np.linalg.norm(bvecs)-1) > 0.009:
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data." ) 
         bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )  
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
