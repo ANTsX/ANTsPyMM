@@ -7853,6 +7853,8 @@ def mm_csv(
                                     except Exception as e:
                                         visualize=False
                                         dowrite=False
+                                        tabPro={'rsf':None}
+                                        normPro={'rsf':None}
                                         print(f"An error occurred while processing {overmodX}: {e}")
                                         pass
                                 if tabPro['rsf'] is not None and visualize:
