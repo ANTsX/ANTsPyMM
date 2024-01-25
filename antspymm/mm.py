@@ -3209,6 +3209,7 @@ def dipy_dti_recon(
 
     import numpy as np
     if abs(np.linalg.norm(bvecs)-1) > 0.009:
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
         bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
@@ -3763,8 +3764,8 @@ def dwi_deterministic_tracking(
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     import numpy as np
     if abs(np.linalg.norm(bvecs)-1) > 0.009:
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data." ) 
-        bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )  
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
+        bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -3934,8 +3935,8 @@ def dwi_closest_peak_tracking(
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009:
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data." ) 
+    if abs(np.linalg.norm(bvecs)-1) > 0.009 :
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ) )
         bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
@@ -5285,11 +5286,11 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )
           newnames_wide.append( netnamei + "_2_" + netnamej )
-          subbit = dfnImg == 1
-          if subbit.sum() > 0 and netnamej in outdict:
-              A[i,j] = outdict[ netnamej ][ subbit ].mean()
-          else:
-              A[i,j] = 0
+          A[i,j] = 0
+          if dfnImg is not None and netnamej is not None:
+            subbit = dfnImg == 1
+            if subbit.sum() > 0 and netnamej in outdict:
+                A[i,j] = outdict[ netnamej ][ subbit ].mean()
           A_wide[0,ct] = A[i,j]
           ct=ct+1
 
@@ -7803,19 +7804,23 @@ def mm_csv(
                                 if len( myimgsr ) > 1:
                                     img2 = mm_read( myimgsr[myimgcount+1] )
                                     ishapelen2 = len( img2.shape )
-                                    if ishapelen2 != 4 :
+                                    if ishapelen2 != 4 or 1 in img2.shape:
                                         img2 = None
-                                dowrite=True
-                                tabPro, normPro = mm( t1, hier,
-                                    rsf_image=[img,img2],
-                                    srmodel=None,
-                                    do_tractography=False,
-                                    do_kk=False,
-                                    do_normalization=templateTx,
-                                    group_template = normalization_template,
-                                    group_transform = groupTx,
-                                    test_run=test_run,
-                                    verbose=True )
+                                if 1 in img.shape:
+                                    dowrite=False
+                                    warnings.warn( 'rsfMRI image shape suggests it is an incorrectly converted mosaic image - will not process.')
+                                else:
+                                    dowrite=True
+                                    tabPro, normPro = mm( t1, hier,
+                                        rsf_image=[img,img2],
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
+                                        test_run=test_run,
+                                        verbose=True )
                                 if tabPro['rsf'] is not None and visualize:
                                     for tpro in tabPro['rsf']: # FIXMERSF
                                         maxslice = np.min( [21, tpro['meanBold'].shape[2] ] )
