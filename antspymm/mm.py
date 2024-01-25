@@ -3160,14 +3160,8 @@ def dipy_dti_recon(
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
-    bvecs = repair_bvecs( bvecs )      
-    if len( nanlist ) > 0:
-        image = remove_volumes_from_timeseries( image, nanlist )
-        bvals = remove_elements_from_numpy_array( bvals )
-
     if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod='bold'
