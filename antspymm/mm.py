@@ -4751,7 +4751,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_min' : nm_avg_cropped.min(),
       'NM_max' : nm_avg_cropped.max(),
       'NM_mean' : nm_avg_cropped.numpy().mean(),
-      'NM_sd' : math.sqrt( nm_avg_cropped.numpy().mean() ),
+      'NM_sd' : np.std( nm_avg_cropped.numpy() ),
       'NM_q0pt05' : np.quantile( nm_avg_cropped.numpy(), 0.05 ),
       'NM_q0pt10' : np.quantile( nm_avg_cropped.numpy(), 0.10 ),
       'NM_q0pt90' : np.quantile( nm_avg_cropped.numpy(), 0.90 ),
@@ -7535,6 +7535,13 @@ def mm_csv(
     if not exists( t1fn ):
         raise ValueError('mm_nrg cannot find the T1w with uid ' + t1fn )
     t1 = mm_read( t1fn, modality='T1w' )
+    minspc = np.min(ants.get_spacing(t1))
+    minshape = np.min(t1.shape)
+    if minspc < 1e-16:
+        raise ValueError('minimum spacing in T1w is too small - cannot process. ' + str(minspc) )
+    if minshape < 32:
+        raise ValueError('minimum shape in T1w is too small - cannot process. ' + str(minshape) )
+
     if enantiomorphic:
         t1 = enantiomorphic_filling_without_mask( t1, axis=0 )[0]
     hierfn = outputdir + "/"  + projid + "/" + sid + "/" + dtid + "/" + "T1wHierarchical" + '/' + iid + "/" + projid + mysep + sid + mysep + dtid + mysep + "T1wHierarchical" + mysep + iid + mysep
@@ -7781,7 +7788,7 @@ def mm_csv(
                                         ants.plot( hier['brain_n4_dnz'],  axis=2, nslices=maxslice, ncol=7, crop=True, title='brain extraction', filename=mymm+mysep+"brainextraction.png" )
                                         ants.plot( tabPro['kk']['thickness_image'], axis=2, nslices=maxslice, ncol=7, crop=True, title='kk',
                                         cmap='plasma', filename=mymm+mysep+"kkthickness.png" )
-                            if mymod == 'T2Flair' and ishapelen == 3:
+                            if mymod == 'T2Flair' and ishapelen == 3 and np.min(img.shape) > 15:
                                 dowrite=True
                                 tabPro, normPro = mm( t1, hier,
                                     flair_image = img,
