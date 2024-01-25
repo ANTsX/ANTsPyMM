@@ -5352,7 +5352,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['falff_sd'] = (myfalff['falff'][myfalff['falff']!=0]).std()
 
   perafimg = PerAF( simgimp, bmask )
-  for k in range(1,270):
+  for k in range(1,nPoints):
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
         anatname = re.sub("_","",anatname)
