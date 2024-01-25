@@ -3210,7 +3210,7 @@ def dipy_dti_recon(
     import numpy as np
     if abs(np.linalg.norm(bvecs)-1) > 0.009:
         warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
-        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+        bvecs=bvecs/np.linalg.norm(bvecs)  
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
@@ -3765,7 +3765,7 @@ def dwi_deterministic_tracking(
     import numpy as np
     if abs(np.linalg.norm(bvecs)-1) > 0.009:
         warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
-        bvecs=bvecs/np.linalg.norm(bvecs, axis=1 )
+        bvecs=bvecs/np.linalg.norm(bvecs)
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
@@ -3935,9 +3935,9 @@ def dwi_closest_peak_tracking(
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     import numpy as np
-    if abs(np.linalg.norm(bvecs)-1) > 0.009 :
-        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ) )
-        bvecs=bvecs/np.linalg.norm(bvecs, axis=1)  
+    if abs(np.linalg.norm(bvecs)-1) > 0.009:
+        warnings.warn( "Warning: bvecs are not unit norm - we normalize them here but this may indicate a problem with the data.  Norm is : " + str( np.linalg.norm(bvecs) ) + " shape is " + str( bvecs.shape[0] ) + " " + str( bvecs.shape[1] ))
+        bvecs=bvecs/np.linalg.norm(bvecs)  
     gtab = gradient_table(bvals, bvecs, atol=0.1 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
