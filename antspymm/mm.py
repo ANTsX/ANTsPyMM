@@ -5287,8 +5287,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
           A[i,j] = 0
           if dfnImg is not None and netnamej is not None:
             subbit = dfnImg == 1
-            if subbit.sum() > 0 and netnamej in outdict:
-                A[i,j] = outdict[ netnamej ][ subbit ].mean()
+            if subbit is not None:
+                if subbit.sum() > 0 and netnamej in outdict:
+                    A[i,j] = outdict[ netnamej ][ subbit ].mean()
           A_wide[0,ct] = A[i,j]
           ct=ct+1
 
