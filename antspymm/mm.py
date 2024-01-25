@@ -7538,9 +7538,11 @@ def mm_csv(
     minspc = np.min(ants.get_spacing(t1))
     minshape = np.min(t1.shape)
     if minspc < 1e-16:
-        raise ValueError('minimum spacing in T1w is too small - cannot process. ' + str(minspc) )
+        warnings.warn('minimum spacing in T1w is too small - cannot process. ' + str(minspc) )
+        return
     if minshape < 32:
-        raise ValueError('minimum shape in T1w is too small - cannot process. ' + str(minshape) )
+        warnings.warn('minimum shape in T1w is too small - cannot process. ' + str(minshape) )
+        return
 
     if enantiomorphic:
         t1 = enantiomorphic_filling_without_mask( t1, axis=0 )[0]
