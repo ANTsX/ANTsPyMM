@@ -3160,7 +3160,7 @@ def dipy_dti_recon(
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
-    bvecs, nanlist = repair_bvecs( bvecs )      
+    bvecs = repair_bvecs( bvecs )      
     if len( nanlist ) > 0:
         image = remove_volumes_from_timeseries( image, nanlist )
         bvals = remove_elements_from_numpy_array( bvals )
