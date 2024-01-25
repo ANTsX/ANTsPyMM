@@ -3206,7 +3206,7 @@ def dipy_dti_recon(
         return tenfit, FA, MD1, RGB
 
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=0.1 )
+    gtab = gradient_table(bvals, bvecs, atol=2.0 )
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
     if verbose:
         print("recon dti.TensorModel done",flush=True)
@@ -3758,7 +3758,7 @@ def dwi_deterministic_tracking(
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=0.1 )
+    gtab = gradient_table(bvals, bvecs, atol=2.0 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
     dwi_data = dwi_img.get_fdata()
@@ -3936,7 +3936,7 @@ def dwi_closest_peak_tracking(
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=0.1 )
+    gtab = gradient_table(bvals, bvecs, atol=2.0 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
     dwi_data = dwi_img.get_fdata()
