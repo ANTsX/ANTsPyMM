@@ -6443,8 +6443,7 @@ def mm(
                 "imp": [True, True, True],
                 "coords": [False,False,False]
             }, index=[0, 1, 2])
-#            for p in range(df.shape[0]):
-            for p in list(range(1)):
+            for p in range(df.shape[0]):
                 if verbose:
                     print("rsf parameters")
                     print( df.iloc[p] )
@@ -6464,7 +6463,8 @@ def mm(
                 cens =df['cens'].iloc[p]
                 imp = df['imp'].iloc[p]
                 rsf0 = resting_state_fmri_networks(
-                                            remove_volumes_from_timeseries(rsf_image,list(range(40,500))),
+#                                            remove_volumes_from_timeseries(rsf_image,list(range(40,500))),
+                                            rsf_image,
                                             boldTemplate,
                                             hier['brain_n4_dnz'],
                                             t1atropos,
