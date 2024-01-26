@@ -5328,7 +5328,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       netnamei = re.sub( "-", "", netnamei )
       newnames.append( netnamei  )
       ww = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
-      dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+      if powers:
+          dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+      else:
+          dfnImg = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==networks[mynet]],binarize=True)
       for j in range( len( numofnets ) ):
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )

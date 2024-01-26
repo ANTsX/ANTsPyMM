@@ -17,7 +17,7 @@ requirements = [
       "scikit-learn"]
 
 setup(name='antspymm',
-      version='1.2.2',
+      version='1.2.3',
       description='multi-channel/time-series medical image processing with antspyx',
       long_description=long_description,
       long_description_content_type="text/markdown; charset=UTF-8; variant=GFM",
