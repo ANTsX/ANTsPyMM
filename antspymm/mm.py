@@ -1237,6 +1237,10 @@ def mm_read( x, standardize_intensity=False, modality='' ):
 
     modality : not used
     """
+    if x is None:
+        raise ValueError( " None passed to function antspymm.mm_read." )
+    if not isinstance(x,str):
+        raise ValueError( " Non-string passed to function antspymm.mm_read." )
     if not os.path.exists( x ):
         raise ValueError( " file " + fni + " does not exist." )
     img = ants.image_read( x, reorient=False )
