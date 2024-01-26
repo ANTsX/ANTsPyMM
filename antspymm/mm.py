@@ -1237,6 +1237,8 @@ def mm_read( x, standardize_intensity=False, modality='' ):
 
     modality : not used
     """
+    if not os.path.exists( x ):
+        raise ValueError( " file " + fni + " does not exist." )
     img = ants.image_read( x, reorient=False )
     if standardize_intensity:
         img[img<0.0]=0.0
