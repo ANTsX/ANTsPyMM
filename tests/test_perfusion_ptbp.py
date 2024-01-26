@@ -43,3 +43,6 @@ ants.plot( perfh['cbf'], axis=2, crop=True )
 mycbf = antspymm.calculate_CBF(
   Delta_M=perfh['perfusion'], M_0=perfh['m0'], mask=perfh['brainmask'],
   Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5)
+
+
+antspymm.write_mm( '/tmp/PRF', perfh )

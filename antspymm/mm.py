@@ -4423,12 +4423,15 @@ def hierarchical_modality_summary(
     #        "mtl_description", modality_name, dfout, extra='', verbose=verbose  )
     return dfout
 
-def get_rsf_outputs():
-    rsfout = list([ 'meanBold', 'fmri_template', 'alff', 'falff', 'PerAF', 
+def get_rsf_outputs( coords ):
+    if coords == 'powers':
+        return list([ 'meanBold', 'fmri_template', 'alff', 'falff', 'PerAF', 
                    'CinguloopercularTaskControl', 'DefaultMode', 
                    'MemoryRetrieval', 'VentralAttention', 'Visual',
                    'FrontoparietalTaskControl', 'Salience', 'Subcortical', 'DorsalAttention'])
-    return rsfout
+    else:
+        yeo = pd.read_csv( get_data('ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic', target_extension=".csv")) # yeo 2023 coordinates
+        return list( yeo['SystemName'].unique() )
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     transform=['rigid'], verbose=False ):
@@ -6323,6 +6326,9 @@ def mm(
     if group_template is None:
         group_template = template
         group_transform = do_normalization['fwdtransforms']
+    if verbose:
+        print("Using group template:")
+        print( group_template )
     #####################
     #  T1 hierarchical  #
     #####################
@@ -6773,45 +6779,51 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if t1wide is not None:
         thkderk = t1wide.iloc[: , 1:]
     kkderk = None
-    if mm['kk'] is not None:
-        kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
-        mykey='thickness_image'
-        tempfn = output_prefix + separator + mykey + '.nii.gz'
-        image_write_with_thumbnail( mm['kk'][mykey], tempfn )
-    nmderk = None
-    if mm['NM'] is not None:
-        nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
-        for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
+    if 'kk' in mm:
+        if mm['kk'] is not None:
+            kkderk = mm['kk']['thickness_dataframe'].iloc[: , 1:]
+            mykey='thickness_image'
             tempfn = output_prefix + separator + mykey + '.nii.gz'
-            image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
+            image_write_with_thumbnail( mm['kk'][mykey], tempfn )
+    nmderk = None
+    if 'NM' in mm:
+        if mm['NM'] is not None:
+            nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
+            for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
+                tempfn = output_prefix + separator + mykey + '.nii.gz'
+                image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
 
     faderk = mdderk = fat1derk = mdt1derk = None
 
-    if mm['DTI'] is not None:
-        mydti = mm['DTI']
-        myop = output_prefix + separator
-        ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
-        write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
-        image_write_with_thumbnail( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
-        image_write_with_thumbnail( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
-        image_write_with_thumbnail( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz', mydti['recon_fa'] )
-        image_write_with_thumbnail( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
-        image_write_with_thumbnail( mydti['recon_md'],  myop+'dtimd.nii.gz' )
-        image_write_with_thumbnail( mydti['b0avg'],  myop+'b0avg.nii.gz' )
-        image_write_with_thumbnail( mydti['dwiavg'],  myop+'dwiavg.nii.gz' )
-        faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
-        mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
-        fat1derk = mm['FA_summ'].iloc[: , 1:]
-        mdt1derk = mm['MD_summ'].iloc[: , 1:]
-    if mm['tractography'] is not None:
-        ofn = output_prefix + separator + 'tractogram.trk'
-        save_tractogram( mm['tractography']['tractogram'], ofn )
+    if 'DTI' in mm:
+        if mm['DTI'] is not None:
+            mydti = mm['DTI']
+            myop = output_prefix + separator
+            ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
+            write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
+            image_write_with_thumbnail( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
+            image_write_with_thumbnail( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
+            image_write_with_thumbnail( mydti['jhu_labels'],  myop+'dtijhulabels.nii.gz', mydti['recon_fa'] )
+            image_write_with_thumbnail( mydti['recon_fa'],  myop+'dtifa.nii.gz' )
+            image_write_with_thumbnail( mydti['recon_md'],  myop+'dtimd.nii.gz' )
+            image_write_with_thumbnail( mydti['b0avg'],  myop+'b0avg.nii.gz' )
+            image_write_with_thumbnail( mydti['dwiavg'],  myop+'dwiavg.nii.gz' )
+            faderk = mm['DTI']['recon_fa_summary'].iloc[: , 1:]
+            mdderk = mm['DTI']['recon_md_summary'].iloc[: , 1:]
+            fat1derk = mm['FA_summ'].iloc[: , 1:]
+            mdt1derk = mm['MD_summ'].iloc[: , 1:]
+    if 'tractography' in mm:
+        if mm['tractography'] is not None:
+            ofn = output_prefix + separator + 'tractogram.trk'
+            save_tractogram( mm['tractography']['tractogram'], ofn )
     cnxderk = None
-    if mm['tractography_connectivity'] is not None:
-        cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
-        ofn = output_prefix + separator + 'dtistreamlineconn.csv'
-        pd.DataFrame(mm['tractography_connectivity']['connectivity_matrix']).to_csv( ofn )
-    mm_wide = pd.concat( [
+    if 'tractography_connectivity' in mm:
+        if mm['tractography_connectivity'] is not None:
+            cnxderk = mm['tractography_connectivity']['connectivity_wide'].iloc[: , 1:] # NOTE: connectivity_wide is not much tested
+            ofn = output_prefix + separator + 'dtistreamlineconn.csv'
+            pd.DataFrame(mm['tractography_connectivity']['connectivity_matrix']).to_csv( ofn )
+
+    dlist = [
         thkderk,
         kkderk,
         nmderk,
@@ -6820,91 +6832,81 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         fat1derk,
         mdt1derk,
         cnxderk
-        ], axis=1, ignore_index=False )
-    mm_wide = mm_wide.copy()
-    if mm['NM'] is not None:
-        mm_wide['NM_avg_signaltonoise'] = mm['NM']['NM_avg_signaltonoise']
-        mm_wide['NM_avg_substantianigra'] = mm['NM']['NM_avg_substantianigra']
-        mm_wide['NM_std_substantianigra'] = mm['NM']['NM_std_substantianigra']
-        mm_wide['NM_volume_substantianigra'] = mm['NM']['NM_volume_substantianigra']
-        mm_wide['NM_avg_refregion'] = mm['NM']['NM_avg_refregion']
-        mm_wide['NM_std_refregion'] = mm['NM']['NM_std_refregion']
-        mm_wide['NM_evr'] = mm['NM']['NM_evr']
-        mm_wide['NM_count'] = mm['NM']['NM_count']
-        mm_wide['NM_min'] = mm['NM']['NM_min']
-        mm_wide['NM_max'] = mm['NM']['NM_max']
-        mm_wide['NM_mean'] = mm['NM']['NM_mean']
-        mm_wide['NM_sd'] = mm['NM']['NM_sd']
-        mm_wide['NM_q0pt05'] = mm['NM']['NM_q0pt05']
-        mm_wide['NM_q0pt10'] = mm['NM']['NM_q0pt10']
-        mm_wide['NM_q0pt90'] = mm['NM']['NM_q0pt90']
-        mm_wide['NM_q0pt95'] = mm['NM']['NM_q0pt95']
-        mm_wide['NM_substantianigra_z_coordinate'] = mm['NM']['NM_substantianigra_z_coordinate']
-    if mm['flair'] is not None:
-        myop = output_prefix + separator + 'wmh.nii.gz'
-        if mm['flair']['WMH_probability_map'] is not None:
-            image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
-        mm_wide['flair_wmh'] = mm['flair']['wmh_mass']
-        mm_wide['flair_wmh_prior'] = mm['flair']['wmh_mass_prior']
-        mm_wide['flair_evr'] = mm['flair']['wmh_evr']
-        mm_wide['flair_SNR'] = mm['flair']['wmh_SNR']
-    if mm['rsf'] is not None:
-        fcnxpro=99
-        for rsfpro in mm['rsf']:
-            fcnxpro=str( rsfpro['paramset']  )
-            pronum = 'fcnxpro'+str(fcnxpro)+"_"
-            if verbose:
-                print("Collect rsf data " + pronum)
-            new_rsf_wide = dict_to_dataframe( rsfpro )
-            new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
-            new_rsf_wide = new_rsf_wide.add_prefix( pronum )
-            new_rsf_wide.set_index( mm_wide.index, inplace=True )
-            ofn = output_prefix + separator + pronum + '.csv'
-            new_rsf_wide.to_csv( ofn )
-            mm_wide = pd.concat( [mm_wide, new_rsf_wide ], axis=1, ignore_index=False )
-            for mykey in get_antsimage_keys( rsfpro ):
-                myop = output_prefix + separator + pronum + mykey + '.nii.gz'
-                image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
-            ofn = output_prefix + separator + pronum + 'rsfcorr.csv'
-            rsfpro['corr'].to_csv( ofn )
-            # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
-            ofn2 = output_prefix + separator + pronum + 'nodescorr.csv'
-            rsfpro['fullCorrMat'].to_csv( ofn2 )
-    if mm['DTI'] is not None:
-        mydti = mm['DTI']
-        mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
-        mm_wide['dti_tsnr_dwi_mean'] =  mydti['tsnr_dwi'].mean()
-        mm_wide['dti_dvars_b0_mean'] =  mydti['dvars_b0'].mean()
-        mm_wide['dti_dvars_dwi_mean'] =  mydti['dvars_dwi'].mean()
-        mm_wide['dti_ssnr_b0_mean'] =  mydti['ssnr_b0'].mean()
-        mm_wide['dti_ssnr_dwi_mean'] =  mydti['ssnr_dwi'].mean()
-        mm_wide['dti_fa_evr'] =  mydti['fa_evr']
-        mm_wide['dti_fa_SNR'] =  mydti['fa_SNR']
-        if mydti['framewise_displacement'] is not None:
-            mm_wide['dti_high_motion_count'] =  mydti['high_motion_count']
-            mm_wide['dti_FD_mean'] = mydti['framewise_displacement'].mean()
-            mm_wide['dti_FD_max'] = mydti['framewise_displacement'].max()
-            fdfn = output_prefix + separator + '_fd.csv'
-        else:
-            mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
+        ]
+    is_all_none = all(element is None for element in dlist)
+    if is_all_none:
+        mm_wide = pd.DataFrame()
+    else:
+        mm_wide = pd.concat( dlist, axis=1, ignore_index=False )
 
-    if mm['perf'] is not None:
-        perfpro = mm['perf']
-        mm_wide['gm_mean'] =  perfpro['perfusion_gm_mean']
-        mm_wide['gm_mean_cbf'] =  perfpro['cbf_gm_mean']
-        mm_wide['tsnr_mean'] =  perfpro['tsnr'].mean()
-        mm_wide['dvars_mean'] =  perfpro['dvars'].mean()
-        mm_wide['ssnr_mean'] =  perfpro['ssnr'].mean()
-        mm_wide['high_motion_count'] =  perfpro['high_motion_count']
-        mm_wide['evr'] =  perfpro['bold_evr']
-        mm_wide['n_outliers'] =  perfpro['n_outliers']
-        mm_wide['FD_mean'] = perfpro['FD_mean']
-        mm_wide['FD_max'] = perfpro['FD_max']
-        if 'perf_dataframe' in perfpro.keys():
-            pderk = perfpro['perf_dataframe'].iloc[: , 1:]
-            mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
-        else:
-            print("FIXME - perfusion dataframe")
+    mm_wide = mm_wide.copy()
+    if 'NM' in mm:
+        if mm['NM'] is not None:
+            nmwide = dict_to_dataframe( mm['NM'] )
+            nmwide.set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [mm_wide, nmwide ], axis=1, ignore_index=False )
+    if 'flair' in mm:
+        if mm['flair'] is not None:
+            myop = output_prefix + separator + 'wmh.nii.gz'
+            if mm['flair']['WMH_probability_map'] is not None:
+                image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
+            flwide = dict_to_dataframe( mm['flair'] )
+            flwide.set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [mm_wide, flwide ], axis=1, ignore_index=False )
+    if 'rsf' in mm:
+        if mm['rsf'] is not None:
+            fcnxpro=99
+            for rsfpro in mm['rsf']:
+                fcnxpro=str( rsfpro['paramset']  )
+                pronum = 'fcnxpro'+str(fcnxpro)+"_"
+                if verbose:
+                    print("Collect rsf data " + pronum)
+                new_rsf_wide = dict_to_dataframe( rsfpro )
+                new_rsf_wide = pd.concat( [new_rsf_wide, rsfpro['corr_wide'] ], axis=1, ignore_index=False )
+                new_rsf_wide = new_rsf_wide.add_prefix( pronum )
+                new_rsf_wide.set_index( mm_wide.index, inplace=True )
+                ofn = output_prefix + separator + pronum + '.csv'
+                new_rsf_wide.to_csv( ofn )
+                mm_wide = pd.concat( [mm_wide, new_rsf_wide ], axis=1, ignore_index=False )
+                for mykey in get_antsimage_keys( rsfpro ):
+                    myop = output_prefix + separator + pronum + mykey + '.nii.gz'
+                    image_write_with_thumbnail( rsfpro[mykey], myop, thumb=True )
+                ofn = output_prefix + separator + pronum + 'rsfcorr.csv'
+                rsfpro['corr'].to_csv( ofn )
+                # apply same principle to new correlation matrix, doesn't need to be incorporated with mm_wide
+                ofn2 = output_prefix + separator + pronum + 'nodescorr.csv'
+                rsfpro['fullCorrMat'].to_csv( ofn2 )
+    if 'DTI' in mm:
+        if mm['DTI'] is not None:
+            mydti = mm['DTI']
+            mm_wide['dti_tsnr_b0_mean'] =  mydti['tsnr_b0'].mean()
+            mm_wide['dti_tsnr_dwi_mean'] =  mydti['tsnr_dwi'].mean()
+            mm_wide['dti_dvars_b0_mean'] =  mydti['dvars_b0'].mean()
+            mm_wide['dti_dvars_dwi_mean'] =  mydti['dvars_dwi'].mean()
+            mm_wide['dti_ssnr_b0_mean'] =  mydti['ssnr_b0'].mean()
+            mm_wide['dti_ssnr_dwi_mean'] =  mydti['ssnr_dwi'].mean()
+            mm_wide['dti_fa_evr'] =  mydti['fa_evr']
+            mm_wide['dti_fa_SNR'] =  mydti['fa_SNR']
+            if mydti['framewise_displacement'] is not None:
+                mm_wide['dti_high_motion_count'] =  mydti['high_motion_count']
+                mm_wide['dti_FD_mean'] = mydti['framewise_displacement'].mean()
+                mm_wide['dti_FD_max'] = mydti['framewise_displacement'].max()
+                fdfn = output_prefix + separator + '_fd.csv'
+            else:
+                mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
+
+    if 'perf' in mm:
+        if mm['perf'] is not None:
+            perfpro = mm['perf']
+            prwide = dict_to_dataframe( perfpro )
+            prwide.set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [mm_wide, prwide ], axis=1, ignore_index=False )
+            if 'perf_dataframe' in perfpro.keys():
+                pderk = perfpro['perf_dataframe'].iloc[: , 1:]
+                pderk.set_index( mm_wide.index, inplace=True )
+                mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
+            else:
+                print("FIXME - perfusion dataframe")
         for mykey in ['perfusion','cbf']:
             tempfn = output_prefix + separator + mykey + '.nii.gz'
             image_write_with_thumbnail( mm['perf'][mykey], tempfn )
