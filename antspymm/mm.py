@@ -2403,7 +2403,7 @@ def template_figure_with_overlay(scalar_label_df, prefix, outputfilename=None, t
     toviz = temp['overlay']
     return { "underlay": seggm, 'overlay': toviz, 'seg': tcrop  }
 
-def get_data( name=None, force_download=False, version=20, target_extension='.csv' ):
+def get_data( name=None, force_download=False, version=21, target_extension='.csv' ):
     """
     Get ANTsPyMM data filename
 
