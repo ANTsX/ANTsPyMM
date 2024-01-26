@@ -6790,7 +6790,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'NM' in mm:
         if mm['NM'] is not None:
             nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
-            for mykey in antspymm.get_antsimage_keys( mm['NM'] ):
+            for mykey in get_antsimage_keys( mm['NM'] ):
                 tempfn = output_prefix + separator + mykey + '.nii.gz'
                 image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
 
@@ -6911,7 +6911,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
                 mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
             else:
                 print("FIXME - perfusion dataframe")
-        for mykey in antspymm.get_antsimage_keys( mm['perf'] ):
+        for mykey in get_antsimage_keys( mm['perf'] ):
             tempfn = output_prefix + separator + mykey + '.nii.gz'
             image_write_with_thumbnail( mm['perf'][mykey], tempfn, thumb=False )
 
