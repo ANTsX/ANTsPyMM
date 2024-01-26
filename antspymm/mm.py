@@ -6443,7 +6443,8 @@ def mm(
                 "imp": [True, True, True],
                 "coords": [False,False,False]
             }, index=[0, 1, 2])
-            for p in range(df.shape[0]):
+#            for p in range(df.shape[0]):
+            for p in list(range(1)):
                 if verbose:
                     print("rsf parameters")
                     print( df.iloc[p] )
@@ -6463,7 +6464,7 @@ def mm(
                 cens =df['cens'].iloc[p]
                 imp = df['imp'].iloc[p]
                 rsf0 = resting_state_fmri_networks(
-                                            rsf_image,
+                                            remove_volumes_from_timeseries(rsf_image,list(range(40,500))),
                                             boldTemplate,
                                             hier['brain_n4_dnz'],
                                             t1atropos,
@@ -6919,9 +6920,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
                 mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
             else:
                 print("FIXME - perfusion dataframe")
-        for mykey in get_antsimage_keys( mm['perf'] ):
-            tempfn = output_prefix + separator + mykey + '.nii.gz'
-            image_write_with_thumbnail( mm['perf'][mykey], tempfn, thumb=False )
+            for mykey in get_antsimage_keys( mm['perf'] ):
+                tempfn = output_prefix + separator + mykey + '.nii.gz'
+                image_write_with_thumbnail( mm['perf'][mykey], tempfn, thumb=False )
 
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
