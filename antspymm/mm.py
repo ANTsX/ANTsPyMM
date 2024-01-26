@@ -6440,7 +6440,8 @@ def mm(
                 "HM": [1.0, 5.0, 0.5],
                 "ff": ["tight", "tight", "tight"],
                 "CC": [5, 5, 0.8],
-                "imp": [True, True, True]
+                "imp": [True, True, True],
+                "coords": [False,False,False]
             }, index=[0, 1, 2])
             for p in range(df.shape[0]):
                 if verbose:
@@ -6480,6 +6481,7 @@ def mm(
                                             upsample=False,
                                             clean_tmp=0.66,
                                             paramset=df['num'].iloc[p],
+                                            powers=df['coords'].iloc[p],
                                             verbose=verbose ) # default
                 rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
