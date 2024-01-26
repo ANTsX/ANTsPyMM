@@ -45,4 +45,5 @@ mycbf = antspymm.calculate_CBF(
   Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5)
 
 
-antspymm.write_mm( '/tmp/PRF', perfh )
+mm = { 'perf': perfh }
+antspymm.write_mm( '/tmp/PRF', mm )

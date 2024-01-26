@@ -6752,7 +6752,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
 
     output_prefix : prefix for file outputs - modality specific postfix will be added
 
-    mm  : output of mm function for modality-space processing
+    mm  : output of mm function for modality-space processing should be a dictionary with 
+        dictionary entries for each modality.
 
     mm_norm : output of mm function for normalized processing
 
@@ -6771,7 +6772,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     """
     from dipy.io.streamline import save_tractogram
     if mm_norm is not None:
-        for mykey in mm_norm.keys():
+        for mykey in mm_norm:
             tempfn = output_prefix + separator + mykey + '.nii.gz'
             if mm_norm[mykey] is not None:
                 image_write_with_thumbnail( mm_norm[mykey], tempfn )
@@ -6789,7 +6790,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'NM' in mm:
         if mm['NM'] is not None:
             nmderk = mm['NM']['NM_dataframe_wide'].iloc[: , 1:]
-            for mykey in ['NM_avg_cropped', 'NM_avg', 'NM_labels' ]:
+            for mykey in antspymm.get_antsimage_keys( mm['NM'] ):
                 tempfn = output_prefix + separator + mykey + '.nii.gz'
                 image_write_with_thumbnail( mm['NM'][mykey], tempfn, thumb=False )
 
@@ -6835,7 +6836,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         ]
     is_all_none = all(element is None for element in dlist)
     if is_all_none:
-        mm_wide = pd.DataFrame()
+        mm_wide = pd.DataFrame({'u_hier_id': [output_prefix] })
     else:
         mm_wide = pd.concat( dlist, axis=1, ignore_index=False )
 
@@ -6856,7 +6857,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'rsf' in mm:
         if mm['rsf'] is not None:
             fcnxpro=99
-            for rsfpro in mm['rsf']:
+            rsfdata = mm['rsf']
+            if not isinstance( rsfdata, list ):
+                rsfdata = [ rsfdata ]
+            for rsfpro in rsfdata:
                 fcnxpro=str( rsfpro['paramset']  )
                 pronum = 'fcnxpro'+str(fcnxpro)+"_"
                 if verbose:
@@ -6907,9 +6911,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
                 mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
             else:
                 print("FIXME - perfusion dataframe")
-        for mykey in ['perfusion','cbf']:
+        for mykey in antspymm.get_antsimage_keys( mm['perf'] ):
             tempfn = output_prefix + separator + mykey + '.nii.gz'
-            image_write_with_thumbnail( mm['perf'][mykey], tempfn )
+            image_write_with_thumbnail( mm['perf'][mykey], tempfn, thumb=False )
 
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
