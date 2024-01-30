@@ -4932,7 +4932,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   powers : boolean if True use Powers nodes otherwise 2023 Yeo 500 homotopic nodes (10.1016/j.neuroimage.2023.120010)
 
-  upsample : boolean
+  upsample : boolean optionally upsample data to 2mm during the registration process if data is below that resolution; otherwise will just resample to isotropic 
 
   clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing.  if this is set, the float value clean_tmp will be interpreted as the age in hours of files to be cleaned.
 
