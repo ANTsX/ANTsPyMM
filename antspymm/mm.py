@@ -5096,9 +5096,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   # anatomical mapping
   und = fmri_template * bmask
-  t1reg = ants.registration( und, t1, "SyNBold", outprefix=ofnt1tx )
+  t1reg = ants.registration( und, t1,
+    "SyNBold", outprefix=ofnt1tx )
   if verbose:
-      print("t1 2 bold done")
+    print("t1 2 bold done")
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
@@ -5118,7 +5119,10 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     ch2 = mm_read( ants.get_ants_data( "ch2" ) )
   else:
     ch2 = mm_read( get_data( "PPMI_template0_brain", target_extension='.nii.gz' ) )
-  treg = ants.registration( t1, ch2, 'SyN' )
+  treg = ants.registration( 
+    # this is to make the impact of resolution consistent
+    ants.resample_image(t1, [1.0,1.0,1.0], interp_type=0), 
+    ch2, "antsRegistrationSyNQuickRepro[s]" )
   if powers:
     concatx2 = treg['invtransforms'] + t1reg['invtransforms']
     pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
@@ -7547,6 +7551,8 @@ def mm_csv(
     """
     visualize = True
     verbose = True
+    if verbose:
+        print( antspymm.version() )
     if nrg_modality_list is None:
         nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] < 1:
