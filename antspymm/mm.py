@@ -7555,7 +7555,7 @@ def mm_csv(
     visualize = True
     verbose = True
     if verbose:
-        print( antspymm.version() )
+        print( version() )
     if nrg_modality_list is None:
         nrg_modality_list = get_valid_modalities()
     if studycsv.shape[0] < 1:
