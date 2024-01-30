@@ -187,7 +187,10 @@ def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, conver
     def mean_of_list(lst):
         if not lst:  # Check if the list is not empty
             return 0  # Return 0 or appropriate value for an empty list
-        return sum(lst) / len(lst)
+        all_numeric = all(isinstance(item, (int, float)) for item in lst)
+        if all_numeric:
+            return sum(lst) / len(lst)
+        return None
     
     for key, value in data_dict.items():
         # Check if value is a scalar
