@@ -4888,7 +4888,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     despike = 2.5,
     motion_as_nuisance = True,
     powers = False,
-    upsample = False,
+    upsample = 3.0,
     clean_tmp = None,
     paramset='unset',
     verbose=False ):
@@ -4932,7 +4932,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
 
   powers : boolean if True use Powers nodes otherwise 2023 Yeo 500 homotopic nodes (10.1016/j.neuroimage.2023.120010)
 
-  upsample : boolean optionally upsample data to 2mm during the registration process if data is below that resolution; otherwise will just resample to isotropic 
+  upsample : float optionally isotropically upsample data to upsample (the parameter value) in mm during the registration process if data is below that resolution; if the input spacing is less than that provided by the user, the data will simply be resampled to isotropic resolution
 
   clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing.  if this is set, the float value clean_tmp will be interpreted as the age in hours of files to be cleaned.
 
@@ -4975,9 +4975,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   import numpy as np
 # Assuming core and utils are modules or packages with necessary functions
 
-  if upsample:
+  if upsample > 0.0:
       spc = ants.get_spacing( fmri )
-      minspc = 2.0
+      minspc = upsample
       if min(spc[0:3]) < minspc:
           minspc = min(spc[0:3])
       newspc = [minspc,minspc,minspc]
@@ -5106,8 +5106,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
-  if not upsample:
-    gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMERSF
+  gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMERSF
   gmseg = ants.apply_transforms( und, gmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
   csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
@@ -5234,6 +5233,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # structure the output data
   outdict = {}
   outdict['paramset'] = paramset
+  outdict['upsampling'] = upsample
   outdict['coords'] = coords
   outdict['dfnname']=dfnname
   outdict['meanBold'] = und
@@ -5371,15 +5371,19 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['falff_sd'] = (myfalff['falff'][myfalff['falff']!=0]).std()
 
   perafimg = PerAF( simgimp, bmask )
-  for k in range(1,nPoints):
+  for k in pointrange:
     anatname=( pts2bold['AAL'][k] )
     if isinstance(anatname, str):
         anatname = re.sub("_","",anatname)
     else:
         anatname='Unk'
-    fname='falffPoint'+str(k)+anatname
-    aname='alffPoint'+str(k)+anatname
-    pname='perafPoint'+str(k)+anatname
+    if powers:
+        kk = f"{k:0>3}"+"_"
+    else:
+        kk = f"{k % int(nPoints/2):0>3}"+"_"
+    fname='falffPoint'+kk+anatname
+    aname='alffPoint'+kk+anatname
+    pname='perafPoint'+kk+anatname
     outdict[fname]=(outdict['falff'][ptImg==k]).mean()
     outdict[aname]=(outdict['alff'][ptImg==k]).mean()
     outdict[pname]=(perafimg[ptImg==k]).mean()
@@ -6257,6 +6261,7 @@ def mm(
     perfusion_trim=10,
     perfusion_m0_image=None,
     perfusion_m0=None,
+    rsf_upsampling=3.0,
     test_run = False,
     verbose = False ):
     """
@@ -6313,6 +6318,8 @@ def mm(
     perfusion_m0_image : optional antsImage m0 associated with the perfusion time series
 
     perfusion_m0 : optional list containing indices of the m0 in the perfusion time series
+
+    rsf_upsampling : optional upsampling parameter value in mm; if set to zero, no upsampling is done
 
     test_run : boolean 
 
@@ -6451,6 +6458,7 @@ def mm(
                 "ff": ["tight", "tight", "tight"],
                 "CC": [5, 5, 0.8],
                 "imp": [True, True, True],
+                "up": [rsf_upsampling, rsf_upsampling, rsf_upsampling],
                 "coords": [False,False,False]
             }, index=[0, 1, 2])
             for p in range(df.shape[0]):
@@ -6473,7 +6481,6 @@ def mm(
                 cens =df['cens'].iloc[p]
                 imp = df['imp'].iloc[p]
                 rsf0 = resting_state_fmri_networks(
-#                                            remove_volumes_from_timeseries(rsf_image,list(range(40,500))),
                                             rsf_image,
                                             boldTemplate,
                                             hier['brain_n4_dnz'],
@@ -6489,7 +6496,7 @@ def mm(
                                             censor = cens,
                                             despike = 2.5,
                                             motion_as_nuisance = True,
-                                            upsample=False,
+                                            upsample=df['up'].iloc[p],
                                             clean_tmp=0.66,
                                             paramset=df['num'].iloc[p],
                                             powers=df['coords'].iloc[p],
@@ -7468,6 +7475,7 @@ def mm_csv(
     perfusion_trim = 10,
     perfusion_m0_image = None,
     perfusion_m0 = None,
+    rsf_upsampling = 3.0
 ):
     """
     too dangerous to document ... use with care.
@@ -7545,6 +7553,8 @@ def mm_csv(
     perfusion_m0_image : optional m0 antsImage associated with the perfusion time series
 
     perfusion_m0 : optional list containing indices of the m0 in the perfusion time series
+
+    rsf_upsampling : optional upsampling parameter value in mm; if set to zero, no upsampling is done
 
     Returns
     ---------
@@ -7916,6 +7926,7 @@ def mm_csv(
                                             do_normalization=templateTx,
                                             group_template = normalization_template,
                                             group_transform = groupTx,
+                                            rsf_upsampling = rsf_upsampling,
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
