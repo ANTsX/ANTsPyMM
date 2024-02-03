@@ -7669,6 +7669,11 @@ def mm_csv(
     elif not testloop:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
+    if t1wide['resnetGrade'].iloc[0] < 0.35:
+        rgrade = str( t1wide['resnetGrade'].iloc[0] )
+        warnings.warn('T1w quality check indicates failure: ' + rgrade + " will not process." )
+        return
+
     if srmodel_T1 is not False :
         hierfntest = hierfnSR + 'mtl.csv'
         if verbose:
