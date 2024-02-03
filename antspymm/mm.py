@@ -6870,7 +6870,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'NM' in mm:
         if mm['NM'] is not None:
             nmwide = dict_to_dataframe( mm['NM'] )
-            nmwide.set_index( mm_wide.index, inplace=True )
+            if mm_wide.shape[0] > 0 and nmwide.shape[0] > 0:
+                nmwide.set_index( mm_wide.index, inplace=True )
             mm_wide = pd.concat( [mm_wide, nmwide ], axis=1, ignore_index=False )
     if 'flair' in mm:
         if mm['flair'] is not None:
@@ -6878,7 +6879,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             if mm['flair']['WMH_probability_map'] is not None:
                 image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
             flwide = dict_to_dataframe( mm['flair'] )
-            flwide.set_index( mm_wide.index, inplace=True )
+            if mm_wide.shape[0] > 0 and flwide.shape[0] > 0:
+                flwide.set_index( mm_wide.index, inplace=True )
             mm_wide = pd.concat( [mm_wide, flwide ], axis=1, ignore_index=False )
     if 'rsf' in mm:
         if mm['rsf'] is not None:
@@ -6929,7 +6931,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         if mm['perf'] is not None:
             perfpro = mm['perf']
             prwide = dict_to_dataframe( perfpro )
-            prwide.set_index( mm_wide.index, inplace=True )
+            if mm_wide.shape[0] > 0 and prwide.shape[0] > 0:
+                prwide.set_index( mm_wide.index, inplace=True )
             mm_wide = pd.concat( [mm_wide, prwide ], axis=1, ignore_index=False )
             if 'perf_dataframe' in perfpro.keys():
                 pderk = perfpro['perf_dataframe'].iloc[: , 1:]
