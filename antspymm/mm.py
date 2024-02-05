@@ -664,6 +664,49 @@ def generate_mm_dataframe_gpt(
     return studycsv
 
 
+
+def filter_columns_by_nan_percentage(df, max_nan_percentage=50.0):
+    """
+    Filter columns in a DataFrame based on a threshold for the percentage of NaN values.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The input DataFrame from which columns are to be filtered.
+    max_nan_percentage : float, optional
+        The maximum allowed percentage of NaN values in a column. Columns with a higher
+        percentage of NaN values than this threshold will be removed from the DataFrame.
+        The default is 50.0, which means columns with more than 50% NaN values will be removed.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame with columns filtered based on the NaN values percentage criterion.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> data = {'A': [1, 2, None, 4], 'B': [None, 2, 3, None], 'C': [1, 2, 3, 4]}
+    >>> df = pd.DataFrame(data)
+    >>> filtered_df = filter_columns_by_nan_percentage(df, 50.0)
+    >>> print(filtered_df)
+
+    Notes
+    -----
+    The function calculates the percentage of NaN values in each column and filters out
+    those columns where the percentage exceeds the `max_nan_percentage` threshold.
+    """
+    # Calculate the percentage of NaN values for each column
+    nan_percentage = df.isnull().mean() * 100
+
+    # Filter columns where the percentage of NaN values is less than or equal to the threshold
+    columns_to_keep = nan_percentage[nan_percentage <= max_nan_percentage].index
+
+    # Return the filtered DataFrame
+    return df[columns_to_keep]
+
+
+
 def parse_nrg_filename( x, separator='-' ):
     """
     split a NRG filename into its named parts
