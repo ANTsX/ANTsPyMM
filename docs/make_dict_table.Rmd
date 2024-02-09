@@ -53,17 +53,17 @@ ss=rr[,c("Atlas","Measurement",'Modality' )]
 
 The `ANTsPyMM` system takes advantage of template-based priors and core T1 processing described in [doi: https://doi.org/10.1101/2023.01.17.23284693](doi: https://doi.org/10.1101/2023.01.17.23284693).
 
-* We quantify cortex with the Desikan-Killiany-Tourville parcellation ([DKT](https://doi.org/10.3389/fnins.2012.00171)).
+* We quantify cortex with the Desikan-Killiany-Tourville parcellation ([DKT](https://doi.org/10.3389/fnins.2012.00171)).   ![DKT atlas](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/3514540/bin/fnins-06-00171-g001.jpg)
 
     * `*dktregions` refers to the segmentation label directly from the deep learning method.
 
     * `*dktcortex` refers to the segmentation label restricted to the cortical segmentation that is provided by the tissue segmentation method.
 
-* Subcortical segmentation with deep learning and also SyN registration leverages the CIT168 atlas [10.1101/211201](https://doi.org/10.1101/211201).
+* Subcortical segmentation with deep learning and also SyN registration leverages the CIT168 atlas [10.1101/211201](https://doi.org/10.1101/211201).  ![Pauli CIT168](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/5903366/bin/sdata201863-f2.jpg)
 
-* A medial temporal lobe parcellation is based on manual labels derived from M. Yassa's research group ([preprint](https://doi.org/10.1101/2023.01.17.23284693)).
+* A medial temporal lobe parcellation is based on manual labels derived from M. Yassa's research group ([preprint](https://doi.org/10.1101/2023.01.17.23284693)) and [described here](https://pubmed.ncbi.nlm.nih.gov/36586358/). ![Yassa MTL](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/9830310/bin/gr1.jpg)
 
-* A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.
+* A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.  ![Schmahmann parcellation](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/bin/nihms-1510954-f0146.jpg)
 
 * Brain stem is subdivided into the mid-brain, pons and medulla; This segmentation derives from registration between the individual T1w and the manually labeled CIT168 template.
 
@@ -73,9 +73,9 @@ The `ANTsPyMM` system takes advantage of template-based priors and core T1 proce
 
     * The classic [Zaborszky, L. et al. (2008) "Stereotaxic probabilistic maps of the magnocellular cell groups in human basal forebrain." Neuroimage 42: 1127--1141](https://www.sciencedirect.com/science/article/abs/pii/S1053811908006903) also informed the manual labeling.
 
-    * Presented at Human Brain Mapping conference 2022.
+    * Presented at Human Brain Mapping conference 2022. ![deep NBM](https://github.com/stnava/ANTsPyMM/blob/main/docs/deepnbm.jpg)
 
-* The Mori JHU white matter atlas provides a parcellation of white matter regions ([paper here](https://www.sciencedirect.com/science/article/abs/pii/S105381190700688X?via%3Dihub)) which are applied to diffusion weighted images.
+* The Mori JHU white matter atlas provides a parcellation of white matter regions ([paper here](https://www.sciencedirect.com/science/article/abs/pii/S105381190700688X?via%3Dihub)) which are applied to diffusion weighted images.   ![Mori atlas](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/2883814/bin/nihms207341f5.jpg)
 
 * Jonathan Power's coordinates from "Functional Network Organization of the Human Brain" [10.1016/j.neuron.2011.09.006](10.1016/j.neuron.2011.09.006) guide our analysis of resting state function MRI (rsfMRI).
 
