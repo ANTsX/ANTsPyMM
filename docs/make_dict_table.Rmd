@@ -3,7 +3,7 @@ title: antspymm data dictionary summary
 output: html_document
 ---
 
-```{r,echo=FALSE,include=FALSE}
+```{r libs,echo=FALSE,include=FALSE}
 dev.flush()
 library("permute")
 library(MGMM) # GMM methods (FIXME)
@@ -46,7 +46,7 @@ library(mlr3verse)
 library(Evacluster)
 options( ztable.type="html" )
 tblcmd = ztable
-rr=read.csv("~/code/ANTsPyMM/antspymm_data_dictionary.csv")
+rr=read.csv("~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv")
 ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
@@ -79,6 +79,34 @@ The `ANTsPyMM` system takes advantage of template-based priors and core T1 proce
 
 * Jonathan Power's coordinates from "Functional Network Organization of the Human Brain" [10.1016/j.neuron.2011.09.006](10.1016/j.neuron.2011.09.006) guide our analysis of resting state function MRI (rsfMRI).
 
+* Yeo's [Homotopic local-global parcellation of the human cerebral cortex from resting-state functional connectivity](https://pubmed.ncbi.nlm.nih.gov/36918136/) which is the new default that we use for rsfMRI instead of the JP coordinates.  Additional details about the parcellation are [here](https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Yan2023_homotopic).  We use the variant with 500 homotopic parcels i.e. 250 per hemisphere.
+
+    * these parcels are used to generate inter and intra network correlations using the following networks (which are further subdivided s.t. 17 network names are available)
+
+        * Visual Network: Processes visual information, including spatial and motion processing.
+
+        * Somatomotor Network: Involved in the control of movement and processing of somatosensory information.
+
+        * Dorsal Attention Network: Plays a key role in top-down attentional control and spatial orientation.
+
+        * Ventral Attention Network: Involved in detecting unexpected stimuli and bottom-up attention.
+
+        * Limbic Network: Associated with emotion processing, memory, and autonomic functions.
+
+        * Frontoparietal Network: Important for cognitive functions including working memory and executive control.
+
+        * Default Mode Network (DMN): Active during rest and involved in self-referential thought, memory retrieval, and planning for the future.
+
+    * The 17 Network abbreviations are adapted from [Ru Kong's work](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6519695/).  ![Network names](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6519695/bin/bhy123f02.jpg)
+
+    * rsfMRI phenotype variables like "*fcnxpro129*" indicate that parameter set 129 was used;  currently 122 is considered "best" but 129 and 134 are also provided.  they differ in the censoring and nuisance variables used in the processing.
+
+    * we also provide voxel-wise measurements within each parcel including: 
+        
+        * fALFF and ALFF each divided by the global mean of the brain (mfALFF and mALFF)
+
+        * [percent absolute fluctuation](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0227021) divided by the global PerAF mean of the brain (mPerAF)
+
 The `ANTsPyMM` data dictionary labels associates each column name with each of the above anatomical references.  Table 1 below summarizes the number of variables associated with each modality and anatomical prior space.  DTI-derived connectivity yields the largest number of variables because we pairwise map each DKT cortical region as well as the primary CIT168 regions.
 
 
@@ -89,6 +117,32 @@ tblcmd( myt )
 ```
 
 ```{r detailsandcitations,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE,cache=FALSE}
+# yeo homotopic https://pubmed.ncbi.nlm.nih.gov/36918136/
+yeo=read.csv("~/.antspymm/ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic.csv")
+yeoanat=parcel_data <- data.frame(
+  Abbreviation = c("Cingm", "ExStr", "ExStrInf", "ExStrSup", "FPole", "FrMed", "FrOper", "Ins", "IPL", "IPS", 
+                   "OFC", "ParMed",  "PCC", "pCun", "pCunPCC", "PFCd", "PFCl", "PFCm", "PFCv", "PHC", "PostC", 
+                   "PrC", "PrCd", "PrCv", "RSC", "SPL", "ST", "Striate", "Temp", "TempOcc", "TempPole", "ParOper"),
+  full_parcel_name = c("mid-cingulate", "extrastriate cortex", "extra-striate inferior", "extra-striate superior", 
+                          "frontal pole", "frontal medial", "frontal operculum", "insula", "inferior parietal lobule", 
+                          "intraparietal sulcus", "orbital frontal cortex", "parietal medial", "posterior cingulate cortex", 
+                          "precuneus", "precuneus posterior cingulate cortex", "dorsal prefrontal cortex", 
+                          "lateral prefrontal cortex", "medial prefrontal cortex", "ventral prefrontal cortex", 
+                          "parahippocampal cortex", "post central", "precentral", "precentral dorsal", 
+                          "precentral ventral", "retrosplenial cortex", "superior parietal lobule", "superior temporal", 
+                          "striate cortex", "temporal", "temporal occipital", "temporal pole", "parietal operculum")
+)
+
+yeo$anat=yeo$SystemName
+for ( k in 1:nrow(yeo) ) {
+    subname =  gsub("_right", "", gsub("_left", "",yeo$AAL[k])) 
+    losel = yeoanat$Abbreviation == subname
+    if (sum(losel)==1) {
+        yeo$anat[k] = yeoanat$full_parcel_name[ losel ]
+    } else yeo$anat[k]="somatosensory cortex"
+}
+
+
 # powers points 10.1016/j.conb.2012.12.009
 powers=read.csv("~/.antspymm/powers_mni_itk.csv")
 # 10.1016/j.neuroimage.2008.07.009
@@ -146,8 +200,10 @@ interpretcnx2<-function( x ) {
 }
 
 if ( ! exists("dd") ) {
-    dfn='~/code/multidisorder/data/ppmi_gwas/ppmi_matched_qc_mm_srfirst.csv'
+    dfn='~/code/ANTsPyMM/docs/example_antspymm_output.csv'
     dd=read.csv( dfn )
+    dd = dd[ , -grep("fcnxpro134", colnames(dd))]
+    dd = dd[ , -grep("fcnxpro129", colnames(dd))]
     ddnms=names(dd)
 }
 
@@ -171,7 +227,7 @@ zz[ grep("cit", zz$Label), 'Atlas']='CIT168'
 zz[ grep("nbm", zz$Label), 'Atlas']='BF'
 zz[ grep("ch13", zz$Label), 'Atlas']='BF'
 zz[ grep("mtl", zz$Label), 'Atlas']='MTL'
-zz[ grep("rsfMRI", zz$Label),'Atlas']='power peterson fMRI meta-analyses'
+zz[ grep("rsfMRI", zz$Label),'Atlas']='yeo_homotopic'
 zz[qcrows,'Atlas']='quality control metrics'
 zz[qcrows,'Measurement']='QC'
 zz$Measurement[  grep("FD", zz$Label)]='motion statistic on framewise displacement'
@@ -225,14 +281,16 @@ cnxrows=grep("DTI_cnxcount",zz$Label)
 for ( k in cnxrows )
     zz$Anatomy[k]=interpretcnx( zz[k,'Label'] )
 
-zz[ multigrep( c("rsfMRI","R"), zz$Label, intersect=TRUE), 'side'  ]='right'
-zz[ multigrep( c("rsfMRI","L"), zz$Label, intersect=TRUE), 'side'  ]='left'
+zz[ multigrep( c("rsfMRI","left"), zz$Label, intersect=TRUE), 'side'  ]='right'
+zz[ multigrep( c("rsfMRI","right"), zz$Label, intersect=TRUE), 'side'  ]='left'
 zz$Measurement[ multigrep( c("rsfMRI","_2_"), zz$Label, intersect=TRUE) ]='network correlation'
 zz$Measurement[ multigrep(c("rsfMRI","_alff"), zz$Label, intersect=TRUE) ]='amplitude of low frequency fluctuations ALFF'
 zz$Measurement[ multigrep( c("rsfMRI","_falff"), zz$Label, intersect=TRUE) ]='fractional amplitude of low frequency fluctuations fALFF'
+zz$Measurement[ multigrep( c("rsfMRI","_peraf"), zz$Label, intersect=TRUE) ]='percent absolute fluctuation'
 zz$Anatomy = gsub("rsfMRI_", "", zz$Anatomy )
 zz$Anatomy = gsub("falffPoint", "", zz$Anatomy )
 zz$Anatomy = gsub("alffPoint", "", zz$Anatomy )
+zz$Anatomy = gsub("perafPoint", "", zz$Anatomy )
 noncnx=1:1888
 # for ( k in sample(noncnx, 3) ) print( zz[k,c("Label","Atlas","Anatomy")] )
 
@@ -309,6 +367,67 @@ for ( ccc in cerenames ) {
 }
 zz[zz$Label %in% c("mi",'EVR','reflection_err','org0','org1','org2','spc0','spc1','spc2','dimz','dimy','dimx'),"Measurement"]='QC'
 zz[ subtyper::fs(zz$Label == zz$Anatomy),'Anatomy']=NA
+zz$Anatomy=gsub( "fcnxpro122_" , "", zz$Anatomy )
+zz$Anatomy=gsub( ".", " ", zz$Anatomy, fixed=TRUE )
+zz$Anatomy=gsub( "_", " ", zz$Anatomy, fixed=TRUE )
+
+# deal with resting state
+fixrsentry <- function( zz, older, newer ) {
+    zz[ grep(older,zz[,1]),'Measurement']=newer
+    zz[ grep(older,zz[,1]),'Anatomy']=NA
+    return( zz )
+}
+zz[ grep("paramset",zz[,1]),'Measurement']='parameter id'
+zz[ grep("paramset",zz[,1]),'Anatomy']=NA
+zz[ grep("bandpass",zz[,1]),'Measurement']='band pass frequency limit'
+zz[ grep("bandpass",zz[,1]),'Anatomy']=NA
+zz[ intersect( grep( "rsfMRI_", zz[,1] ), 
+    grep("left", zz[,1]) ), "side"]='left'
+zz[ intersect( grep( "rsfMRI_", zz[,1] ), 
+    grep("right", zz[,1]) ), "side"]='right'
+zz[ intersect( grep( "rsfMRI_", zz[,1] ), 
+    grep("tractography-based connectivity", zz$Measurement) ), "Measurement"]='network connectivity'
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_minutes_original_data', 'minutes of rs imaging'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_minutes_censored_data', 'minutes of rs imaging after censoring'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_nc_csf', 'number of csf compcor components'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_nc_wm', 'number of white matter compcor components'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_n_outliers', 'number of outlier volumes'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_bold_evr', 'eigenvector ratio for mean bold'  )
+zz = fixrsentry( zz, 'FD_mean', 'mean framewise displacement'  )
+zz = fixrsentry( zz, 'FD_max', 'max framewise displacement'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_despiking_count_summary', 'changes made in despiking'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_high_motion_pct', 'percent high motion count'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_high_motion_count', 'high motion count'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_FD_threshold', 'FD threshold paramter'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_outlier_threshold', 'outlier threshold parameter'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_spatial_smoothing', 'spatial smoothing parameter'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_censor', 'ignore'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_dvars_mean', 'mean DVARS'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_ssnr_mean', 'mean spatial SNR in mean bold'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_tsnr_mean', 'mean TSNR in time series'  )
+zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_upsampling', 'upsampling parameter'  )
+wrsfmri = intersect( grep( "rsfMRI", zz[,1] ), which( !is.na( zz$Anatomy )) )
+for ( k in wrsfmri ) {
+    ss = unlist( strsplit( zz$Anatomy[k], '_' ))
+    ss = ss[length(ss)]
+    iscnx = length(grep("_2_", zz$Anatomy[k] )) > 0
+    if ( substr(zz[k,1],nchar(zz[k,1])-4, nchar(zz[k,1])) == '_mean') {
+        zz$Anatomy[k]=NA
+        zz$Measurement[k]="global mean of image"
+    } else if ( substr(zz[k,1],nchar(zz[k,1])-2, nchar(zz[k,1])) == '_sd') {
+        zz$Anatomy[k]=NA
+        zz$Measurement[k]="global sd of image"
+    } else if ( !iscnx & !(ss %in% yeoanat$full_parcel_name) ) {
+        wanat = which( yeoanat$Abbreviation == ss )
+        if ( length( wanat ) > 0 ) {
+            zz$Anatomy[k]=yeoanat$full_parcel_name[wanat]
+        } else {
+            zz$Anatomy[k]="unlabeled / likely somatosensory"
+#            print( zz[k,])
+        }
+    }
+}
+#######
 write.csv( zz, "~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv", row.names=FALSE)
 ```
 
@@ -351,7 +470,7 @@ A sortable version of the data dictionary is below (if viewing on local machine)
 ### Table 2
 
 ```{r printdict,echo=FALSE,eval=TRUE,warning=FALSE,message=FALSE}
-reactable::reactable( zz[-grep("cnx",zz$Label),] , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
+reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, compact = FALSE, defaultPageSize = 12000, static = TRUE )
 ```
 
 
@@ -371,248 +490,7 @@ bad2=zz[ is.na(zz$Measurement),'Label']
 
 We provide an example of how to join derived `ANTsPyMM` summary data with clinical variables from PPMI. 
 
-```{r joiner,eval=FALSE,echo=FALSE,warning=FALSE,message=FALSE}
-if ( ! exists( "clin" ) ) {
-demog=read.csv("Demographics_22Sep2023.csv")
-clin=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
-demog[demog=='.']=NA
-clin[clin=='.']=NA
-dd$PATNO=dd$subjectID
-# subjects with imaging that have clinical data
-table( dd$PATNO %in% clin$PATNO )
-# subjects with clinical data that have imaging
-table( clin$PATNO %in% dd$PATNO )
-commonids = intersect( clin$PATNO, dd$PATNO )
-commonids = intersect( commonids, demog$PATNO )
-ee = dd[ dd$PATNO %in% commonids, ]
-clin = clin[ clin$PATNO %in% commonids, ]
-clin = merge( clin, demog, by='PATNO', all.x=TRUE )
-rmnames=names(clin)[ grep("[.]y",names(clin))]
-clin=clin[,!(names(clin) %in% rmnames)]
-names(clin)=gsub("[.]x","",names(clin))
-clin$birthdate=clin$BIRTHDT
-# convert birtdate to NRG format
-for ( k in 1:nrow(clin) ) {
-    temp=unlist(strsplit(clin$BIRTHDT[k], "/"))
-    clin$birthdate[k]=as.numeric(paste0(temp[2],temp[1],15)) # add the 15th as the estimated date
-}
-# now we can compute age at imaging using imaging date in addition to BIRTHDT
-ee$ageatimaging=NA
-for ( k in 1:nrow( ee ) ) {
-    subjectbdate = unique( clin$birthdate[ clin$PATNO == ee$PATNO[k] ] )
-    ee$ageatimaging[k] = as.numeric( 
-            difftime( 
-                nrgDateToRDate( ee$date[k] ), 
-                nrgDateToRDate( subjectbdate ), units='weeks' )/52.0)
-    }
-###############################################
-clin$imagedatediff=NA
-yearthresh=35/365 # max allowed year difference
-# find the best imaging vist for each demographic time point
-ct=0
-for ( k in 1:nrow( clin ) ) {
-    if ( k %% 100 == 0 ) cat( paste0(k,'...'))
-    pat = clin$PATNO[k]
-    patage = clin$age_at_visit[k]
-    isel = which( ee$PATNO == pat & !is.na(ee$T1Hier_resnetGrade) )
-    iage = ee$ageatimaging[ isel ]
-    if ( length(iage) > 0 ) {
-        minagediff = min( abs( iage - patage ) )
-        minage = which.min( abs( iage - patage ) )
-        iselind = isel[ minage ]
-        clin[k,names(ee)]=ee[iselind,]
-        clin$imagedatediff[k]=minagediff
-        ct=ct+1
-    }
-}
-table( !is.na( clin$T1Hier_resnetGrade ))
-clin$DX = NA
-clin$DX = 'CN'
-clin$DX[ clin$CONCOHORT == 1 ]='PD'
-clin$DX[ clin$CONCOHORT == 4 ]='Prodromal'
-clin$DXSubRaw=paste0( clin$DX, "_", clin$subgroup )
-clin$DXSub=NA
-clin$DXSub[ clin$DX == 'CN' ]='CN'
-ispd = which( clin$DX == 'PD' )
-ispro = which( clin$DX == 'Prodromal' )
-isgba = grep("GBA",clin$subgroup)
-islrrk2 = grep("LRRK2",clin$subgroup)
-isprkn = grep("PRKN",clin$subgroup)
-issnca = grep("SNCA",clin$subgroup)
-issporadic = grep("Sporadic",clin$subgroup)
-clin$DXSub[ intersect(ispd,issporadic) ]='PDSporadic'
-clin$DXSub[ intersect(ispd,islrrk2) ]='PDLRRK2'
-clin$DXSub[ intersect(ispd,isgba) ]='PDGBA'
-clin$DXSub[ intersect(ispro,issporadic) ]='ProdromalSporadic'
-clin$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
-clin$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
-# identify asyn status for each subject
-saasubs = unique( clin$PATNO[  !is.na( clin$CSFSAA ) ] )
-# 3 categories: Negative, Positive, Other
-clin$AsynStatus=NA
-for ( u in saasubs ) {
-    usel = clin$PATNO == u
-    if ( any( fs(clin$CSFSAA[usel] == "1") ) ) {
-        asynstat='Positive'
-    } else if ( any( fs(clin$CSFSAA[usel] %in% c("0"))) ) {
-        asynstat='Negative'
-    } else if ( any( fs(clin$CSFSAA[usel] %in% c("2","3"))) ) {
-        asynstat='Other'
-    }
-    clin[usel,'AsynStatus']=asynstat
-}
-############################
-isbl = clin$EVENT_ID == 'BL'
-print( table( clin$DXSub[isbl], clin$AsynStatus[isbl] ) )
-isv4 = clin$EVENT_ID == 'V04'
-print( table( clin$DXSub[isv4], clin$AsynStatus[isv4] ) )
-clin$DXSubAsyn=NA
-nna=!is.na(clin$AsynStatus)
-clin$DXSubAsyn[ nna ]=paste0( clin$DXSub[nna], clin$AsynStatus[nna] )
-clin$DXSubAsyn[ is.na( clin$AsynStatus)|is.na(clin$DXSub)]=NA
-}
+```{r joiner,eval=FALSE,echo=TRUE,warning=FALSE,message=FALSE}
+library( subtyper)
+?merge_ppmi_imaging_clinical_demographic_data
 ```
-
-
-```{r joiner2,eval=FALSE,echo=FALSE,warning=FALSE,message=FALSE}
-if ( ! exists( "clin2" ) ) {
-    demog=read.csv("Demographics_22Sep2023.csv")
-    ageviz=read.csv("Age_at_visit_22Sep2023.csv")
-    clin2=read.csv("PPMI_Curated_Data_Cut_Public_20230612.csv")
-    demog[demog=='.']=NA
-    clin2[clin2=='.']=NA
-    dd$PATNO=dd$subjectID
-    # subjects with imaging that have clinical data
-    table( dd$PATNO %in% clin2$PATNO )
-    # subjects with clinical data that have imaging
-    table( clin2$PATNO %in% dd$PATNO )
-    commonids = intersect( clin2$PATNO, dd$PATNO )
-    commonids = intersect( commonids, demog$PATNO )
-    ee = dd[ dd$PATNO %in% commonids, ]
-    clin2 = clin2[ clin2$PATNO %in% commonids, ]
-    clin2 = merge( clin2, demog, by='PATNO', all.x=TRUE )
-    rmnames=names(clin2)[ grep("[.]y",names(clin2))]
-    clin2=clin2[,!(names(clin2) %in% rmnames)]
-    names(clin2)=gsub("[.]x","",names(clin2))
-    clin2$birthdate=clin2$BIRTHDT
-    # convert birtdate to NRG format
-    for ( k in 1:nrow(clin2) ) {
-        temp=unlist(strsplit(clin2$BIRTHDT[k], "/"))
-        clin2$birthdate[k]=as.numeric(paste0(temp[2],temp[1],15)) # add the 15th as the estimated date
-    }
-    # now we can compute age at imaging using imaging date in addition to BIRTHDT
-    ee$ageatimaging=NA
-    ee$EVENT_ID=NA
-    ee$clin_imaging_mismatch=TRUE
-    for ( k in 1:nrow( ee ) ) {
-        subjectbdate = unique( clin2$birthdate[ clin2$PATNO == ee$PATNO[k] ] )
-        ee$ageatimaging[k] = as.numeric( 
-                difftime( 
-                    nrgDateToRDate( ee$date[k] ), 
-                    nrgDateToRDate( subjectbdate ), units='weeks' )/52.0)
-        # find the closest EVENT_ID using ageviz
-        agesel=which( ageviz$PATNO == ee$PATNO[k] )
-        locages=ageviz[agesel,]
-        closest=which.min( abs(ee$ageatimaging[k]-locages$AGE_AT_VISIT))
-        ee$EVENT_ID[k]=locages[closest,'EVENT_ID']
-        # select clin
-        wclin = which(clin2$PATNO == ee$PATNO[k] & clin2$EVENT_ID ==  ee$EVENT_ID[k])
-        if ( length(wclin) == 1 ) {
-            if ( ! exists("clin2add" ) ) {
-                clin2add=names(clin2)[ !(names(clin2) %in% names(ee) )]
-                }
-            ee[k,clin2add]=clin2[wclin,clin2add]
-            ee$clin_imaging_mismatch[k]=FALSE
-            } else {
-                wclin = which(clin2$PATNO == ee$PATNO[k] )
-                # find next closest match
-                if ( length(wclin) > 0 ) {
-                    locclin=clin2[wclin,]
-                    closest=which.min( abs(ee$ageatimaging[k]-locclin$age_at_visit))
-                    ee[k,clin2add]=locclin[closest,clin2add]
-                    }
-            }
-        }
-    clin2 = ee
-    clin2$DX = NA
-    clin2$DX = 'CN'
-    clin2$DX[ clin2$CONCOHORT == 1 ]='PD'
-    clin2$DX[ clin2$CONCOHORT == 4 ]='Prodromal'
-    clin2$DXSubRaw=paste0( clin2$DX, "_", clin2$subgroup )
-    clin2$DXSub=NA
-    clin2$DXSub[ clin2$DX == 'CN' ]='CN'
-    ispd = which( clin2$DX == 'PD' )
-    ispro = which( clin2$DX == 'Prodromal' )
-    isgba = grep("GBA",clin2$subgroup)
-    islrrk2 = grep("LRRK2",clin2$subgroup)
-    isprkn = grep("PRKN",clin2$subgroup)
-    issnca = grep("SNCA",clin2$subgroup)
-    issporadic = grep("Sporadic",clin2$subgroup)
-    isprodspor = which( clin2$subgroup %in% c("Hyposmia","RBD","Sporadic","RBD + Hyposmia") )
-    clin2$DXSub[ intersect(ispd,issporadic) ]='PDSporadic'
-    clin2$DXSub[ intersect(ispd,islrrk2) ]='PDLRRK2'
-    clin2$DXSub[ intersect(ispd,isgba) ]='PDGBA'
-    clin2$DXSub[ intersect(ispro,isprodspor) ]='ProdromalSporadic'
-    clin2$DXSub[ intersect(ispro,islrrk2) ]='ProdromalLRRK2'
-    clin2$DXSub[ intersect(ispro,isgba) ]='ProdromalGBA'
-    # identify asyn status for each subject
-    saasubs = unique( clin2$PATNO[  !is.na( clin2$CSFSAA ) ] )
-    # 3 categories: Negative, Positive, Other
-    clin2$AsynStatus=NA
-    for ( u in saasubs ) {
-        usel = clin2$PATNO == u
-        if ( any( fs(clin2$CSFSAA[usel] == "1") ) ) {
-            asynstat='Positive'
-        } else if ( any( fs(clin2$CSFSAA[usel] %in% c("0"))) ) {
-            asynstat='Negative'
-        } else if ( any( fs(clin2$CSFSAA[usel] %in% c("2","3"))) ) {
-            asynstat='Other'
-        }
-        clin2[usel,'AsynStatus']=asynstat
-    }
-    if ( TRUE ) {
-        if ( ! exists("suppasyn") ) {
-            suppasyn=read.csv("~/code/multidisorder/data/ppmi_gwas/ppmi_asyn_milestones_or_dtidenoise_may_asyn_20230710.csv")
-            }
-        uids = unique( suppasyn$Subject.ID[ !is.na( suppasyn$asynstatus)] )
-        for ( u in uids ) {
-            clin2sel=clin2$PATNO == u
-            if ( sum(clin2sel) > 0 ) {
-                suppas = unique(suppasyn[ suppasyn$Subject.ID == u, 'asynstatus'])
-                clin2[clin2sel,'AsynStatus']=suppas
-                }
-            }
-        }
-    ############################
-    isbl = clin2$EVENT_ID == 'BL'
-    print( table( clin2$DXSub[isbl], clin2$AsynStatus[isbl] ) )
-    isv4 = clin2$EVENT_ID == 'V04'
-    print( table( clin2$DXSub[isv4], clin2$AsynStatus[isv4] ) )
-    clin2$DXSubAsyn=NA
-    nna=!is.na(clin2$AsynStatus)
-    clin2$DXSubAsyn[ nna ]=paste0( clin2$DXSub[nna], clin2$AsynStatus[nna] )
-    clin2$DXSubAsyn[ is.na( clin2$AsynStatus)|is.na(clin2$DXSub)]=NA
-
-    # get the baseline age for imaging and the change in time
-    clin2$yearsbl=NA
-    clin2$age_BL=NA
-    clin2$imaging_EVENT_ID=NA
-    usubs=unique(clin2$PATNO)
-    for ( u in usubs ) {
-        seller=clin2$PATNO == u
-        losel = clin2[seller, ]
-        minage=min(losel$ageatimaging,na.rm=T)
-        clin2$age_BL[seller]=minage
-        loy=losel$ageatimaging-minage
-        clin2$yearsbl[seller]=loy
-        clin2$imaging_EVENT_ID[seller]=paste0("V",round(loy*4))
-        }
-    clin2$brainVolume = rowSums( clin2[,getNamesFromDataframe( c("T1Hier","vol","hemis"), clin2 )])
-    clin2$brainVolume = clin2$brainVolume/mean(clin2$brainVolume,na.rm=T)
-    clin2$mrimfg[ clin2$mrimfg == ""]="Unk"
-    clin2$APOE[ clin2$APOE == "" ] = "e3/e3"
-    clin2$abeta = as.numeric( clin2$abeta )
-    clin2$tau = as.numeric( clin2$tau )
-    }    
-```
-
