@@ -1,5 +1,6 @@
 ---
-title: antspymm data dictionary summary
+title: ANTsPyMM processing summary and data dictionary
+author: Brian B. Avants and Nicholas J. Tustison
 output: html_document
 ---
 
@@ -51,7 +52,7 @@ ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
 
-The `ANTsPyMM` system takes advantage of template-based priors and core T1 processing described in [doi: https://doi.org/10.1101/2023.01.17.23284693](doi: https://doi.org/10.1101/2023.01.17.23284693).
+The `ANTsPyMM` system takes advantage of templates, core T1 processing and super-resolution described in [this paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8079440/).  ![ANTsX ecosystem](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/8079440/bin/41598_2021_87564_Fig1_HTML.jpg)
 
 * We quantify cortex with the Desikan-Killiany-Tourville parcellation ([DKT](https://doi.org/10.3389/fnins.2012.00171)).   ![DKT atlas](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/3514540/bin/fnins-06-00171-g001.jpg)
 
@@ -65,7 +66,7 @@ The `ANTsPyMM` system takes advantage of template-based priors and core T1 proce
 
 * A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.  ![Schmahmann parcellation](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/bin/nihms-1510954-f0146.jpg)
 
-* Brain stem is subdivided into the mid-brain, pons and medulla; This segmentation derives from registration between the individual T1w and the manually labeled CIT168 template.
+* Brain stem is subdivided into the mid-brain, pons and medulla; This segmentation derives from registration between the individual T1w and the manually labeled CIT168 template.  The protocol is based on [this](https://pubmed.ncbi.nlm.nih.gov/25776214/) ![protocol](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/4434226/bin/nihms678808f2.jpg) used in Freesurfer.
 
 * We segment anatomy related to the basal forebrain and associated cholinergic neurons with a deep learning method (`deepNBM`) derived from manual labeling of ADNI data.  
 
@@ -73,13 +74,13 @@ The `ANTsPyMM` system takes advantage of template-based priors and core T1 proce
 
     * The classic [Zaborszky, L. et al. (2008) "Stereotaxic probabilistic maps of the magnocellular cell groups in human basal forebrain." Neuroimage 42: 1127--1141](https://www.sciencedirect.com/science/article/abs/pii/S1053811908006903) also informed the manual labeling.
 
-    * Presented at Human Brain Mapping conference 2022. ![deep NBM](https://github.com/stnava/ANTsPyMM/blob/main/docs/deepnbm.jpg)
+    * Presented at Human Brain Mapping conference 2022. ![deep NBM](https://github.com/stnava/ANTsPyMM/blob/main/docs/deepnbm.jpg?raw=true)
 
 * The Mori JHU white matter atlas provides a parcellation of white matter regions ([paper here](https://www.sciencedirect.com/science/article/abs/pii/S105381190700688X?via%3Dihub)) which are applied to diffusion weighted images.   ![Mori atlas](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/2883814/bin/nihms207341f5.jpg)
 
-* Jonathan Power's coordinates from "Functional Network Organization of the Human Brain" [10.1016/j.neuron.2011.09.006](10.1016/j.neuron.2011.09.006) guide our analysis of resting state function MRI (rsfMRI).
+* Jonathan Power's coordinates from "Functional Network Organization of the Human Brain" [10.1016/j.neuron.2011.09.006](10.1016/j.neuron.2011.09.006) were previously used to guide our analysis of resting state function MRI (rsfMRI).  We also based our processing evaluation on these data.  However, we now use the homotopic coordinates described below.
 
-* Yeo's [Homotopic local-global parcellation of the human cerebral cortex from resting-state functional connectivity](https://pubmed.ncbi.nlm.nih.gov/36918136/) which is the new default that we use for rsfMRI instead of the JP coordinates.  Additional details about the parcellation are [here](https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Yan2023_homotopic).  We use the variant with 500 homotopic parcels i.e. 250 per hemisphere.
+* Yeo's [Homotopic local-global parcellation of the human cerebral cortex from resting-state functional connectivity](https://pubmed.ncbi.nlm.nih.gov/36918136/) is the new default that we use for rsfMRI instead of the JP coordinates.  Additional details about the parcellation are [here](https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Yan2023_homotopic).  We use the variant with 500 homotopic parcels i.e. 250 per hemisphere.
 
     * these parcels are used to generate inter and intra network correlations using the following networks (which are further subdivided s.t. 17 network names are available)
 
