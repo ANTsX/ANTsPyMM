@@ -1,7 +1,6 @@
 # ANTsPyMM
 
-
-[mapping](https://imgur.com/a/XzpXI3i)
+![mapping](https://i.imgur.com/qKqYjU9.jpeg)
 
 ## processing utilities for timeseries/multichannel images - mostly neuroimaging
 
