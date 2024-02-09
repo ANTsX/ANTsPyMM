@@ -34,15 +34,17 @@ ANTsPyMM will process several types of brain MRI into tabular form as well as no
 
     * basal forebrain (Avants et al HBM 2022 abstract)
 
-    * other regions (egMTL) 10.1101/2023.01.17.23284693
+    * other regions (eg MTL) 10.1101/2023.01.17.23284693
 
     * also produces jacobian data
 
 * rsfMRI: resting state functional MRI
 
-    * uses 10.1016/j.conb.2012.12.009 to estimate network specific correlations
+    * uses [a recent homotopic parcellation](https://pubmed.ncbi.nlm.nih.gov/36918136/) to estimate network specific correlations
 
     * f/ALFF 10.1016/j.jneumeth.2008.04.012
+
+    * [percent absolute fluctuation](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2022.888174/full)
 
 * NM2DMT: neuromelanin mid-brain images
 
