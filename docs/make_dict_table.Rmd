@@ -51,6 +51,7 @@ rr=read.csv("~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv")
 ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
+## [ANTsPyMM](https://github.com/stnava/ANTsPyMM) imaging-derived phenotypes and associated coordinate systems / neuroanatomy
 
 The `ANTsPyMM` system takes advantage of templates, core T1 processing and super-resolution described in [this paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8079440/).  ![ANTsX ecosystem](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/8079440/bin/41598_2021_87564_Fig1_HTML.jpg)
 
@@ -107,6 +108,9 @@ The `ANTsPyMM` system takes advantage of templates, core T1 processing and super
         * fALFF and ALFF each divided by the global mean of the brain (mfALFF and mALFF)
 
         * [percent absolute fluctuation](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0227021) divided by the global PerAF mean of the brain (mPerAF)
+
+
+## [ANTsPyMM](https://github.com/stnava/ANTsPyMM) data dictionary
 
 The `ANTsPyMM` data dictionary labels associates each column name with each of the above anatomical references.  Table 1 below summarizes the number of variables associated with each modality and anatomical prior space.  DTI-derived connectivity yields the largest number of variables because we pairwise map each DKT cortical region as well as the primary CIT168 regions.
 
