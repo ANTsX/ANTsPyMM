@@ -27,15 +27,15 @@ for k in range(len(fns)):
         print("Get " + temp )
         subprocess.run(dcm2cmd, shell=True)
         mynii = glob.glob(f"{fns[k]}/*nii.gz")
-        checkfns = [
+        if len( mynii ) > 0:
+            checkfns = [
                 mynii[0],
                 mynii[0].replace("nii.gz", "json")
             ]
-        outfns = [
+            outfns = [
                 os.path.join(odir, f"{myfn}.nii.gz"),
                 os.path.join(odir, f"{myfn}.json")
             ]
-        if True:
             os.makedirs(odir, exist_ok=True)
             if all(os.path.exists(checkfn) for checkfn in checkfns):
                     for zz in range(len(outfns)):
