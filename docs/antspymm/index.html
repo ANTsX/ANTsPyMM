@@ -32,6 +32,10 @@ except:
     pass
 
 from .mm import get_data
+from .mm import get_dti
+from .mm import triangular_to_tensor
+from .mm import dti_numpy_to_image
+from .mm import transform_and_reorient_dti
 from .mm import get_models
 from .mm import nrg_format_path
 from .mm import highest_quality_repeat
@@ -79,6 +83,8 @@ from .mm import average_mm_df
 from .mm import get_names_from_data_frame
 from .mm import read_mm_csv
 from .mm import assemble_modality_specific_dataframes
+from .mm import aggregate_antspymm_results
+from .mm import aggregate_antspymm_results_sdf
 from .mm import mc_denoise
 from .mm import mc_reg
 from .mm import dti_reg
@@ -109,10 +115,41 @@ from .mm import novelty_detection_lof
 from .mm import novelty_detection_loop
 from .mm import novelty_detection_quantile
 from .mm import generate_mm_dataframe
+from .mm import generate_mm_dataframe_gpt
 from .mm import collect_blind_qc_by_modality
 from .mm import get_valid_modalities
 from .mm import study_dataframe_from_matched_dataframe
-from .mm import merge_wides_to_study_dataframe</code></pre>
+from .mm import merge_wides_to_study_dataframe
+from .mm import map_scalar_to_labels
+from .mm import template_figure_with_overlay
+from .mm import brainmap_figure
+from .mm import bold_perfusion
+from .mm import bold_perfusion_minimal
+from .mm import filter_image_files
+from .mm import docsamson
+from .mm import enantiomorphic_filling_without_mask
+from .mm import loop_timeseries_censoring
+from .mm import score_fmri_censoring
+from .mm import replace_elements_in_numpy_array
+from .mm import remove_elements_from_numpy_array
+from .mm import remove_volumes_from_timeseries
+from .mm import impute_timeseries
+from .mm import impute_dwi
+from .mm import censor_dwi
+from .mm import timeseries_n3
+from .mm import calculate_CBF
+from .mm import estimate_optimal_pca_components
+from .mm import filter_df
+from .mm import remove_elements_from_list
+from .mm import despike_time_series
+from .mm import despike_time_series_afni
+from .mm import convert_np_in_dict
+from .mm import read_ants_transforms_to_numpy
+from .mm import clean_tmp_directory
+from .mm import dict_to_dataframe
+from .mm import PerAF
+from .mm import get_antsimage_keys
+from .mm import filter_columns_by_nan_percentage</code></pre>
 </details>
 </section>
 <section>
