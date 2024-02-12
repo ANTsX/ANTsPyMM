@@ -103,6 +103,8 @@ package data is installed.
 
 NOTE: some functions in `antspynet` will download deep network model weights on the fly.  if one is containerizing, then it would be worth running a test case through in the container to make sure all the relevant weights are pre-downloaded.
 
+NOTE: an example process for BIDS data on a cluster is [here](https://github.com/stnava/ANTPD_antspymm).  this repo is also a good place to try to learn how to use this tool.
+
 # example processing
 
 see the latest help but this snippet gives an idea of how one might use the package:
