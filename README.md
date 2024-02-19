@@ -186,7 +186,7 @@ matched_mm_data2.to_csv( "matched_mm_data2.csv", index=False )
 
 ## an example on open neuro (BIDS) data
 
-from : [ANT PD](https://openneuro.org/datasets/ds001907/versions/3.0.2)
+from : [ANT PD](https://openneuro.org/datasets/ds001907/versions/3.0.2)   see also [this repo](https://github.com/stnava/ANTPD_antspymm).
 
 ```
 imagesBIDS/
