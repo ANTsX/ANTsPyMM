@@ -215,7 +215,7 @@ def validate_nrg_file_format(path, separator):
         warnings.warn("Probably had multiple repeated slashes eg /// in the file path.  this might cause issues. clean up with re.sub(r'/+', '/', path)")
 
     known_extensions = [".nii.gz", ".nii", ".mhd", ".nrrd", ".mha", ".json", ".bval", ".bvec"]
-    known_extensions2 = = [ext.lstrip('.') for ext in known_extensions]
+    known_extensions2 = [ext.lstrip('.') for ext in known_extensions]
     def get_extension(filename, known_extensions ):
         # List of known extensions in priority order
         for ext in known_extensions:
