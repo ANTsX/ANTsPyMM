@@ -164,6 +164,7 @@ def version( ):
 
 def validate_nrg_file_format(path, separator):
     """
+    is your path nrg-etic?
     Validates if a given path conforms to the NRG file format, taking into account known extensions
     and the expected directory structure.
 
