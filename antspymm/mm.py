@@ -183,6 +183,17 @@ def validate_nrg_file_format(path, separator):
 
     """
     import re    
+
+    def normalize_path(path):
+        """
+        Replace multiple repeated '/' with just a single '/'
+        
+        :param path: The file path to normalize.
+        :return: The normalized file path with single '/'.
+        """
+        normalized_path = re.sub(r'/+', '/', path)
+        return normalized_path
+
     def strip_known_extension(filename, known_extensions):
         """
         Strips a known extension from the filename.
@@ -197,6 +208,11 @@ def validate_nrg_file_format(path, separator):
                 return filename[:-len(ext)]
         # If no known extension is found, return the original filename
         return filename
+
+    import warnings
+    if normalize_path( path ) != path:
+        path = normalize_path( path )
+        warnings.warn("Probably had multiple repeated slashes eg /// in the file path.  this might cause issues. clean up with re.sub(r'/+', '/', path)")
 
     known_extensions = [".nii.gz", ".nii", ".mhd", ".nrrd", ".mha", ".json"]
     known_extensions2 = ["nii.gz", "nii", "mhd", "nrrd", "mha", "json"]

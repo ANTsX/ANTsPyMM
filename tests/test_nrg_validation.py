@@ -5,6 +5,7 @@ from antspymm import validate_nrg_file_format  # Replace 'your_module' with the 
 ntfn='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses-1/rsfMRI_RL/000/ANTsLIMBIC_sub08C105120Yr_ses-1_rsfMRI_RL_000.nii.gz'
 ntfngood='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses_1/rsfMRI_RL/000/ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz'
 
+ntfngood2='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC////sub08C105120Yr///ses_1/rsfMRI_RL/000////ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz'
 
 class TestValidateNrgDetailed(unittest.TestCase):
     
@@ -45,8 +46,12 @@ class TestValidateNrgDetailed(unittest.TestCase):
     def test_nick_02(self):
         separator = '-'
         result, message = validate_nrg_file_format(ntfngood, separator)
-        self.assertTrue(result, "superior nrg format construction")
+        self.assertTrue(result, "nrg-etic! superior nrg format construction")
 
+    def test_nick_03(self):
+        separator = '-'
+        result, message = validate_nrg_file_format(ntfngood2, separator)
+        self.assertTrue(result, "nrg-etic! superior nrg format construction but weird slashes")
 
 # Run the test suite
 if __name__ == '__main__':
