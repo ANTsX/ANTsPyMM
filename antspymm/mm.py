@@ -9964,6 +9964,10 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=False):
     Returns:
     tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     """
+    import warnings
+    if x.shape[3] < 20: # just a guess at what we need here ...
+        warnings.warn("Warning: the time dimension is < 20 - too few samples for loop. just return the original data.")
+        return x, []
     if mask is None:
         flattened_series = flatten_time_series(x.numpy())
     else:
