@@ -92,6 +92,7 @@ __all__ = ['version',
     'remove_volumes_from_timeseries',
     'loop_timeseries_censoring',
     'clean_tmp_directory',
+    'validate_nrg_file_format',
     'dict_to_dataframe']
 
 from pathlib import Path
@@ -160,6 +161,88 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
+
+def validate_nrg_file_format(path, separator):
+    """
+    Validates if a given path conforms to the NRG file format, taking into account known extensions
+    and the expected directory structure.
+
+    :param path: The file path to validate.
+    :param separator: The separator used in the filename and directory structure.
+    :return: A tuple (bool, str) indicating whether the path is valid and a message explaining the validation result.
+
+    : example
+
+    ntfn='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses-1/rsfMRI_RL/000/ANTsLIMBIC_sub08C105120Yr_ses-1_rsfMRI_RL_000.nii.gz'
+    ntfngood='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses_1/rsfMRI_RL/000/ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz'
+
+    validate_nrg_detailed(ntfngood, '-')
+    print( validate_nrg_detailed(ntfn, '-') )
+    print( validate_nrg_detailed(ntfn, '_') )
+
+    """
+    import re    
+    def strip_known_extension(filename, known_extensions):
+        """
+        Strips a known extension from the filename.
+
+        :param filename: The filename from which to strip the extension.
+        :param known_extensions: A list of known extensions to strip from the filename.
+        :return: The filename with the known extension stripped off, if found.
+        """
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                # Strip the extension and return the modified filename
+                return filename[:-len(ext)]
+        # If no known extension is found, return the original filename
+        return filename
+
+    known_extensions = [".nii.gz", ".nii", ".mhd", ".nrrd", ".mha", ".json"]
+    known_extensions2 = ["nii.gz", "nii", "mhd", "nrrd", "mha", "json"]
+    def get_extension(filename, known_extensions ):
+        # List of known extensions in priority order
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                return ext.strip('.')
+        return "Invalid extension"
+    
+    parts = path.split('/')
+    if len(parts) < 7:  # Checking for minimum path structure
+        return False, "Path structure is incomplete. Expected at least 7 components, found {}.".format(len(parts))
+    
+    # Extract directory components and filename
+    directory_components = parts[1:-1]  # Exclude the root '/' and filename
+    filename = parts[-1]
+    filename_without_extension = strip_known_extension( filename, known_extensions )
+    file_extension = get_extension( filename, known_extensions )
+    
+    # Validating file extension
+    if file_extension not in known_extensions2:
+        print( file_extension )
+        return False, "Invalid file extension: {}. Expected 'nii.gz' or 'json'.".format(file_extension)
+    
+    # Splitting the filename to validate individual parts
+    filename_parts = filename_without_extension.split(separator)
+    if len(filename_parts) != 5:  # Expecting 5 parts based on the NRG format
+        print( filename_parts )
+        return False, "Filename does not have exactly 5 parts separated by '{}'. Found {} parts.".format(separator, len(filename_parts))
+    
+    # Reconstruct expected filename from directory components
+    expected_filename_parts = directory_components[-5:]
+    expected_filename = separator.join(expected_filename_parts)
+    if filename_without_extension != expected_filename:
+        print( filename_without_extension )
+        print("--- vs expected ---")
+        print( expected_filename )
+        return False, "Filename structure does not match directory structure. Expected filename: {}.".format(expected_filename)
+    
+    # Validate directory structure against NRG format
+    study_name, subject_id, session, modality = directory_components[-4:-1] + [directory_components[-1].split('/')[0]]
+    if not all([study_name, subject_id, session, modality]):
+        return False, "Directory structure does not follow NRG format. Ensure StudyName, SubjectID, Session (ses_x), and Modality are correctly specified."
+    
+    # If all checks pass
+    return True, "The path conforms to the NRG format."
 
 def get_antsimage_keys(dictionary):
     """
