@@ -2897,7 +2897,7 @@ def get_average_rsf( x, min_t=10, max_t=35 ):
     if x.shape[3] <= min_t:
         min_t=0
     if x.shape[3] <= max_t:
-        max_t=x.shape[3]-1
+        max_t=x.shape[3]
     for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
