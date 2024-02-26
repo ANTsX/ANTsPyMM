@@ -487,11 +487,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     """
     if long:
-        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "DTI", "DTI_LR","DTI_RL","T2Flair", "dwi", "func", "perf"]
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "rsfMRILR", "rsfMRIRL", "DTI", "DTI_LR","DTI_RL",  "DTILR","DTIRL","T2Flair", "dwi", "dwi_ap", "dwi_pa", "func", "func_ap", "func_pa", "perf"]
     elif qc:
         mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf" ]
     else:
-        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf"  ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf" ]
     if not asString:
         return mymod
     else:
@@ -10557,8 +10557,6 @@ def aggregate_antspymm_results_sdf(
     # Warning message for untested function
     warnings.warn("Warning: This function is not well tested. Use with caution.")
 
-    # if valid_modalities is None:
-    valid_modalities = get_valid_modalities('long')
     vmoddict = {}
     # Add key-value pairs
     vmoddict['imageID'] = 'T1w'
