@@ -8170,6 +8170,9 @@ def mm_csv(
                                         else:
                                             print(mdlfn + " does not exist - wont use SR")
                                     try:
+                                        # resample imgList to 2mm
+                                        for i in range(len(imgList)):
+                                            imgList[i]=ants.resample_image(imgList[i],(2,2,2,ants.get_spacing(imgList[i])[3]), interp_type=0)
                                         tabPro, normPro = mm( t1, hier,
                                             dw_image=imgList,
                                             bvals = bvalfnList,
