@@ -436,7 +436,7 @@ for ( k in wrsfmri ) {
     }
 }
 #######
-zz$shortnames=shorten_pymm_names( zz$ )
+zz$tidynames=shorten_pymm_names( zz$Label )
 write.csv( zz, "~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv", row.names=FALSE)
 ```
 
