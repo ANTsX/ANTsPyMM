@@ -3598,20 +3598,15 @@ def joint_dti_recon(
     if verbose:
         print("recon after distortion correction", flush=True)
 
-    if impute:
-        img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
-    elif censor:
-        img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'] = censor_dwi( img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'], verbose=True )
-    if impute and img_RL is not None:
-        img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
-    elif censor and img_RL is not None:
-        img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'] = censor_dwi( img_RLdwp, reg_RL['bvals'], reg_RL['bvecs'], verbose=True )
-
     if img_RL is not None:
+        if verbose:
+            print("merge dwi", flush=True)
         img_LRdwp, bval_LR, bvec_LR = merge_dwi_data(
             img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'],
             img_RLdwp, reg_RL['bvals'], reg_RL['bvecs']
         )
+        if verbose:
+            print("merge dwi done", flush=True)
     else:
         bval_LR=reg_LR['bvals']
         bvec_LR=reg_LR['bvecs']
