@@ -1240,7 +1240,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
             locsel = (dtdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (dtdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = dtdf["imageID"][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf["fn"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = dtdf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = dtdf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
@@ -1250,19 +1250,19 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 if locdf.shape[0] > 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = locdf["imageID"].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = locdf['ol_lof_decision'][locsel].values[0]
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf["fn"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1]
         if rsdf is not None:
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf["fn"][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = rsdf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
@@ -1272,12 +1272,12 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 if locdf.shape[0] > 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = locdf["imageID"].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = locdf['ol_lof_decision'].values[0]
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf["fn"].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = locdf['ol_lof_decision'].values[1]
 
@@ -1285,7 +1285,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = fldf['imageID'][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf['filename'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = fldf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = fldf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = fldf['ol_lof_decision'][locsel].values[0]
             elif sum(locsel) > 1:
@@ -1295,7 +1295,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 if locdf.shape[0] > 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = locdf["imageID"].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = locdf["fn"].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = locdf[outlier_column].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = locdf['ol_lof_decision'].values[0]
 
