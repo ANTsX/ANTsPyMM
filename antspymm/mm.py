@@ -5638,11 +5638,18 @@ def despike_time_series_afni(image, c1=2.5, c2=4):
     residuals = data - curve
     mad = np.median(np.abs(residuals - np.median(residuals, axis=-1, keepdims=True)), axis=-1, keepdims=True)
     sigma = np.sqrt(np.pi / 2) * mad
+    # Ensure sigma is not zero to avoid division by zero
+    sigma_safe = np.where(sigma == 0, 1e-10, sigma)
+
+    # Optionally, handle NaN or inf values in data, curve, or sigma
+    data = np.nan_to_num(data, nan=0.0, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
+    curve = np.nan_to_num(curve, nan=0.0, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
+    sigma_safe = np.nan_to_num(sigma_safe, nan=1e-10, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
 
     # Despike algorithm
     spike_counts = np.zeros( image.shape[3] )
     for i in range(data.shape[-1]):
-        s = (data[..., i] - curve[..., i]) / sigma[..., 0]
+        s = (data[..., i] - curve[..., i]) / sigma_safe[..., 0]
         ww = s > c1
         s_prime = np.where( ww, c1 + (c2 - c1) * np.tanh((s - c1) / (c2 - c1)), s)
         spike_counts[i] = ww.sum()
