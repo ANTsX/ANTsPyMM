@@ -1369,10 +1369,10 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     metasub['negol']=math.nan
     for k in range(len(uids)):
         temp = uids[k].split( mysep )
-        metasub.loc[k,'subjectID'] = temp[1]
-        metasub.loc[k,'date'] = temp[2]
-        metasub.loc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
-        metasub.loc[k,'imageID'] = temp[4]
+        metasub.iloc[k,'subjectID'] = temp[1]
+        metasub.iloc[k,'date'] = temp[2]
+        metasub.iloc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
+        metasub.iloc[k,'imageID'] = temp[4]
 
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
