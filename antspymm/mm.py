@@ -1356,7 +1356,6 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         msel = msel1 | msel2 | msel3 | msel4
     if sum(msel) == 0:
         return {'raw': None, 'filt': None}
-    uids = list(mmdf['filename'][msel])
     metasub = mmdf[msel].copy()
 
     if verbose:
@@ -1367,12 +1366,12 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     metasub['subjectIDdate']=None
     metasub['imageID']=None
     metasub['negol']=math.nan
-    for k in range(len(uids)):
-        temp = uids[k].split( mysep )
-        metasub.iloc[k,'subjectID'] = temp[1]
-        metasub.iloc[k,'date'] = temp[2]
-        metasub.iloc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
-        metasub.iloc[k,'imageID'] = temp[4]
+    for k in metasub.index:
+        temp = metasub.loc[k, 'filename'].split( mysep )
+        metasub.loc[k,'subjectID'] = temp[1]
+        metasub.loc[k,'date'] = temp[2]
+        metasub.loc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
+        metasub.loc[k,'imageID'] = temp[4]
 
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
