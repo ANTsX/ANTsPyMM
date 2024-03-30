@@ -1303,7 +1303,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = locdf['ol_lof_decision'].values[0].astype(float)
+                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = 0.0 # FIXME locdf['ol_lof_decision'].values[0].astype(float)
 
         if nmdf is not None:
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
