@@ -1270,7 +1270,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = rsdf['ol_lof_decision'][locsel].values[0].astype(float)
+                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = 0.0 # FIXME locdf['ol_lof_decision'].values[0].astype(float)
             elif sum(locsel) > 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
