@@ -1258,19 +1258,19 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = locdf['ol_lof_decision'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = locdf['ol_lof_decision'][locsel].values[0].astype(float)
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1].astype(float)
         if rsdf is not None:
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = rsdf['ol_lof_decision'][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = rsdf['ol_lof_decision'][locsel].values[0].astype(float)
             elif sum(locsel) > 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
@@ -1280,12 +1280,12 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = locdf['ol_lof_decision'].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = locdf['ol_lof_decision'].values[0].astype(float)
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = locdf['ol_lof_decision'].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = locdf['ol_lof_decision'].values[1].astype(float)
 
         if fldf is not None:
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
@@ -1303,7 +1303,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("flairid")] = locdf["imageID"].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairfn")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("flairloop")] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = locdf['ol_lof_decision'].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc("flairlof")] = locdf['ol_lof_decision'].values[0].astype(float)
 
         if nmdf is not None:
             locsel = nmdf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
@@ -1317,7 +1317,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                     nmloop = "nmloop"+str(i+1)
                     mmdf.loc[k,nmloop] = locdf[outlier_column].iloc[i]
                     nmloop = "nmlof"+str(i+1)
-                    mmdf.loc[k,nmloop] = locdf['ol_lof_decision'].iloc[i]
+                    mmdf.loc[k,nmloop] = locdf['ol_lof_decision'].iloc[i].astype(float)
 
     return mmdf
 
