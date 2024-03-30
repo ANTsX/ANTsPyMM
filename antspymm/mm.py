@@ -1357,7 +1357,7 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     if sum(msel) == 0:
         return {'raw': None, 'filt': None}
     uids = list(mmdf['filename'][msel])
-    metasub = mmdf[msel]
+    metasub = mmdf[msel].copy()
 
     if verbose:
         print(f"{wmod} {(metasub.shape[0])} pre")
