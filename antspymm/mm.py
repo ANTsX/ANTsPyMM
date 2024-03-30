@@ -1202,35 +1202,35 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
     rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
     dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
-    mmdf['flairid'] = np.nan
-    mmdf['flairfn'] = np.nan
-    mmdf['flairloop'] = np.nan
-    mmdf['flairlof'] = np.nan
-    mmdf['dtid1'] = np.nan
-    mmdf['dtfn1'] = np.nan
-    mmdf['dtloop1'] = np.nan
-    mmdf['dtlof1'] = np.nan
-    mmdf['dtid2'] = np.nan
-    mmdf['dtfn2'] = np.nan
-    mmdf['dtloop2'] = np.nan
-    mmdf['dtlof2'] = np.nan
-    mmdf['rsfid1'] = np.nan
-    mmdf['rsffn1'] = np.nan
-    mmdf['rsfloop1'] = np.nan
-    mmdf['rsflof1'] = np.nan
-    mmdf['rsfid2'] = np.nan
-    mmdf['rsffn2'] = np.nan
-    mmdf['rsfloop2'] = np.nan
-    mmdf['rsflof2'] = np.nan
+    mmdf['flairid'] = None
+    mmdf['flairfn'] = None
+    mmdf['flairloop'] = None
+    mmdf['flairlof'] = None
+    mmdf['dtid1'] = None
+    mmdf['dtfn1'] = None
+    mmdf['dtloop1'] = None
+    mmdf['dtlof1'] = None
+    mmdf['dtid2'] = None
+    mmdf['dtfn2'] = None
+    mmdf['dtloop2'] = None
+    mmdf['dtlof2'] = None
+    mmdf['rsfid1'] = None
+    mmdf['rsffn1'] = None
+    mmdf['rsfloop1'] = None
+    mmdf['rsflof1'] = None
+    mmdf['rsfid2'] = None
+    mmdf['rsffn2'] = None
+    mmdf['rsfloop2'] = None
+    mmdf['rsflof2'] = None
     for k in range(1,11):
         myid='nmid'+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid='nmfn'+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid='nmloop'+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid='nmlof'+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
     if verbose:
         print( mmdf.shape )
     for k in range(mmdf.shape[0]):
@@ -1239,7 +1239,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
                 print( progger, end ="...", flush=True)
         if dtdf is not None:
-            locsel = (dtdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (dtdf[outlier_column] < 0.5)
+            locsel = (dtdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("dtid1")] = dtdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf[unique_identifier][locsel].values[0]
@@ -1261,7 +1261,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = locdf['ol_lof_decision'][locsel].values[1]
         if rsdf is not None:
-            locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k]) & (rsdf[outlier_column] < 0.5)
+            locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfid1")] = rsdf["imageID"][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf[unique_identifier][locsel].values[0]
@@ -1380,6 +1380,8 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
 
     metasub = metasub.astype(str)
     metasubq = metasubq.astype(str)
+    metasub[outlier_column]=metasub[outlier_column].astype(float)
+    metasubq[outlier_column]=metasubq[outlier_column].astype(float)
     return {'raw': metasub, 'filt': metasubq}
 
 def mm_read( x, standardize_intensity=False, modality='' ):
