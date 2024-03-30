@@ -1159,6 +1159,8 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     if qualityvar not in mxdfin.columns:
         raise ValueError("qualityvar not in dataframe")
 
+    mxdfin[qualityvar] = mxdfin[qualityvar].astype(float)
+
     vizzes = mxdfin[visitvar].unique()
     uids = mxdfin[idvar].unique()
     useit = np.zeros(mxdfin.shape[0], dtype=bool)
@@ -1305,13 +1307,13 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 locdf = nmdf[locsel]
                 for i in range(np.min( [10,locdf.shape[0]])):
                     nmid = "nmid"+str(i+1)
-                    mmdf[nmid].iloc[k] = locdf['imageID'].iloc[i]
+                    mmdf.loc[k,nmid] = locdf['imageID'].iloc[i]
                     nmfn = "nmfn"+str(i+1)
-                    mmdf[nmfn].iloc[k] = locdf['imageID'].iloc[i]
+                    mmdf.loc[k,nmfn] = locdf['imageID'].iloc[i]
                     nmloop = "nmloop"+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    mmdf.loc[k,nmloop] = locdf[outlier_column].iloc[i]
                     nmloop = "nmlof"+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf['ol_lof_decision'].iloc[i]
+                    mmdf.loc[k,nmloop] = locdf['ol_lof_decision'].iloc[i]
 
     return mmdf
 
@@ -1333,6 +1335,8 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     """
+    mmdf = mmdf.astype(str)
+    mmdf[outlier_column]=mmdf[outlier_column].astype(float)
     msel = mmdf['modality'] == wmod
     if wmod == 'rsfMRI':
         msel1 = mmdf['modality'] == 'rsfMRI'
@@ -1354,16 +1358,17 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     if verbose:
         print(f"{wmod} {(metasub.shape[0])} pre")
 
-    metasub['subjectID']=math.nan
-    metasub['date']=math.nan
-    metasub['subjectIDdate']=math.nan
-    metasub['imageID']=math.nan
+    metasub['subjectID']=None
+    metasub['date']=None
+    metasub['subjectIDdate']=None
+    metasub['imageID']=None
+    metasub['negol']=math.nan
     for k in range(len(uids)):
         temp = uids[k].split( mysep )
-        metasub['subjectID'].iloc[k] = temp[1]
-        metasub['date'].iloc[k] = temp[2]
-        metasub['subjectIDdate'].iloc[k] = temp[1] + mysep + temp[2]
-        metasub['imageID'].iloc[k] = temp[4]
+        metasub.loc[k,'subjectID'] = temp[1]
+        metasub.loc[k,'date'] = temp[2]
+        metasub.loc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
+        metasub.loc[k,'imageID'] = temp[4]
 
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
@@ -1373,6 +1378,8 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     if verbose:
         print(f"{wmod} {metasubq.shape[0]} post")
 
+    metasub = metasub.astype(str)
+    metasubq = metasubq.astype(str)
     return {'raw': metasub, 'filt': metasubq}
 
 def mm_read( x, standardize_intensity=False, modality='' ):
