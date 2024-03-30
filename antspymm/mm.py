@@ -1197,6 +1197,10 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     """
     import pandas as pd
     import numpy as np
+    qc_dataframe['filename']=qc_dataframe['filename'].astype(str)
+    qc_dataframe['ol_loop']=qc_dataframe['ol_loop'].astype(float)
+    qc_dataframe['ol_lof']=qc_dataframe['ol_lof'].astype(float)
+    qc_dataframe['ol_lof_decision']=qc_dataframe['ol_lof_decision'].astype(float)
     mmdf = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
     fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
@@ -1208,29 +1212,29 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     mmdf['flairlof'] = None
     mmdf['dtid1'] = None
     mmdf['dtfn1'] = None
-    mmdf['dtloop1'] = None
-    mmdf['dtlof1'] = None
+    mmdf['dtloop1'] = math.nan
+    mmdf['dtlof1'] = math.nan
     mmdf['dtid2'] = None
     mmdf['dtfn2'] = None
-    mmdf['dtloop2'] = None
-    mmdf['dtlof2'] = None
+    mmdf['dtloop2'] = math.nan
+    mmdf['dtlof2'] = math.nan
     mmdf['rsfid1'] = None
     mmdf['rsffn1'] = None
-    mmdf['rsfloop1'] = None
-    mmdf['rsflof1'] = None
+    mmdf['rsfloop1'] = math.nan
+    mmdf['rsflof1'] = math.nan
     mmdf['rsfid2'] = None
     mmdf['rsffn2'] = None
-    mmdf['rsfloop2'] = None
-    mmdf['rsflof2'] = None
+    mmdf['rsfloop2'] = math.nan
+    mmdf['rsflof2'] = math.nan
     for k in range(1,11):
         myid='nmid'+str(k)
         mmdf[myid] = None
         myid='nmfn'+str(k)
         mmdf[myid] = None
         myid='nmloop'+str(k)
-        mmdf[myid] = None
+        mmdf[myid] = math.nan
         myid='nmlof'+str(k)
-        mmdf[myid] = None
+        mmdf[myid] = math.nan
     if verbose:
         print( mmdf.shape )
     for k in range(mmdf.shape[0]):
@@ -1335,7 +1339,7 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     """
-    mmdf = mmdf.astype(str)
+#    mmdf = mmdf.astype(str)
     mmdf[outlier_column]=mmdf[outlier_column].astype(float)
     msel = mmdf['modality'] == wmod
     if wmod == 'rsfMRI':
