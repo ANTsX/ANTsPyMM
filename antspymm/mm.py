@@ -9394,7 +9394,7 @@ def blind_image_assessment(
                     modality='DTIdwi'
             else:
                 image_compare = ants.image_clone( image_b0 )
-        image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
+        # image = ants.iMath( image, 'TruncateIntensity',0.01,0.995)
         minspc = np.min(ants.get_spacing(image))
         maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
