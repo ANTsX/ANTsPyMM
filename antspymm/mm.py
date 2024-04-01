@@ -9286,6 +9286,7 @@ def blind_image_assessment(
     title=False,
     pull_rank=False,
     resample=None,
+    n_to_skip = 10,
     verbose=False
 ):
     """
@@ -9314,6 +9315,8 @@ def blind_image_assessment(
     pull_rank : boolean
 
     resample : None, numeric max or min, resamples image to isotropy
+
+    n_to_skip : 10 by default; samples time series every n_to_skip volume
 
     verbose : boolean
 
@@ -9363,7 +9366,7 @@ def blind_image_assessment(
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
     else:
         image_compare = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
-    for jjj in range(ntimepoints):
+    for jjj in range(0,ntimepoints,n_to_skip):
         modality='unknown'
         if "rsfMRI" in image_filename:
             modality='rsfMRI'
