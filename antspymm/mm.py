@@ -999,7 +999,7 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
                 print(mod)
             myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
             temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
-            qcdfout.loc[locsel,'ol_loop']=temp
+            qcdfout.loc[locsel,'ol_loop']=temp.astype('float64')
             yhat = lof.fit_predict(rr)
             temp = lof.negative_outlier_factor_*(-1.0)
             temp = temp - temp.min()
