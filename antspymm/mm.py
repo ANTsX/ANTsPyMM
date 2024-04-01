@@ -1375,7 +1375,7 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
 
     metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
     if 'date' not in metasub.keys():
-        metasub['date']='NA'
+        metasub['date']=None
     metasubq = highest_quality_repeat(metasub, 'filename', 'date', 'negol')
 
     if verbose:
@@ -9337,6 +9337,9 @@ def blind_image_assessment(
         isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    MagneticFieldStrength = None
+    mriPixelBandwidth=None
+    bandwidth=None
     image_filename=''
     if isfilename:
         image_filename = image
@@ -9479,9 +9482,12 @@ def blind_image_assessment(
             mymi = math.inf
         else:
             mymi = ants.image_mutual_information( image_compare, image )
-        mriseries='NA'
-        mrimfg='NA'
-        mrimodel='NA'
+        mriseries=None
+        mrimfg=None
+        mrimodel=None
+        mriSAR=None
+        BandwidthPerPixelPhaseEncode=None
+        PixelBandwidth=None
         if mymeta is not None:
             # mriseries=mymeta['']
             try:
@@ -9490,6 +9496,22 @@ def blind_image_assessment(
                 pass
             try:
                 mrimodel=mymeta['ManufacturersModelName']
+            except:
+                pass
+            try:
+                MagneticFieldStrength=mymeta['MagneticFieldStrength']
+            except:
+                pass
+            try:
+                PixelBandwidth=mymeta['PixelBandwidth']
+            except:
+                pass
+            try:
+                BandwidthPerPixelPhaseEncode=mymeta['BandwidthPerPixelPhaseEncode']
+            except:
+                pass
+            try:
+                mriSAR=mymeta['SAR']
             except:
                 pass
         ttl=mystem + ' '
@@ -9504,11 +9526,11 @@ def blind_image_assessment(
             noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, 
             spc[0], spc[1], spc[2],org[0], org[1], org[2], 
             image.shape[0], image.shape[1], image.shape[2], ntimepoints, 
-            jjj, modality, mriseries, mrimfg, mrimodel ]], 
+            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode ]], 
             columns=[
                 'filename', 
                 'dimensionality',
-                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel' ])
+                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel', 'mriMagneticFieldStrength', 'mriSAR', 'mriPixelBandwidth', 'mriPixelBandwidthPE' ])
         outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
