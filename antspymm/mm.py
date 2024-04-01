@@ -9347,11 +9347,14 @@ def blind_image_assessment(
             image_filename=image[0]
         json_name = re.sub(".nii.gz",".json",image_filename)
         if exists( json_name ):
-            with open(json_name, 'r') as fcc_file:
-                mymeta = json.load(fcc_file, strict=False)
-                if verbose:
-                    print(json.dumps(mymeta, indent=4))
-                fcc_file.close()
+            try:
+                with open(json_name, 'r') as fcc_file:
+                    mymeta = json.load(fcc_file)
+                    if verbose:
+                        print(json.dumps(mymeta, indent=4))
+                    fcc_file.close()
+            except:
+                pass
         mystem=Path( image ).stem
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
