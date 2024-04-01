@@ -9426,66 +9426,70 @@ def blind_image_assessment(
         bgmsk = msk*0+1-msk
         mskdil = ants.iMath(msk, "MD", 4 )
         # ants.plot_ortho( image, msk, crop=False )
-        image = ants.crop_image( image, mskdil ).iMath("Normalize")
-        msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
-        bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
-        image_compare = ants.crop_image( image_compare, mskdil ).iMath("Normalize")
         nvox = int( msk.sum() )
-        minshp = np.min( image.shape )
-        npatch = int( np.round(  0.1 * nvox ) )
-        npatch = np.min(  [512,npatch ] )
-        patch_shape = []
-        for k in range( 3 ):
-            p = int( 32.0 / ants.get_spacing( image  )[k] )
-            if p > int( np.round( image.shape[k] * 0.5 ) ):
-                p = int( np.round( image.shape[k] * 0.5 ) )
-            patch_shape.append( p )
-        if verbose:
-            print(image)
-            print( patch_shape )
-            print( npatch )
-        myevr = math.nan # dont want to fail if something odd happens in patch extraction
-        try:
-            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
-                evdepth = 0.9, mask=msk )
-        except:
-            pass
-        if pull_rank:
-            image = ants.rank_intensity(image)
-        imagereflect = ants.reflect_image(image, axis=0)
-        asym_err = ( image - imagereflect ).abs().mean()
-        # estimate noise by center cropping, denoizing and taking magnitude of difference
-        nocrop=False
-        if image.dimension == 3:
-            if image.shape[2] == 1:
-                nocrop=True        
-        if maxspc/minspc > 10:
-            nocrop=True
-        if nocrop:
-            mycc = ants.image_clone( image )
-        else:
-            mycc = antspyt1w.special_crop( image,
-                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
-        myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
-        noizlevel = ( mycc - myccd ).abs().mean()
-#        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-#        from brisque import BRISQUE
-#        obj = BRISQUE(url=False)
-#        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
         spc = ants.get_spacing( image )
         org = ants.get_origin( image )
-        msk_vol = msk.sum() * np.prod( spc )
-        bgstd = image[ bgmsk == 1 ].std()
-        fgmean = image[ msk == 1 ].mean()
-        bgmean = image[ bgmsk == 1 ].mean()
-        snrref = fgmean / bgstd
-        cnrref = ( fgmean - bgmean ) / bgstd
-        psnrref = antspynet.psnr(  image_compare, image  )
-        ssimref = antspynet.ssim(  image_compare, image  )
-        if nocrop:
-            mymi = math.inf
+        if ( nvox > 0 ):
+            image = ants.crop_image( image, mskdil ).iMath("Normalize")
+            msk = ants.crop_image( msk, mskdil ).iMath("Normalize")
+            bgmsk = ants.crop_image( bgmsk, mskdil ).iMath("Normalize")
+            image_compare = ants.crop_image( image_compare, mskdil ).iMath("Normalize")           
+            npatch = int( np.round(  0.1 * nvox ) )
+            npatch = np.min(  [512,npatch ] )
+            patch_shape = []
+            for k in range( 3 ):
+                p = int( 32.0 / ants.get_spacing( image  )[k] )
+                if p > int( np.round( image.shape[k] * 0.5 ) ):
+                    p = int( np.round( image.shape[k] * 0.5 ) )
+                patch_shape.append( p )
+            if verbose:
+                print(image)
+                print( patch_shape )
+                print( npatch )
+            myevr = math.nan # dont want to fail if something odd happens in patch extraction
+            try:
+                myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
+                    evdepth = 0.9, mask=msk )
+            except:
+                pass
+            if pull_rank:
+                image = ants.rank_intensity(image)
+            imagereflect = ants.reflect_image(image, axis=0)
+            asym_err = ( image - imagereflect ).abs().mean()
+            # estimate noise by center cropping, denoizing and taking magnitude of difference
+            nocrop=False
+            if image.dimension == 3:
+                if image.shape[2] == 1:
+                    nocrop=True        
+            if maxspc/minspc > 10:
+                nocrop=True
+            if nocrop:
+                mycc = ants.image_clone( image )
+            else:
+                mycc = antspyt1w.special_crop( image,
+                    ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+            myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
+            noizlevel = ( mycc - myccd ).abs().mean()
+    #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    #        from brisque import BRISQUE
+    #        obj = BRISQUE(url=False)
+    #        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
+            msk_vol = msk.sum() * np.prod( spc )
+            bgstd = image[ bgmsk == 1 ].std()
+            fgmean = image[ msk == 1 ].mean()
+            bgmean = image[ bgmsk == 1 ].mean()
+            snrref = fgmean / bgstd
+            cnrref = ( fgmean - bgmean ) / bgstd
+            psnrref = antspynet.psnr(  image_compare, image  )
+            ssimref = antspynet.ssim(  image_compare, image  )
+            if nocrop:
+                mymi = math.inf
+            else:
+                mymi = ants.image_mutual_information( image_compare, image )
         else:
-            mymi = ants.image_mutual_information( image_compare, image )
+            msk_vol = 0
+            myevr = mymi = ssimref = psnrref = cnrref = asym_err = noizlevel = math.nan
+            
         mriseries=None
         mrimfg=None
         mrimodel=None
