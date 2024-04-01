@@ -981,6 +981,7 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
     from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
     qcdfout = qcdf.copy()
+    qcdfout.replace([np.inf, -np.inf], np.nan, inplace=True)
     if uid not in qcdfout.keys():
         raise ValueError(uid + " not in dataframe")
     if 'ol_loop' not in qcdfout.keys():
@@ -991,9 +992,8 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
         lof = LocalOutlierFactor()
         locsel = qcdfout["modality"] == mod
         rr = qcdfout[locsel][outlier_columns]
-        with pd.option_context('mode.use_inf_as_na', True):
-            for myolcol in outlier_columns:
-                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
+        column_means = rr.mean()
+        rr.fillna(column_means, inplace=True)
         if rr.shape[0] > 1:
             if verbose:
                 print(mod)
