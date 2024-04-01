@@ -9351,6 +9351,7 @@ def blind_image_assessment(
                 mymeta = json.load(fcc_file, strict=False)
                 if verbose:
                     print(json.dumps(mymeta, indent=4))
+                fcc_file.close()
         mystem=Path( image ).stem
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
