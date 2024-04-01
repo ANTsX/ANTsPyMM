@@ -9525,7 +9525,7 @@ def blind_image_assessment(
         ttl=mystem + ' '
         ttl=''
         ttl=ttl + "NZ: " + "{:0.4f}".format(noizlevel) + " SNR: " + "{:0.4f}".format(snrref) + " CNR: " + "{:0.4f}".format(cnrref) + " PS: " + "{:0.4f}".format(psnrref)+ " SS: " + "{:0.4f}".format(ssimref) + " EVR: " + "{:0.4f}".format(myevr)+ " MI: " + "{:0.4f}".format(mymi)
-        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ) and dimz < 685:
+        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ) and image.shape[2] < 685:
             viz_filename_use = re.sub( ".png", "_slice"+str(jjj).zfill(4)+".png", viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor='red' )
         df = pd.DataFrame([[ 
