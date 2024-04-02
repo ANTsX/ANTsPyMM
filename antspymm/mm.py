@@ -5539,9 +5539,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fname='falffPoint'+kk+anatname
     aname='alffPoint'+kk+anatname
     pname='perafPoint'+kk+anatname
-    outdict[fname]=(outdict['falff'][ptImg==k]).mean()
-    outdict[aname]=(outdict['alff'][ptImg==k]).mean()
-    outdict[pname]=(perafimg[ptImg==k]).mean()
+    localsel = ptImg == k
+    if localsel.sum() > 0 : # check if non-empty
+        outdict[fname]=(outdict['falff'][localsel]).mean()
+        outdict[aname]=(outdict['alff'][localsel]).mean()
+        outdict[pname]=(perafimg[localsel]).mean()
+    else:
+        outdict[fname]=math.nan
+        outdict[aname]=math.nan
+        outdict[pname]=math.nan
 
   rsfNuisance = pd.DataFrame( nuisance )
   if remove_it:
