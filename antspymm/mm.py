@@ -5421,7 +5421,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         ptImage=ants.threshold_image( ptImg, pts2bold.loc[i,'ROI'], pts2bold.loc[i,'ROI'] )
     if debug:
       ptImgAll = ptImgAll + ptImage
-    meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
+    if ptImage.sum() > 0 :
+        meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
 
   if debug:
       ants.image_write( simg, '/tmp/simg.nii.gz' )
