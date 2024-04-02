@@ -7056,9 +7056,9 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         if mm['flair'] is not None:
             myop = output_prefix + separator + 'wmh.nii.gz'
             pngfnb = output_prefix + separator + 'wmh_seg.png'
+            ants.plot( mm['flair']['flair'], mm['flair']['WMH_posterior_probability_map'], axis=2, nslices=21, ncol=7, filename=pngfnb, crop=True )
             if mm['flair']['WMH_probability_map'] is not None:
                 image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
-                ants.plot( mm['flair']['flair'], mm['flair']['WMH_posterior_probability_map'], axis=2, nslices=21, ncol=7, filename=pngfnb, crop=True )
             flwide = dict_to_dataframe( mm['flair'] )
             if mm_wide.shape[0] > 0 and flwide.shape[0] > 0:
                 flwide.set_index( mm_wide.index, inplace=True )
