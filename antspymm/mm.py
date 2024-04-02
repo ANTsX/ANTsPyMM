@@ -4598,7 +4598,7 @@ def get_rsf_outputs( coords ):
         return list( yeo['SystemName'].unique() )
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
-    transform=['rigid'], verbose=False ):
+    transform=['rigid'], compreg=None, verbose=False ):
     """
     multi-start multi-transform registration solution - based on ants.registration
 
@@ -4612,6 +4612,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
 
     transform : list of transforms to loop through
 
+    compreg : registration results against which to compare
+
     verbose : boolean
 
     """
@@ -4620,15 +4622,20 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
         output_directory_w = output_directory + "/tra_reg/"
         os.makedirs(output_directory_w,exist_ok=True)
         bestmi = math.inf
+        bestvar = 0.0
         myorig = list(ants.get_origin( fixed ))
         mymax = 0;
         for k in range(len( myorig ) ):
             if abs(myorig[k]) > mymax:
                 mymax = abs(myorig[k])
         maxtrans = mymax * 0.05
-        bestreg=ants.registration( fixed,moving,'Translation',
-            outprefix=output_directory_w+"trans")
-        initx = ants.read_transform( bestreg['fwdtransforms'][0] )
+        if compreg is None:
+            bestreg=ants.registration( fixed,moving,'Translation',
+                outprefix=output_directory_w+"trans")
+            initx = ants.read_transform( bestreg['fwdtransforms'][0] )
+        else :
+            bestreg=compreg
+            initx = ants.read_transform( bestreg['fwdtransforms'][0] )
         for mytx in transform:
             regtx = 'Rigid'
             with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
@@ -4665,6 +4672,9 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                                 print( "mi @ " + str(k) + " : " + str(mymi), flush=True)
                             bestmi = mymi
                             bestreg = reg
+                            bestvar = myvar
+        if bestvar == 0.0 and compreg is not None:
+            return compreg        
         return bestreg
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
@@ -4846,7 +4856,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, verbose=verbose  )
+  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, compreg=slabreg,verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg['fwdtransforms'] )
   tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated['fwdtransforms'] )
   miUpdate = ants.image_mutual_information(
