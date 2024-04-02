@@ -7055,8 +7055,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'flair' in mm:
         if mm['flair'] is not None:
             myop = output_prefix + separator + 'wmh.nii.gz'
+            pngfnb = output_prefix + separator + 'wmh_seg.png'
             if mm['flair']['WMH_probability_map'] is not None:
                 image_write_with_thumbnail( mm['flair']['WMH_probability_map'], myop, thumb=False )
+                ants.plot( mm['flair']['flair'], mm['flair']['WMH_posterior_probability_map'], axis=2, nslices=21, ncol=7, filename=pngfnb, crop=True )
             flwide = dict_to_dataframe( mm['flair'] )
             if mm_wide.shape[0] > 0 and flwide.shape[0] > 0:
                 flwide.set_index( mm_wide.index, inplace=True )
@@ -8871,6 +8873,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
     wmh_sum_aug = wmh_sum_aug / float( n_simulations )
     wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
     return{
+      'flair' : ants.iMath(flair,"Normalize"),
       'WMH_probability_map' : augprob,
       'WMH_posterior_probability_map' : augprob_prior,
       'wmh_mass': wmh_sum_aug,
