@@ -9569,6 +9569,14 @@ def blind_image_assessment(
         outdf.to_csv( csvfn )
     return outdf
 
+def remove_unwanted_columns(df):
+    # Identify columns to drop: those named 'X' or starting with 'Unnamed'
+    cols_to_drop = [col for col in df.columns if col == 'X' or col.startswith('Unnamed')]
+    
+    # Drop the identified columns from the DataFrame, if any
+    df_cleaned = df.drop(columns=cols_to_drop, errors='ignore')
+    
+    return df_cleaned
 
 def process_dataframe_generalized(df, group_by_column):
     # Make sure the group_by_column is excluded from both numeric and other columns calculations
@@ -9576,11 +9584,12 @@ def process_dataframe_generalized(df, group_by_column):
     other_cols = df.columns.difference(numeric_cols).difference([group_by_column])
     
     # Define aggregation functions: mean for numeric cols, mode for other cols
-    # For mode, ensure a single value is returned
+    # Update to handle empty mode results safely
     agg_dict = {col: 'mean' for col in numeric_cols}
-    agg_dict.update({col: lambda x: pd.Series.mode(x)[0] for col in other_cols})
+    agg_dict.update({
+        col: lambda x: pd.Series.mode(x).iloc[0] if not pd.Series.mode(x).empty else None for col in other_cols
+    })    
     # Group by the specified column, applying different aggregation functions to different columns
-    # Using as_index=False to avoid the need to reset the index
     processed_df = df.groupby(group_by_column, as_index=False).agg(agg_dict)
     return processed_df
 
@@ -9594,6 +9603,7 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     Returns:
     pandas dataframe containing the processed qc data.
     """
+    qc_full = remove_unwanted_columns( qc_full )
     # Get unique modalities
     modalities = qc_full['modality'].unique()
     modalities = modalities[modalities != 'unknown']
