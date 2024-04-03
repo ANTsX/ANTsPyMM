@@ -9570,20 +9570,18 @@ def blind_image_assessment(
     return outdf
 
 
-def process_dataframe_mean_or_mode(df):
-    # Identify continuous (numeric) columns and other columns
-    numeric_cols = df.select_dtypes(include='number').columns
-    other_cols = df.columns.difference(numeric_cols).difference(['id'])
+def process_dataframe_generalized(df, group_by_column):
+    # Make sure the group_by_column is excluded from both numeric and other columns calculations
+    numeric_cols = df.select_dtypes(include='number').columns.difference([group_by_column])
+    other_cols = df.columns.difference(numeric_cols).difference([group_by_column])
     
     # Define aggregation functions: mean for numeric cols, mode for other cols
-    # For mode, we use a lambda function that ensures a single value is returned
+    # For mode, ensure a single value is returned
     agg_dict = {col: 'mean' for col in numeric_cols}
     agg_dict.update({col: lambda x: pd.Series.mode(x)[0] for col in other_cols})
-    
-    # Group by 'id', applying different aggregation functions to different columns
-    # Note: Using as_index=False to avoid the need to reset the index
-    processed_df = df.groupby('id', as_index=False).agg(agg_dict)
-    
+    # Group by the specified column, applying different aggregation functions to different columns
+    # Using as_index=False to avoid the need to reset the index
+    processed_df = df.groupby(group_by_column, as_index=False).agg(agg_dict)
     return processed_df
 
 def average_blind_qc_by_modality(qc_full,verbose=False):
@@ -9616,7 +9614,7 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
         if sum(m1sel) > 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
-            mfsub = process_dataframe_mean_or_mode(qc_full[m1sel])
+            mfsub = process_dataframe_generalized(qc_full[m1sel],'filename')
         else:
             mfsub = qc_full[m1sel]
         meta.loc[k] = mfsub.iloc[0]
