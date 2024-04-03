@@ -161,6 +161,23 @@ def version( ):
               'antspymm': pkg_resources.require("antspymm")[0].version
               }
 
+def nrg_filename_to_subjectvisit(s, separator='-'):
+    """
+    Extracts a pattern from the input string.
+    
+    Parameters:
+    - s: The input string from which to extract the pattern.
+    - separator: The separator used in the string (default is '-').
+    
+    Returns:
+    - A string in the format of 'PREFIX-Number-Date'
+    """
+    parts = os.path.basename(s).split(separator)
+    # Assuming the pattern is always in the form of PREFIX-Number-Date-...
+    # and PREFIX is always "PPMI", extract the first three parts
+    extracted = separator.join(parts[:3])
+    return extracted
+
 
 def validate_nrg_file_format(path, separator):
     """
@@ -1213,18 +1230,22 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     mmdf['flairlof'] = None
     mmdf['dtid1'] = None
     mmdf['dtfn1'] = None
+    mmdf['dtntimepoints1'] = 0
     mmdf['dtloop1'] = math.nan
     mmdf['dtlof1'] = math.nan
     mmdf['dtid2'] = None
     mmdf['dtfn2'] = None
+    mmdf['dtntimepoints2'] = 0
     mmdf['dtloop2'] = math.nan
     mmdf['dtlof2'] = math.nan
     mmdf['rsfid1'] = None
     mmdf['rsffn1'] = None
+    mmdf['rsfntimepoints1'] = 0
     mmdf['rsfloop1'] = math.nan
     mmdf['rsflof1'] = math.nan
     mmdf['rsfid2'] = None
     mmdf['rsffn2'] = None
+    mmdf['rsfntimepoints2'] = 0
     mmdf['rsfloop2'] = math.nan
     mmdf['rsflof2'] = math.nan
     for k in range(1,11):
@@ -1250,6 +1271,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = dtdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = dtdf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = float(dtdf['ol_lof_decision'][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc("dtntimepoints1")] = float(dtdf['dimt'][locsel].values[0])
             elif sum(locsel) > 1:
                 locdf = dtdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
@@ -1260,11 +1282,13 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("dtfn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtloop1")] = locdf[outlier_column].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("dtlof1")] = float(locdf['ol_lof_decision'][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc("dtntimepoints1")] = float(dtdf['dimt'][locsel].values[0])
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("dtid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtfn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("dtlof2")] = float(locdf['ol_lof_decision'][locsel].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc("dtntimepoints2")] = float(dtdf['dimt'][locsel].values[1])
         if rsdf is not None:
             locsel = (rsdf["subjectIDdate"] == mmdf["subjectIDdate"].iloc[k])
             if sum(locsel) == 1:
@@ -1272,6 +1296,7 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = rsdf[outlier_column][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = float(rsdf['ol_lof_decision'].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfntimepoints1")] = float(rsdf['dimt'][locsel].values[0])
             elif sum(locsel) > 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[["snr","cnr"]].duplicated()
@@ -1282,11 +1307,13 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                 mmdf.iloc[k, mmdf.columns.get_loc("rsffn1")] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsfloop1")] = locdf[outlier_column].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc("rsflof1")] = float(locdf['ol_lof_decision'].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc("rsfntimepoints1")] = float(locdf['dimt'][locsel].values[0])
                 if locdf.shape[0] > 1:
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfid2")] = locdf["imageID"].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsffn2")] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsfloop2")] = locdf[outlier_column].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc("rsflof2")] = float(locdf['ol_lof_decision'].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc("rsfntimepoints2")] = float(locdf['dimt'][locsel].values[1])
 
         if fldf is not None:
             locsel = fldf['subjectIDdate'] == mmdf['subjectIDdate'].iloc[k]
@@ -1320,7 +1347,31 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
                     nmloop = "nmlof"+str(i+1)
                     mmdf.loc[k,nmloop] = float(locdf['ol_lof_decision'].iloc[i])
 
+    mmdf['rsf_total_timepoints']=mmdf['rsfntimepoints1']+mmdf['rsfntimepoints2']
+    mmdf['dt_total_timepoints']=mmdf['dtntimepoints1']+mmdf['dtntimepoints2']
     return mmdf
+
+
+def add_repeat_column(df, groupby_column):
+    """
+    Adds a 'repeat' column to the DataFrame that counts occurrences of each unique value
+    in the specified 'groupby_column'. The count increments from 1 for each identical entry.
+    
+    Parameters:
+    - df: pandas DataFrame.
+    - groupby_column: The name of the column to group by and count repeats.
+    
+    Returns:
+    - Modified pandas DataFrame with an added 'repeat' column.
+    """
+    # Validate if the groupby_column exists in the DataFrame
+    if groupby_column not in df.columns:
+        raise ValueError(f"Column '{groupby_column}' does not exist in the DataFrame.")
+    
+    # Count the occurrences of each unique value in the specified column and increment from 1
+    df['repeat'] = df.groupby(groupby_column).cumcount() + 1
+    
+    return df
 
 def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     """
@@ -1379,12 +1430,13 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     if 'date' not in metasub.keys():
         metasub['date']=None
     metasubq = highest_quality_repeat(metasub, 'filename', 'date', 'negol')
+    metasubq = add_repeat_column( metasubq, 'subjectIDdate' )
 
     if verbose:
         print(f"{wmod} {metasubq.shape[0]} post")
 
-    metasub = metasub.astype(str)
-    metasubq = metasubq.astype(str)
+#    metasub = metasub.astype(str)
+#    metasubq = metasubq.astype(str)
     metasub[outlier_column]=metasub[outlier_column].astype(float)
     metasubq[outlier_column]=metasubq[outlier_column].astype(float)
     return {'raw': metasub, 'filt': metasubq}
