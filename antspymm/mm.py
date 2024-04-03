@@ -981,6 +981,7 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
     from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
     qcdfout = qcdf.copy()
+    pd.set_option('future.no_silent_downcasting', True)
     qcdfout.replace([np.inf, -np.inf], np.nan, inplace=True)
     if uid not in qcdfout.keys():
         raise ValueError(uid + " not in dataframe")
