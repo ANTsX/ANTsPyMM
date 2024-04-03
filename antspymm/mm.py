@@ -1353,7 +1353,8 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         msel2 = mmdf['modality'] == 'DTI_LR'
         msel3 = mmdf['modality'] == 'DTI_RL'
         msel4 = mmdf['modality'] == 'DTIdwi'
-        msel = msel1 | msel2 | msel3 | msel4
+        msel5 = mmdf['modality'] == 'DTIb0'
+        msel = msel1 | msel2 | msel3 | msel4 | msel5
     if sum(msel) == 0:
         return {'raw': None, 'filt': None}
     metasub = mmdf[msel].copy()
@@ -9568,6 +9569,22 @@ def blind_image_assessment(
     return outdf
 
 
+def process_dataframe_mean_or_mode(df):
+    # Identify continuous (numeric) columns and other columns
+    numeric_cols = df.select_dtypes(include='number').columns
+    other_cols = df.columns.difference(numeric_cols).difference(['id'])
+    
+    # Define aggregation functions: mean for numeric cols, mode for other cols
+    # For mode, we use a lambda function that ensures a single value is returned
+    agg_dict = {col: 'mean' for col in numeric_cols}
+    agg_dict.update({col: lambda x: pd.Series.mode(x)[0] for col in other_cols})
+    
+    # Group by 'id', applying different aggregation functions to different columns
+    # Note: Using as_index=False to avoid the need to reset the index
+    processed_df = df.groupby('id', as_index=False).agg(agg_dict)
+    
+    return processed_df
+
 def average_blind_qc_by_modality(qc_full,verbose=False):
     """
     Averages time series qc results to yield one entry per image. this also filters to "known" columns.
@@ -9584,15 +9601,9 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     # Get modalities to select
     m0sel = qc_full['modality'].isin(modalities)
     # Get unique ids
-    uid = qc_full['filename'] + "_" + qc_full['modality'].astype(str)
+    uid = qc_full['filename']
     to_average = uid.unique()
-    # Define column indices
-    contcols = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol', 'spc0', 'spc1', 'spc2', 'org0','org1','org2', 'dimx', 'dimy', 'dimz', 'slice']
-    ocols = ['filename','modality', 'mriseries', 'mrimfg', 'mrimodel']
-    # restrict to columns we "know"
-    qc_full = qc_full[ocols+contcols]
-    # Create empty meta dataframe
-    meta = pd.DataFrame(columns=ocols+contcols)
+    meta = pd.DataFrame(columns=qc_full.columns )
     # Process each unique id
     n = len(to_average)
     for k in range(n):
@@ -9604,15 +9615,10 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
         if sum(m1sel) > 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
+            mfsub = process_dataframe_mean_or_mode(qc_full[m1sel])
+        else:
             mfsub = qc_full[m1sel]
-            if mfsub.shape[0] > 1:
-                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
-                meta.loc[k, 'slice'] = mfsub['slice'].max()
-                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
-        elif sum(m1sel) == 1:
-            # If only one entry for id, just copy the entry
-            mfsub = qc_full[m1sel]
-            meta.loc[k] = mfsub.iloc[0]
+        meta.loc[k] = mfsub.iloc[0]
     return meta
 
 def wmh( flair, t1, t1seg,
