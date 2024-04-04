@@ -10313,7 +10313,6 @@ def novelty_detection_quantile(df_train, df_test):
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
 
-
 def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=True, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
@@ -10342,6 +10341,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     Returns:
     an image with values mapped to the associated regions
     """
+    import re
 
     # Read the statistical file
     zz = statistical_df 
@@ -10356,13 +10356,13 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
         edgeimg = ants.iMath( edgeimg, "MD", edge_image_dilation)
 
     # Define lists and data frames
-    postfix = ['bf', 'deep_cit168lab', 'mtl', 'cerebellum', 'dkt_cortex','brainstem']
-    atlas = ['BF', 'CIT168', 'MTL', 'TustisonCobra', 'desikan-killiany-tourville','brainstem']
-    postdesc = ['nbm3CH13', 'CIT168_Reinf_Learn_v1_label_descriptions_pad', 'mtl_description', 'cerebellum', 'dkt','CIT168_T1w_700um_pad_adni_brainstem']
+    postfix = ['bf', 'cit168lab', 'mtl', 'cerebellum', 'dkt_cortex','brainstem','JHU_wm','yeo']
+    atlas = ['BF', 'CIT168', 'MTL', 'TustisonCobra', 'desikan-killiany-tourville','brainstem','JHU_wm','yeo']
+    postdesc = ['nbm3CH13', 'CIT168_Reinf_Learn_v1_label_descriptions_pad', 'mtl_description', 'cerebellum', 'dkt','CIT168_T1w_700um_pad_adni_brainstem','FA_JHU_labels_edited','ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic']
     statdf = pd.DataFrame({'img': postfix, 'atlas': atlas, 'csvdescript': postdesc})
     templateprefix = '~/.antspymm/PPMI_template0_'
     # Iterate through columns and create figures
-    col2viz = 'value'
+    col2viz = 'values'
     if True:
         anattoshow = zz['anat'].unique()
         if verbose:
@@ -10374,21 +10374,70 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             if verbose:
                 print(str(k) +  " " + anattoshow[k]  )
             mysub = zz[zz['anat'].str.contains(anattoshow[k])]
+            anatsear=re.sub("dti.fa","",anattoshow[k])
+            anatsear=re.sub("t1.volasym","",anatsear)
+            anatsear=re.sub("t1.thkasym","",anatsear)
+            anatsear=re.sub("t1.areaasym","",anatsear)
+            anatsear=re.sub("t1.vol.","",anatsear)
+            anatsear=re.sub("t1.thk.","",anatsear)
+            anatsear=re.sub("t1.area.","",anatsear)
+            anatsear=re.sub("asymdp.","",anatsear)
+            anatsear=re.sub("asym.","",anatsear)
+            anatsear=re.sub("dti.md.","",anatsear)
+            anatsear=re.sub("dti.fa.","",anatsear)
+            anatsear=re.sub("dti.md","",anatsear)
+            anatsear=re.sub("dti.mean.md.","",anatsear)
+            anatsear=re.sub("dti.mean.fa.","",anatsear)
+            anatsear=re.sub("lravg","",anatsear)
+            atlassearch = mydict['tidynames'].str.contains(anatsear)
+            if atlassearch.sum() > 0:
+                whichatlas = mydict[atlassearch]['Atlas'].iloc[0]
+                oglabelname = mydict[atlassearch]['Label'].iloc[0]
+            else:
+                print(anatsear)
+                oglabelname='unknown'
+                whichatlas=None
+            if verbose:
+                print("oglabelname " + oglabelname )
             vals2viz = mysub[col2viz].agg(['min', 'max'])
             vals2viz = vals2viz[abs(vals2viz).idxmax()]
             myext = None
             if 'dktcortex' in anattoshow[k]:
                 myext = 'dkt_cortex'
             elif 'cit168' in anattoshow[k]:
-                myext = 'deep_cit168lab'
+                myext = 'cit168lab'
             elif 'mtl' in anattoshow[k]:
                 myext = 'mtl'
+                oglabelname=re.sub('mtl', '',anatsear)
             elif 'cerebellum' in anattoshow[k]:
                 myext = 'cerebellum'
+                oglabelname=re.sub('cerebellum', '',anatsear)
+                # oglabelname=oglabelname[2:]
             elif 'brainstem' in anattoshow[k]:
                 myext = 'brainstem'
             elif any(item in anattoshow[k] for item in ['nbm', 'bf']):
                 myext = 'bf'
+                oglabelname=re.sub(r'\.', '_',anatsear)
+            elif whichatlas == 'johns hopkins white matter':
+                myext = 'JHU_wm'
+            elif whichatlas == 'desikan-killiany-tourville':
+                myext = 'dkt_cortex'
+            elif whichatlas == 'CIT168':
+                myext = 'cit168lab'
+            elif whichatlas == 'BF':
+                myext = 'bf'
+                oglabelname=re.sub('bf', '',oglabelname)
+            elif whichatlas == 'yeo_homotopic':
+                myext = 'yeo'
+            if myext is None and verbose:
+                print( "MYEXT " + anattoshow[k] + ' unfound ' + whichatlas )
+            else:
+                if verbose:
+                    print( "MYEXT " + myext )
+
+            if myext == 'cit168lab':
+                oglabelname=re.sub("cit168","",oglabelname)
+            
             for j in postfix:
                 if j == "dkt_cortex":
                     j = 'dktcortex'
@@ -10402,30 +10451,86 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             locfilename =  templateprefix + myext + '.nii.gz'
             if verbose:
                 print( locfilename )
-            myatlas = ants.image_read(locfilename)
-            atlasDescript = pd.read_csv(f"~/.antspyt1w/{correctdescript}.csv")
-            atlasDescript['Description'] = atlasDescript['Description'].str.lower()
-            atlasDescript['Description'] = atlasDescript['Description'].str.replace(" ", "_")
-            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left_", "_")
-            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right_", "_")
-            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left", "")
-            atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right", "")
+            if myext == 'yeo':
+                oglabelname=oglabelname.lower()
+                oglabelname=re.sub("rsfmri_fcnxpro122_","",oglabelname)
+                oglabelname=re.sub("rsfmri_fcnxpro129_","",oglabelname)
+                oglabelname=re.sub("rsfmri_fcnxpro134_","",oglabelname)
+                locfilename = "~/.antspymm/ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic.nii.gz"
+                atlasDescript = pd.read_csv(f"~/.antspymm/{correctdescript}.csv")
+                atlasDescript.rename(columns={'SystemName': 'Description'}, inplace=True)
+                atlasDescript.rename(columns={'ROI': 'Label'}, inplace=True)
+                atlasDescript['Description'] = atlasDescript['Description'].str.lower()
+            else:
+                atlasDescript = pd.read_csv(f"~/.antspyt1w/{correctdescript}.csv")
+                atlasDescript['Description'] = atlasDescript['Description'].str.lower()
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace(" ", "_")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left_", "_")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right_", "_")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("_left", "")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("_right", "")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("left_", "")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("right_", "")
+                atlasDescript['Description'] = atlasDescript['Description'].str.replace("/",".")
+                if myext == 'JHU_wm':
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("fa-", "")
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("-left-", "")
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("-right-", "")
+                if myext == 'cerebellum':
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("l_", "")
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("r_", "")
+
+            if verbose:
+                print( atlasDescript )
+            oglabelname = oglabelname.lower()
+            oglabelname = re.sub(" ", "_",oglabelname)
+            oglabelname = re.sub("_left_", "_",oglabelname)
+            oglabelname = re.sub("_right_", "_",oglabelname)
+            oglabelname = re.sub("_left", "",oglabelname)
+            oglabelname = re.sub("_right", "",oglabelname)
+            oglabelname = re.sub("t1hier_vol_", "",oglabelname)
+            oglabelname = re.sub("t1hier_area_", "",oglabelname)
+            oglabelname = re.sub("t1hier_thk_", "",oglabelname)
+            oglabelname = re.sub("dktregions", "",oglabelname)
+            oglabelname = re.sub("dktcortex", "",oglabelname)
+            if myext == 'JHU_wm':
+                oglabelname = re.sub("dti_mean_fa.", "",oglabelname)
+                oglabelname = re.sub("dti_mean_md.", "",oglabelname)
+                oglabelname = re.sub(".left.", "",oglabelname)
+                oglabelname = re.sub(".right.", "",oglabelname)
+                oglabelname = re.sub(".lravg.", "",oglabelname)
+                oglabelname = re.sub(".asym.", "",oglabelname)
+
+            if verbose:
+                print("oglabelname " + oglabelname )
+
             if myext == 'cerebellum':
                 atlasDescript['Description'] = atlasDescript['Description'].str.replace("l_", "")
                 atlasDescript['Description'] = atlasDescript['Description'].str.replace("r_", "")
-                whichindex = atlasDescript.index[atlasDescript['Description'] == anattoshow[k]].values[0]
+                whichindex = atlasDescript.index[atlasDescript['Description'] == oglabelname].values[0]
             else:
-                whichindex = atlasDescript.index[atlasDescript['Description'].str.contains(anattoshow[k])]
+                whichindex = atlasDescript.index[atlasDescript['Description'].str.contains(oglabelname)]
 
             if type(whichindex) is np.int64:
                 labelnums = atlasDescript.loc[whichindex, 'Label']
             else:
                 labelnums = list(atlasDescript.loc[whichindex, 'Label'])
+
+            if myext == 'yeo':
+                parts = re.findall(r'\D+', oglabelname)
+                oglabelname = [part.replace('_', '') for part in parts if part.replace('_', '')]
+                filtered_df = atlasDescript[atlasDescript['Description'].isin(oglabelname)]
+                labelnums = filtered_df['Label'].tolist()
+
             if not isinstance(labelnums, list):
                 labelnums=[labelnums]
             addemiszero = ants.threshold_image(addem, 0, 0)
             temp = ants.image_read(locfilename)
             temp = ants.mask_image(temp, temp, level=labelnums, binarize=True)
+            if verbose:
+                print("DEBUG")
+                print(  temp.sum() ) 
+                print( labelnums )
             temp[temp == 1] = (vals2viz)
             temp[addemiszero == 0] = 0
             addem = addem + temp
@@ -10454,7 +10559,6 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     if verbose:
         print("DONE brain map figures")
     return addem
-
 
 def filter_df(indf, myprefix):
     """
