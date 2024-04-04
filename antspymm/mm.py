@@ -10733,6 +10733,27 @@ def aggregate_antspymm_results(input_csv, subject_col='subjectID', date_col='dat
     df=df.drop(badnames, axis=1)
     return( df )
 
+def find_most_recent_file(file_list):
+    """
+    Finds and returns the most recently modified file from a list of file paths.
+    
+    Parameters:
+    - file_list: A list of strings, where each string is a path to a file.
+    
+    Returns:
+    - The path to the most recently modified file in the list, or None if the list is empty or contains no valid files.
+    """
+    # Filter out items that are not files or do not exist
+    valid_files = [f for f in file_list if os.path.isfile(f)]
+    
+    # Check if the filtered list is not empty
+    if valid_files:
+        # Find the file with the latest modification time
+        most_recent_file = max(valid_files, key=os.path.getmtime)
+        return [most_recent_file]
+    else:
+        return None
+    
 def aggregate_antspymm_results_sdf(
     study_df, 
     project_col='projectID',
@@ -10939,8 +10960,8 @@ def aggregate_antspymm_results_sdf(
                 t1wfn = sorted( glob( modsearch ) )
                 if len( t1wfn ) > 1:
                     nlarge = len(t1wfn)
-                    t1wfn = [ t1wfn[ len(t1wfn)-1 ] ]
-                    warnings.warn("there are " + str( nlarge ) + " number of wide fns with search path " + modsearch + " we take the last of these " + t1wfn[0] )
+                    t1wfn = find_most_recent_file( t1wfn )
+                    warnings.warn("there are " + str( nlarge ) + " number of wide fns with search path " + modsearch + " we take the most recent of these " + t1wfn[0] )
 #                    raise ValueError("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch )
                 if len( t1wfn ) == 1:
                     if verbose:
