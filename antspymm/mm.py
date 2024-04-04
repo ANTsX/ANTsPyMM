@@ -10320,7 +10320,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     Assumes both ~/.antspyt1w and ~/.antspymm data is available
 
     Parameters:
-    - statistical_df (pandas dataframe): with 2 columns named anat and value
+    - statistical_df (pandas dataframe): with 2 columns named anat and values
         the anat column should have names that meet *partial matching* criterion 
         with respect to regions that are measured in antspymm.   value will be 
         the value to be displayed.   if two examples of a given region exist in 
