@@ -1222,9 +1222,8 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     mmdf = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
     fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
-    qc_dataframe['invdimt']=1.0/qc_dataframe['dimt']
     rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column='invdimt' )['filt']
-    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column='invdimt' )['filt']
+    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column='dimt' )['filt']
     mmdf['flairid'] = None
     mmdf['flairfn'] = None
     mmdf['flairloop'] = None
