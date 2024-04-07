@@ -1427,7 +1427,11 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         metasub.loc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
         metasub.loc[k,'imageID'] = temp[4]
 
-    metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
+
+    if 'ol_' in outlier_column:
+        metasub['negol'] = metasub[outlier_column].max() - metasub[outlier_column]
+    else:
+        metasub['negol'] = metasub[outlier_column]
     if 'date' not in metasub.keys():
         metasub['date']=None
     metasubq = highest_quality_repeat(metasub, 'filename', 'date', 'negol')
@@ -5646,6 +5650,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['despiking_count_summary'] = despiking_count_summary
   outdict['FD_max'] = corrmo['FD'].max()
   outdict['FD_mean'] = corrmo['FD'].mean()
+  outdict['FD_sd'] = corrmo['FD'].std()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['n_outliers'] = len(hlinds)
   outdict['nc_wm'] = int(nc_wm)
@@ -5998,6 +6003,7 @@ def bold_perfusion_minimal(
   outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
+  outdict['FD_sd'] = rsfNuisance['FD'].std()
   outdict['outlier_volumes']=hlinds
   outdict['negative_voxels']=negative_voxels
   return convert_np_in_dict( outdict )
@@ -6404,6 +6410,7 @@ Where:
   outdict['high_motion_pct'] = (rsfNuisance['FD'] > FD_threshold ).sum() / rsfNuisance.shape[0]
   outdict['FD_max'] = rsfNuisance['FD'].max()
   outdict['FD_mean'] = rsfNuisance['FD'].mean()
+  outdict['FD_sd'] = rsfNuisance['FD'].std()
   outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict['t1reg'] = t1reg
   outdict['outlier_volumes']=hlinds
@@ -7159,9 +7166,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
                 mm_wide['dti_high_motion_count'] =  mydti['high_motion_count']
                 mm_wide['dti_FD_mean'] = mydti['framewise_displacement'].mean()
                 mm_wide['dti_FD_max'] = mydti['framewise_displacement'].max()
+                mm_wide['dti_FD_sd'] = mydti['framewise_displacement'].std()
                 fdfn = output_prefix + separator + '_fd.csv'
             else:
-                mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = 'NA'
+                mm_wide['dti_FD_mean'] = mm_wide['dti_FD_max'] = mm_wide['dti_FD_sd'] = 'NA'
 
     if 'perf' in mm:
         if mm['perf'] is not None:
@@ -9660,8 +9668,6 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     # Get unique modalities
     modalities = qc_full['modality'].unique()
     modalities = modalities[modalities != 'unknown']
-    # Get modalities to select
-    m0sel = qc_full['modality'].isin(modalities)
     # Get unique ids
     uid = qc_full['filename']
     to_average = uid.unique()
@@ -10313,7 +10319,7 @@ def novelty_detection_quantile(df_train, df_test):
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=True, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=False ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -10335,7 +10341,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     - black_bg (bool): boolean
     - axes (list): integer list typically [0,1,2] sagittal coronal axial
     - fixed_overlay_range (list): scalar pair will try to keep a constant cbar and will truncate the overlay at these min/max values
-    - crop (bool): crops the image to display by the extent of the overlay
+    - crop (int): crops the image to display by the extent of the overlay; larger values dilate the masks more.
     - verbose (bool): boolean
 
     Returns:
@@ -10539,8 +10545,8 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             print('Done Adding')
         for axx in axes:
             figfn=output_prefix+f"fig{col2viz}ax{axx}_py.jpg"
-            if crop:
-                cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",3)
+            if crop > 0:
+                cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath("MD",crop) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath("MD",crop)
                 addemC = ants.crop_image( addem, cmask )
                 edgeimgC = ants.crop_image( edgeimg, cmask )
             else:

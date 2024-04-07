@@ -125,4 +125,5 @@ from .mm import PerAF
 from .mm import get_antsimage_keys
 from .mm import filter_columns_by_nan_percentage
 from .mm import nrg_filename_to_subjectvisit
+from .mm import add_repeat_column
 
