@@ -1433,8 +1433,8 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
         metasub['negol'] = metasub[outlier_column]
     if 'date' not in metasub.keys():
         metasub['date']=None
-    metasubq = add_repeat_column( metasubq, 'subjectIDdate' )
-    metasubq = highest_quality_repeat(metasub, 'filename', 'date', 'negol')
+    metasubq = add_repeat_column( metasub, 'subjectIDdate' )
+    metasubq = highest_quality_repeat(metasubq, 'filename', 'date', 'negol')
 
     if verbose:
         print(f"{wmod} {metasubq.shape[0]} post")
