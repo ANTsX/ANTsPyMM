@@ -11108,7 +11108,7 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     """
     from scipy.stats import zscore
     df_a = df_a.loc[:, ~df_a.columns.str.startswith('Unnamed:')]
-    df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')]
+    df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')].copy()
     
     # Normalize df_b based on criteria
     for col, crit in criteria.items():
