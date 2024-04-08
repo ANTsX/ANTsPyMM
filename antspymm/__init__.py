@@ -128,3 +128,5 @@ from .mm import nrg_filename_to_subjectvisit
 from .mm import add_repeat_column
 from .mm import mm_match_by_qc_scoring
 from .mm import mm_match_by_qc_scoring_all
+from .mm import fix_LR_RL_stuff
+
