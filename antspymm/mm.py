@@ -11113,9 +11113,9 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     # Normalize df_b based on criteria
     for col, crit in criteria.items():
         if crit == 'max':
-            df_b[f'score_{col}'] = zscore(-df_b[col])
+            df.loc[df_b.index, f'score_{col}'] = zscore(-df_b[col])
         elif crit == 'min':
-            df_b[f'score_{col}'] = zscore(df_b[col])
+            df.loc[df_b.index, f'score_{col}'] = zscore(df_b[col])
 
     # Calculate 'best_score' by summing all score columns
     score_columns = [f'score_{col}' for col in criteria.keys()]
