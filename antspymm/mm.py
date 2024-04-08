@@ -11330,7 +11330,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     renameit( mmdf, 'DTI1_imageID', 'dtid1' )
     renameit( mmdf, 'DTI2_imageID', 'dtid2' )
     for x in range(1,6):
-        temp0="NM"+x+"_imageID"
-        temp1="nmid"+x
+        temp0="NM"+str(x)+"_imageID"
+        temp1="nmid"+str(x)
         renameit( mmdf, temp0, temp1 )
     return mmdf
