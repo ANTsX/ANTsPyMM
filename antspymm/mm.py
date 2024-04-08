@@ -11152,8 +11152,123 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     return result_df, unmatched_df_b
 
 
+def fix_LR_RL_stuff_old(df, col1, col2, size_col1, size_col2):
+    df_copy = df.copy()
+    # Ensure columns contain strings for substring checks
+    df_copy[col1] = df_copy[col1].astype(str)
+    df_copy[col2] = df_copy[col2].astype(str)
+    
+    for index, row in df_copy.iterrows():
+        col1_val = row[col1]
+        col2_val = row[col2]
+        size1 = row[size_col1]
+        size2 = row[size_col2]
+        
+        # Check for 'RL' or 'LR' in each column and compare sizes
+        if ('RL' in col1_val or 'LR' in col1_val) and ('RL' in col2_val or 'LR' in col2_val):
+            continue
+        elif 'RL' in col1_val or 'LR' in col1_val:
+            if size1 < size2:
+                df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, col2] = None
+            else:
+                df_copy.at[index, col2] = None
+                df_copy.at[index, size_col2] = 0
+        elif 'RL' in col2_val or 'LR' in col2_val:
+            if size2 < size1:
+                df_copy.at[index, col2] = None
+                df_copy.at[index, size_col2] = 0
+            else:
+                df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, col2] = None    
+    return df_copy
 
-def mm_match_by_qc_scoring_all( qc_dataframe, verbose=True ):
+
+def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2):
+    """
+    Adjusts entries in a DataFrame based on the presence of orientation indicators ('RL' or 'LR') in two specified
+    columns and the corresponding sizes in two other columns. The function sets one of the orientation columns
+    to None based on a comparison of size values, applying rules to handle missing values and optimize performance
+    through vectorized operations.
+
+    Parameters:
+    ----------
+    df : pandas.DataFrame
+        The input DataFrame containing columns with orientation indicators and corresponding size measurements.
+    col1 : str
+        The name of the first column to check for orientation indicators ('RL' or 'LR').
+    col2 : str
+        The name of the second column to check for orientation indicators.
+    size_col1 : str
+        The name of the column containing size measurements related to `col1`.
+    size_col2 : str
+        The name of the column containing size measurements related to `col2`.
+
+    Returns:
+    -------
+    pandas.DataFrame
+        A copy of the input DataFrame with adjusted entries in the specified orientation and size columns. Adjustments
+        are made according to the criteria: if one column contains an orientation indicator and the other does not,
+        retain the column with the larger size value and set the other to None.
+
+    Examples:
+    --------
+    >>> df = pd.DataFrame({
+            'col1': ['RL', '', '', 'LR', 'RL'],
+            'col2': ['', 'LR', 'RL', '', ''],
+            'size_col1': [10, 20, 30, 40, 50],
+            'size_col2': [15, 10, 25, 35, 5]
+        })
+    >>> adjusted_df = fix_LR_RL_stuff(df, 'col1', 'col2', 'size_col1', 'size_col2')
+    >>> print(adjusted_df)
+    
+    Note:
+    -----
+    The function fills missing values in the orientation columns with an empty string and in the size columns
+    with 0 before processing. It then uses boolean indexing to identify and adjust rows according to the specified
+    criteria, ensuring efficient computation.
+    """
+    # Function implementation
+    df_copy = df.copy()
+    
+    # Fill missing orientation with empty strings and missing sizes with 0 (or another placeholder value as per requirements)
+    df_copy[col1].fillna('', inplace=True)
+    df_copy[col2].fillna('', inplace=True)
+    df_copy[size_col1].fillna(0, inplace=True)
+    df_copy[size_col2].fillna(0, inplace=True)
+    
+    # Determine rows with orientations 'RL' or 'LR'
+    has_rl_lr_col1 = df_copy[col1].str.contains('RL|LR')
+    has_rl_lr_col2 = df_copy[col2].str.contains('RL|LR')
+    
+    # Determine the action based on sizes
+    size_comparison = df_copy[size_col1] < df_copy[size_col2]
+    
+    # Action when col1 has 'RL'/'LR' and is smaller than col2
+    mask = has_rl_lr_col1 & ~has_rl_lr_col2 & size_comparison
+    df_copy.loc[mask, col1] = df_copy.loc[mask, col2]
+    df_copy.loc[mask, size_col1] = df_copy.loc[mask, size_col2]
+    df_copy.loc[mask, col2] = None
+    df_copy.loc[mask, size_col2] = 0
+
+    # Action when col2 has 'RL'/'LR' and is smaller or col1 does not have 'RL'/'LR'
+    mask = has_rl_lr_col2 & (~has_rl_lr_col1 | ~size_comparison)
+    df_copy.loc[mask, col2] = None
+    df_copy.loc[mask, size_col2] = 0
+
+    # Swap col1 with col2 where col2 is larger but both have 'RL'/'LR'
+    mask = has_rl_lr_col1 & has_rl_lr_col2 & size_comparison
+    df_copy.loc[mask, [col1, col2]] = df_copy.loc[mask, [col2, col1]].values
+    df_copy.loc[mask, [size_col1, size_col2]] = df_copy.loc[mask, [size_col2, size_col1]].values
+
+    return df_copy
+
+
+def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     """
     Processes a quality control (QC) DataFrame to perform modality-specific matching and filtering based
     on predefined criteria, optimizing for minimal outliers and noise, and maximal signal-to-noise ratio (SNR),
@@ -11167,6 +11282,8 @@ def mm_match_by_qc_scoring_all( qc_dataframe, verbose=True ):
     ----------
     qc_dataframe : pandas.DataFrame
         The DataFrame containing QC metrics for different modalities and imaging data.
+    fix_LRRL : bool, optional
+
     verbose : bool, optional
         If True, prints the progress and the shape of the DataFrame being processed in each step.
 
@@ -11239,8 +11356,11 @@ def mm_match_by_qc_scoring_all( qc_dataframe, verbose=True ):
                 print( prefix )
                 print( undfmod.shape )
     
-
-    import warnings
-    warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
+    if fix_LRRL:
+        mmdf=fix_LR_RL_stuff( mmdf, 'DTI1_filename', 'DTI2_filename', 'DTI1_dimt', 'DTI2_dimt')
+        mmdf=fix_LR_RL_stuff( mmdf, 'rsf1_filename', 'rsf2_filename', 'rsf1_dimt', 'srf2_dimt')
+    else:
+        import warnings
+        warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
 
     return mmdf
