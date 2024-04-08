@@ -11236,10 +11236,10 @@ def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2):
     df_copy = df.copy()
     
     # Fill missing orientation with empty strings and missing sizes with 0 (or another placeholder value as per requirements)
-    df_copy[col1].fillna('', inplace=True)
-    df_copy[col2].fillna('', inplace=True)
-    df_copy[size_col1].fillna(0, inplace=True)
-    df_copy[size_col2].fillna(0, inplace=True)
+    df_copy[col1] = df_copy[col1].fillna('')
+    df_copy[col2] = df_copy[col2].fillna('')
+    df_copy[size_col1] = df_copy[size_col1].fillna(0)
+    df_copy[size_col2] = df_copy[size_col2].fillna(0)
     
     # Determine rows with orientations 'RL' or 'LR'
     has_rl_lr_col1 = df_copy[col1].str.contains('RL|LR')
