@@ -1421,10 +1421,10 @@ def best_mmm( mmdf, wmod, mysep='-', outlier_column='ol_loop', verbose=False):
     metasub['negol']=math.nan
     for k in metasub.index:
         temp = metasub.loc[k, 'filename'].split( mysep )
-        metasub.loc[k,'subjectID'] = temp[1]
-        metasub.loc[k,'date'] = temp[2]
-        metasub.loc[k,'subjectIDdate'] = temp[1] + mysep + temp[2]
-        metasub.loc[k,'imageID'] = temp[4]
+        metasub.loc[k,'subjectID'] = str( temp[1] )
+        metasub.loc[k,'date'] = str( temp[2] )
+        metasub.loc[k,'subjectIDdate'] = str( temp[1] + mysep + temp[2] )
+        metasub.loc[k,'imageID'] = str( temp[4])
 
 
     if 'ol_' in outlier_column:
@@ -11324,13 +11324,22 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     # now do the necessary replacements
     
     renameit( mmdf, 'perf_imageID', 'perfid' )
+    renameit( mmdf, 'perf_filename', 'perffn' )
     renameit( mmdf, 'T2Flair_imageID', 'flairid' )
+    renameit( mmdf, 'T2Flair_filename', 'flairfn' )
     renameit( mmdf, 'rsf1_imageID', 'rsfid1' )
     renameit( mmdf, 'rsf2_imageID', 'rsfid2' )
+    renameit( mmdf, 'rsf1_filename', 'rsffn1' )
+    renameit( mmdf, 'rsf2_filename', 'rsffn2' )
     renameit( mmdf, 'DTI1_imageID', 'dtid1' )
     renameit( mmdf, 'DTI2_imageID', 'dtid2' )
+    renameit( mmdf, 'DTI1_filename', 'dtfn1' )
+    renameit( mmdf, 'DTI2_filename', 'dtfn2' )
     for x in range(1,6):
         temp0="NM"+str(x)+"_imageID"
         temp1="nmid"+str(x)
+        renameit( mmdf, temp0, temp1 )
+        temp0="NM"+str(x)+"_filename"
+        temp1="nmfn"+str(x)
         renameit( mmdf, temp0, temp1 )
     return mmdf
