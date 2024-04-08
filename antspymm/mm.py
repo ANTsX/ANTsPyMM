@@ -11216,9 +11216,11 @@ def renameit(df, old_col_name, new_col_name):
     Returns:
     None
     """
+    import warnings
     # Check if the old column name exists in the DataFrame
     if old_col_name not in df.columns:
-        raise ValueError(f"The column '{old_col_name}' does not exist in the DataFrame.")
+        warnings.warn(f"The column '{old_col_name}' does not exist in the DataFrame.")
+        return
     
     # Proceed with renaming the column if it exists
     df.rename(columns={old_col_name: new_col_name}, inplace=True)
@@ -11320,6 +11322,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
         warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
 
     # now do the necessary replacements
+    
     renameit( mmdf, 'perf_imageID', 'perfid' )
     renameit( mmdf, 'T2Flair_imageID', 'flairid' )
     renameit( mmdf, 'rsf1_imageID', 'rsfid1' )
