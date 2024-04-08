@@ -1222,8 +1222,8 @@ def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column
     mmdf = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
     fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
-    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column='dimt' )['filt']
-    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column='dimt' )['filt']
+    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
+    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
     mmdf['flairid'] = None
     mmdf['flairfn'] = None
     mmdf['flairloop'] = None
@@ -9686,6 +9686,7 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
         else:
             mfsub = qc_full[m1sel]
         meta.loc[k] = mfsub.iloc[0]
+    meta['modality'] = meta['modality'].replace(['DTIdwi', 'DTIb0'], 'DTI', regex=True)
     return meta
 
 def wmh( flair, t1, t1seg,
@@ -11082,3 +11083,69 @@ def filter_image_files(image_paths, criteria='largest'):
         raise ValueError("Criteria must be 'smallest', 'largest', or 'brightest'.")
 
     return selected_image_path
+
+
+
+def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_', exclude_columns=None):
+    """
+    Match each row in df_a to a row in df_b based on a matching column and criteria for selecting the best match,
+    with options to prefix column names from df_b and exclude certain columns from the final output. Additionally,
+    returns a DataFrame containing rows from df_b that were not matched to any row in df_a.
+
+    Parameters:
+    - df_a: DataFrame A.
+    - df_b: DataFrame B.
+    - match_column: The column name on which rows should match between DataFrame A and B.
+    - criteria: A dictionary where keys are column names and values are 'min' or 'max', indicating whether
+                the column should be minimized or maximized for the best match.
+    - prefix: A string prefix to add to column names from df_b in the final output to avoid duplication.
+    - exclude_columns: A list of column names from df_b to exclude from the final output.
+    
+    Returns:
+    - A tuple of two DataFrames: 
+        1. A new DataFrame combining df_a with matched rows from df_b.
+        2. A DataFrame containing rows from df_b that were not matched to df_a.
+    """
+    df_a = df_a.loc[:, ~df_a.columns.str.startswith('Unnamed:')]
+    df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')]
+    
+    # Normalize df_b based on criteria
+    for col, crit in criteria.items():
+        if crit == 'max':
+            df_b[f'score_{col}'] = zscore(-df_b[col])
+        elif crit == 'min':
+            df_b[f'score_{col}'] = zscore(df_b[col])
+
+    # Calculate 'best_score' by summing all score columns
+    score_columns = [f'score_{col}' for col in criteria.keys()]
+    df_b['best_score'] = df_b[score_columns].sum(axis=1)
+
+    matched_indices = []  # Track indices of matched rows in df_b
+
+    # Match rows
+    matched_rows = []
+    for _, row_a in df_a.iterrows():
+        matches = df_b[df_b[match_column] == row_a[match_column]]
+        if not matches.empty:
+            best_idx = matches['best_score'].idxmin()
+            best_match = matches.loc[best_idx]
+            matched_indices.append(best_idx)  # Track this index as matched
+            matched_rows.append(best_match)
+        else:
+            matched_rows.append(pd.Series(dtype='float64'))
+
+    # Create a DataFrame from matched rows
+    df_matched = pd.DataFrame(matched_rows).reset_index(drop=True)
+    
+    # Exclude specified columns and add prefix
+    if exclude_columns is not None:
+        df_matched = df_matched.drop(columns=exclude_columns, errors='ignore')
+    df_matched = df_matched.rename(columns=lambda x: f"{prefix}{x}" if x != match_column and x in df_matched.columns else x)
+
+    # Combine df_a with matched rows from df_b
+    result_df = pd.concat([df_a.reset_index(drop=True), df_matched], axis=1)
+    
+    # Extract unmatched rows from df_b
+    unmatched_df_b = df_b.drop(index=matched_indices).reset_index(drop=True)
+
+    return result_df, unmatched_df_b
