@@ -11196,6 +11196,33 @@ def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2):
                 df_copy.at[index, col2] = None    
     return df_copy
 
+import pandas as pd
+
+def renameit(df, old_col_name, new_col_name):
+    """
+    Renames a column in a pandas DataFrame in place. Raises an error if the specified old column name does not exist.
+
+    Parameters:
+    - df: pandas.DataFrame
+        The DataFrame in which the column is to be renamed.
+    - old_col_name: str
+        The current name of the column to be renamed.
+    - new_col_name: str
+        The new name for the column.
+    
+    Raises:
+    - ValueError: If the old column name does not exist in the DataFrame.
+    
+    Returns:
+    None
+    """
+    # Check if the old column name exists in the DataFrame
+    if old_col_name not in df.columns:
+        raise ValueError(f"The column '{old_col_name}' does not exist in the DataFrame.")
+    
+    # Proceed with renaming the column if it exists
+    df.rename(columns={old_col_name: new_col_name}, inplace=True)
+
 
 def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     """
@@ -11292,4 +11319,15 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
         import warnings
         warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
 
+    # now do the necessary replacements
+    renameit( mmdf, 'perf_imageID', 'perfid' )
+    renameit( mmdf, 'T2Flair_imageID', 'flairid' )
+    renameit( mmdf, 'rsf1_imageID', 'rsfid1' )
+    renameit( mmdf, 'rsf2_imageID', 'rsfid2' )
+    renameit( mmdf, 'DTI1_imageID', 'dtid1' )
+    renameit( mmdf, 'DTI2_imageID', 'dtid2' )
+    for x in range(1,6):
+        temp0="NM"+x+"_imageID"
+        temp1="nmid"+x
+        renameit( mmdf, temp0, temp1 )
     return mmdf
