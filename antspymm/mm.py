@@ -11113,9 +11113,9 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     # Normalize df_b based on criteria
     for col, crit in criteria.items():
         if crit == 'max':
-            df.loc[df_b.index, f'score_{col}'] = zscore(-df_b[col])
+            df_b.loc[df_b.index, f'score_{col}'] = zscore(-df_b[col])
         elif crit == 'min':
-            df.loc[df_b.index, f'score_{col}'] = zscore(df_b[col])
+            df_b.loc[df_b.index, f'score_{col}'] = zscore(df_b[col])
 
     # Calculate 'best_score' by summing all score columns
     score_columns = [f'score_{col}' for col in criteria.keys()]
@@ -11239,4 +11239,8 @@ def mm_match_by_qc_scoring_all( qc_dataframe, verbose=True ):
                 print( prefix )
                 print( undfmod.shape )
     
+
+    import warnings
+    warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
+
     return mmdf
