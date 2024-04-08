@@ -11106,6 +11106,7 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
         1. A new DataFrame combining df_a with matched rows from df_b.
         2. A DataFrame containing rows from df_b that were not matched to df_a.
     """
+    from scipy.stats import zscore
     df_a = df_a.loc[:, ~df_a.columns.str.startswith('Unnamed:')]
     df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')]
     
@@ -11149,3 +11150,93 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     unmatched_df_b = df_b.drop(index=matched_indices).reset_index(drop=True)
 
     return result_df, unmatched_df_b
+
+
+
+def mm_match_by_qc_scoring_all( qc_dataframe, verbose=True ):
+    """
+    Processes a quality control (QC) DataFrame to perform modality-specific matching and filtering based
+    on predefined criteria, optimizing for minimal outliers and noise, and maximal signal-to-noise ratio (SNR),
+    expected value of randomness (EVR), and dimensionality time (dimt).
+
+    This function iteratively matches dataframes derived from the QC dataframe for different imaging modalities,
+    applying a series of filters to select the best matches based on the QC metrics. Matches are made with
+    consideration to minimize outlier loop and noise, while maximizing SNR, EVR, and dimt for each modality.
+
+    Parameters:
+    ----------
+    qc_dataframe : pandas.DataFrame
+        The DataFrame containing QC metrics for different modalities and imaging data.
+    verbose : bool, optional
+        If True, prints the progress and the shape of the DataFrame being processed in each step.
+
+    Process:
+    -------
+    1. Standardizes modalities by merging DTI-related entries.
+    2. Converts specific columns to appropriate data types for processing.
+    3. Performs modality-specific matching and filtering based on the outlier column and criteria for each modality.
+    4. Iteratively processes unmatched data for predefined modalities with specific prefixes to find further matches.
+    
+    Returns:
+    -------
+    pandas.DataFrame
+        The matched and filtered DataFrame after applying all QC scoring and matching operations across specified modalities.
+
+    """
+    qc_dataframe['modality'] = qc_dataframe['modality'].replace(['DTIdwi', 'DTIb0'], 'DTI', regex=True)
+    qc_dataframe['filename']=qc_dataframe['filename'].astype(str)
+    qc_dataframe['ol_loop']=qc_dataframe['ol_loop'].astype(float)
+    qc_dataframe['ol_lof']=qc_dataframe['ol_lof'].astype(float)
+    qc_dataframe['ol_lof_decision']=qc_dataframe['ol_lof_decision'].astype(float)
+    outlier_column='ol_loop'
+    mmdf0 = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
+    fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
+    nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
+    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
+    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
+
+    criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'reflection_err':'min'}
+    xcl = [ 'mrimfg', 'mrimodel','mriMagneticFieldStrength', 'dti_failed', 'rsf_failed', 'subjectID', 'date', 'subjectIDdate','repeat']
+    # Assuming df_a and df_b are already loaded
+    mmdf, undffl = mm_match_by_qc_scoring(mmdf0, fldf, 'subjectIDdate', criteria, 
+                        prefix='T2Flair_', exclude_columns=xcl )
+
+    prefixes = ['NM1_', 'NM2_', 'NM3_', 'NM4_', 'NM5_', 'NM6_']  
+    undfmod = nmdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
+    if verbose:
+        print('start NM')
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] > 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+
+    criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'dimt':'max'}
+    criteria = {'ol_loop': 'min',  'dimt':'max'}
+    prefixes = ['DTI1_', 'DTI2_']  # List of prefixes for each matching iteration
+    undfmod = dtdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
+    if verbose:
+        print('start DT')
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] > 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+
+    prefixes = ['rsf1_', 'rsf2_']  # List of prefixes for each matching iteration
+    undfmod = rsdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
+    if verbose:
+        print('start rsf')
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] > 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+    
+    return mmdf
