@@ -11300,9 +11300,10 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
                 print( undfmod.shape )
 
     criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'dimt':'max'}
-    criteria = {'ol_loop': 'min',  'dimt':'max'}
+    # higher bvalues lead to more noise ...
+    criteria = {'ol_loop': 'min',  'dti_bvalueMax':'max',  'dimt':'max'}
     prefixes = ['DTI1_', 'DTI2_', 'DTI3_']  # List of prefixes for each matching iteration
-    undfmod = dtdf
+    undfmod = dtdfs
     if verbose:
         print('start DT')
         print( undfmod.shape )
