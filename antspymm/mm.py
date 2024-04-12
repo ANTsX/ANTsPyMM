@@ -9411,6 +9411,7 @@ def blind_image_assessment(
     from pathlib import Path
     import json
     import re
+    from dipy.io.gradients import read_bvals_bvecs
     mystem=''
     if isinstance(image,list):
         isfilename=isinstance( image[0], str)
@@ -9420,8 +9421,6 @@ def blind_image_assessment(
     outdf = pd.DataFrame()
     mymeta = None
     MagneticFieldStrength = None
-    mriPixelBandwidth=None
-    bandwidth=None
     image_filename=''
     if isfilename:
         image_filename = image
@@ -9444,6 +9443,7 @@ def blind_image_assessment(
     else:
         image_reference = ants.image_clone( image )
     ntimepoints = 1
+    bvalueMax=None
     if image_reference.dimension == 4:
         ntimepoints = image_reference.shape[3]
         if "DTI" in image_filename:
@@ -9451,6 +9451,11 @@ def blind_image_assessment(
             image_b0, image_dwi = get_average_dwi_b0( image_reference, fast=True )
             image_b0 = ants.iMath( image_b0, 'Normalize' )
             image_dwi = ants.iMath( image_dwi, 'Normalize' )
+            bval_name = re.sub(".nii.gz",".bval",image_filename)
+            bvec_name = re.sub(".nii.gz",".bvec",image_filename)
+            if exists( bval_name ) and exists( bvec_name ):
+                bvals, bvecs = read_bvals_bvecs( bval_name , bvec_name  )
+                bvalueMax = bvals.max()
         else:
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
     else:
@@ -9616,11 +9621,11 @@ def blind_image_assessment(
             noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, 
             spc[0], spc[1], spc[2],org[0], org[1], org[2], 
             image.shape[0], image.shape[1], image.shape[2], ntimepoints, 
-            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode ]], 
+            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode, bvalueMax ]], 
             columns=[
                 'filename', 
                 'dimensionality',
-                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel', 'mriMagneticFieldStrength', 'mriSAR', 'mriPixelBandwidth', 'mriPixelBandwidthPE' ])
+                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel', 'mriMagneticFieldStrength', 'mriSAR', 'mriPixelBandwidth', 'mriPixelBandwidthPE', 'dti_bvalueMax' ])
         outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
@@ -11290,8 +11295,8 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
 
     criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'dimt':'max'}
     criteria = {'ol_loop': 'min',  'dimt':'max'}
-    prefixes = ['DTI1_', 'DTI2_']  # List of prefixes for each matching iteration
-    undfmod = dtdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
+    prefixes = ['DTI1_', 'DTI2_', 'DTI3_']  # List of prefixes for each matching iteration
+    undfmod = dtdf
     if verbose:
         print('start DT')
         print( undfmod.shape )
@@ -11302,7 +11307,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
                 print( prefix )
                 print( undfmod.shape )
 
-    prefixes = ['rsf1_', 'rsf2_']  # List of prefixes for each matching iteration
+    prefixes = ['rsf1_', 'rsf2_', 'rsf3_']  # List of prefixes for each matching iteration
     undfmod = rsdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
     if verbose:
         print('start rsf')
@@ -11315,7 +11320,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
                 print( undfmod.shape )
     
     if fix_LRRL:
-        mmdf=fix_LR_RL_stuff( mmdf, 'DTI1_filename', 'DTI2_filename', 'DTI1_dimt', 'DTI2_dimt')
+        #        mmdf=fix_LR_RL_stuff( mmdf, 'DTI1_filename', 'DTI2_filename', 'DTI1_dimt', 'DTI2_dimt')
         mmdf=fix_LR_RL_stuff( mmdf, 'rsf1_filename', 'rsf2_filename', 'rsf1_dimt', 'rsf2_dimt')
     else:
         import warnings
@@ -11333,8 +11338,10 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     renameit( mmdf, 'rsf2_filename', 'rsffn2' )
     renameit( mmdf, 'DTI1_imageID', 'dtid1' )
     renameit( mmdf, 'DTI2_imageID', 'dtid2' )
+    renameit( mmdf, 'DTI3_imageID', 'dtid3' )
     renameit( mmdf, 'DTI1_filename', 'dtfn1' )
     renameit( mmdf, 'DTI2_filename', 'dtfn2' )
+    renameit( mmdf, 'DTI3_filename', 'dtfn3' )
     for x in range(1,6):
         temp0="NM"+str(x)+"_imageID"
         temp1="nmid"+str(x)
