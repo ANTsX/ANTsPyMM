@@ -453,11 +453,11 @@ def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None,
             imfns.append('nmid' + str(i))
     elif locmod == 'rsfMRI':
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append('rsfid' + str(i))
     elif locmod == 'DTI':
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append('dtid' + str(i))
 
     # Process each file name
