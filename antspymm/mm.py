@@ -506,7 +506,7 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     if long:
         mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "rsfMRILR", "rsfMRIRL", "DTI", "DTI_LR","DTI_RL",  "DTILR","DTIRL","T2Flair", "dwi", "dwi_ap", "dwi_pa", "func", "func_ap", "func_pa", "perf"]
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'NM2DMT','DTIdwi','DTIb0', 'rsfMRI', "perf" ]
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT', 'DTI', 'DTIdwi','DTIb0', 'rsfMRI', "perf" ]
     else:
         mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf" ]
     if not asString:
@@ -1001,12 +1001,14 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
     pd.set_option('future.no_silent_downcasting', True)
     qcdfout.replace([np.inf, -np.inf], np.nan, inplace=True)
     if uid not in qcdfout.keys():
-        raise ValueError(uid + " not in dataframe")
+        raise ValueError( str(uid) + " not in dataframe")
     if 'ol_loop' not in qcdfout.keys():
         qcdfout['ol_loop']=math.nan
     if 'ol_lof' not in qcdfout.keys():
         qcdfout['ol_lof']=math.nan
+    didit=False
     for mod in get_valid_modalities( qc=True ):
+        didit=True
         lof = LocalOutlierFactor()
         locsel = qcdfout["modality"] == mod
         rr = qcdfout[locsel][outlier_columns]
@@ -1014,7 +1016,7 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
         rr.fillna(column_means, inplace=True)
         if rr.shape[0] > 1:
             if verbose:
-                print(mod)
+                print("calc: " + mod + " outlierness " )
             myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
             temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
             qcdfout.loc[locsel,'ol_loop']=temp.astype('float64')
@@ -1025,6 +1027,8 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
             yhat[ yhat == -1] = 1 # these are outliers
             qcdfout.loc[locsel,'ol_lof_decision']=yhat
             qcdfout.loc[locsel,'ol_lof']=temp/temp.max()
+    if verbose:
+        print( didit )
     return qcdfout
 
 
@@ -1853,10 +1857,12 @@ def merge_dwi_data( img_LRdwp, bval_LR, bvec_LR, img_RLdwp, bval_RL, bvec_RL ):
     bvec_RL : array
 
     """
+    import warnings
     insamespace = ants.image_physical_space_consistency( img_LRdwp, img_RLdwp )
     if not insamespace :
-        raise ValueError('not insamespace ... corrected image pair should occupy the same physical space')
-
+        warnings.warn('not insamespace ... corrected image pair should occupy the same physical space; returning only the 1st set and wont join these data.')
+        return img_LRdwp, bval_LR, bvec_LR
+    
     bval_LR = np.concatenate([bval_LR,bval_RL])
     bvec_LR = np.concatenate([bvec_LR,bvec_RL])
     # concatenate the images
