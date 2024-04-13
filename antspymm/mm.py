@@ -8271,8 +8271,8 @@ def mm_csv(
                                         bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
                                         temp = merge_dwi_data( imgRL, bvals, bvecs, imgRL2, bvals2, bvecs2  )
                                         imgList.append( temp[0] )
-                                        bvalfnList.append( mymm+mysep+'_joined.bval' )
-                                        bvecfnList.append( mymm+mysep+'_joined.bvec' )
+                                        bvalfnList.append( mymm+mysep+'joined.bval' )
+                                        bvecfnList.append( mymm+mysep+'joined.bvec' )
                                         write_bvals_bvecs( temp[1], temp[2], mymm+mysep+'_joined' )
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
