@@ -582,15 +582,15 @@ def generate_mm_dataframe(
         raise ValueError("source_image_directory does not exist")
     if len( rsf_filenames ) > 2:
         raise ValueError("len( rsf_filenames ) > 2")
-    if len( dti_filenames ) > 2:
-        raise ValueError("len( dti_filenames ) > 2")
+    if len( dti_filenames ) > 3:
+        raise ValueError("len( dti_filenames ) > 3")
     if len( nm_filenames ) > 11:
         raise ValueError("len( nm_filenames ) > 11")
     if len( rsf_filenames ) < 2:
         for k in range(len(rsf_filenames),2):
             rsf_filenames.append(None)
-    if len( dti_filenames ) < 2:
-        for k in range(len(dti_filenames),2):
+    if len( dti_filenames ) < 3:
+        for k in range(len(dti_filenames),3):
             dti_filenames.append(None)
     if len( nm_filenames ) < 10:
         for k in range(len(nm_filenames),10):
@@ -666,7 +666,7 @@ def generate_mm_dataframe(
         'perfid']
     mycols0 = corecols + [
         'rsfid1', 'rsfid2',
-        'dtid1', 'dtid2']
+        'dtid1', 'dtid2','dtid3']
     nmext = [
         'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
         'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10', 'nmid11'
@@ -1106,6 +1106,11 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))[0]
         if exists( dtfn2 ):
             dtList.append( dtfn2 )
+    if 'dtfn3' in csvrow.keys():
+        dtid=str(int(csvrow['dtid3'].iloc[0]))
+        dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn3'].iloc[0]+iext) ))[0]
+        if exists( dtfn3 ):
+            dtList.append( dtfn3 )
     if 'rsffn1' in csvrow.keys():
         rsid=str(int(csvrow['rsfid1'].iloc[0]))
         rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))[0]
