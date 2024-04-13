@@ -8243,7 +8243,7 @@ def mm_csv(
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
                                 missing_dti_data=False # bval, bvec or images
-                                if len( myimgsr ) > 1:  # find DTI_RL
+                                if len( myimgsr ) == 2:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
                                         bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
@@ -8252,6 +8252,23 @@ def mm_csv(
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
+                                elif len( myimgsr ) == 3:  # find DTI_RL
+                                    dtilrfn = myimgsr[myimgcount+1]
+                                    dtilrfn2 = myimgsr[myimgcount+2]
+                                    if exists( dtilrfn ) and exists( dtilrfn2 ):
+                                        bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
+                                        bvecfnRL = re.sub( '.nii.gz', '.bvec' , dtilrfn )
+                                        bvalfnRL2 = re.sub( '.nii.gz', '.bval' , dtilrfn )
+                                        bvecfnRL2 = re.sub( '.nii.gz', '.bvec' , dtilrfn2 )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgRL2 = ants.image_read( dtilrfn )
+                                        bvals, bvecs = read_bvals_bvecs( bvalfnRL , bvecfnRL  )
+                                        bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        temp = merge_dwi_data( imgRL, bvals, bvecs, imgRL2, bvals2, bvecs2  )
+                                        imgList.append( temp[0] )
+                                        bvalfnList.append( mymm+mysep+'_joined.bval' )
+                                        bvecfnList.append( mymm+mysep+'_joined.bvec' )
+                                        write_bvals_bvecs( temp[1], temp[2], mymm+mysep+'_joined' )
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
