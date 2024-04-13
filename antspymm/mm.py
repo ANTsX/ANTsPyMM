@@ -8273,7 +8273,7 @@ def mm_csv(
                                         imgList.append( temp[0] )
                                         bvalfnList.append( mymm+mysep+'joined.bval' )
                                         bvecfnList.append( mymm+mysep+'joined.bvec' )
-                                        write_bvals_bvecs( temp[1], temp[2], mymm+mysep+'_joined' )
+                                        write_bvals_bvecs( temp[1], temp[2], mymm+mysep+'joined' )
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
