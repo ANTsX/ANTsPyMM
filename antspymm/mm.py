@@ -11209,6 +11209,7 @@ def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2, id1, id2 ):
                 df_copy.at[index, id1] = df_copy.at[index, id2]
                 df_copy.at[index, size_col2] = 0
                 df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
             else:
                 df_copy.at[index, col2] = None
                 df_copy.at[index, size_col2] = 0
