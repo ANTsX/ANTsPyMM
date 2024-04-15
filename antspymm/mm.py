@@ -8264,7 +8264,7 @@ def mm_csv(
                                     if exists( dtilrfn ) and exists( dtilrfn2 ):
                                         bvalfnRL = re.sub( '.nii.gz', '.bval' , dtilrfn )
                                         bvecfnRL = re.sub( '.nii.gz', '.bvec' , dtilrfn )
-                                        bvalfnRL2 = re.sub( '.nii.gz', '.bval' , dtilrfn )
+                                        bvalfnRL2 = re.sub( '.nii.gz', '.bval' , dtilrfn2 )
                                         bvecfnRL2 = re.sub( '.nii.gz', '.bvec' , dtilrfn2 )
                                         imgRL = ants.image_read( dtilrfn )
                                         imgRL2 = ants.image_read( dtilrfn )
