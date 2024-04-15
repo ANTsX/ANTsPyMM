@@ -11185,11 +11185,13 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     return result_df, unmatched_df_b
 
 
-def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2):
+def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2, id1, id2 ):
     df_copy = df.copy()
     # Ensure columns contain strings for substring checks
     df_copy[col1] = df_copy[col1].astype(str)
     df_copy[col2] = df_copy[col2].astype(str)
+    df_copy[id1] = df_copy[id1].astype(str)
+    df_copy[id2] = df_copy[id2].astype(str)
     
     for index, row in df_copy.iterrows():
         col1_val = row[col1]
@@ -11204,32 +11206,39 @@ def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2):
             if size1 < size2:
                 df_copy.at[index, col1] = df_copy.at[index, col2]
                 df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
                 df_copy.at[index, size_col2] = 0
                 df_copy.at[index, col2] = None
             else:
                 df_copy.at[index, col2] = None
                 df_copy.at[index, size_col2] = 0
+                df_copy.at[index, id2] = None
         elif 'RL' in col1_val or 'LR' in col1_val:
             if size1 < size2:
                 df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
                 df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
                 df_copy.at[index, size_col2] = 0
                 df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
             else:
                 df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
                 df_copy.at[index, size_col2] = 0
         elif 'RL' in col2_val or 'LR' in col2_val:
             if size2 < size1:
+                df_copy.at[index, id2] = None
                 df_copy.at[index, col2] = None
                 df_copy.at[index, size_col2] = 0
             else:
                 df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
                 df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
                 df_copy.at[index, size_col2] = 0
                 df_copy.at[index, col2] = None    
+                df_copy.at[index, id2] = None    
     return df_copy
 
-import pandas as pd
 
 def renameit(df, old_col_name, new_col_name):
     """
@@ -11350,7 +11359,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     
     if fix_LRRL:
         #        mmdf=fix_LR_RL_stuff( mmdf, 'DTI1_filename', 'DTI2_filename', 'DTI1_dimt', 'DTI2_dimt')
-        mmdf=fix_LR_RL_stuff( mmdf, 'rsf1_filename', 'rsf2_filename', 'rsf1_dimt', 'rsf2_dimt')
+        mmdf=fix_LR_RL_stuff( mmdf, 'rsf1_filename', 'rsf2_filename', 'rsf1_dimt', 'rsf2_dimt', 'rsf1_imageID', 'rsf2_imageID'  )
     else:
         import warnings
         warnings.warn("FIXME: should fix LR and RL situation for the DTI and rsfMRI")
