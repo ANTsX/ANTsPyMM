@@ -8280,7 +8280,6 @@ def mm_csv(
                                         bvalsX, bvecsX = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
                                         print( bvalsX.max() )
                                 # check existence of all files expected ...
-                                derka
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
                                         print('mm_csv: missing dti data ' + dtiex )
