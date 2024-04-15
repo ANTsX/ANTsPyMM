@@ -8258,6 +8258,7 @@ def mm_csv(
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
                                 elif len( myimgsr ) == 3:  # find DTI_RL
+                                    print("DTI trinity")
                                     dtilrfn = myimgsr[myimgcount+1]
                                     dtilrfn2 = myimgsr[myimgcount+2]
                                     if exists( dtilrfn ) and exists( dtilrfn2 ):
@@ -8268,13 +8269,18 @@ def mm_csv(
                                         imgRL = ants.image_read( dtilrfn )
                                         imgRL2 = ants.image_read( dtilrfn )
                                         bvals, bvecs = read_bvals_bvecs( bvalfnRL , bvecfnRL  )
+                                        print( bvals.max() )
                                         bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvals2.max() )
                                         temp = merge_dwi_data( imgRL, bvals, bvecs, imgRL2, bvals2, bvecs2  )
                                         imgList.append( temp[0] )
                                         bvalfnList.append( mymm+mysep+'joined.bval' )
                                         bvecfnList.append( mymm+mysep+'joined.bvec' )
                                         write_bvals_bvecs( temp[1], temp[2], mymm+mysep+'joined' )
+                                        bvalsX, bvecsX = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvalsX.max() )
                                 # check existence of all files expected ...
+                                derka
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
                                         print('mm_csv: missing dti data ' + dtiex )
