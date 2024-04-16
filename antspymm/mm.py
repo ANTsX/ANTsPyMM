@@ -8083,7 +8083,7 @@ def mm_csv(
                     except Exception as e:
                         visualize=False
                         dowrite=False
-                        print(f"An error occurred while processing {overmodX}: {e}")
+                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
                         pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
