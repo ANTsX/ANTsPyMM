@@ -8085,10 +8085,10 @@ def mm_csv(
                             verbose=True )
                     except Exception as e:
                         error_info = traceback.format_exc()
+                        print(error_info)
                         visualize=False
                         dowrite=False
                         print(f"antspymmerror occurred while processing {overmodX}: {e}")
-                        print(error_info)
                         pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
@@ -8142,9 +8142,11 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f"An error occurred while processing {overmodX}: {e}")
+                                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
                                         pass
                                     if visualize:
                                         maxslice = np.min( [21, hier['brain_n4_dnz'].shape[2] ] )
@@ -8165,9 +8167,11 @@ def mm_csv(
                                         test_run=test_run,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f"An error occurred while processing {overmodX}: {e}")
+                                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
                                         pass
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
@@ -8202,11 +8206,13 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={'rsf':None}
                                         normPro={'rsf':None}
-                                        print(f"An error occurred while processing {overmodX}: {e}")
+                                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
                                         pass
                                 if tabPro['rsf'] is not None and visualize:
                                     for tpro in tabPro['rsf']: # FIXMERSF
@@ -8238,10 +8244,12 @@ def mm_csv(
                                         perfusion_m0=perfusion_m0,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={'perf':None}
-                                        print(f"An error occurred while processing {overmodX}: {e}")
+                                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
                                         pass
                                 if tabPro['perf'] is not None and visualize:
                                     maxslice = np.min( [21, tabPro['perf']['meanBold'].shape[2] ] )
@@ -8328,10 +8336,12 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                            error_info = traceback.format_exc()
+                                            print(error_info)
                                             visualize=False
                                             dowrite=False
                                             tabPro={'DTI':None}
-                                            print(f"An error occurred while processing {overmodX}: {e}")
+                                            print(f"antspymmerror occurred while processing {overmodX}: {e}")
                                             pass
                                     mydti = tabPro['DTI']
                                     if visualize and tabPro['DTI'] is not None:
