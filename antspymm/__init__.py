@@ -129,4 +129,6 @@ from .mm import add_repeat_column
 from .mm import mm_match_by_qc_scoring
 from .mm import mm_match_by_qc_scoring_all
 from .mm import fix_LR_RL_stuff
+from .mm import segment_timeseries_by_bvalue
+
 

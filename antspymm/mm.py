@@ -2920,10 +2920,34 @@ def super_res_mcimage( image,
     return ants.list_to_ndimage( imageup, mcsr )
 
 
-def segment_timeseries_by_bvalue( bvals ):
+def segment_timeseries_by_bvalue(bvals):
+    """
+    Segments a time series based on a threshold applied to b-values.
+    
+    This function categorizes indices of the given b-values array into two groups:
+    one for indices where b-values are above a near-zero threshold, and another
+    where b-values are at or below this threshold. The threshold is set to 1e-12.
+    
+    Parameters:
+    - bvals (numpy.ndarray): An array of b-values.
+
+    Returns:
+    - dict: A dictionary with two keys, 'lowermeans' and 'highermeans', each containing
+      the indices of bvals where the b-values are above and at/below the threshold, respectively.
+    """
+    # Define the threshold
+    threshold = 1e-12
+    
+    # Get indices where b-values are greater than the threshold
+    lowermeans = list(np.where(bvals > threshold)[0])
+    
+    # Get indices where b-values are less than or equal to the threshold
+    highermeans = list(np.where(bvals <= threshold)[0])
+    
     return {
-    'lowermeans':np.where(bvals>1e-12 ),
-    'highermeans':np.where(bvals<=1e-12 ) }
+        'lowermeans': lowermeans,
+        'highermeans': highermeans
+    }
 
 def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     """
