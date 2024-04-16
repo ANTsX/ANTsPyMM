@@ -2220,8 +2220,10 @@ def dti_reg(
         print(ofnL)
         print("remove_it " + str( remove_it ) )
 
-    if b0_idx is None:
+    if bvals is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+    else:
+        b0_idx = segment_timeseries_by_bvalue( bvals )['highermeans']
     # first get a local deformation from slice to local avg space
     # then get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0( image )
@@ -2920,6 +2922,10 @@ def super_res_mcimage( image,
     return ants.list_to_ndimage( imageup, mcsr )
 
 
+def segment_timeseries_by_bvalue( bvals ):
+    return {
+    'lowermeans':np.where(bvals>1e-12 ),
+    'highermeans':np.where(bvals<=1e-12 ) }
 
 def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     """
@@ -3371,7 +3377,7 @@ def dipy_dti_recon(
         space as the image, we will resample directly to the image space.  This
         could lead to problems if the inputs are really incorrect.
 
-    b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+    b0_idx : the indices of the B0; if None, use segment_timeseries_by_bvalue
 
     mask_dilation : integer zero or more dilates the brain mask
 
@@ -3402,8 +3408,7 @@ def dipy_dti_recon(
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
-    if b0_idx is None:
-        b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+    b0_idx = segment_timeseries_by_bvalue( bvals )['highermeans']
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod='bold'
@@ -3613,6 +3618,9 @@ def joint_dti_recon(
     def fix_dwi_shape( img, bvalfn, bvecfn ):
         if isinstance(bvecfn, str):
             bvals, bvecs = read_bvals_bvecs( bvalfn , bvecfn   )
+        else:
+            bvals = bvalfn
+            bvecs = bvecfn
         if bvecs.shape[0] < img.shape[3]:
             imgout = ants.from_numpy( img[:,:,:,0:bvecs.shape[0]] )
             imgout = ants.copy_image_info( img, imgout )
