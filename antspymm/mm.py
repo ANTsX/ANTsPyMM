@@ -6993,8 +6993,12 @@ def mm(
             normalization_dict['MD_norm'] = ants.apply_transforms( group_template, mydti['recon_md'],group_transform+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( group_template, mydti['recon_fa'],group_transform+dtirig['fwdtransforms'] )
             output_directory = tempfile.mkdtemp()
-            # comptx = ants.apply_transforms( group_template, group_template, group_transform+dtirig['fwdtransforms'], compose = output_directory + '/xxx' )
-            # normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template, mydti['dti'], comptx, py_based=True, verbose=True )
+            comptx = ants.apply_transforms( group_template, group_template, group_transform+dtirig['fwdtransforms'], compose = output_directory + '/xxx' )
+            tspc=[2.,2.,2.]
+            if srmodel is not None:
+                tspc=[1.,1.,1.]
+            group_template2mm = ants.resample_image( group_template, tspc  )
+            normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, py_based=True, verbose=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:

@@ -46,7 +46,7 @@ btpB0, btpDW = antspymm.dti_template(
         iterations=2, verbose=True )
 
 print("bxt the DTI template space")
-reg = ants.registration( btpDW, t1w, 'SyNBold', verbose=False)
+reg = ants.registration( btpDW, t1w, 'SyN', verbose=False)
 mask = ants.apply_transforms( btpDW, mybxt, reg['fwdtransforms'], interpolator='nearestNeighbor')
 
 print("Begin joint DTI recon")
