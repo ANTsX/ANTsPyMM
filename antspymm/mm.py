@@ -8267,7 +8267,7 @@ def mm_csv(
                                         bvalfnRL2 = re.sub( '.nii.gz', '.bval' , dtilrfn2 )
                                         bvecfnRL2 = re.sub( '.nii.gz', '.bvec' , dtilrfn2 )
                                         imgRL = ants.image_read( dtilrfn )
-                                        imgRL2 = ants.image_read( dtilrfn )
+                                        imgRL2 = ants.image_read( dtilrfn2 )
                                         bvals, bvecs = read_bvals_bvecs( bvalfnRL , bvecfnRL  )
                                         print( bvals.max() )
                                         bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
