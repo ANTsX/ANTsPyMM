@@ -7824,6 +7824,7 @@ def mm_csv(
     writes output to disk and produces figures
 
     """
+    import traceback
     visualize = True
     verbose = True
     if verbose:
@@ -8081,9 +8082,11 @@ def mm_csv(
                             test_run=test_run,
                             verbose=True )
                     except Exception as e:
+                        error_info = traceback.format_exc()
                         visualize=False
                         dowrite=False
                         print(f"antspymmerror occurred while processing {overmodX}: {e}")
+                        print(error_info)
                         pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
