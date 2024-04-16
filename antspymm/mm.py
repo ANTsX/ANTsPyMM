@@ -2220,10 +2220,8 @@ def dti_reg(
         print(ofnL)
         print("remove_it " + str( remove_it ) )
 
-    if bvals is None:
+    if b0_idx is None:
         b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
-    else:
-        b0_idx = segment_timeseries_by_bvalue( bvals )['highermeans']
     # first get a local deformation from slice to local avg space
     # then get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0( image )
