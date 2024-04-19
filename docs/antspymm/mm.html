@@ -119,6 +119,7 @@
     &#39;remove_volumes_from_timeseries&#39;,
     &#39;loop_timeseries_censoring&#39;,
     &#39;clean_tmp_directory&#39;,
+    &#39;validate_nrg_file_format&#39;,
     &#39;dict_to_dataframe&#39;]
 
 from pathlib import Path
@@ -187,6 +188,122 @@ def version( ):
               &#39;antspymm&#39;: pkg_resources.require(&#34;antspymm&#34;)[0].version
               }
 
+def nrg_filename_to_subjectvisit(s, separator=&#39;-&#39;):
+    &#34;&#34;&#34;
+    Extracts a pattern from the input string.
+    
+    Parameters:
+    - s: The input string from which to extract the pattern.
+    - separator: The separator used in the string (default is &#39;-&#39;).
+    
+    Returns:
+    - A string in the format of &#39;PREFIX-Number-Date&#39;
+    &#34;&#34;&#34;
+    parts = os.path.basename(s).split(separator)
+    # Assuming the pattern is always in the form of PREFIX-Number-Date-...
+    # and PREFIX is always &#34;PPMI&#34;, extract the first three parts
+    extracted = separator.join(parts[:3])
+    return extracted
+
+
+def validate_nrg_file_format(path, separator):
+    &#34;&#34;&#34;
+    is your path nrg-etic?
+    Validates if a given path conforms to the NRG file format, taking into account known extensions
+    and the expected directory structure.
+
+    :param path: The file path to validate.
+    :param separator: The separator used in the filename and directory structure.
+    :return: A tuple (bool, str) indicating whether the path is valid and a message explaining the validation result.
+
+    : example
+
+    ntfn=&#39;/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses-1/rsfMRI_RL/000/ANTsLIMBIC_sub08C105120Yr_ses-1_rsfMRI_RL_000.nii.gz&#39;
+    ntfngood=&#39;/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses_1/rsfMRI_RL/000/ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz&#39;
+
+    validate_nrg_detailed(ntfngood, &#39;-&#39;)
+    print( validate_nrg_detailed(ntfn, &#39;-&#39;) )
+    print( validate_nrg_detailed(ntfn, &#39;_&#39;) )
+
+    &#34;&#34;&#34;
+    import re    
+
+    def normalize_path(path):
+        &#34;&#34;&#34;
+        Replace multiple repeated &#39;/&#39; with just a single &#39;/&#39;
+        
+        :param path: The file path to normalize.
+        :return: The normalized file path with single &#39;/&#39;.
+        &#34;&#34;&#34;
+        normalized_path = re.sub(r&#39;/+&#39;, &#39;/&#39;, path)
+        return normalized_path
+
+    def strip_known_extension(filename, known_extensions):
+        &#34;&#34;&#34;
+        Strips a known extension from the filename.
+
+        :param filename: The filename from which to strip the extension.
+        :param known_extensions: A list of known extensions to strip from the filename.
+        :return: The filename with the known extension stripped off, if found.
+        &#34;&#34;&#34;
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                # Strip the extension and return the modified filename
+                return filename[:-len(ext)]
+        # If no known extension is found, return the original filename
+        return filename
+
+    import warnings
+    if normalize_path( path ) != path:
+        path = normalize_path( path )
+        warnings.warn(&#34;Probably had multiple repeated slashes eg /// in the file path.  this might cause issues. clean up with re.sub(r&#39;/+&#39;, &#39;/&#39;, path)&#34;)
+
+    known_extensions = [&#34;.nii.gz&#34;, &#34;.nii&#34;, &#34;.mhd&#34;, &#34;.nrrd&#34;, &#34;.mha&#34;, &#34;.json&#34;, &#34;.bval&#34;, &#34;.bvec&#34;]
+    known_extensions2 = [ext.lstrip(&#39;.&#39;) for ext in known_extensions]
+    def get_extension(filename, known_extensions ):
+        # List of known extensions in priority order
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                return ext.strip(&#39;.&#39;)
+        return &#34;Invalid extension&#34;
+    
+    parts = path.split(&#39;/&#39;)
+    if len(parts) &lt; 7:  # Checking for minimum path structure
+        return False, &#34;Path structure is incomplete. Expected at least 7 components, found {}.&#34;.format(len(parts))
+    
+    # Extract directory components and filename
+    directory_components = parts[1:-1]  # Exclude the root &#39;/&#39; and filename
+    filename = parts[-1]
+    filename_without_extension = strip_known_extension( filename, known_extensions )
+    file_extension = get_extension( filename, known_extensions )
+    
+    # Validating file extension
+    if file_extension not in known_extensions2:
+        print( file_extension )
+        return False, &#34;Invalid file extension: {}. Expected &#39;nii.gz&#39; or &#39;json&#39;.&#34;.format(file_extension)
+    
+    # Splitting the filename to validate individual parts
+    filename_parts = filename_without_extension.split(separator)
+    if len(filename_parts) != 5:  # Expecting 5 parts based on the NRG format
+        print( filename_parts )
+        return False, &#34;Filename does not have exactly 5 parts separated by &#39;{}&#39;. Found {} parts.&#34;.format(separator, len(filename_parts))
+    
+    # Reconstruct expected filename from directory components
+    expected_filename_parts = directory_components[-5:]
+    expected_filename = separator.join(expected_filename_parts)
+    if filename_without_extension != expected_filename:
+        print( filename_without_extension )
+        print(&#34;--- vs expected ---&#34;)
+        print( expected_filename )
+        return False, &#34;Filename structure does not match directory structure. Expected filename: {}.&#34;.format(expected_filename)
+    
+    # Validate directory structure against NRG format
+    study_name, subject_id, session, modality = directory_components[-4:-1] + [directory_components[-1].split(&#39;/&#39;)[0]]
+    if not all([study_name, subject_id, session, modality]):
+        return False, &#34;Directory structure does not follow NRG format. Ensure StudyName, SubjectID, Session (ses_x), and Modality are correctly specified.&#34;
+    
+    # If all checks pass
+    return True, &#34;The path conforms to the NRG format.&#34;
 
 def get_antsimage_keys(dictionary):
     &#34;&#34;&#34;
@@ -363,11 +480,11 @@ def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None,
             imfns.append(&#39;nmid&#39; + str(i))
     elif locmod == &#39;rsfMRI&#39;:
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append(&#39;rsfid&#39; + str(i))
     elif locmod == &#39;DTI&#39;:
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append(&#39;dtid&#39; + str(i))
 
     # Process each file name
@@ -414,11 +531,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     &#34;&#34;&#34;
     if long:
-        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;func&#34;, &#34;perf&#34;]
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;rsfMRILR&#34;, &#34;rsfMRIRL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,  &#34;DTILR&#34;,&#34;DTIRL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;dwi_ap&#34;, &#34;dwi_pa&#34;, &#34;func&#34;, &#34;func_ap&#34;, &#34;func_pa&#34;, &#34;perf&#34;]
     elif qc:
-        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;, &#39;rsfMRI&#39;, &#34;perf&#34; ]
+        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39;, &#39;DTI&#39;, &#39;DTIdwi&#39;,&#39;DTIb0&#39;, &#39;rsfMRI&#39;, &#34;perf&#34; ]
     else:
-        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;DTI&#34;,&#34;T2Flair&#34;, &#34;rsfMRI&#34;, &#34;perf&#34;  ]
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;DTI&#34;,&#34;T2Flair&#34;, &#34;rsfMRI&#34;, &#34;perf&#34; ]
     if not asString:
         return mymod
     else:
@@ -492,15 +609,15 @@ def generate_mm_dataframe(
         raise ValueError(&#34;source_image_directory does not exist&#34;)
     if len( rsf_filenames ) &gt; 2:
         raise ValueError(&#34;len( rsf_filenames ) &gt; 2&#34;)
-    if len( dti_filenames ) &gt; 2:
-        raise ValueError(&#34;len( dti_filenames ) &gt; 2&#34;)
+    if len( dti_filenames ) &gt; 3:
+        raise ValueError(&#34;len( dti_filenames ) &gt; 3&#34;)
     if len( nm_filenames ) &gt; 11:
         raise ValueError(&#34;len( nm_filenames ) &gt; 11&#34;)
     if len( rsf_filenames ) &lt; 2:
         for k in range(len(rsf_filenames),2):
             rsf_filenames.append(None)
-    if len( dti_filenames ) &lt; 2:
-        for k in range(len(dti_filenames),2):
+    if len( dti_filenames ) &lt; 3:
+        for k in range(len(dti_filenames),3):
             dti_filenames.append(None)
     if len( nm_filenames ) &lt; 10:
         for k in range(len(nm_filenames),10):
@@ -576,7 +693,7 @@ def generate_mm_dataframe(
         &#39;perfid&#39;]
     mycols0 = corecols + [
         &#39;rsfid1&#39;, &#39;rsfid2&#39;,
-        &#39;dtid1&#39;, &#39;dtid2&#39;]
+        &#39;dtid1&#39;, &#39;dtid2&#39;,&#39;dtid3&#39;]
     nmext = [
         &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
         &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39;, &#39;nmid11&#39;
@@ -908,25 +1025,28 @@ def outlierness_by_modality( qcdf, uid=&#39;filename&#39;, outlier_columns = [&#
     from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
     qcdfout = qcdf.copy()
+    pd.set_option(&#39;future.no_silent_downcasting&#39;, True)
+    qcdfout.replace([np.inf, -np.inf], np.nan, inplace=True)
     if uid not in qcdfout.keys():
-        raise ValueError(uid + &#34; not in dataframe&#34;)
+        raise ValueError( str(uid) + &#34; not in dataframe&#34;)
     if &#39;ol_loop&#39; not in qcdfout.keys():
         qcdfout[&#39;ol_loop&#39;]=math.nan
     if &#39;ol_lof&#39; not in qcdfout.keys():
         qcdfout[&#39;ol_lof&#39;]=math.nan
+    didit=False
     for mod in get_valid_modalities( qc=True ):
+        didit=True
         lof = LocalOutlierFactor()
         locsel = qcdfout[&#34;modality&#34;] == mod
         rr = qcdfout[locsel][outlier_columns]
-        with pd.option_context(&#39;mode.use_inf_as_na&#39;, True):
-            for myolcol in outlier_columns:
-                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
+        column_means = rr.mean()
+        rr.fillna(column_means, inplace=True)
         if rr.shape[0] &gt; 1:
             if verbose:
-                print(mod)
+                print(&#34;calc: &#34; + mod + &#34; outlierness &#34; )
             myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
             temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
-            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp
+            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp.astype(&#39;float64&#39;)
             yhat = lof.fit_predict(rr)
             temp = lof.negative_outlier_factor_*(-1.0)
             temp = temp - temp.min()
@@ -934,6 +1054,8 @@ def outlierness_by_modality( qcdf, uid=&#39;filename&#39;, outlier_columns = [&#
             yhat[ yhat == -1] = 1 # these are outliers
             qcdfout.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
             qcdfout.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
+    if verbose:
+        print( didit )
     return qcdfout
 
 
@@ -1011,6 +1133,11 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn2&#39;].iloc[0]+iext) ))[0]
         if exists( dtfn2 ):
             dtList.append( dtfn2 )
+    if &#39;dtfn3&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid3&#39;].iloc[0]))
+        dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn3&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn3 ):
+            dtList.append( dtfn3 )
     if &#39;rsffn1&#39; in csvrow.keys():
         rsid=str(int(csvrow[&#39;rsfid1&#39;].iloc[0]))
         rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn1&#39;].iloc[0]+iext) ))[0]
@@ -1086,6 +1213,8 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     if qualityvar not in mxdfin.columns:
         raise ValueError(&#34;qualityvar not in dataframe&#34;)
 
+    mxdfin[qualityvar] = mxdfin[qualityvar].astype(float)
+
     vizzes = mxdfin[visitvar].unique()
     uids = mxdfin[idvar].unique()
     useit = np.zeros(mxdfin.shape[0], dtype=bool)
@@ -1122,40 +1251,48 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
     &#34;&#34;&#34;
     import pandas as pd
     import numpy as np
+    qc_dataframe[&#39;filename&#39;]=qc_dataframe[&#39;filename&#39;].astype(str)
+    qc_dataframe[&#39;ol_loop&#39;]=qc_dataframe[&#39;ol_loop&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof&#39;]=qc_dataframe[&#39;ol_lof&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof_decision&#39;]=qc_dataframe[&#39;ol_lof_decision&#39;].astype(float)
     mmdf = best_mmm( qc_dataframe, &#39;T1w&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     fldf = best_mmm( qc_dataframe, &#39;T2Flair&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     nmdf = best_mmm( qc_dataframe, &#39;NM2DMT&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     rsdf = best_mmm( qc_dataframe, &#39;rsfMRI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     dtdf = best_mmm( qc_dataframe, &#39;DTI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
-    mmdf[&#39;flairid&#39;] = np.nan
-    mmdf[&#39;flairfn&#39;] = np.nan
-    mmdf[&#39;flairloop&#39;] = np.nan
-    mmdf[&#39;flairlof&#39;] = np.nan
-    mmdf[&#39;dtid1&#39;] = np.nan
-    mmdf[&#39;dtfn1&#39;] = np.nan
-    mmdf[&#39;dtloop1&#39;] = np.nan
-    mmdf[&#39;dtlof1&#39;] = np.nan
-    mmdf[&#39;dtid2&#39;] = np.nan
-    mmdf[&#39;dtfn2&#39;] = np.nan
-    mmdf[&#39;dtloop2&#39;] = np.nan
-    mmdf[&#39;dtlof2&#39;] = np.nan
-    mmdf[&#39;rsfid1&#39;] = np.nan
-    mmdf[&#39;rsffn1&#39;] = np.nan
-    mmdf[&#39;rsfloop1&#39;] = np.nan
-    mmdf[&#39;rsflof1&#39;] = np.nan
-    mmdf[&#39;rsfid2&#39;] = np.nan
-    mmdf[&#39;rsffn2&#39;] = np.nan
-    mmdf[&#39;rsfloop2&#39;] = np.nan
-    mmdf[&#39;rsflof2&#39;] = np.nan
+    mmdf[&#39;flairid&#39;] = None
+    mmdf[&#39;flairfn&#39;] = None
+    mmdf[&#39;flairloop&#39;] = None
+    mmdf[&#39;flairlof&#39;] = None
+    mmdf[&#39;dtid1&#39;] = None
+    mmdf[&#39;dtfn1&#39;] = None
+    mmdf[&#39;dtntimepoints1&#39;] = 0
+    mmdf[&#39;dtloop1&#39;] = math.nan
+    mmdf[&#39;dtlof1&#39;] = math.nan
+    mmdf[&#39;dtid2&#39;] = None
+    mmdf[&#39;dtfn2&#39;] = None
+    mmdf[&#39;dtntimepoints2&#39;] = 0
+    mmdf[&#39;dtloop2&#39;] = math.nan
+    mmdf[&#39;dtlof2&#39;] = math.nan
+    mmdf[&#39;rsfid1&#39;] = None
+    mmdf[&#39;rsffn1&#39;] = None
+    mmdf[&#39;rsfntimepoints1&#39;] = 0
+    mmdf[&#39;rsfloop1&#39;] = math.nan
+    mmdf[&#39;rsflof1&#39;] = math.nan
+    mmdf[&#39;rsfid2&#39;] = None
+    mmdf[&#39;rsffn2&#39;] = None
+    mmdf[&#39;rsfntimepoints2&#39;] = 0
+    mmdf[&#39;rsfloop2&#39;] = math.nan
+    mmdf[&#39;rsflof2&#39;] = math.nan
     for k in range(1,11):
         myid=&#39;nmid&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid=&#39;nmfn&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid=&#39;nmloop&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = math.nan
         myid=&#39;nmlof&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = math.nan
     if verbose:
         print( mmdf.shape )
     for k in range(mmdf.shape[0]):
@@ -1164,12 +1301,13 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
                 progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
                 print( progger, end =&#34;...&#34;, flush=True)
         if dtdf is not None:
-            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (dtdf[outlier_column] &lt; 0.5)
+            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = dtdf[&#34;imageID&#34;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = dtdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = dtdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = float(dtdf[&#39;ol_lof_decision&#39;][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints1&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = dtdf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -1177,21 +1315,24 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = float(locdf[&#39;ol_lof_decision&#39;][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints1&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[0])
                 if locdf.shape[0] &gt; 1:
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = float(locdf[&#39;ol_lof_decision&#39;][locsel].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints2&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[1])
         if rsdf is not None:
-            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
+            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = rsdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = rsdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = float(rsdf[&#39;ol_lof_decision&#39;].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints1&#34;)] = float(rsdf[&#39;dimt&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -1199,22 +1340,24 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints1&#34;)] = float(locdf[&#39;dimt&#39;][locsel].values[0])
                 if locdf.shape[0] &gt; 1:
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints2&#34;)] = float(locdf[&#39;dimt&#39;][locsel].values[1])
 
         if fldf is not None:
             locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;filename&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = float(fldf[&#39;ol_lof_decision&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = fldf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -1222,9 +1365,9 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[0])
 
         if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
@@ -1232,15 +1375,39 @@ def match_modalities( qc_dataframe, unique_identifier=&#39;filename&#39;, outlie
                 locdf = nmdf[locsel]
                 for i in range(np.min( [10,locdf.shape[0]])):
                     nmid = &#34;nmid&#34;+str(i+1)
-                    mmdf[nmid].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    mmdf.loc[k,nmid] = locdf[&#39;imageID&#39;].iloc[i]
                     nmfn = &#34;nmfn&#34;+str(i+1)
-                    mmdf[nmfn].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    mmdf.loc[k,nmfn] = locdf[&#39;imageID&#39;].iloc[i]
                     nmloop = &#34;nmloop&#34;+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    mmdf.loc[k,nmloop] = locdf[outlier_column].iloc[i]
                     nmloop = &#34;nmlof&#34;+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf[&#39;ol_lof_decision&#39;].iloc[i]
+                    mmdf.loc[k,nmloop] = float(locdf[&#39;ol_lof_decision&#39;].iloc[i])
 
+    mmdf[&#39;rsf_total_timepoints&#39;]=mmdf[&#39;rsfntimepoints1&#39;]+mmdf[&#39;rsfntimepoints2&#39;]
+    mmdf[&#39;dt_total_timepoints&#39;]=mmdf[&#39;dtntimepoints1&#39;]+mmdf[&#39;dtntimepoints2&#39;]
     return mmdf
+
+
+def add_repeat_column(df, groupby_column):
+    &#34;&#34;&#34;
+    Adds a &#39;repeat&#39; column to the DataFrame that counts occurrences of each unique value
+    in the specified &#39;groupby_column&#39;. The count increments from 1 for each identical entry.
+    
+    Parameters:
+    - df: pandas DataFrame.
+    - groupby_column: The name of the column to group by and count repeats.
+    
+    Returns:
+    - Modified pandas DataFrame with an added &#39;repeat&#39; column.
+    &#34;&#34;&#34;
+    # Validate if the groupby_column exists in the DataFrame
+    if groupby_column not in df.columns:
+        raise ValueError(f&#34;Column &#39;{groupby_column}&#39; does not exist in the DataFrame.&#34;)
+    
+    # Count the occurrences of each unique value in the specified column and increment from 1
+    df[&#39;repeat&#39;] = df.groupby(groupby_column).cumcount() + 1
+    
+    return df
 
 def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, verbose=False):
     &#34;&#34;&#34;
@@ -1260,6 +1427,8 @@ def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, v
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     &#34;&#34;&#34;
+#    mmdf = mmdf.astype(str)
+    mmdf[outlier_column]=mmdf[outlier_column].astype(float)
     msel = mmdf[&#39;modality&#39;] == wmod
     if wmod == &#39;rsfMRI&#39;:
         msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39;
@@ -1272,34 +1441,44 @@ def best_mmm( mmdf, wmod, mysep=&#39;-&#39;, outlier_column=&#39;ol_loop&#39;, v
         msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
         msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
-        msel = msel1 | msel2 | msel3 | msel4
+        msel5 = mmdf[&#39;modality&#39;] == &#39;DTIb0&#39;
+        msel = msel1 | msel2 | msel3 | msel4 | msel5
     if sum(msel) == 0:
         return {&#39;raw&#39;: None, &#39;filt&#39;: None}
-    uids = list(mmdf[&#39;filename&#39;][msel])
-    metasub = mmdf[msel]
+    metasub = mmdf[msel].copy()
 
     if verbose:
         print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
 
-    metasub[&#39;subjectID&#39;]=math.nan
-    metasub[&#39;date&#39;]=math.nan
-    metasub[&#39;subjectIDdate&#39;]=math.nan
-    metasub[&#39;imageID&#39;]=math.nan
-    for k in range(len(uids)):
-        temp = uids[k].split( mysep )
-        metasub[&#39;subjectID&#39;].iloc[k] = temp[1]
-        metasub[&#39;date&#39;].iloc[k] = temp[2]
-        metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
-        metasub[&#39;imageID&#39;].iloc[k] = temp[4]
+    metasub[&#39;subjectID&#39;]=None
+    metasub[&#39;date&#39;]=None
+    metasub[&#39;subjectIDdate&#39;]=None
+    metasub[&#39;imageID&#39;]=None
+    metasub[&#39;negol&#39;]=math.nan
+    for k in metasub.index:
+        temp = metasub.loc[k, &#39;filename&#39;].split( mysep )
+        metasub.loc[k,&#39;subjectID&#39;] = str( temp[1] )
+        metasub.loc[k,&#39;date&#39;] = str( temp[2] )
+        metasub.loc[k,&#39;subjectIDdate&#39;] = str( temp[1] + mysep + temp[2] )
+        metasub.loc[k,&#39;imageID&#39;] = str( temp[4])
 
-    metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+
+    if &#39;ol_&#39; in outlier_column:
+        metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+    else:
+        metasub[&#39;negol&#39;] = metasub[outlier_column]
     if &#39;date&#39; not in metasub.keys():
-        metasub[&#39;date&#39;]=&#39;NA&#39;
-    metasubq = highest_quality_repeat(metasub, &#39;filename&#39;, &#39;date&#39;, &#39;negol&#39;)
+        metasub[&#39;date&#39;]=None
+    metasubq = add_repeat_column( metasub, &#39;subjectIDdate&#39; )
+    metasubq = highest_quality_repeat(metasubq, &#39;filename&#39;, &#39;date&#39;, &#39;negol&#39;)
 
     if verbose:
         print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
 
+#    metasub = metasub.astype(str)
+#    metasubq = metasubq.astype(str)
+    metasub[outlier_column]=metasub[outlier_column].astype(float)
+    metasubq[outlier_column]=metasubq[outlier_column].astype(float)
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}
 
 def mm_read( x, standardize_intensity=False, modality=&#39;&#39; ):
@@ -1710,10 +1889,12 @@ def merge_dwi_data( img_LRdwp, bval_LR, bvec_LR, img_RLdwp, bval_RL, bvec_RL ):
     bvec_RL : array
 
     &#34;&#34;&#34;
+    import warnings
     insamespace = ants.image_physical_space_consistency( img_LRdwp, img_RLdwp )
     if not insamespace :
-        raise ValueError(&#39;not insamespace ... corrected image pair should occupy the same physical space&#39;)
-
+        warnings.warn(&#39;not insamespace ... corrected image pair should occupy the same physical space; returning only the 1st set and wont join these data.&#39;)
+        return img_LRdwp, bval_LR, bvec_LR
+    
     bval_LR = np.concatenate([bval_LR,bval_RL])
     bvec_LR = np.concatenate([bvec_LR,bvec_RL])
     # concatenate the images
@@ -2482,7 +2663,7 @@ def template_figure_with_overlay(scalar_label_df, prefix, outputfilename=None, t
     toviz = temp[&#39;overlay&#39;]
     return { &#34;underlay&#34;: seggm, &#39;overlay&#39;: toviz, &#39;seg&#39;: tcrop  }
 
-def get_data( name=None, force_download=False, version=21, target_extension=&#39;.csv&#39; ):
+def get_data( name=None, force_download=False, version=23, target_extension=&#39;.csv&#39; ):
     &#34;&#34;&#34;
     Get ANTsPyMM data filename
 
@@ -2766,6 +2947,34 @@ def super_res_mcimage( image,
     return ants.list_to_ndimage( imageup, mcsr )
 
 
+def segment_timeseries_by_bvalue(bvals):
+    &#34;&#34;&#34;
+    Segments a time series based on a threshold applied to b-values.
+    
+    This function categorizes indices of the given b-values array into two groups:
+    one for indices where b-values are above a near-zero threshold, and another
+    where b-values are at or below this threshold. The threshold is set to 1e-12.
+    
+    Parameters:
+    - bvals (numpy.ndarray): An array of b-values.
+
+    Returns:
+    - dict: A dictionary with two keys, &#39;lowermeans&#39; and &#39;highermeans&#39;, each containing
+      the indices of bvals where the b-values are above and at/below the threshold, respectively.
+    &#34;&#34;&#34;
+    # Define the threshold
+    threshold = 1e-12
+    
+    # Get indices where b-values are greater than the threshold
+    lowermeans = list(np.where(bvals &gt; threshold)[0])
+    
+    # Get indices where b-values are less than or equal to the threshold
+    highermeans = list(np.where(bvals &lt;= threshold)[0])
+    
+    return {
+        &#39;lowermeans&#39;: lowermeans,
+        &#39;highermeans&#39;: highermeans
+    }
 
 def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
     &#34;&#34;&#34;
@@ -2824,7 +3033,7 @@ def get_average_rsf( x, min_t=10, max_t=35 ):
     if x.shape[3] &lt;= min_t:
         min_t=0
     if x.shape[3] &lt;= max_t:
-        max_t=x.shape[3]-1
+        max_t=x.shape[3]
     for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
@@ -3217,7 +3426,7 @@ def dipy_dti_recon(
         space as the image, we will resample directly to the image space.  This
         could lead to problems if the inputs are really incorrect.
 
-    b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+    b0_idx : the indices of the B0; if None, use segment_timeseries_by_bvalue
 
     mask_dilation : integer zero or more dilates the brain mask
 
@@ -3248,8 +3457,7 @@ def dipy_dti_recon(
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
-    if b0_idx is None:
-        b0_idx = segment_timeseries_by_meanvalue( image )[&#39;highermeans&#39;]
+    b0_idx = segment_timeseries_by_bvalue( bvals )[&#39;highermeans&#39;]
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod=&#39;bold&#39;
@@ -3459,6 +3667,9 @@ def joint_dti_recon(
     def fix_dwi_shape( img, bvalfn, bvecfn ):
         if isinstance(bvecfn, str):
             bvals, bvecs = read_bvals_bvecs( bvalfn , bvecfn   )
+        else:
+            bvals = bvalfn
+            bvecs = bvecfn
         if bvecs.shape[0] &lt; img.shape[3]:
             imgout = ants.from_numpy( img[:,:,:,0:bvecs.shape[0]] )
             imgout = ants.copy_image_info( img, imgout )
@@ -4513,7 +4724,7 @@ def get_rsf_outputs( coords ):
         return list( yeo[&#39;SystemName&#39;].unique() )
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
-    transform=[&#39;rigid&#39;], verbose=False ):
+    transform=[&#39;rigid&#39;], compreg=None, verbose=False ):
     &#34;&#34;&#34;
     multi-start multi-transform registration solution - based on ants.registration
 
@@ -4527,6 +4738,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
 
     transform : list of transforms to loop through
 
+    compreg : registration results against which to compare
+
     verbose : boolean
 
     &#34;&#34;&#34;
@@ -4535,15 +4748,20 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
         output_directory_w = output_directory + &#34;/tra_reg/&#34;
         os.makedirs(output_directory_w,exist_ok=True)
         bestmi = math.inf
+        bestvar = 0.0
         myorig = list(ants.get_origin( fixed ))
         mymax = 0;
         for k in range(len( myorig ) ):
             if abs(myorig[k]) &gt; mymax:
                 mymax = abs(myorig[k])
         maxtrans = mymax * 0.05
-        bestreg=ants.registration( fixed,moving,&#39;Translation&#39;,
-            outprefix=output_directory_w+&#34;trans&#34;)
-        initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
+        if compreg is None:
+            bestreg=ants.registration( fixed,moving,&#39;Translation&#39;,
+                outprefix=output_directory_w+&#34;trans&#34;)
+            initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
+        else :
+            bestreg=compreg
+            initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
         for mytx in transform:
             regtx = &#39;Rigid&#39;
             with tempfile.NamedTemporaryFile(suffix=&#39;.h5&#39;) as tp:
@@ -4580,6 +4798,9 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
                                 print( &#34;mi @ &#34; + str(k) + &#34; : &#34; + str(mymi), flush=True)
                             bestmi = mymi
                             bestreg = reg
+                            bestvar = myvar
+        if bestvar == 0.0 and compreg is not None:
+            return compreg        
         return bestreg
 
 def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
@@ -4761,7 +4982,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, verbose=verbose  )
+  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, compreg=slabreg,verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg[&#39;fwdtransforms&#39;] )
   tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated[&#39;fwdtransforms&#39;] )
   miUpdate = ants.image_mutual_information(
@@ -5336,7 +5557,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
         ptImage=ants.threshold_image( ptImg, pts2bold.loc[i,&#39;ROI&#39;], pts2bold.loc[i,&#39;ROI&#39;] )
     if debug:
       ptImgAll = ptImgAll + ptImage
-    meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
+    if ptImage.sum() &gt; 0 :
+        meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
 
   if debug:
       ants.image_write( simg, &#39;/tmp/simg.nii.gz&#39; )
@@ -5454,9 +5676,15 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fname=&#39;falffPoint&#39;+kk+anatname
     aname=&#39;alffPoint&#39;+kk+anatname
     pname=&#39;perafPoint&#39;+kk+anatname
-    outdict[fname]=(outdict[&#39;falff&#39;][ptImg==k]).mean()
-    outdict[aname]=(outdict[&#39;alff&#39;][ptImg==k]).mean()
-    outdict[pname]=(perafimg[ptImg==k]).mean()
+    localsel = ptImg == k
+    if localsel.sum() &gt; 0 : # check if non-empty
+        outdict[fname]=(outdict[&#39;falff&#39;][localsel]).mean()
+        outdict[aname]=(outdict[&#39;alff&#39;][localsel]).mean()
+        outdict[pname]=(perafimg[localsel]).mean()
+    else:
+        outdict[fname]=math.nan
+        outdict[aname]=math.nan
+        outdict[pname]=math.nan
 
   rsfNuisance = pd.DataFrame( nuisance )
   if remove_it:
@@ -5489,6 +5717,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict[&#39;despiking_count_summary&#39;] = despiking_count_summary
   outdict[&#39;FD_max&#39;] = corrmo[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = corrmo[&#39;FD&#39;].mean()
+  outdict[&#39;FD_sd&#39;] = corrmo[&#39;FD&#39;].std()
   outdict[&#39;bold_evr&#39;] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict[&#39;n_outliers&#39;] = len(hlinds)
   outdict[&#39;nc_wm&#39;] = int(nc_wm)
@@ -5565,11 +5794,18 @@ def despike_time_series_afni(image, c1=2.5, c2=4):
     residuals = data - curve
     mad = np.median(np.abs(residuals - np.median(residuals, axis=-1, keepdims=True)), axis=-1, keepdims=True)
     sigma = np.sqrt(np.pi / 2) * mad
+    # Ensure sigma is not zero to avoid division by zero
+    sigma_safe = np.where(sigma == 0, 1e-10, sigma)
+
+    # Optionally, handle NaN or inf values in data, curve, or sigma
+    data = np.nan_to_num(data, nan=0.0, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
+    curve = np.nan_to_num(curve, nan=0.0, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
+    sigma_safe = np.nan_to_num(sigma_safe, nan=1e-10, posinf=np.finfo(np.float64).max, neginf=np.finfo(np.float64).min)
 
     # Despike algorithm
     spike_counts = np.zeros( image.shape[3] )
     for i in range(data.shape[-1]):
-        s = (data[..., i] - curve[..., i]) / sigma[..., 0]
+        s = (data[..., i] - curve[..., i]) / sigma_safe[..., 0]
         ww = s &gt; c1
         s_prime = np.where( ww, c1 + (c2 - c1) * np.tanh((s - c1) / (c2 - c1)), s)
         spike_counts[i] = ww.sum()
@@ -5834,6 +6070,7 @@ def bold_perfusion_minimal(
   outdict[&#39;dvars&#39;] = dvars( corrmo[&#39;motion_corrected&#39;], gmseg )
   outdict[&#39;FD_max&#39;] = rsfNuisance[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = rsfNuisance[&#39;FD&#39;].mean()
+  outdict[&#39;FD_sd&#39;] = rsfNuisance[&#39;FD&#39;].std()
   outdict[&#39;outlier_volumes&#39;]=hlinds
   outdict[&#39;negative_voxels&#39;]=negative_voxels
   return convert_np_in_dict( outdict )
@@ -6240,6 +6477,7 @@ Where:
   outdict[&#39;high_motion_pct&#39;] = (rsfNuisance[&#39;FD&#39;] &gt; FD_threshold ).sum() / rsfNuisance.shape[0]
   outdict[&#39;FD_max&#39;] = rsfNuisance[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = rsfNuisance[&#39;FD&#39;].mean()
+  outdict[&#39;FD_sd&#39;] = rsfNuisance[&#39;FD&#39;].std()
   outdict[&#39;bold_evr&#39;] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict[&#39;t1reg&#39;] = t1reg
   outdict[&#39;outlier_volumes&#39;]=hlinds
@@ -6804,11 +7042,14 @@ def mm(
             normalization_dict[&#39;MD_norm&#39;] = ants.apply_transforms( group_template, mydti[&#39;recon_md&#39;],group_transform+dtirig[&#39;fwdtransforms&#39;] )
             normalization_dict[&#39;FA_norm&#39;] = ants.apply_transforms( group_template, mydti[&#39;recon_fa&#39;],group_transform+dtirig[&#39;fwdtransforms&#39;] )
             output_directory = tempfile.mkdtemp()
-            comptx = ants.apply_transforms( group_template, group_template, 
-                group_transform+dtirig[&#39;fwdtransforms&#39;], 
-                compose = output_directory + &#39;/xxx&#39; )
-            normalization_dict[&#39;DTI_norm&#39;] = transform_and_reorient_dti(
-                group_template, mydti[&#39;dti&#39;], comptx, py_based=True, verbose=True )
+            do_dti_norm=False
+            if do_dti_norm:
+                comptx = ants.apply_transforms( group_template, group_template, group_transform+dtirig[&#39;fwdtransforms&#39;], compose = output_directory + &#39;/xxx&#39; )
+                tspc=[2.,2.,2.]
+                if srmodel is not None:
+                    tspc=[1.,1.,1.]
+                group_template2mm = ants.resample_image( group_template, tspc  )
+                normalization_dict[&#39;DTI_norm&#39;] = transform_and_reorient_dti( group_template2mm, mydti[&#39;dti&#39;], comptx, py_based=True, verbose=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict[&#39;rsf&#39;] is not None:
@@ -6946,6 +7187,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator=&#39;_&#39
     if &#39;flair&#39; in mm:
         if mm[&#39;flair&#39;] is not None:
             myop = output_prefix + separator + &#39;wmh.nii.gz&#39;
+            pngfnb = output_prefix + separator + &#39;wmh_seg.png&#39;
+            ants.plot( mm[&#39;flair&#39;][&#39;flair&#39;], mm[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;], axis=2, nslices=21, ncol=7, filename=pngfnb, crop=True )
             if mm[&#39;flair&#39;][&#39;WMH_probability_map&#39;] is not None:
                 image_write_with_thumbnail( mm[&#39;flair&#39;][&#39;WMH_probability_map&#39;], myop, thumb=False )
             flwide = dict_to_dataframe( mm[&#39;flair&#39;] )
@@ -6993,9 +7236,10 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator=&#39;_&#39
                 mm_wide[&#39;dti_high_motion_count&#39;] =  mydti[&#39;high_motion_count&#39;]
                 mm_wide[&#39;dti_FD_mean&#39;] = mydti[&#39;framewise_displacement&#39;].mean()
                 mm_wide[&#39;dti_FD_max&#39;] = mydti[&#39;framewise_displacement&#39;].max()
+                mm_wide[&#39;dti_FD_sd&#39;] = mydti[&#39;framewise_displacement&#39;].std()
                 fdfn = output_prefix + separator + &#39;_fd.csv&#39;
             else:
-                mm_wide[&#39;dti_FD_mean&#39;] = mm_wide[&#39;dti_FD_max&#39;] = &#39;NA&#39;
+                mm_wide[&#39;dti_FD_mean&#39;] = mm_wide[&#39;dti_FD_max&#39;] = mm_wide[&#39;dti_FD_sd&#39;] = &#39;NA&#39;
 
     if &#39;perf&#39; in mm:
         if mm[&#39;perf&#39;] is not None:
@@ -7635,6 +7879,7 @@ def mm_csv(
     writes output to disk and produces figures
 
     &#34;&#34;&#34;
+    import traceback
     visualize = True
     verbose = True
     if verbose:
@@ -7892,9 +8137,11 @@ def mm_csv(
                             test_run=test_run,
                             verbose=True )
                     except Exception as e:
+                        error_info = traceback.format_exc()
+                        print(error_info)
                         visualize=False
                         dowrite=False
-                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                         pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
@@ -7948,9 +8195,11 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                     if visualize:
                                         maxslice = np.min( [21, hier[&#39;brain_n4_dnz&#39;].shape[2] ] )
@@ -7971,9 +8220,11 @@ def mm_csv(
                                         test_run=test_run,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
@@ -8008,11 +8259,13 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={&#39;rsf&#39;:None}
                                         normPro={&#39;rsf&#39;:None}
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if tabPro[&#39;rsf&#39;] is not None and visualize:
                                     for tpro in tabPro[&#39;rsf&#39;]: # FIXMERSF
@@ -8044,10 +8297,12 @@ def mm_csv(
                                         perfusion_m0=perfusion_m0,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={&#39;perf&#39;:None}
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if tabPro[&#39;perf&#39;] is not None and visualize:
                                     maxslice = np.min( [21, tabPro[&#39;perf&#39;][&#39;meanBold&#39;].shape[2] ] )
@@ -8064,7 +8319,7 @@ def mm_csv(
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
                                 missing_dti_data=False # bval, bvec or images
-                                if len( myimgsr ) &gt; 1:  # find DTI_RL
+                                if len( myimgsr ) == 2:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
                                         bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
@@ -8073,6 +8328,28 @@ def mm_csv(
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
+                                elif len( myimgsr ) == 3:  # find DTI_RL
+                                    print(&#34;DTI trinity&#34;)
+                                    dtilrfn = myimgsr[myimgcount+1]
+                                    dtilrfn2 = myimgsr[myimgcount+2]
+                                    if exists( dtilrfn ) and exists( dtilrfn2 ):
+                                        bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
+                                        bvecfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn )
+                                        bvalfnRL2 = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn2 )
+                                        bvecfnRL2 = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn2 )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgRL2 = ants.image_read( dtilrfn2 )
+                                        bvals, bvecs = read_bvals_bvecs( bvalfnRL , bvecfnRL  )
+                                        print( bvals.max() )
+                                        bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvals2.max() )
+                                        temp = merge_dwi_data( imgRL, bvals, bvecs, imgRL2, bvals2, bvecs2  )
+                                        imgList.append( temp[0] )
+                                        bvalfnList.append( mymm+mysep+&#39;joined.bval&#39; )
+                                        bvecfnList.append( mymm+mysep+&#39;joined.bvec&#39; )
+                                        write_bvals_bvecs( temp[1], temp[2], mymm+mysep+&#39;joined&#39; )
+                                        bvalsX, bvecsX = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvalsX.max() )
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
@@ -8112,10 +8389,12 @@ def mm_csv(
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                            error_info = traceback.format_exc()
+                                            print(error_info)
                                             visualize=False
                                             dowrite=False
                                             tabPro={&#39;DTI&#39;:None}
-                                            print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                            print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                             pass
                                     mydti = tabPro[&#39;DTI&#39;]
                                     if visualize and tabPro[&#39;DTI&#39;] is not None:
@@ -8762,6 +9041,7 @@ def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
     wmh_sum_aug = wmh_sum_aug / float( n_simulations )
     wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
     return{
+      &#39;flair&#39; : ants.iMath(flair,&#34;Normalize&#34;),
       &#39;WMH_probability_map&#39; : augprob,
       &#39;WMH_posterior_probability_map&#39; : augprob_prior,
       &#39;wmh_mass&#39;: wmh_sum_aug,
@@ -9194,6 +9474,7 @@ def blind_image_assessment(
     title=False,
     pull_rank=False,
     resample=None,
+    n_to_skip = 10,
     verbose=False
 ):
     &#34;&#34;&#34;
@@ -9223,6 +9504,8 @@ def blind_image_assessment(
 
     resample : None, numeric max or min, resamples image to isotropy
 
+    n_to_skip : 10 by default; samples time series every n_to_skip volume
+
     verbose : boolean
 
     &#34;&#34;&#34;
@@ -9234,6 +9517,7 @@ def blind_image_assessment(
     from pathlib import Path
     import json
     import re
+    from dipy.io.gradients import read_bvals_bvecs
     mystem=&#39;&#39;
     if isinstance(image,list):
         isfilename=isinstance( image[0], str)
@@ -9242,6 +9526,7 @@ def blind_image_assessment(
         isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    MagneticFieldStrength = None
     image_filename=&#39;&#39;
     if isfilename:
         image_filename = image
@@ -9249,10 +9534,14 @@ def blind_image_assessment(
             image_filename=image[0]
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
-            with open(json_name, &#39;r&#39;) as fcc_file:
-                mymeta = json.load(fcc_file, strict=False)
-                if verbose:
-                    print(json.dumps(mymeta, indent=4))
+            try:
+                with open(json_name, &#39;r&#39;) as fcc_file:
+                    mymeta = json.load(fcc_file)
+                    if verbose:
+                        print(json.dumps(mymeta, indent=4))
+                    fcc_file.close()
+            except:
+                pass
         mystem=Path( image ).stem
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
@@ -9260,6 +9549,7 @@ def blind_image_assessment(
     else:
         image_reference = ants.image_clone( image )
     ntimepoints = 1
+    bvalueMax=None
     if image_reference.dimension == 4:
         ntimepoints = image_reference.shape[3]
         if &#34;DTI&#34; in image_filename:
@@ -9267,11 +9557,16 @@ def blind_image_assessment(
             image_b0, image_dwi = get_average_dwi_b0( image_reference, fast=True )
             image_b0 = ants.iMath( image_b0, &#39;Normalize&#39; )
             image_dwi = ants.iMath( image_dwi, &#39;Normalize&#39; )
+            bval_name = re.sub(&#34;.nii.gz&#34;,&#34;.bval&#34;,image_filename)
+            bvec_name = re.sub(&#34;.nii.gz&#34;,&#34;.bvec&#34;,image_filename)
+            if exists( bval_name ) and exists( bvec_name ):
+                bvals, bvecs = read_bvals_bvecs( bval_name , bvec_name  )
+                bvalueMax = bvals.max()
         else:
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath(&#34;Normalize&#34;)
     else:
         image_compare = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
-    for jjj in range(ntimepoints):
+    for jjj in range(0,ntimepoints,n_to_skip):
         modality=&#39;unknown&#39;
         if &#34;rsfMRI&#34; in image_filename:
             modality=&#39;rsfMRI&#39;
@@ -9292,7 +9587,7 @@ def blind_image_assessment(
                     modality=&#39;DTIdwi&#39;
             else:
                 image_compare = ants.image_clone( image_b0 )
-        image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
+        # image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
         minspc = np.min(ants.get_spacing(image))
         maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
@@ -9324,69 +9619,76 @@ def blind_image_assessment(
         bgmsk = msk*0+1-msk
         mskdil = ants.iMath(msk, &#34;MD&#34;, 4 )
         # ants.plot_ortho( image, msk, crop=False )
-        image = ants.crop_image( image, mskdil ).iMath(&#34;Normalize&#34;)
-        msk = ants.crop_image( msk, mskdil ).iMath(&#34;Normalize&#34;)
-        bgmsk = ants.crop_image( bgmsk, mskdil ).iMath(&#34;Normalize&#34;)
-        image_compare = ants.crop_image( image_compare, mskdil ).iMath(&#34;Normalize&#34;)
         nvox = int( msk.sum() )
-        minshp = np.min( image.shape )
-        npatch = int( np.round(  0.1 * nvox ) )
-        npatch = np.min(  [512,npatch ] )
-        patch_shape = []
-        for k in range( 3 ):
-            p = int( 32.0 / ants.get_spacing( image  )[k] )
-            if p &gt; int( np.round( image.shape[k] * 0.5 ) ):
-                p = int( np.round( image.shape[k] * 0.5 ) )
-            patch_shape.append( p )
-        if verbose:
-            print(image)
-            print( patch_shape )
-            print( npatch )
-        myevr = math.nan # dont want to fail if something odd happens in patch extraction
-        try:
-            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
-                evdepth = 0.9, mask=msk )
-        except:
-            pass
-        if pull_rank:
-            image = ants.rank_intensity(image)
-        imagereflect = ants.reflect_image(image, axis=0)
-        asym_err = ( image - imagereflect ).abs().mean()
-        # estimate noise by center cropping, denoizing and taking magnitude of difference
-        nocrop=False
-        if image.dimension == 3:
-            if image.shape[2] == 1:
-                nocrop=True        
-        if maxspc/minspc &gt; 10:
-            nocrop=True
-        if nocrop:
-            mycc = ants.image_clone( image )
-        else:
-            mycc = antspyt1w.special_crop( image,
-                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
-        myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
-        noizlevel = ( mycc - myccd ).abs().mean()
-#        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-#        from brisque import BRISQUE
-#        obj = BRISQUE(url=False)
-#        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
         spc = ants.get_spacing( image )
         org = ants.get_origin( image )
-        msk_vol = msk.sum() * np.prod( spc )
-        bgstd = image[ bgmsk == 1 ].std()
-        fgmean = image[ msk == 1 ].mean()
-        bgmean = image[ bgmsk == 1 ].mean()
-        snrref = fgmean / bgstd
-        cnrref = ( fgmean - bgmean ) / bgstd
-        psnrref = antspynet.psnr(  image_compare, image  )
-        ssimref = antspynet.ssim(  image_compare, image  )
-        if nocrop:
-            mymi = math.inf
+        if ( nvox &gt; 0 ):
+            image = ants.crop_image( image, mskdil ).iMath(&#34;Normalize&#34;)
+            msk = ants.crop_image( msk, mskdil ).iMath(&#34;Normalize&#34;)
+            bgmsk = ants.crop_image( bgmsk, mskdil ).iMath(&#34;Normalize&#34;)
+            image_compare = ants.crop_image( image_compare, mskdil ).iMath(&#34;Normalize&#34;)           
+            npatch = int( np.round(  0.1 * nvox ) )
+            npatch = np.min(  [512,npatch ] )
+            patch_shape = []
+            for k in range( 3 ):
+                p = int( 32.0 / ants.get_spacing( image  )[k] )
+                if p &gt; int( np.round( image.shape[k] * 0.5 ) ):
+                    p = int( np.round( image.shape[k] * 0.5 ) )
+                patch_shape.append( p )
+            if verbose:
+                print(image)
+                print( patch_shape )
+                print( npatch )
+            myevr = math.nan # dont want to fail if something odd happens in patch extraction
+            try:
+                myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
+                    evdepth = 0.9, mask=msk )
+            except:
+                pass
+            if pull_rank:
+                image = ants.rank_intensity(image)
+            imagereflect = ants.reflect_image(image, axis=0)
+            asym_err = ( image - imagereflect ).abs().mean()
+            # estimate noise by center cropping, denoizing and taking magnitude of difference
+            nocrop=False
+            if image.dimension == 3:
+                if image.shape[2] == 1:
+                    nocrop=True        
+            if maxspc/minspc &gt; 10:
+                nocrop=True
+            if nocrop:
+                mycc = ants.image_clone( image )
+            else:
+                mycc = antspyt1w.special_crop( image,
+                    ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+            myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
+            noizlevel = ( mycc - myccd ).abs().mean()
+    #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    #        from brisque import BRISQUE
+    #        obj = BRISQUE(url=False)
+    #        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
+            msk_vol = msk.sum() * np.prod( spc )
+            bgstd = image[ bgmsk == 1 ].std()
+            fgmean = image[ msk == 1 ].mean()
+            bgmean = image[ bgmsk == 1 ].mean()
+            snrref = fgmean / bgstd
+            cnrref = ( fgmean - bgmean ) / bgstd
+            psnrref = antspynet.psnr(  image_compare, image  )
+            ssimref = antspynet.ssim(  image_compare, image  )
+            if nocrop:
+                mymi = math.inf
+            else:
+                mymi = ants.image_mutual_information( image_compare, image )
         else:
-            mymi = ants.image_mutual_information( image_compare, image )
-        mriseries=&#39;NA&#39;
-        mrimfg=&#39;NA&#39;
-        mrimodel=&#39;NA&#39;
+            msk_vol = 0
+            myevr = mymi = ssimref = psnrref = cnrref = asym_err = noizlevel = math.nan
+            
+        mriseries=None
+        mrimfg=None
+        mrimodel=None
+        mriSAR=None
+        BandwidthPerPixelPhaseEncode=None
+        PixelBandwidth=None
         if mymeta is not None:
             # mriseries=mymeta[&#39;&#39;]
             try:
@@ -9397,13 +9699,39 @@ def blind_image_assessment(
                 mrimodel=mymeta[&#39;ManufacturersModelName&#39;]
             except:
                 pass
+            try:
+                MagneticFieldStrength=mymeta[&#39;MagneticFieldStrength&#39;]
+            except:
+                pass
+            try:
+                PixelBandwidth=mymeta[&#39;PixelBandwidth&#39;]
+            except:
+                pass
+            try:
+                BandwidthPerPixelPhaseEncode=mymeta[&#39;BandwidthPerPixelPhaseEncode&#39;]
+            except:
+                pass
+            try:
+                mriSAR=mymeta[&#39;SAR&#39;]
+            except:
+                pass
         ttl=mystem + &#39; &#39;
         ttl=&#39;&#39;
         ttl=ttl + &#34;NZ: &#34; + &#34;{:0.4f}&#34;.format(noizlevel) + &#34; SNR: &#34; + &#34;{:0.4f}&#34;.format(snrref) + &#34; CNR: &#34; + &#34;{:0.4f}&#34;.format(cnrref) + &#34; PS: &#34; + &#34;{:0.4f}&#34;.format(psnrref)+ &#34; SS: &#34; + &#34;{:0.4f}&#34;.format(ssimref) + &#34; EVR: &#34; + &#34;{:0.4f}&#34;.format(myevr)+ &#34; MI: &#34; + &#34;{:0.4f}&#34;.format(mymi)
-        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
+        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ) and image.shape[2] &lt; 685:
             viz_filename_use = re.sub( &#34;.png&#34;, &#34;_slice&#34;+str(jjj).zfill(4)+&#34;.png&#34;, viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor=&#39;red&#39; )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;filename&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
+        df = pd.DataFrame([[ 
+            mystem, 
+            image_reference.dimension, 
+            noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, 
+            spc[0], spc[1], spc[2],org[0], org[1], org[2], 
+            image.shape[0], image.shape[1], image.shape[2], ntimepoints, 
+            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode, bvalueMax ]], 
+            columns=[
+                &#39;filename&#39;, 
+                &#39;dimensionality&#39;,
+                &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;dimt&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;, &#39;mriMagneticFieldStrength&#39;, &#39;mriSAR&#39;, &#39;mriPixelBandwidth&#39;, &#39;mriPixelBandwidthPE&#39;, &#39;dti_bvalueMax&#39; ])
         outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
@@ -9412,6 +9740,29 @@ def blind_image_assessment(
         outdf.to_csv( csvfn )
     return outdf
 
+def remove_unwanted_columns(df):
+    # Identify columns to drop: those named &#39;X&#39; or starting with &#39;Unnamed&#39;
+    cols_to_drop = [col for col in df.columns if col == &#39;X&#39; or col.startswith(&#39;Unnamed&#39;)]
+    
+    # Drop the identified columns from the DataFrame, if any
+    df_cleaned = df.drop(columns=cols_to_drop, errors=&#39;ignore&#39;)
+    
+    return df_cleaned
+
+def process_dataframe_generalized(df, group_by_column):
+    # Make sure the group_by_column is excluded from both numeric and other columns calculations
+    numeric_cols = df.select_dtypes(include=&#39;number&#39;).columns.difference([group_by_column])
+    other_cols = df.columns.difference(numeric_cols).difference([group_by_column])
+    
+    # Define aggregation functions: mean for numeric cols, mode for other cols
+    # Update to handle empty mode results safely
+    agg_dict = {col: &#39;mean&#39; for col in numeric_cols}
+    agg_dict.update({
+        col: lambda x: pd.Series.mode(x).iloc[0] if not pd.Series.mode(x).empty else None for col in other_cols
+    })    
+    # Group by the specified column, applying different aggregation functions to different columns
+    processed_df = df.groupby(group_by_column, as_index=False).agg(agg_dict)
+    return processed_df
 
 def average_blind_qc_by_modality(qc_full,verbose=False):
     &#34;&#34;&#34;
@@ -9423,21 +9774,14 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
     Returns:
     pandas dataframe containing the processed qc data.
     &#34;&#34;&#34;
+    qc_full = remove_unwanted_columns( qc_full )
     # Get unique modalities
     modalities = qc_full[&#39;modality&#39;].unique()
     modalities = modalities[modalities != &#39;unknown&#39;]
-    # Get modalities to select
-    m0sel = qc_full[&#39;modality&#39;].isin(modalities)
     # Get unique ids
-    uid = qc_full[&#39;filename&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
+    uid = qc_full[&#39;filename&#39;]
     to_average = uid.unique()
-    # Define column indices
-    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;, &#39;dimx&#39;, &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
-    ocols = [&#39;filename&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
-    # restrict to columns we &#34;know&#34;
-    qc_full = qc_full[ocols+contcols]
-    # Create empty meta dataframe
-    meta = pd.DataFrame(columns=ocols+contcols)
+    meta = pd.DataFrame(columns=qc_full.columns )
     # Process each unique id
     n = len(to_average)
     for k in range(n):
@@ -9449,15 +9793,11 @@ def average_blind_qc_by_modality(qc_full,verbose=False):
         if sum(m1sel) &gt; 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
+            mfsub = process_dataframe_generalized(qc_full[m1sel],&#39;filename&#39;)
+        else:
             mfsub = qc_full[m1sel]
-            if mfsub.shape[0] &gt; 1:
-                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
-                meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
-                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
-        elif sum(m1sel) == 1:
-            # If only one entry for id, just copy the entry
-            mfsub = qc_full[m1sel]
-            meta.loc[k] = mfsub.iloc[0]
+        meta.loc[k] = mfsub.iloc[0]
+    meta[&#39;modality&#39;] = meta[&#39;modality&#39;].replace([&#39;DTIdwi&#39;, &#39;DTIb0&#39;], &#39;DTI&#39;, regex=True)
     return meta
 
 def wmh( flair, t1, t1seg,
@@ -9908,6 +10248,10 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=False):
     Returns:
     tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     &#34;&#34;&#34;
+    import warnings
+    if x.shape[3] &lt; 20: # just a guess at what we need here ...
+        warnings.warn(&#34;Warning: the time dimension is &lt; 20 - too few samples for loop. just return the original data.&#34;)
+        return x, []
     if mask is None:
         flattened_series = flatten_time_series(x.numpy())
     else:
@@ -10086,15 +10430,14 @@ def novelty_detection_quantile(df_train, df_test):
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
 
-
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap=&#39;bwr&#39;, nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=True, verbose=False ):
+def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap=&#39;bwr&#39;, nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=False ):
     &#34;&#34;&#34;
     Create figures based on statistical data and an underlying brain image.
 
     Assumes both ~/.antspyt1w and ~/.antspymm data is available
 
     Parameters:
-    - statistical_df (pandas dataframe): with 2 columns named anat and value
+    - statistical_df (pandas dataframe): with 2 columns named anat and values
         the anat column should have names that meet *partial matching* criterion 
         with respect to regions that are measured in antspymm.   value will be 
         the value to be displayed.   if two examples of a given region exist in 
@@ -10109,12 +10452,13 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     - black_bg (bool): boolean
     - axes (list): integer list typically [0,1,2] sagittal coronal axial
     - fixed_overlay_range (list): scalar pair will try to keep a constant cbar and will truncate the overlay at these min/max values
-    - crop (bool): crops the image to display by the extent of the overlay
+    - crop (int): crops the image to display by the extent of the overlay; larger values dilate the masks more.
     - verbose (bool): boolean
 
     Returns:
     an image with values mapped to the associated regions
     &#34;&#34;&#34;
+    import re
 
     # Read the statistical file
     zz = statistical_df 
@@ -10129,13 +10473,13 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
         edgeimg = ants.iMath( edgeimg, &#34;MD&#34;, edge_image_dilation)
 
     # Define lists and data frames
-    postfix = [&#39;bf&#39;, &#39;deep_cit168lab&#39;, &#39;mtl&#39;, &#39;cerebellum&#39;, &#39;dkt_cortex&#39;,&#39;brainstem&#39;]
-    atlas = [&#39;BF&#39;, &#39;CIT168&#39;, &#39;MTL&#39;, &#39;TustisonCobra&#39;, &#39;desikan-killiany-tourville&#39;,&#39;brainstem&#39;]
-    postdesc = [&#39;nbm3CH13&#39;, &#39;CIT168_Reinf_Learn_v1_label_descriptions_pad&#39;, &#39;mtl_description&#39;, &#39;cerebellum&#39;, &#39;dkt&#39;,&#39;CIT168_T1w_700um_pad_adni_brainstem&#39;]
+    postfix = [&#39;bf&#39;, &#39;cit168lab&#39;, &#39;mtl&#39;, &#39;cerebellum&#39;, &#39;dkt_cortex&#39;,&#39;brainstem&#39;,&#39;JHU_wm&#39;,&#39;yeo&#39;]
+    atlas = [&#39;BF&#39;, &#39;CIT168&#39;, &#39;MTL&#39;, &#39;TustisonCobra&#39;, &#39;desikan-killiany-tourville&#39;,&#39;brainstem&#39;,&#39;JHU_wm&#39;,&#39;yeo&#39;]
+    postdesc = [&#39;nbm3CH13&#39;, &#39;CIT168_Reinf_Learn_v1_label_descriptions_pad&#39;, &#39;mtl_description&#39;, &#39;cerebellum&#39;, &#39;dkt&#39;,&#39;CIT168_T1w_700um_pad_adni_brainstem&#39;,&#39;FA_JHU_labels_edited&#39;,&#39;ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic&#39;]
     statdf = pd.DataFrame({&#39;img&#39;: postfix, &#39;atlas&#39;: atlas, &#39;csvdescript&#39;: postdesc})
     templateprefix = &#39;~/.antspymm/PPMI_template0_&#39;
     # Iterate through columns and create figures
-    col2viz = &#39;value&#39;
+    col2viz = &#39;values&#39;
     if True:
         anattoshow = zz[&#39;anat&#39;].unique()
         if verbose:
@@ -10147,21 +10491,70 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             if verbose:
                 print(str(k) +  &#34; &#34; + anattoshow[k]  )
             mysub = zz[zz[&#39;anat&#39;].str.contains(anattoshow[k])]
+            anatsear=re.sub(&#34;dti.fa&#34;,&#34;&#34;,anattoshow[k])
+            anatsear=re.sub(&#34;t1.volasym&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;t1.thkasym&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;t1.areaasym&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;t1.vol.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;t1.thk.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;t1.area.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;asymdp.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;asym.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;dti.md.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;dti.fa.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;dti.md&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;dti.mean.md.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;dti.mean.fa.&#34;,&#34;&#34;,anatsear)
+            anatsear=re.sub(&#34;lravg&#34;,&#34;&#34;,anatsear)
+            atlassearch = mydict[&#39;tidynames&#39;].str.contains(anatsear)
+            if atlassearch.sum() &gt; 0:
+                whichatlas = mydict[atlassearch][&#39;Atlas&#39;].iloc[0]
+                oglabelname = mydict[atlassearch][&#39;Label&#39;].iloc[0]
+            else:
+                print(anatsear)
+                oglabelname=&#39;unknown&#39;
+                whichatlas=None
+            if verbose:
+                print(&#34;oglabelname &#34; + oglabelname )
             vals2viz = mysub[col2viz].agg([&#39;min&#39;, &#39;max&#39;])
             vals2viz = vals2viz[abs(vals2viz).idxmax()]
             myext = None
             if &#39;dktcortex&#39; in anattoshow[k]:
                 myext = &#39;dkt_cortex&#39;
             elif &#39;cit168&#39; in anattoshow[k]:
-                myext = &#39;deep_cit168lab&#39;
+                myext = &#39;cit168lab&#39;
             elif &#39;mtl&#39; in anattoshow[k]:
                 myext = &#39;mtl&#39;
+                oglabelname=re.sub(&#39;mtl&#39;, &#39;&#39;,anatsear)
             elif &#39;cerebellum&#39; in anattoshow[k]:
                 myext = &#39;cerebellum&#39;
+                oglabelname=re.sub(&#39;cerebellum&#39;, &#39;&#39;,anatsear)
+                # oglabelname=oglabelname[2:]
             elif &#39;brainstem&#39; in anattoshow[k]:
                 myext = &#39;brainstem&#39;
             elif any(item in anattoshow[k] for item in [&#39;nbm&#39;, &#39;bf&#39;]):
                 myext = &#39;bf&#39;
+                oglabelname=re.sub(r&#39;\.&#39;, &#39;_&#39;,anatsear)
+            elif whichatlas == &#39;johns hopkins white matter&#39;:
+                myext = &#39;JHU_wm&#39;
+            elif whichatlas == &#39;desikan-killiany-tourville&#39;:
+                myext = &#39;dkt_cortex&#39;
+            elif whichatlas == &#39;CIT168&#39;:
+                myext = &#39;cit168lab&#39;
+            elif whichatlas == &#39;BF&#39;:
+                myext = &#39;bf&#39;
+                oglabelname=re.sub(&#39;bf&#39;, &#39;&#39;,oglabelname)
+            elif whichatlas == &#39;yeo_homotopic&#39;:
+                myext = &#39;yeo&#39;
+            if myext is None and verbose:
+                print( &#34;MYEXT &#34; + anattoshow[k] + &#39; unfound &#39; + whichatlas )
+            else:
+                if verbose:
+                    print( &#34;MYEXT &#34; + myext )
+
+            if myext == &#39;cit168lab&#39;:
+                oglabelname=re.sub(&#34;cit168&#34;,&#34;&#34;,oglabelname)
+            
             for j in postfix:
                 if j == &#34;dkt_cortex&#34;:
                     j = &#39;dktcortex&#39;
@@ -10175,30 +10568,86 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             locfilename =  templateprefix + myext + &#39;.nii.gz&#39;
             if verbose:
                 print( locfilename )
-            myatlas = ants.image_read(locfilename)
-            atlasDescript = pd.read_csv(f&#34;~/.antspyt1w/{correctdescript}.csv&#34;)
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.lower()
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34; &#34;, &#34;_&#34;)
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_left_&#34;, &#34;_&#34;)
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_right_&#34;, &#34;_&#34;)
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_left&#34;, &#34;&#34;)
-            atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_right&#34;, &#34;&#34;)
+            if myext == &#39;yeo&#39;:
+                oglabelname=oglabelname.lower()
+                oglabelname=re.sub(&#34;rsfmri_fcnxpro122_&#34;,&#34;&#34;,oglabelname)
+                oglabelname=re.sub(&#34;rsfmri_fcnxpro129_&#34;,&#34;&#34;,oglabelname)
+                oglabelname=re.sub(&#34;rsfmri_fcnxpro134_&#34;,&#34;&#34;,oglabelname)
+                locfilename = &#34;~/.antspymm/ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic.nii.gz&#34;
+                atlasDescript = pd.read_csv(f&#34;~/.antspymm/{correctdescript}.csv&#34;)
+                atlasDescript.rename(columns={&#39;SystemName&#39;: &#39;Description&#39;}, inplace=True)
+                atlasDescript.rename(columns={&#39;ROI&#39;: &#39;Label&#39;}, inplace=True)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.lower()
+            else:
+                atlasDescript = pd.read_csv(f&#34;~/.antspyt1w/{correctdescript}.csv&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.lower()
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34; &#34;, &#34;_&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_left_&#34;, &#34;_&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_right_&#34;, &#34;_&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_left&#34;, &#34;&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;_right&#34;, &#34;&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;left_&#34;, &#34;&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;right_&#34;, &#34;&#34;)
+                atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;/&#34;,&#34;.&#34;)
+                if myext == &#39;JHU_wm&#39;:
+                    atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;fa-&#34;, &#34;&#34;)
+                    atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;-left-&#34;, &#34;&#34;)
+                    atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;-right-&#34;, &#34;&#34;)
+                if myext == &#39;cerebellum&#39;:
+                    atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;l_&#34;, &#34;&#34;)
+                    atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;r_&#34;, &#34;&#34;)
+
+            if verbose:
+                print( atlasDescript )
+            oglabelname = oglabelname.lower()
+            oglabelname = re.sub(&#34; &#34;, &#34;_&#34;,oglabelname)
+            oglabelname = re.sub(&#34;_left_&#34;, &#34;_&#34;,oglabelname)
+            oglabelname = re.sub(&#34;_right_&#34;, &#34;_&#34;,oglabelname)
+            oglabelname = re.sub(&#34;_left&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;_right&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;t1hier_vol_&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;t1hier_area_&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;t1hier_thk_&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;dktregions&#34;, &#34;&#34;,oglabelname)
+            oglabelname = re.sub(&#34;dktcortex&#34;, &#34;&#34;,oglabelname)
+            if myext == &#39;JHU_wm&#39;:
+                oglabelname = re.sub(&#34;dti_mean_fa.&#34;, &#34;&#34;,oglabelname)
+                oglabelname = re.sub(&#34;dti_mean_md.&#34;, &#34;&#34;,oglabelname)
+                oglabelname = re.sub(&#34;.left.&#34;, &#34;&#34;,oglabelname)
+                oglabelname = re.sub(&#34;.right.&#34;, &#34;&#34;,oglabelname)
+                oglabelname = re.sub(&#34;.lravg.&#34;, &#34;&#34;,oglabelname)
+                oglabelname = re.sub(&#34;.asym.&#34;, &#34;&#34;,oglabelname)
+
+            if verbose:
+                print(&#34;oglabelname &#34; + oglabelname )
+
             if myext == &#39;cerebellum&#39;:
                 atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;l_&#34;, &#34;&#34;)
                 atlasDescript[&#39;Description&#39;] = atlasDescript[&#39;Description&#39;].str.replace(&#34;r_&#34;, &#34;&#34;)
-                whichindex = atlasDescript.index[atlasDescript[&#39;Description&#39;] == anattoshow[k]].values[0]
+                whichindex = atlasDescript.index[atlasDescript[&#39;Description&#39;] == oglabelname].values[0]
             else:
-                whichindex = atlasDescript.index[atlasDescript[&#39;Description&#39;].str.contains(anattoshow[k])]
+                whichindex = atlasDescript.index[atlasDescript[&#39;Description&#39;].str.contains(oglabelname)]
 
             if type(whichindex) is np.int64:
                 labelnums = atlasDescript.loc[whichindex, &#39;Label&#39;]
             else:
                 labelnums = list(atlasDescript.loc[whichindex, &#39;Label&#39;])
+
+            if myext == &#39;yeo&#39;:
+                parts = re.findall(r&#39;\D+&#39;, oglabelname)
+                oglabelname = [part.replace(&#39;_&#39;, &#39;&#39;) for part in parts if part.replace(&#39;_&#39;, &#39;&#39;)]
+                filtered_df = atlasDescript[atlasDescript[&#39;Description&#39;].isin(oglabelname)]
+                labelnums = filtered_df[&#39;Label&#39;].tolist()
+
             if not isinstance(labelnums, list):
                 labelnums=[labelnums]
             addemiszero = ants.threshold_image(addem, 0, 0)
             temp = ants.image_read(locfilename)
             temp = ants.mask_image(temp, temp, level=labelnums, binarize=True)
+            if verbose:
+                print(&#34;DEBUG&#34;)
+                print(  temp.sum() ) 
+                print( labelnums )
             temp[temp == 1] = (vals2viz)
             temp[addemiszero == 0] = 0
             addem = addem + temp
@@ -10207,8 +10656,8 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             print(&#39;Done Adding&#39;)
         for axx in axes:
             figfn=output_prefix+f&#34;fig{col2viz}ax{axx}_py.jpg&#34;
-            if crop:
-                cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath(&#34;MD&#34;,3) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath(&#34;MD&#34;,3)
+            if crop &gt; 0:
+                cmask = ants.threshold_image( addem,1e-5, 1e9 ).iMath(&#34;MD&#34;,crop) + ants.threshold_image( addem,-1e9, -1e-5 ).iMath(&#34;MD&#34;,crop)
                 addemC = ants.crop_image( addem, cmask )
                 edgeimgC = ants.crop_image( edgeimg, cmask )
             else:
@@ -10227,7 +10676,6 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     if verbose:
         print(&#34;DONE brain map figures&#34;)
     return addem
-
 
 def filter_df(indf, myprefix):
     &#34;&#34;&#34;
@@ -10402,6 +10850,27 @@ def aggregate_antspymm_results(input_csv, subject_col=&#39;subjectID&#39;, date_
     df=df.drop(badnames, axis=1)
     return( df )
 
+def find_most_recent_file(file_list):
+    &#34;&#34;&#34;
+    Finds and returns the most recently modified file from a list of file paths.
+    
+    Parameters:
+    - file_list: A list of strings, where each string is a path to a file.
+    
+    Returns:
+    - The path to the most recently modified file in the list, or None if the list is empty or contains no valid files.
+    &#34;&#34;&#34;
+    # Filter out items that are not files or do not exist
+    valid_files = [f for f in file_list if os.path.isfile(f)]
+    
+    # Check if the filtered list is not empty
+    if valid_files:
+        # Find the file with the latest modification time
+        most_recent_file = max(valid_files, key=os.path.getmtime)
+        return [most_recent_file]
+    else:
+        return None
+    
 def aggregate_antspymm_results_sdf(
     study_df, 
     project_col=&#39;projectID&#39;,
@@ -10480,8 +10949,6 @@ def aggregate_antspymm_results_sdf(
     # Warning message for untested function
     warnings.warn(&#34;Warning: This function is not well tested. Use with caution.&#34;)
 
-    # if valid_modalities is None:
-    valid_modalities = get_valid_modalities(&#39;long&#39;)
     vmoddict = {}
     # Add key-value pairs
     vmoddict[&#39;imageID&#39;] = &#39;T1w&#39;
@@ -10610,8 +11077,8 @@ def aggregate_antspymm_results_sdf(
                 t1wfn = sorted( glob( modsearch ) )
                 if len( t1wfn ) &gt; 1:
                     nlarge = len(t1wfn)
-                    t1wfn = [ t1wfn[ len(t1wfn)-1 ] ]
-                    warnings.warn(&#34;there are &#34; + str( nlarge ) + &#34; number of wide fns with search path &#34; + modsearch + &#34; we take the last of these &#34; + t1wfn[0] )
+                    t1wfn = find_most_recent_file( t1wfn )
+                    warnings.warn(&#34;there are &#34; + str( nlarge ) + &#34; number of wide fns with search path &#34; + modsearch + &#34; we take the most recent of these &#34; + t1wfn[0] )
 #                    raise ValueError(&#34;there are &#34; + str( len( t1wfn ) ) + &#34; number of wide fns with search path &#34; + modsearch )
                 if len( t1wfn ) == 1:
                     if verbose:
@@ -10726,7 +11193,280 @@ def filter_image_files(image_paths, criteria=&#39;largest&#39;):
     else:
         raise ValueError(&#34;Criteria must be &#39;smallest&#39;, &#39;largest&#39;, or &#39;brightest&#39;.&#34;)
 
-    return selected_image_path</code></pre>
+    return selected_image_path
+
+
+
+def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix=&#39;matched_&#39;, exclude_columns=None):
+    &#34;&#34;&#34;
+    Match each row in df_a to a row in df_b based on a matching column and criteria for selecting the best match,
+    with options to prefix column names from df_b and exclude certain columns from the final output. Additionally,
+    returns a DataFrame containing rows from df_b that were not matched to any row in df_a.
+
+    Parameters:
+    - df_a: DataFrame A.
+    - df_b: DataFrame B.
+    - match_column: The column name on which rows should match between DataFrame A and B.
+    - criteria: A dictionary where keys are column names and values are &#39;min&#39; or &#39;max&#39;, indicating whether
+                the column should be minimized or maximized for the best match.
+    - prefix: A string prefix to add to column names from df_b in the final output to avoid duplication.
+    - exclude_columns: A list of column names from df_b to exclude from the final output.
+    
+    Returns:
+    - A tuple of two DataFrames: 
+        1. A new DataFrame combining df_a with matched rows from df_b.
+        2. A DataFrame containing rows from df_b that were not matched to df_a.
+    &#34;&#34;&#34;
+    from scipy.stats import zscore
+    df_a = df_a.loc[:, ~df_a.columns.str.startswith(&#39;Unnamed:&#39;)]
+    df_b = df_b.loc[:, ~df_b.columns.str.startswith(&#39;Unnamed:&#39;)].copy()
+    
+    # Normalize df_b based on criteria
+    for col, crit in criteria.items():
+        if crit == &#39;max&#39;:
+            df_b.loc[df_b.index, f&#39;score_{col}&#39;] = zscore(-df_b[col])
+        elif crit == &#39;min&#39;:
+            df_b.loc[df_b.index, f&#39;score_{col}&#39;] = zscore(df_b[col])
+
+    # Calculate &#39;best_score&#39; by summing all score columns
+    score_columns = [f&#39;score_{col}&#39; for col in criteria.keys()]
+    df_b[&#39;best_score&#39;] = df_b[score_columns].sum(axis=1)
+
+    matched_indices = []  # Track indices of matched rows in df_b
+
+    # Match rows
+    matched_rows = []
+    for _, row_a in df_a.iterrows():
+        matches = df_b[df_b[match_column] == row_a[match_column]]
+        if not matches.empty:
+            best_idx = matches[&#39;best_score&#39;].idxmin()
+            best_match = matches.loc[best_idx]
+            matched_indices.append(best_idx)  # Track this index as matched
+            matched_rows.append(best_match)
+        else:
+            matched_rows.append(pd.Series(dtype=&#39;float64&#39;))
+
+    # Create a DataFrame from matched rows
+    df_matched = pd.DataFrame(matched_rows).reset_index(drop=True)
+    
+    # Exclude specified columns and add prefix
+    if exclude_columns is not None:
+        df_matched = df_matched.drop(columns=exclude_columns, errors=&#39;ignore&#39;)
+    df_matched = df_matched.rename(columns=lambda x: f&#34;{prefix}{x}&#34; if x != match_column and x in df_matched.columns else x)
+
+    # Combine df_a with matched rows from df_b
+    result_df = pd.concat([df_a.reset_index(drop=True), df_matched], axis=1)
+    
+    # Extract unmatched rows from df_b
+    unmatched_df_b = df_b.drop(index=matched_indices).reset_index(drop=True)
+
+    return result_df, unmatched_df_b
+
+
+def fix_LR_RL_stuff(df, col1, col2, size_col1, size_col2, id1, id2 ):
+    df_copy = df.copy()
+    # Ensure columns contain strings for substring checks
+    df_copy[col1] = df_copy[col1].astype(str)
+    df_copy[col2] = df_copy[col2].astype(str)
+    df_copy[id1] = df_copy[id1].astype(str)
+    df_copy[id2] = df_copy[id2].astype(str)
+    
+    for index, row in df_copy.iterrows():
+        col1_val = row[col1]
+        col2_val = row[col2]
+        size1 = row[size_col1]
+        size2 = row[size_col2]
+        
+        # Check for &#39;RL&#39; or &#39;LR&#39; in each column and compare sizes
+        if (&#39;RL&#39; in col1_val or &#39;LR&#39; in col1_val) and (&#39;RL&#39; in col2_val or &#39;LR&#39; in col2_val):
+            continue
+        elif &#39;RL&#39; not in col1_val and &#39;LR&#39; not in col1_val and &#39;RL&#39; not in col2_val and &#39;LR&#39; not in col2_val:
+            if size1 &lt; size2:
+                df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
+            else:
+                df_copy.at[index, col2] = None
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, id2] = None
+        elif &#39;RL&#39; in col1_val or &#39;LR&#39; in col1_val:
+            if size1 &lt; size2:
+                df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
+                df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
+            else:
+                df_copy.at[index, col2] = None
+                df_copy.at[index, id2] = None
+                df_copy.at[index, size_col2] = 0
+        elif &#39;RL&#39; in col2_val or &#39;LR&#39; in col2_val:
+            if size2 &lt; size1:
+                df_copy.at[index, id2] = None
+                df_copy.at[index, col2] = None
+                df_copy.at[index, size_col2] = 0
+            else:
+                df_copy.at[index, col1] = df_copy.at[index, col2]
+                df_copy.at[index, id1] = df_copy.at[index, id2]
+                df_copy.at[index, size_col1] = df_copy.at[index, size_col2]
+                df_copy.at[index, size_col2] = 0
+                df_copy.at[index, col2] = None    
+                df_copy.at[index, id2] = None    
+    return df_copy
+
+
+def renameit(df, old_col_name, new_col_name):
+    &#34;&#34;&#34;
+    Renames a column in a pandas DataFrame in place. Raises an error if the specified old column name does not exist.
+
+    Parameters:
+    - df: pandas.DataFrame
+        The DataFrame in which the column is to be renamed.
+    - old_col_name: str
+        The current name of the column to be renamed.
+    - new_col_name: str
+        The new name for the column.
+    
+    Raises:
+    - ValueError: If the old column name does not exist in the DataFrame.
+    
+    Returns:
+    None
+    &#34;&#34;&#34;
+    import warnings
+    # Check if the old column name exists in the DataFrame
+    if old_col_name not in df.columns:
+        warnings.warn(f&#34;The column &#39;{old_col_name}&#39; does not exist in the DataFrame.&#34;)
+        return
+    
+    # Proceed with renaming the column if it exists
+    df.rename(columns={old_col_name: new_col_name}, inplace=True)
+
+
+def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
+    &#34;&#34;&#34;
+    Processes a quality control (QC) DataFrame to perform modality-specific matching and filtering based
+    on predefined criteria, optimizing for minimal outliers and noise, and maximal signal-to-noise ratio (SNR),
+    expected value of randomness (EVR), and dimensionality time (dimt).
+
+    This function iteratively matches dataframes derived from the QC dataframe for different imaging modalities,
+    applying a series of filters to select the best matches based on the QC metrics. Matches are made with
+    consideration to minimize outlier loop and noise, while maximizing SNR, EVR, and dimt for each modality.
+
+    Parameters:
+    ----------
+    qc_dataframe : pandas.DataFrame
+        The DataFrame containing QC metrics for different modalities and imaging data.
+    fix_LRRL : bool, optional
+
+    verbose : bool, optional
+        If True, prints the progress and the shape of the DataFrame being processed in each step.
+
+    Process:
+    -------
+    1. Standardizes modalities by merging DTI-related entries.
+    2. Converts specific columns to appropriate data types for processing.
+    3. Performs modality-specific matching and filtering based on the outlier column and criteria for each modality.
+    4. Iteratively processes unmatched data for predefined modalities with specific prefixes to find further matches.
+    
+    Returns:
+    -------
+    pandas.DataFrame
+        The matched and filtered DataFrame after applying all QC scoring and matching operations across specified modalities.
+
+    &#34;&#34;&#34;
+    qc_dataframe[&#39;modality&#39;] = qc_dataframe[&#39;modality&#39;].replace([&#39;DTIdwi&#39;, &#39;DTIb0&#39;], &#39;DTI&#39;, regex=True)
+    qc_dataframe[&#39;filename&#39;]=qc_dataframe[&#39;filename&#39;].astype(str)
+    qc_dataframe[&#39;ol_loop&#39;]=qc_dataframe[&#39;ol_loop&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof&#39;]=qc_dataframe[&#39;ol_lof&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof_decision&#39;]=qc_dataframe[&#39;ol_lof_decision&#39;].astype(float)
+    outlier_column=&#39;ol_loop&#39;
+    mmdf0 = best_mmm( qc_dataframe, &#39;T1w&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    fldf = best_mmm( qc_dataframe, &#39;T2Flair&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    nmdf = best_mmm( qc_dataframe, &#39;NM2DMT&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    rsdf = best_mmm( qc_dataframe, &#39;rsfMRI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+    dtdf = best_mmm( qc_dataframe, &#39;DTI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
+
+    criteria = {&#39;ol_loop&#39;: &#39;min&#39;, &#39;noise&#39;: &#39;min&#39;, &#39;snr&#39;: &#39;max&#39;, &#39;EVR&#39;: &#39;max&#39;, &#39;reflection_err&#39;:&#39;min&#39;}
+    xcl = [ &#39;mrimfg&#39;, &#39;mrimodel&#39;,&#39;mriMagneticFieldStrength&#39;, &#39;dti_failed&#39;, &#39;rsf_failed&#39;, &#39;subjectID&#39;, &#39;date&#39;, &#39;subjectIDdate&#39;,&#39;repeat&#39;]
+    # Assuming df_a and df_b are already loaded
+    mmdf, undffl = mm_match_by_qc_scoring(mmdf0, fldf, &#39;subjectIDdate&#39;, criteria, 
+                        prefix=&#39;T2Flair_&#39;, exclude_columns=xcl )
+
+    prefixes = [&#39;NM1_&#39;, &#39;NM2_&#39;, &#39;NM3_&#39;, &#39;NM4_&#39;, &#39;NM5_&#39;, &#39;NM6_&#39;]  
+    undfmod = nmdf  # Initialize &#39;undfmod&#39; with &#39;nmdf&#39; for the first iteration
+    if verbose:
+        print(&#39;start NM&#39;)
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] &gt; 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, &#39;subjectIDdate&#39;, criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+
+    criteria = {&#39;ol_loop&#39;: &#39;min&#39;, &#39;noise&#39;: &#39;min&#39;, &#39;snr&#39;: &#39;max&#39;, &#39;EVR&#39;: &#39;max&#39;, &#39;dimt&#39;:&#39;max&#39;}
+    # higher bvalues lead to more noise ...
+    criteria = {&#39;ol_loop&#39;: &#39;min&#39;, &#39;noise&#39;: &#39;min&#39;,  &#39;dti_bvalueMax&#39;:&#39;min&#39;,  &#39;dimt&#39;:&#39;max&#39;}
+    prefixes = [&#39;DTI1_&#39;, &#39;DTI2_&#39;, &#39;DTI3_&#39;]  # List of prefixes for each matching iteration
+    undfmod = dtdf
+    if verbose:
+        print(&#39;start DT&#39;)
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] &gt; 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, &#39;subjectIDdate&#39;, criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+
+    prefixes = [&#39;rsf1_&#39;, &#39;rsf2_&#39;, &#39;rsf3_&#39;]  # List of prefixes for each matching iteration
+    undfmod = rsdf  # Initialize &#39;undfmod&#39; with &#39;nmdf&#39; for the first iteration
+    if verbose:
+        print(&#39;start rsf&#39;)
+        print( undfmod.shape )
+    for prefix in prefixes:
+        if undfmod.shape[0] &gt; 50:
+            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, &#39;subjectIDdate&#39;, criteria, prefix=prefix, exclude_columns=xcl)
+            if verbose:
+                print( prefix )
+                print( undfmod.shape )
+    
+    if fix_LRRL:
+        #        mmdf=fix_LR_RL_stuff( mmdf, &#39;DTI1_filename&#39;, &#39;DTI2_filename&#39;, &#39;DTI1_dimt&#39;, &#39;DTI2_dimt&#39;)
+        mmdf=fix_LR_RL_stuff( mmdf, &#39;rsf1_filename&#39;, &#39;rsf2_filename&#39;, &#39;rsf1_dimt&#39;, &#39;rsf2_dimt&#39;, &#39;rsf1_imageID&#39;, &#39;rsf2_imageID&#39;  )
+    else:
+        import warnings
+        warnings.warn(&#34;FIXME: should fix LR and RL situation for the DTI and rsfMRI&#34;)
+
+    # now do the necessary replacements
+    
+    renameit( mmdf, &#39;perf_imageID&#39;, &#39;perfid&#39; )
+    renameit( mmdf, &#39;perf_filename&#39;, &#39;perffn&#39; )
+    renameit( mmdf, &#39;T2Flair_imageID&#39;, &#39;flairid&#39; )
+    renameit( mmdf, &#39;T2Flair_filename&#39;, &#39;flairfn&#39; )
+    renameit( mmdf, &#39;rsf1_imageID&#39;, &#39;rsfid1&#39; )
+    renameit( mmdf, &#39;rsf2_imageID&#39;, &#39;rsfid2&#39; )
+    renameit( mmdf, &#39;rsf1_filename&#39;, &#39;rsffn1&#39; )
+    renameit( mmdf, &#39;rsf2_filename&#39;, &#39;rsffn2&#39; )
+    renameit( mmdf, &#39;DTI1_imageID&#39;, &#39;dtid1&#39; )
+    renameit( mmdf, &#39;DTI2_imageID&#39;, &#39;dtid2&#39; )
+    renameit( mmdf, &#39;DTI3_imageID&#39;, &#39;dtid3&#39; )
+    renameit( mmdf, &#39;DTI1_filename&#39;, &#39;dtfn1&#39; )
+    renameit( mmdf, &#39;DTI2_filename&#39;, &#39;dtfn2&#39; )
+    renameit( mmdf, &#39;DTI3_filename&#39;, &#39;dtfn3&#39; )
+    for x in range(1,6):
+        temp0=&#34;NM&#34;+str(x)+&#34;_imageID&#34;
+        temp1=&#34;nmid&#34;+str(x)
+        renameit( mmdf, temp0, temp1 )
+        temp0=&#34;NM&#34;+str(x)+&#34;_filename&#34;
+        temp1=&#34;nmfn&#34;+str(x)
+        renameit( mmdf, temp0, temp1 )
+    return mmdf</code></pre>
 </details>
 </section>
 <section>
@@ -11015,8 +11755,6 @@ Avants and ChatGPT</p></div>
     # Warning message for untested function
     warnings.warn(&#34;Warning: This function is not well tested. Use with caution.&#34;)
 
-    # if valid_modalities is None:
-    valid_modalities = get_valid_modalities(&#39;long&#39;)
     vmoddict = {}
     # Add key-value pairs
     vmoddict[&#39;imageID&#39;] = &#39;T1w&#39;
@@ -11145,8 +11883,8 @@ Avants and ChatGPT</p></div>
                 t1wfn = sorted( glob( modsearch ) )
                 if len( t1wfn ) &gt; 1:
                     nlarge = len(t1wfn)
-                    t1wfn = [ t1wfn[ len(t1wfn)-1 ] ]
-                    warnings.warn(&#34;there are &#34; + str( nlarge ) + &#34; number of wide fns with search path &#34; + modsearch + &#34; we take the last of these &#34; + t1wfn[0] )
+                    t1wfn = find_most_recent_file( t1wfn )
+                    warnings.warn(&#34;there are &#34; + str( nlarge ) + &#34; number of wide fns with search path &#34; + modsearch + &#34; we take the most recent of these &#34; + t1wfn[0] )
 #                    raise ValueError(&#34;there are &#34; + str( len( t1wfn ) ) + &#34; number of wide fns with search path &#34; + modsearch )
                 if len( t1wfn ) == 1:
                     if verbose:
@@ -11337,21 +12075,14 @@ pandas dataframe containing the processed qc data.</p></div>
     Returns:
     pandas dataframe containing the processed qc data.
     &#34;&#34;&#34;
+    qc_full = remove_unwanted_columns( qc_full )
     # Get unique modalities
     modalities = qc_full[&#39;modality&#39;].unique()
     modalities = modalities[modalities != &#39;unknown&#39;]
-    # Get modalities to select
-    m0sel = qc_full[&#39;modality&#39;].isin(modalities)
     # Get unique ids
-    uid = qc_full[&#39;filename&#39;] + &#34;_&#34; + qc_full[&#39;modality&#39;].astype(str)
+    uid = qc_full[&#39;filename&#39;]
     to_average = uid.unique()
-    # Define column indices
-    contcols = [&#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;,&#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;, &#39;spc1&#39;, &#39;spc2&#39;, &#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;, &#39;dimx&#39;, &#39;dimy&#39;, &#39;dimz&#39;, &#39;slice&#39;]
-    ocols = [&#39;filename&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;]
-    # restrict to columns we &#34;know&#34;
-    qc_full = qc_full[ocols+contcols]
-    # Create empty meta dataframe
-    meta = pd.DataFrame(columns=ocols+contcols)
+    meta = pd.DataFrame(columns=qc_full.columns )
     # Process each unique id
     n = len(to_average)
     for k in range(n):
@@ -11363,15 +12094,11 @@ pandas dataframe containing the processed qc data.</p></div>
         if sum(m1sel) &gt; 1:
             # If more than one entry for id, take the average of continuous columns,
             # maximum of the slice column, and the first entry of the other columns
+            mfsub = process_dataframe_generalized(qc_full[m1sel],&#39;filename&#39;)
+        else:
             mfsub = qc_full[m1sel]
-            if mfsub.shape[0] &gt; 1:
-                meta.loc[k, contcols] = mfsub.loc[:, contcols].mean(numeric_only=True)
-                meta.loc[k, &#39;slice&#39;] = mfsub[&#39;slice&#39;].max()
-                meta.loc[k, ocols] = mfsub[ocols].iloc[0]
-        elif sum(m1sel) == 1:
-            # If only one entry for id, just copy the entry
-            mfsub = qc_full[m1sel]
-            meta.loc[k] = mfsub.iloc[0]
+        meta.loc[k] = mfsub.iloc[0]
+    meta[&#39;modality&#39;] = meta[&#39;modality&#39;].replace([&#39;DTIdwi&#39;, &#39;DTIb0&#39;], &#39;DTI&#39;, regex=True)
     return meta</code></pre>
 </details>
 </dd>
@@ -11592,6 +12319,8 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
     list: a list containing two metadata dataframes - raw and filt. raw contains all the metadata for the selected modality and filt contains the metadata filtered for highest quality repeats.
 
     &#34;&#34;&#34;
+#    mmdf = mmdf.astype(str)
+    mmdf[outlier_column]=mmdf[outlier_column].astype(float)
     msel = mmdf[&#39;modality&#39;] == wmod
     if wmod == &#39;rsfMRI&#39;:
         msel1 = mmdf[&#39;modality&#39;] == &#39;rsfMRI&#39;
@@ -11604,34 +12333,44 @@ wmod (str): the modality of the image ( 'T1w', 'T2Flair', 'NM2DMT' 'rsfMRI', 'DT
         msel2 = mmdf[&#39;modality&#39;] == &#39;DTI_LR&#39;
         msel3 = mmdf[&#39;modality&#39;] == &#39;DTI_RL&#39;
         msel4 = mmdf[&#39;modality&#39;] == &#39;DTIdwi&#39;
-        msel = msel1 | msel2 | msel3 | msel4
+        msel5 = mmdf[&#39;modality&#39;] == &#39;DTIb0&#39;
+        msel = msel1 | msel2 | msel3 | msel4 | msel5
     if sum(msel) == 0:
         return {&#39;raw&#39;: None, &#39;filt&#39;: None}
-    uids = list(mmdf[&#39;filename&#39;][msel])
-    metasub = mmdf[msel]
+    metasub = mmdf[msel].copy()
 
     if verbose:
         print(f&#34;{wmod} {(metasub.shape[0])} pre&#34;)
 
-    metasub[&#39;subjectID&#39;]=math.nan
-    metasub[&#39;date&#39;]=math.nan
-    metasub[&#39;subjectIDdate&#39;]=math.nan
-    metasub[&#39;imageID&#39;]=math.nan
-    for k in range(len(uids)):
-        temp = uids[k].split( mysep )
-        metasub[&#39;subjectID&#39;].iloc[k] = temp[1]
-        metasub[&#39;date&#39;].iloc[k] = temp[2]
-        metasub[&#39;subjectIDdate&#39;].iloc[k] = temp[1] + mysep + temp[2]
-        metasub[&#39;imageID&#39;].iloc[k] = temp[4]
+    metasub[&#39;subjectID&#39;]=None
+    metasub[&#39;date&#39;]=None
+    metasub[&#39;subjectIDdate&#39;]=None
+    metasub[&#39;imageID&#39;]=None
+    metasub[&#39;negol&#39;]=math.nan
+    for k in metasub.index:
+        temp = metasub.loc[k, &#39;filename&#39;].split( mysep )
+        metasub.loc[k,&#39;subjectID&#39;] = str( temp[1] )
+        metasub.loc[k,&#39;date&#39;] = str( temp[2] )
+        metasub.loc[k,&#39;subjectIDdate&#39;] = str( temp[1] + mysep + temp[2] )
+        metasub.loc[k,&#39;imageID&#39;] = str( temp[4])
 
-    metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+
+    if &#39;ol_&#39; in outlier_column:
+        metasub[&#39;negol&#39;] = metasub[outlier_column].max() - metasub[outlier_column]
+    else:
+        metasub[&#39;negol&#39;] = metasub[outlier_column]
     if &#39;date&#39; not in metasub.keys():
-        metasub[&#39;date&#39;]=&#39;NA&#39;
-    metasubq = highest_quality_repeat(metasub, &#39;filename&#39;, &#39;date&#39;, &#39;negol&#39;)
+        metasub[&#39;date&#39;]=None
+    metasubq = add_repeat_column( metasub, &#39;subjectIDdate&#39; )
+    metasubq = highest_quality_repeat(metasubq, &#39;filename&#39;, &#39;date&#39;, &#39;negol&#39;)
 
     if verbose:
         print(f&#34;{wmod} {metasubq.shape[0]} post&#34;)
 
+#    metasub = metasub.astype(str)
+#    metasubq = metasubq.astype(str)
+    metasub[outlier_column]=metasub[outlier_column].astype(float)
+    metasubq[outlier_column]=metasubq[outlier_column].astype(float)
     return {&#39;raw&#39;: metasub, &#39;filt&#39;: metasubq}</code></pre>
 </details>
 </dd>
@@ -11766,7 +12505,7 @@ right side having row averaged entries i.e. unique values for each visit</p>
 </details>
 </dd>
 <dt id="antspymm.mm.blind_image_assessment"><code class="name flex">
-<span>def <span class="ident">blind_image_assessment</span></span>(<span>image, viz_filename=None, title=False, pull_rank=False, resample=None, verbose=False)</span>
+<span>def <span class="ident">blind_image_assessment</span></span>(<span>image, viz_filename=None, title=False, pull_rank=False, resample=None, n_to_skip=10, verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>quick blind image assessment and triplanar visualization of an image &hellip; 4D input will be visualized and assessed in 3D.
@@ -11799,6 +12538,7 @@ produces a png and csv where csv contains:</p>
 <p>title : display a summary title on the png</p>
 <p>pull_rank : boolean</p>
 <p>resample : None, numeric max or min, resamples image to isotropy</p>
+<p>n_to_skip : 10 by default; samples time series every n_to_skip volume</p>
 <p>verbose : boolean</p></div>
 <details class="source">
 <summary>
@@ -11810,6 +12550,7 @@ produces a png and csv where csv contains:</p>
     title=False,
     pull_rank=False,
     resample=None,
+    n_to_skip = 10,
     verbose=False
 ):
     &#34;&#34;&#34;
@@ -11839,6 +12580,8 @@ produces a png and csv where csv contains:</p>
 
     resample : None, numeric max or min, resamples image to isotropy
 
+    n_to_skip : 10 by default; samples time series every n_to_skip volume
+
     verbose : boolean
 
     &#34;&#34;&#34;
@@ -11850,6 +12593,7 @@ produces a png and csv where csv contains:</p>
     from pathlib import Path
     import json
     import re
+    from dipy.io.gradients import read_bvals_bvecs
     mystem=&#39;&#39;
     if isinstance(image,list):
         isfilename=isinstance( image[0], str)
@@ -11858,6 +12602,7 @@ produces a png and csv where csv contains:</p>
         isfilename=isinstance( image, str)
     outdf = pd.DataFrame()
     mymeta = None
+    MagneticFieldStrength = None
     image_filename=&#39;&#39;
     if isfilename:
         image_filename = image
@@ -11865,10 +12610,14 @@ produces a png and csv where csv contains:</p>
             image_filename=image[0]
         json_name = re.sub(&#34;.nii.gz&#34;,&#34;.json&#34;,image_filename)
         if exists( json_name ):
-            with open(json_name, &#39;r&#39;) as fcc_file:
-                mymeta = json.load(fcc_file, strict=False)
-                if verbose:
-                    print(json.dumps(mymeta, indent=4))
+            try:
+                with open(json_name, &#39;r&#39;) as fcc_file:
+                    mymeta = json.load(fcc_file)
+                    if verbose:
+                        print(json.dumps(mymeta, indent=4))
+                    fcc_file.close()
+            except:
+                pass
         mystem=Path( image ).stem
         mystem=Path( mystem ).stem
         image_reference = ants.image_read( image )
@@ -11876,6 +12625,7 @@ produces a png and csv where csv contains:</p>
     else:
         image_reference = ants.image_clone( image )
     ntimepoints = 1
+    bvalueMax=None
     if image_reference.dimension == 4:
         ntimepoints = image_reference.shape[3]
         if &#34;DTI&#34; in image_filename:
@@ -11883,11 +12633,16 @@ produces a png and csv where csv contains:</p>
             image_b0, image_dwi = get_average_dwi_b0( image_reference, fast=True )
             image_b0 = ants.iMath( image_b0, &#39;Normalize&#39; )
             image_dwi = ants.iMath( image_dwi, &#39;Normalize&#39; )
+            bval_name = re.sub(&#34;.nii.gz&#34;,&#34;.bval&#34;,image_filename)
+            bvec_name = re.sub(&#34;.nii.gz&#34;,&#34;.bvec&#34;,image_filename)
+            if exists( bval_name ) and exists( bvec_name ):
+                bvals, bvecs = read_bvals_bvecs( bval_name , bvec_name  )
+                bvalueMax = bvals.max()
         else:
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath(&#34;Normalize&#34;)
     else:
         image_compare = ants.smooth_image( image_reference, 3, sigma_in_physical_coordinates=False )
-    for jjj in range(ntimepoints):
+    for jjj in range(0,ntimepoints,n_to_skip):
         modality=&#39;unknown&#39;
         if &#34;rsfMRI&#34; in image_filename:
             modality=&#39;rsfMRI&#39;
@@ -11908,7 +12663,7 @@ produces a png and csv where csv contains:</p>
                     modality=&#39;DTIdwi&#39;
             else:
                 image_compare = ants.image_clone( image_b0 )
-        image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
+        # image = ants.iMath( image, &#39;TruncateIntensity&#39;,0.01,0.995)
         minspc = np.min(ants.get_spacing(image))
         maxspc = np.max(ants.get_spacing(image))
         if resample is not None:
@@ -11940,69 +12695,76 @@ produces a png and csv where csv contains:</p>
         bgmsk = msk*0+1-msk
         mskdil = ants.iMath(msk, &#34;MD&#34;, 4 )
         # ants.plot_ortho( image, msk, crop=False )
-        image = ants.crop_image( image, mskdil ).iMath(&#34;Normalize&#34;)
-        msk = ants.crop_image( msk, mskdil ).iMath(&#34;Normalize&#34;)
-        bgmsk = ants.crop_image( bgmsk, mskdil ).iMath(&#34;Normalize&#34;)
-        image_compare = ants.crop_image( image_compare, mskdil ).iMath(&#34;Normalize&#34;)
         nvox = int( msk.sum() )
-        minshp = np.min( image.shape )
-        npatch = int( np.round(  0.1 * nvox ) )
-        npatch = np.min(  [512,npatch ] )
-        patch_shape = []
-        for k in range( 3 ):
-            p = int( 32.0 / ants.get_spacing( image  )[k] )
-            if p &gt; int( np.round( image.shape[k] * 0.5 ) ):
-                p = int( np.round( image.shape[k] * 0.5 ) )
-            patch_shape.append( p )
-        if verbose:
-            print(image)
-            print( patch_shape )
-            print( npatch )
-        myevr = math.nan # dont want to fail if something odd happens in patch extraction
-        try:
-            myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
-                evdepth = 0.9, mask=msk )
-        except:
-            pass
-        if pull_rank:
-            image = ants.rank_intensity(image)
-        imagereflect = ants.reflect_image(image, axis=0)
-        asym_err = ( image - imagereflect ).abs().mean()
-        # estimate noise by center cropping, denoizing and taking magnitude of difference
-        nocrop=False
-        if image.dimension == 3:
-            if image.shape[2] == 1:
-                nocrop=True        
-        if maxspc/minspc &gt; 10:
-            nocrop=True
-        if nocrop:
-            mycc = ants.image_clone( image )
-        else:
-            mycc = antspyt1w.special_crop( image,
-                ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
-        myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
-        noizlevel = ( mycc - myccd ).abs().mean()
-#        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-#        from brisque import BRISQUE
-#        obj = BRISQUE(url=False)
-#        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
         spc = ants.get_spacing( image )
         org = ants.get_origin( image )
-        msk_vol = msk.sum() * np.prod( spc )
-        bgstd = image[ bgmsk == 1 ].std()
-        fgmean = image[ msk == 1 ].mean()
-        bgmean = image[ bgmsk == 1 ].mean()
-        snrref = fgmean / bgstd
-        cnrref = ( fgmean - bgmean ) / bgstd
-        psnrref = antspynet.psnr(  image_compare, image  )
-        ssimref = antspynet.ssim(  image_compare, image  )
-        if nocrop:
-            mymi = math.inf
+        if ( nvox &gt; 0 ):
+            image = ants.crop_image( image, mskdil ).iMath(&#34;Normalize&#34;)
+            msk = ants.crop_image( msk, mskdil ).iMath(&#34;Normalize&#34;)
+            bgmsk = ants.crop_image( bgmsk, mskdil ).iMath(&#34;Normalize&#34;)
+            image_compare = ants.crop_image( image_compare, mskdil ).iMath(&#34;Normalize&#34;)           
+            npatch = int( np.round(  0.1 * nvox ) )
+            npatch = np.min(  [512,npatch ] )
+            patch_shape = []
+            for k in range( 3 ):
+                p = int( 32.0 / ants.get_spacing( image  )[k] )
+                if p &gt; int( np.round( image.shape[k] * 0.5 ) ):
+                    p = int( np.round( image.shape[k] * 0.5 ) )
+                patch_shape.append( p )
+            if verbose:
+                print(image)
+                print( patch_shape )
+                print( npatch )
+            myevr = math.nan # dont want to fail if something odd happens in patch extraction
+            try:
+                myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
+                    evdepth = 0.9, mask=msk )
+            except:
+                pass
+            if pull_rank:
+                image = ants.rank_intensity(image)
+            imagereflect = ants.reflect_image(image, axis=0)
+            asym_err = ( image - imagereflect ).abs().mean()
+            # estimate noise by center cropping, denoizing and taking magnitude of difference
+            nocrop=False
+            if image.dimension == 3:
+                if image.shape[2] == 1:
+                    nocrop=True        
+            if maxspc/minspc &gt; 10:
+                nocrop=True
+            if nocrop:
+                mycc = ants.image_clone( image )
+            else:
+                mycc = antspyt1w.special_crop( image,
+                    ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
+            myccd = ants.denoise_image( mycc, p=2,r=2,noise_model=&#39;Gaussian&#39; )
+            noizlevel = ( mycc - myccd ).abs().mean()
+    #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
+    #        from brisque import BRISQUE
+    #        obj = BRISQUE(url=False)
+    #        mybrisq = obj.score( np.array( Image.open( viz_filename )) )
+            msk_vol = msk.sum() * np.prod( spc )
+            bgstd = image[ bgmsk == 1 ].std()
+            fgmean = image[ msk == 1 ].mean()
+            bgmean = image[ bgmsk == 1 ].mean()
+            snrref = fgmean / bgstd
+            cnrref = ( fgmean - bgmean ) / bgstd
+            psnrref = antspynet.psnr(  image_compare, image  )
+            ssimref = antspynet.ssim(  image_compare, image  )
+            if nocrop:
+                mymi = math.inf
+            else:
+                mymi = ants.image_mutual_information( image_compare, image )
         else:
-            mymi = ants.image_mutual_information( image_compare, image )
-        mriseries=&#39;NA&#39;
-        mrimfg=&#39;NA&#39;
-        mrimodel=&#39;NA&#39;
+            msk_vol = 0
+            myevr = mymi = ssimref = psnrref = cnrref = asym_err = noizlevel = math.nan
+            
+        mriseries=None
+        mrimfg=None
+        mrimodel=None
+        mriSAR=None
+        BandwidthPerPixelPhaseEncode=None
+        PixelBandwidth=None
         if mymeta is not None:
             # mriseries=mymeta[&#39;&#39;]
             try:
@@ -12013,13 +12775,39 @@ produces a png and csv where csv contains:</p>
                 mrimodel=mymeta[&#39;ManufacturersModelName&#39;]
             except:
                 pass
+            try:
+                MagneticFieldStrength=mymeta[&#39;MagneticFieldStrength&#39;]
+            except:
+                pass
+            try:
+                PixelBandwidth=mymeta[&#39;PixelBandwidth&#39;]
+            except:
+                pass
+            try:
+                BandwidthPerPixelPhaseEncode=mymeta[&#39;BandwidthPerPixelPhaseEncode&#39;]
+            except:
+                pass
+            try:
+                mriSAR=mymeta[&#39;SAR&#39;]
+            except:
+                pass
         ttl=mystem + &#39; &#39;
         ttl=&#39;&#39;
         ttl=ttl + &#34;NZ: &#34; + &#34;{:0.4f}&#34;.format(noizlevel) + &#34; SNR: &#34; + &#34;{:0.4f}&#34;.format(snrref) + &#34; CNR: &#34; + &#34;{:0.4f}&#34;.format(cnrref) + &#34; PS: &#34; + &#34;{:0.4f}&#34;.format(psnrref)+ &#34; SS: &#34; + &#34;{:0.4f}&#34;.format(ssimref) + &#34; EVR: &#34; + &#34;{:0.4f}&#34;.format(myevr)+ &#34; MI: &#34; + &#34;{:0.4f}&#34;.format(mymi)
-        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ):
+        if viz_filename is not None and ( jjj == 0 or (jjj % 30 == 0) ) and image.shape[2] &lt; 685:
             viz_filename_use = re.sub( &#34;.png&#34;, &#34;_slice&#34;+str(jjj).zfill(4)+&#34;.png&#34;, viz_filename )
             ants.plot_ortho( image, crop=False, filename=viz_filename_use, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0,  title=ttl, titlefontsize=12, title_dy=-0.02,textfontcolor=&#39;red&#39; )
-        df = pd.DataFrame([[ mystem, noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, spc[0], spc[1], spc[2],org[0], org[1], org[2], image.shape[0], image.shape[1], image.shape[2], jjj, modality, mriseries, mrimfg, mrimodel ]], columns=[&#39;filename&#39;, &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39; ])
+        df = pd.DataFrame([[ 
+            mystem, 
+            image_reference.dimension, 
+            noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, 
+            spc[0], spc[1], spc[2],org[0], org[1], org[2], 
+            image.shape[0], image.shape[1], image.shape[2], ntimepoints, 
+            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode, bvalueMax ]], 
+            columns=[
+                &#39;filename&#39;, 
+                &#39;dimensionality&#39;,
+                &#39;noise&#39;, &#39;snr&#39;, &#39;cnr&#39;, &#39;psnr&#39;, &#39;ssim&#39;, &#39;mi&#39;, &#39;reflection_err&#39;, &#39;EVR&#39;, &#39;msk_vol&#39;, &#39;spc0&#39;,&#39;spc1&#39;,&#39;spc2&#39;,&#39;org0&#39;,&#39;org1&#39;,&#39;org2&#39;,&#39;dimx&#39;,&#39;dimy&#39;,&#39;dimz&#39;,&#39;dimt&#39;,&#39;slice&#39;,&#39;modality&#39;, &#39;mriseries&#39;, &#39;mrimfg&#39;, &#39;mrimodel&#39;, &#39;mriMagneticFieldStrength&#39;, &#39;mriSAR&#39;, &#39;mriPixelBandwidth&#39;, &#39;mriPixelBandwidthPE&#39;, &#39;dti_bvalueMax&#39; ])
         outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
@@ -12070,6 +12858,7 @@ produces a png and csv where csv contains:</p>
     wmh_sum_aug = wmh_sum_aug / float( n_simulations )
     wmh_sum_prior_aug = wmh_sum_prior_aug / float( n_simulations )
     return{
+      &#39;flair&#39; : ants.iMath(flair,&#34;Normalize&#34;),
       &#39;WMH_probability_map&#39; : augprob,
       &#39;WMH_posterior_probability_map&#39; : augprob_prior,
       &#39;wmh_mass&#39;: wmh_sum_aug,
@@ -12601,7 +13390,7 @@ obtained by dipy read_bvals_bvecs</code> or <code>the values themselves</code></
 <dd>space as the image, we will resample directly to the image space.
 This
 could lead to problems if the inputs are really incorrect.</dd>
-<dt><strong><code>b0_idx</code></strong> :&ensp;<code>the indices</code> of <code>the B0; if None, use segment_timeseries_by_meanvalue to guess</code></dt>
+<dt><strong><code>b0_idx</code></strong> :&ensp;<code>the indices</code> of <code>the B0; if None, use segment_timeseries_by_bvalue</code></dt>
 <dd>&nbsp;</dd>
 <dt><strong><code>mask_dilation</code></strong> :&ensp;<code>integer zero</code> or <code>more dilates the brain mask</code></dt>
 <dd>&nbsp;</dd>
@@ -12657,7 +13446,7 @@ could lead to problems if the inputs are really incorrect.</dd>
         space as the image, we will resample directly to the image space.  This
         could lead to problems if the inputs are really incorrect.
 
-    b0_idx : the indices of the B0; if None, use segment_timeseries_by_meanvalue to guess
+    b0_idx : the indices of the B0; if None, use segment_timeseries_by_bvalue
 
     mask_dilation : integer zero or more dilates the brain mask
 
@@ -12688,8 +13477,7 @@ could lead to problems if the inputs are really incorrect.</dd>
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
-    if b0_idx is None:
-        b0_idx = segment_timeseries_by_meanvalue( image )[&#39;highermeans&#39;]
+    b0_idx = segment_timeseries_by_bvalue( bvals )[&#39;highermeans&#39;]
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod=&#39;bold&#39;
@@ -12851,11 +13639,11 @@ dict: A dictionary with keys 'modality', 'outprefix', and 'images'.
             imfns.append(&#39;nmid&#39; + str(i))
     elif locmod == &#39;rsfMRI&#39;:
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append(&#39;rsfid&#39; + str(i))
     elif locmod == &#39;DTI&#39;:
         imfns=[]
-        for i in range(3):
+        for i in range(4):
             imfns.append(&#39;dtid&#39; + str(i))
 
     # Process each file name
@@ -14230,15 +15018,15 @@ modalities like rsfMRI, DTI, and NM.</p>
         raise ValueError(&#34;source_image_directory does not exist&#34;)
     if len( rsf_filenames ) &gt; 2:
         raise ValueError(&#34;len( rsf_filenames ) &gt; 2&#34;)
-    if len( dti_filenames ) &gt; 2:
-        raise ValueError(&#34;len( dti_filenames ) &gt; 2&#34;)
+    if len( dti_filenames ) &gt; 3:
+        raise ValueError(&#34;len( dti_filenames ) &gt; 3&#34;)
     if len( nm_filenames ) &gt; 11:
         raise ValueError(&#34;len( nm_filenames ) &gt; 11&#34;)
     if len( rsf_filenames ) &lt; 2:
         for k in range(len(rsf_filenames),2):
             rsf_filenames.append(None)
-    if len( dti_filenames ) &lt; 2:
-        for k in range(len(dti_filenames),2):
+    if len( dti_filenames ) &lt; 3:
+        for k in range(len(dti_filenames),3):
             dti_filenames.append(None)
     if len( nm_filenames ) &lt; 10:
         for k in range(len(nm_filenames),10):
@@ -14314,7 +15102,7 @@ modalities like rsfMRI, DTI, and NM.</p>
         &#39;perfid&#39;]
     mycols0 = corecols + [
         &#39;rsfid1&#39;, &#39;rsfid2&#39;,
-        &#39;dtid1&#39;, &#39;dtid2&#39;]
+        &#39;dtid1&#39;, &#39;dtid2&#39;,&#39;dtid3&#39;]
     nmext = [
         &#39;nmid1&#39;, &#39;nmid2&#39; &#39;nmid3&#39;, &#39;nmid4&#39;, &#39;nmid5&#39;,
         &#39;nmid6&#39;, &#39;nmid7&#39;,&#39;nmid8&#39;, &#39;nmid9&#39;, &#39;nmid10&#39;, &#39;nmid11&#39;
@@ -14423,7 +15211,7 @@ avg_bold</p></div>
     if x.shape[3] &lt;= min_t:
         min_t=0
     if x.shape[3] &lt;= max_t:
-        max_t=x.shape[3]-1
+        max_t=x.shape[3]
     for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         bavg = bavg + ants.registration(oavg,b0,&#39;Rigid&#39;,outprefix=ofn)[&#39;warpedmovout&#39;]
@@ -14441,7 +15229,7 @@ avg_bold</p></div>
 </details>
 </dd>
 <dt id="antspymm.mm.get_data"><code class="name flex">
-<span>def <span class="ident">get_data</span></span>(<span>name=None, force_download=False, version=21, target_extension='.csv')</span>
+<span>def <span class="ident">get_data</span></span>(<span>name=None, force_download=False, version=23, target_extension='.csv')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Get ANTsPyMM data filename</p>
@@ -14473,7 +15261,7 @@ Options:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_data( name=None, force_download=False, version=21, target_extension=&#39;.csv&#39; ):
+<pre><code class="python">def get_data( name=None, force_download=False, version=23, target_extension=&#39;.csv&#39; ):
     &#34;&#34;&#34;
     Get ANTsPyMM data filename
 
@@ -14735,11 +15523,11 @@ and that can be processed by this package.</p>
     asString - concat list to string
     &#34;&#34;&#34;
     if long:
-        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;func&#34;, &#34;perf&#34;]
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;rsfMRI&#34;, &#34;rsfMRI_LR&#34;, &#34;rsfMRI_RL&#34;, &#34;rsfMRILR&#34;, &#34;rsfMRIRL&#34;, &#34;DTI&#34;, &#34;DTI_LR&#34;,&#34;DTI_RL&#34;,  &#34;DTILR&#34;,&#34;DTIRL&#34;,&#34;T2Flair&#34;, &#34;dwi&#34;, &#34;dwi_ap&#34;, &#34;dwi_pa&#34;, &#34;func&#34;, &#34;func_ap&#34;, &#34;func_pa&#34;, &#34;perf&#34;]
     elif qc:
-        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39;,&#39;DTIdwi&#39;,&#39;DTIb0&#39;, &#39;rsfMRI&#39;, &#34;perf&#34; ]
+        mymod = [ &#39;T1w&#39;, &#39;T2Flair&#39;, &#39;NM2DMT&#39;, &#39;DTI&#39;, &#39;DTIdwi&#39;,&#39;DTIb0&#39;, &#39;rsfMRI&#39;, &#34;perf&#34; ]
     else:
-        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;DTI&#34;,&#34;T2Flair&#34;, &#34;rsfMRI&#34;, &#34;perf&#34;  ]
+        mymod = [&#34;T1w&#34;, &#34;NM2DMT&#34;, &#34;DTI&#34;,&#34;T2Flair&#34;, &#34;rsfMRI&#34;, &#34;perf&#34; ]
     if not asString:
         return mymod
     else:
@@ -14910,6 +15698,8 @@ to the highest quality observation for each combination of ID and visit.</p></di
         raise ValueError(&#34;idvar not in dataframe&#34;)
     if qualityvar not in mxdfin.columns:
         raise ValueError(&#34;qualityvar not in dataframe&#34;)
+
+    mxdfin[qualityvar] = mxdfin[qualityvar].astype(float)
 
     vizzes = mxdfin[visitvar].unique()
     uids = mxdfin[idvar].unique()
@@ -15174,6 +15964,9 @@ dti reconstruction dictionaries.</dd>
     def fix_dwi_shape( img, bvalfn, bvecfn ):
         if isinstance(bvecfn, str):
             bvals, bvecs = read_bvals_bvecs( bvalfn , bvecfn   )
+        else:
+            bvals = bvalfn
+            bvecs = bvecfn
         if bvecs.shape[0] &lt; img.shape[3]:
             imgout = ants.from_numpy( img[:,:,:,0:bvecs.shape[0]] )
             imgout = ants.copy_image_info( img, imgout )
@@ -15377,6 +16170,10 @@ tuple: A tuple containing the censored time series (ANTsImage) and the indices o
     Returns:
     tuple: A tuple containing the censored time series (ANTsImage) and the indices of the high leverage volumes.
     &#34;&#34;&#34;
+    import warnings
+    if x.shape[3] &lt; 20: # just a guess at what we need here ...
+        warnings.warn(&#34;Warning: the time dimension is &lt; 20 - too few samples for loop. just return the original data.&#34;)
+        return x, []
     if mask is None:
         flattened_series = flatten_time_series(x.numpy())
     else:
@@ -15468,40 +16265,48 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
     &#34;&#34;&#34;
     import pandas as pd
     import numpy as np
+    qc_dataframe[&#39;filename&#39;]=qc_dataframe[&#39;filename&#39;].astype(str)
+    qc_dataframe[&#39;ol_loop&#39;]=qc_dataframe[&#39;ol_loop&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof&#39;]=qc_dataframe[&#39;ol_lof&#39;].astype(float)
+    qc_dataframe[&#39;ol_lof_decision&#39;]=qc_dataframe[&#39;ol_lof_decision&#39;].astype(float)
     mmdf = best_mmm( qc_dataframe, &#39;T1w&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     fldf = best_mmm( qc_dataframe, &#39;T2Flair&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     nmdf = best_mmm( qc_dataframe, &#39;NM2DMT&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     rsdf = best_mmm( qc_dataframe, &#39;rsfMRI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
     dtdf = best_mmm( qc_dataframe, &#39;DTI&#39;, outlier_column=outlier_column )[&#39;filt&#39;]
-    mmdf[&#39;flairid&#39;] = np.nan
-    mmdf[&#39;flairfn&#39;] = np.nan
-    mmdf[&#39;flairloop&#39;] = np.nan
-    mmdf[&#39;flairlof&#39;] = np.nan
-    mmdf[&#39;dtid1&#39;] = np.nan
-    mmdf[&#39;dtfn1&#39;] = np.nan
-    mmdf[&#39;dtloop1&#39;] = np.nan
-    mmdf[&#39;dtlof1&#39;] = np.nan
-    mmdf[&#39;dtid2&#39;] = np.nan
-    mmdf[&#39;dtfn2&#39;] = np.nan
-    mmdf[&#39;dtloop2&#39;] = np.nan
-    mmdf[&#39;dtlof2&#39;] = np.nan
-    mmdf[&#39;rsfid1&#39;] = np.nan
-    mmdf[&#39;rsffn1&#39;] = np.nan
-    mmdf[&#39;rsfloop1&#39;] = np.nan
-    mmdf[&#39;rsflof1&#39;] = np.nan
-    mmdf[&#39;rsfid2&#39;] = np.nan
-    mmdf[&#39;rsffn2&#39;] = np.nan
-    mmdf[&#39;rsfloop2&#39;] = np.nan
-    mmdf[&#39;rsflof2&#39;] = np.nan
+    mmdf[&#39;flairid&#39;] = None
+    mmdf[&#39;flairfn&#39;] = None
+    mmdf[&#39;flairloop&#39;] = None
+    mmdf[&#39;flairlof&#39;] = None
+    mmdf[&#39;dtid1&#39;] = None
+    mmdf[&#39;dtfn1&#39;] = None
+    mmdf[&#39;dtntimepoints1&#39;] = 0
+    mmdf[&#39;dtloop1&#39;] = math.nan
+    mmdf[&#39;dtlof1&#39;] = math.nan
+    mmdf[&#39;dtid2&#39;] = None
+    mmdf[&#39;dtfn2&#39;] = None
+    mmdf[&#39;dtntimepoints2&#39;] = 0
+    mmdf[&#39;dtloop2&#39;] = math.nan
+    mmdf[&#39;dtlof2&#39;] = math.nan
+    mmdf[&#39;rsfid1&#39;] = None
+    mmdf[&#39;rsffn1&#39;] = None
+    mmdf[&#39;rsfntimepoints1&#39;] = 0
+    mmdf[&#39;rsfloop1&#39;] = math.nan
+    mmdf[&#39;rsflof1&#39;] = math.nan
+    mmdf[&#39;rsfid2&#39;] = None
+    mmdf[&#39;rsffn2&#39;] = None
+    mmdf[&#39;rsfntimepoints2&#39;] = 0
+    mmdf[&#39;rsfloop2&#39;] = math.nan
+    mmdf[&#39;rsflof2&#39;] = math.nan
     for k in range(1,11):
         myid=&#39;nmid&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid=&#39;nmfn&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = None
         myid=&#39;nmloop&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = math.nan
         myid=&#39;nmlof&#39;+str(k)
-        mmdf[myid] = np.nan
+        mmdf[myid] = math.nan
     if verbose:
         print( mmdf.shape )
     for k in range(mmdf.shape[0]):
@@ -15510,12 +16315,13 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 progger = str( k ) # np.round( k / mmdf.shape[0] * 100 ) )
                 print( progger, end =&#34;...&#34;, flush=True)
         if dtdf is not None:
-            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (dtdf[outlier_column] &lt; 0.5)
+            locsel = (dtdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = dtdf[&#34;imageID&#34;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = dtdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = dtdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = dtdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = float(dtdf[&#39;ol_lof_decision&#39;][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints1&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = dtdf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -15523,21 +16329,24 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn1&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop1&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof1&#34;)] = float(locdf[&#39;ol_lof_decision&#39;][locsel].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints1&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[0])
                 if locdf.shape[0] &gt; 1:
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtfn2&#34;)] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtloop2&#34;)] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = locdf[&#39;ol_lof_decision&#39;][locsel].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtlof2&#34;)] = float(locdf[&#39;ol_lof_decision&#39;][locsel].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;dtntimepoints2&#34;)] = float(dtdf[&#39;dimt&#39;][locsel].values[1])
         if rsdf is not None:
-            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k]) &amp; (rsdf[outlier_column] &lt; 0.5)
+            locsel = (rsdf[&#34;subjectIDdate&#34;] == mmdf[&#34;subjectIDdate&#34;].iloc[k])
             if sum(locsel) == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = rsdf[&#34;imageID&#34;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[&#34;fn&#34;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = rsdf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = rsdf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = rsdf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = float(rsdf[&#39;ol_lof_decision&#39;].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints1&#34;)] = float(rsdf[&#39;dimt&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = rsdf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -15545,22 +16354,24 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid1&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn1&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop1&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof1&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[0])
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints1&#34;)] = float(locdf[&#39;dimt&#39;][locsel].values[0])
                 if locdf.shape[0] &gt; 1:
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfid2&#34;)] = locdf[&#34;imageID&#34;].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[&#34;fn&#34;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsffn2&#34;)] = locdf[unique_identifier].values[1]
                     mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfloop2&#34;)] = locdf[outlier_column].values[1]
-                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[1]
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsflof2&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[1])
+                    mmdf.iloc[k, mmdf.columns.get_loc(&#34;rsfntimepoints2&#34;)] = float(locdf[&#39;dimt&#39;][locsel].values[1])
 
         if fldf is not None:
             locsel = fldf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
             if locsel.sum() == 1:
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = fldf[&#39;imageID&#39;][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[&#39;filename&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = fldf[unique_identifier][locsel].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = fldf[outlier_column][locsel].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = fldf[&#39;ol_lof_decision&#39;][locsel].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = float(fldf[&#39;ol_lof_decision&#39;][locsel].values[0])
             elif sum(locsel) &gt; 1:
                 locdf = fldf[locsel]
                 dedupe = locdf[[&#34;snr&#34;,&#34;cnr&#34;]].duplicated()
@@ -15568,9 +16379,9 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 if locdf.shape[0] &gt; 1:
                     locdf = locdf.sort_values(outlier_column).iloc[:2]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairid&#34;)] = locdf[&#34;imageID&#34;].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[&#34;fn&#34;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairfn&#34;)] = locdf[unique_identifier].values[0]
                 mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairloop&#34;)] = locdf[outlier_column].values[0]
-                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = locdf[&#39;ol_lof_decision&#39;].values[0]
+                mmdf.iloc[k, mmdf.columns.get_loc(&#34;flairlof&#34;)] = float(locdf[&#39;ol_lof_decision&#39;].values[0])
 
         if nmdf is not None:
             locsel = nmdf[&#39;subjectIDdate&#39;] == mmdf[&#39;subjectIDdate&#39;].iloc[k]
@@ -15578,14 +16389,16 @@ Actually estimates the reciprocal of the coefficient of variation.</p>
                 locdf = nmdf[locsel]
                 for i in range(np.min( [10,locdf.shape[0]])):
                     nmid = &#34;nmid&#34;+str(i+1)
-                    mmdf[nmid].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    mmdf.loc[k,nmid] = locdf[&#39;imageID&#39;].iloc[i]
                     nmfn = &#34;nmfn&#34;+str(i+1)
-                    mmdf[nmfn].iloc[k] = locdf[&#39;imageID&#39;].iloc[i]
+                    mmdf.loc[k,nmfn] = locdf[&#39;imageID&#39;].iloc[i]
                     nmloop = &#34;nmloop&#34;+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf[outlier_column].iloc[i]
+                    mmdf.loc[k,nmloop] = locdf[outlier_column].iloc[i]
                     nmloop = &#34;nmlof&#34;+str(i+1)
-                    mmdf[nmloop].iloc[k] = locdf[&#39;ol_lof_decision&#39;].iloc[i]
+                    mmdf.loc[k,nmloop] = float(locdf[&#39;ol_lof_decision&#39;].iloc[i])
 
+    mmdf[&#39;rsf_total_timepoints&#39;]=mmdf[&#39;rsfntimepoints1&#39;]+mmdf[&#39;rsfntimepoints2&#39;]
+    mmdf[&#39;dt_total_timepoints&#39;]=mmdf[&#39;dtntimepoints1&#39;]+mmdf[&#39;dtntimepoints2&#39;]
     return mmdf</code></pre>
 </details>
 </dd>
@@ -15883,10 +16696,12 @@ kwargs: keyword args
     bvec_RL : array
 
     &#34;&#34;&#34;
+    import warnings
     insamespace = ants.image_physical_space_consistency( img_LRdwp, img_RLdwp )
     if not insamespace :
-        raise ValueError(&#39;not insamespace ... corrected image pair should occupy the same physical space&#39;)
-
+        warnings.warn(&#39;not insamespace ... corrected image pair should occupy the same physical space; returning only the 1st set and wont join these data.&#39;)
+        return img_LRdwp, bval_LR, bvec_LR
+    
     bval_LR = np.concatenate([bval_LR,bval_RL])
     bvec_LR = np.concatenate([bvec_LR,bvec_RL])
     # concatenate the images
@@ -16687,11 +17502,14 @@ of the network.</dd>
             normalization_dict[&#39;MD_norm&#39;] = ants.apply_transforms( group_template, mydti[&#39;recon_md&#39;],group_transform+dtirig[&#39;fwdtransforms&#39;] )
             normalization_dict[&#39;FA_norm&#39;] = ants.apply_transforms( group_template, mydti[&#39;recon_fa&#39;],group_transform+dtirig[&#39;fwdtransforms&#39;] )
             output_directory = tempfile.mkdtemp()
-            comptx = ants.apply_transforms( group_template, group_template, 
-                group_transform+dtirig[&#39;fwdtransforms&#39;], 
-                compose = output_directory + &#39;/xxx&#39; )
-            normalization_dict[&#39;DTI_norm&#39;] = transform_and_reorient_dti(
-                group_template, mydti[&#39;dti&#39;], comptx, py_based=True, verbose=True )
+            do_dti_norm=False
+            if do_dti_norm:
+                comptx = ants.apply_transforms( group_template, group_template, group_transform+dtirig[&#39;fwdtransforms&#39;], compose = output_directory + &#39;/xxx&#39; )
+                tspc=[2.,2.,2.]
+                if srmodel is not None:
+                    tspc=[1.,1.,1.]
+                group_template2mm = ants.resample_image( group_template, tspc  )
+                normalization_dict[&#39;DTI_norm&#39;] = transform_and_reorient_dti( group_template2mm, mydti[&#39;dti&#39;], comptx, py_based=True, verbose=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict[&#39;rsf&#39;] is not None:
@@ -16914,6 +17732,7 @@ this should be a brain extracted T1w image.</dd>
     writes output to disk and produces figures
 
     &#34;&#34;&#34;
+    import traceback
     visualize = True
     verbose = True
     if verbose:
@@ -17171,9 +17990,11 @@ this should be a brain extracted T1w image.</dd>
                             test_run=test_run,
                             verbose=True )
                     except Exception as e:
+                        error_info = traceback.format_exc()
+                        print(error_info)
                         visualize=False
                         dowrite=False
-                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                         pass
                     if not test_run:
                         write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
@@ -17227,9 +18048,11 @@ this should be a brain extracted T1w image.</dd>
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                     if visualize:
                                         maxslice = np.min( [21, hier[&#39;brain_n4_dnz&#39;].shape[2] ] )
@@ -17250,9 +18073,11 @@ this should be a brain extracted T1w image.</dd>
                                         test_run=test_run,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if visualize:
                                     maxslice = np.min( [21, img.shape[2] ] )
@@ -17287,11 +18112,13 @@ this should be a brain extracted T1w image.</dd>
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={&#39;rsf&#39;:None}
                                         normPro={&#39;rsf&#39;:None}
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if tabPro[&#39;rsf&#39;] is not None and visualize:
                                     for tpro in tabPro[&#39;rsf&#39;]: # FIXMERSF
@@ -17323,10 +18150,12 @@ this should be a brain extracted T1w image.</dd>
                                         perfusion_m0=perfusion_m0,
                                         verbose=True )
                                 except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
                                         visualize=False
                                         dowrite=False
                                         tabPro={&#39;perf&#39;:None}
-                                        print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                        print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                         pass
                                 if tabPro[&#39;perf&#39;] is not None and visualize:
                                     maxslice = np.min( [21, tabPro[&#39;perf&#39;][&#39;meanBold&#39;].shape[2] ] )
@@ -17343,7 +18172,7 @@ this should be a brain extracted T1w image.</dd>
                                 bvalfnList = [ bvalfn ]
                                 bvecfnList = [ bvecfn ]
                                 missing_dti_data=False # bval, bvec or images
-                                if len( myimgsr ) &gt; 1:  # find DTI_RL
+                                if len( myimgsr ) == 2:  # find DTI_RL
                                     dtilrfn = myimgsr[myimgcount+1]
                                     if exists( dtilrfn ):
                                         bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
@@ -17352,6 +18181,28 @@ this should be a brain extracted T1w image.</dd>
                                         imgList.append( imgRL )
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
+                                elif len( myimgsr ) == 3:  # find DTI_RL
+                                    print(&#34;DTI trinity&#34;)
+                                    dtilrfn = myimgsr[myimgcount+1]
+                                    dtilrfn2 = myimgsr[myimgcount+2]
+                                    if exists( dtilrfn ) and exists( dtilrfn2 ):
+                                        bvalfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn )
+                                        bvecfnRL = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn )
+                                        bvalfnRL2 = re.sub( &#39;.nii.gz&#39;, &#39;.bval&#39; , dtilrfn2 )
+                                        bvecfnRL2 = re.sub( &#39;.nii.gz&#39;, &#39;.bvec&#39; , dtilrfn2 )
+                                        imgRL = ants.image_read( dtilrfn )
+                                        imgRL2 = ants.image_read( dtilrfn2 )
+                                        bvals, bvecs = read_bvals_bvecs( bvalfnRL , bvecfnRL  )
+                                        print( bvals.max() )
+                                        bvals2, bvecs2 = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvals2.max() )
+                                        temp = merge_dwi_data( imgRL, bvals, bvecs, imgRL2, bvals2, bvecs2  )
+                                        imgList.append( temp[0] )
+                                        bvalfnList.append( mymm+mysep+&#39;joined.bval&#39; )
+                                        bvecfnList.append( mymm+mysep+&#39;joined.bvec&#39; )
+                                        write_bvals_bvecs( temp[1], temp[2], mymm+mysep+&#39;joined&#39; )
+                                        bvalsX, bvecsX = read_bvals_bvecs( bvalfnRL2 , bvecfnRL2  )
+                                        print( bvalsX.max() )
                                 # check existence of all files expected ...
                                 for dtiex in bvalfnList+bvecfnList+myimgsr:
                                     if not exists(dtiex):
@@ -17391,10 +18242,12 @@ this should be a brain extracted T1w image.</dd>
                                             test_run=test_run,
                                             verbose=True )
                                     except Exception as e:
+                                            error_info = traceback.format_exc()
+                                            print(error_info)
                                             visualize=False
                                             dowrite=False
                                             tabPro={&#39;DTI&#39;:None}
-                                            print(f&#34;An error occurred while processing {overmodX}: {e}&#34;)
+                                            print(f&#34;antspymmerror occurred while processing {overmodX}: {e}&#34;)
                                             pass
                                     mydti = tabPro[&#39;DTI&#39;]
                                     if visualize and tabPro[&#39;DTI&#39;] is not None:
@@ -18302,7 +19155,7 @@ by histogram matching - ants.histogram_match_image</dd>
             nm_avg_cropped_new = nm_avg_cropped_new + warpednext
       nm_avg_cropped = nm_avg_cropped_new / len( crop_nm_list )
 
-  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, verbose=verbose  )
+  slabregUpdated = tra_initializer( nm_avg_cropped, t1c, compreg=slabreg,verbose=verbose  )
   tempOrig = ants.apply_transforms( nm_avg_cropped_new, t1c, slabreg[&#39;fwdtransforms&#39;] )
   tempUpdate = ants.apply_transforms( nm_avg_cropped_new, t1c, slabregUpdated[&#39;fwdtransforms&#39;] )
   miUpdate = ants.image_mutual_information(
@@ -18917,25 +19770,28 @@ Higher values near 1 are more outlying.</p>
     from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
     qcdfout = qcdf.copy()
+    pd.set_option(&#39;future.no_silent_downcasting&#39;, True)
+    qcdfout.replace([np.inf, -np.inf], np.nan, inplace=True)
     if uid not in qcdfout.keys():
-        raise ValueError(uid + &#34; not in dataframe&#34;)
+        raise ValueError( str(uid) + &#34; not in dataframe&#34;)
     if &#39;ol_loop&#39; not in qcdfout.keys():
         qcdfout[&#39;ol_loop&#39;]=math.nan
     if &#39;ol_lof&#39; not in qcdfout.keys():
         qcdfout[&#39;ol_lof&#39;]=math.nan
+    didit=False
     for mod in get_valid_modalities( qc=True ):
+        didit=True
         lof = LocalOutlierFactor()
         locsel = qcdfout[&#34;modality&#34;] == mod
         rr = qcdfout[locsel][outlier_columns]
-        with pd.option_context(&#39;mode.use_inf_as_na&#39;, True):
-            for myolcol in outlier_columns:
-                rr[myolcol].fillna(rr[myolcol].mean(), inplace=True)
+        column_means = rr.mean()
+        rr.fillna(column_means, inplace=True)
         if rr.shape[0] &gt; 1:
             if verbose:
-                print(mod)
+                print(&#34;calc: &#34; + mod + &#34; outlierness &#34; )
             myneigh = np.min( [24, int(np.round(rr.shape[0]*0.5)) ] )
             temp = antspyt1w.loop_outlierness(rr.astype(float), standardize=True, extent=3, n_neighbors=myneigh, cluster_labels=None)
-            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp
+            qcdfout.loc[locsel,&#39;ol_loop&#39;]=temp.astype(&#39;float64&#39;)
             yhat = lof.fit_predict(rr)
             temp = lof.negative_outlier_factor_*(-1.0)
             temp = temp - temp.min()
@@ -18943,6 +19799,8 @@ Higher values near 1 are more outlying.</p>
             yhat[ yhat == -1] = 1 # these are outliers
             qcdfout.loc[locsel,&#39;ol_lof_decision&#39;]=yhat
             qcdfout.loc[locsel,&#39;ol_lof&#39;]=temp/temp.max()
+    if verbose:
+        print( didit )
     return qcdfout</code></pre>
 </details>
 </dd>
@@ -19847,7 +20705,8 @@ high frequency information) reduced both reliability and signal-noise separation
         ptImage=ants.threshold_image( ptImg, pts2bold.loc[i,&#39;ROI&#39;], pts2bold.loc[i,&#39;ROI&#39;] )
     if debug:
       ptImgAll = ptImgAll + ptImage
-    meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
+    if ptImage.sum() &gt; 0 :
+        meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
 
   if debug:
       ants.image_write( simg, &#39;/tmp/simg.nii.gz&#39; )
@@ -19965,9 +20824,15 @@ high frequency information) reduced both reliability and signal-noise separation
     fname=&#39;falffPoint&#39;+kk+anatname
     aname=&#39;alffPoint&#39;+kk+anatname
     pname=&#39;perafPoint&#39;+kk+anatname
-    outdict[fname]=(outdict[&#39;falff&#39;][ptImg==k]).mean()
-    outdict[aname]=(outdict[&#39;alff&#39;][ptImg==k]).mean()
-    outdict[pname]=(perafimg[ptImg==k]).mean()
+    localsel = ptImg == k
+    if localsel.sum() &gt; 0 : # check if non-empty
+        outdict[fname]=(outdict[&#39;falff&#39;][localsel]).mean()
+        outdict[aname]=(outdict[&#39;alff&#39;][localsel]).mean()
+        outdict[pname]=(perafimg[localsel]).mean()
+    else:
+        outdict[fname]=math.nan
+        outdict[aname]=math.nan
+        outdict[pname]=math.nan
 
   rsfNuisance = pd.DataFrame( nuisance )
   if remove_it:
@@ -20000,6 +20865,7 @@ high frequency information) reduced both reliability and signal-noise separation
   outdict[&#39;despiking_count_summary&#39;] = despiking_count_summary
   outdict[&#39;FD_max&#39;] = corrmo[&#39;FD&#39;].max()
   outdict[&#39;FD_mean&#39;] = corrmo[&#39;FD&#39;].mean()
+  outdict[&#39;FD_sd&#39;] = corrmo[&#39;FD&#39;].std()
   outdict[&#39;bold_evr&#39;] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
   outdict[&#39;n_outliers&#39;] = len(hlinds)
   outdict[&#39;nc_wm&#39;] = int(nc_wm)
@@ -20266,6 +21132,11 @@ in DWI timeseries.</p>
         dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn2&#39;].iloc[0]+iext) ))[0]
         if exists( dtfn2 ):
             dtList.append( dtfn2 )
+    if &#39;dtfn3&#39; in csvrow.keys():
+        dtid=str(int(csvrow[&#39;dtid3&#39;].iloc[0]))
+        dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, &#39;DTI*&#39;, dtid, str(csvrow[&#39;dtfn3&#39;].iloc[0]+iext) ))[0]
+        if exists( dtfn3 ):
+            dtList.append( dtfn3 )
     if &#39;rsffn1&#39; in csvrow.keys():
         rsid=str(int(csvrow[&#39;rsfid1&#39;].iloc[0]))
         rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, &#39;rsfMRI*&#39;, rsid, str(csvrow[&#39;rsffn1&#39;].iloc[0]+iext) ))[0]
@@ -20788,7 +21659,7 @@ See ants registration for details.</dd>
 </details>
 </dd>
 <dt id="antspymm.mm.tra_initializer"><code class="name flex">
-<span>def <span class="ident">tra_initializer</span></span>(<span>fixed, moving, n_simulations=32, max_rotation=30, transform=['rigid'], verbose=False)</span>
+<span>def <span class="ident">tra_initializer</span></span>(<span>fixed, moving, n_simulations=32, max_rotation=30, transform=['rigid'], compreg=None, verbose=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>multi-start multi-transform registration solution - based on ants.registration</p>
@@ -20797,13 +21668,14 @@ See ants registration for details.</dd>
 <p>n_simulations : number of simulations</p>
 <p>max_rotation : maximum rotation angle</p>
 <p>transform : list of transforms to loop through</p>
+<p>compreg : registration results against which to compare</p>
 <p>verbose : boolean</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
-    transform=[&#39;rigid&#39;], verbose=False ):
+    transform=[&#39;rigid&#39;], compreg=None, verbose=False ):
     &#34;&#34;&#34;
     multi-start multi-transform registration solution - based on ants.registration
 
@@ -20817,6 +21689,8 @@ See ants registration for details.</dd>
 
     transform : list of transforms to loop through
 
+    compreg : registration results against which to compare
+
     verbose : boolean
 
     &#34;&#34;&#34;
@@ -20825,15 +21699,20 @@ See ants registration for details.</dd>
         output_directory_w = output_directory + &#34;/tra_reg/&#34;
         os.makedirs(output_directory_w,exist_ok=True)
         bestmi = math.inf
+        bestvar = 0.0
         myorig = list(ants.get_origin( fixed ))
         mymax = 0;
         for k in range(len( myorig ) ):
             if abs(myorig[k]) &gt; mymax:
                 mymax = abs(myorig[k])
         maxtrans = mymax * 0.05
-        bestreg=ants.registration( fixed,moving,&#39;Translation&#39;,
-            outprefix=output_directory_w+&#34;trans&#34;)
-        initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
+        if compreg is None:
+            bestreg=ants.registration( fixed,moving,&#39;Translation&#39;,
+                outprefix=output_directory_w+&#34;trans&#34;)
+            initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
+        else :
+            bestreg=compreg
+            initx = ants.read_transform( bestreg[&#39;fwdtransforms&#39;][0] )
         for mytx in transform:
             regtx = &#39;Rigid&#39;
             with tempfile.NamedTemporaryFile(suffix=&#39;.h5&#39;) as tp:
@@ -20870,6 +21749,9 @@ See ants registration for details.</dd>
                                 print( &#34;mi @ &#34; + str(k) + &#34; : &#34; + str(mymi), flush=True)
                             bestmi = mymi
                             bestreg = reg
+                            bestvar = myvar
+        if bestvar == 0.0 and compreg is not None:
+            return compreg        
         return bestreg</code></pre>
 </details>
 </dd>
@@ -20950,6 +21832,130 @@ and the remaining edges are cleaned up a bit with closing.</p>
     threshold_std = np.percentile( stdM, tt )
     tsnrimage = ants.make_image( mask, stdM )
     return tsnrimage</code></pre>
+</details>
+</dd>
+<dt id="antspymm.mm.validate_nrg_file_format"><code class="name flex">
+<span>def <span class="ident">validate_nrg_file_format</span></span>(<span>path, separator)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>is your path nrg-etic?
+Validates if a given path conforms to the NRG file format, taking into account known extensions
+and the expected directory structure.</p>
+<dl>
+<dt>:param path: The file path to validate.</dt>
+<dt>:param separator: The separator used in the filename and directory structure.</dt>
+<dt>:return: A tuple (bool, str) indicating whether the path is valid and a message explaining the validation result.</dt>
+<dd>
+<p>example</p>
+</dd>
+</dl>
+<p>ntfn='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses-1/rsfMRI_RL/000/ANTsLIMBIC_sub08C105120Yr_ses-1_rsfMRI_RL_000.nii.gz'
+ntfngood='/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses_1/rsfMRI_RL/000/ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz'</p>
+<p>validate_nrg_detailed(ntfngood, '-')
+print( validate_nrg_detailed(ntfn, '-') )
+print( validate_nrg_detailed(ntfn, '_') )</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def validate_nrg_file_format(path, separator):
+    &#34;&#34;&#34;
+    is your path nrg-etic?
+    Validates if a given path conforms to the NRG file format, taking into account known extensions
+    and the expected directory structure.
+
+    :param path: The file path to validate.
+    :param separator: The separator used in the filename and directory structure.
+    :return: A tuple (bool, str) indicating whether the path is valid and a message explaining the validation result.
+
+    : example
+
+    ntfn=&#39;/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses-1/rsfMRI_RL/000/ANTsLIMBIC_sub08C105120Yr_ses-1_rsfMRI_RL_000.nii.gz&#39;
+    ntfngood=&#39;/Users/ntustison/Data/Stone/LIMBIC/NRG/ANTsLIMBIC/sub08C105120Yr/ses_1/rsfMRI_RL/000/ANTsLIMBIC-sub08C105120Yr-ses_1-rsfMRI_RL-000.nii.gz&#39;
+
+    validate_nrg_detailed(ntfngood, &#39;-&#39;)
+    print( validate_nrg_detailed(ntfn, &#39;-&#39;) )
+    print( validate_nrg_detailed(ntfn, &#39;_&#39;) )
+
+    &#34;&#34;&#34;
+    import re    
+
+    def normalize_path(path):
+        &#34;&#34;&#34;
+        Replace multiple repeated &#39;/&#39; with just a single &#39;/&#39;
+        
+        :param path: The file path to normalize.
+        :return: The normalized file path with single &#39;/&#39;.
+        &#34;&#34;&#34;
+        normalized_path = re.sub(r&#39;/+&#39;, &#39;/&#39;, path)
+        return normalized_path
+
+    def strip_known_extension(filename, known_extensions):
+        &#34;&#34;&#34;
+        Strips a known extension from the filename.
+
+        :param filename: The filename from which to strip the extension.
+        :param known_extensions: A list of known extensions to strip from the filename.
+        :return: The filename with the known extension stripped off, if found.
+        &#34;&#34;&#34;
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                # Strip the extension and return the modified filename
+                return filename[:-len(ext)]
+        # If no known extension is found, return the original filename
+        return filename
+
+    import warnings
+    if normalize_path( path ) != path:
+        path = normalize_path( path )
+        warnings.warn(&#34;Probably had multiple repeated slashes eg /// in the file path.  this might cause issues. clean up with re.sub(r&#39;/+&#39;, &#39;/&#39;, path)&#34;)
+
+    known_extensions = [&#34;.nii.gz&#34;, &#34;.nii&#34;, &#34;.mhd&#34;, &#34;.nrrd&#34;, &#34;.mha&#34;, &#34;.json&#34;, &#34;.bval&#34;, &#34;.bvec&#34;]
+    known_extensions2 = [ext.lstrip(&#39;.&#39;) for ext in known_extensions]
+    def get_extension(filename, known_extensions ):
+        # List of known extensions in priority order
+        for ext in known_extensions:
+            if filename.endswith(ext):
+                return ext.strip(&#39;.&#39;)
+        return &#34;Invalid extension&#34;
+    
+    parts = path.split(&#39;/&#39;)
+    if len(parts) &lt; 7:  # Checking for minimum path structure
+        return False, &#34;Path structure is incomplete. Expected at least 7 components, found {}.&#34;.format(len(parts))
+    
+    # Extract directory components and filename
+    directory_components = parts[1:-1]  # Exclude the root &#39;/&#39; and filename
+    filename = parts[-1]
+    filename_without_extension = strip_known_extension( filename, known_extensions )
+    file_extension = get_extension( filename, known_extensions )
+    
+    # Validating file extension
+    if file_extension not in known_extensions2:
+        print( file_extension )
+        return False, &#34;Invalid file extension: {}. Expected &#39;nii.gz&#39; or &#39;json&#39;.&#34;.format(file_extension)
+    
+    # Splitting the filename to validate individual parts
+    filename_parts = filename_without_extension.split(separator)
+    if len(filename_parts) != 5:  # Expecting 5 parts based on the NRG format
+        print( filename_parts )
+        return False, &#34;Filename does not have exactly 5 parts separated by &#39;{}&#39;. Found {} parts.&#34;.format(separator, len(filename_parts))
+    
+    # Reconstruct expected filename from directory components
+    expected_filename_parts = directory_components[-5:]
+    expected_filename = separator.join(expected_filename_parts)
+    if filename_without_extension != expected_filename:
+        print( filename_without_extension )
+        print(&#34;--- vs expected ---&#34;)
+        print( expected_filename )
+        return False, &#34;Filename structure does not match directory structure. Expected filename: {}.&#34;.format(expected_filename)
+    
+    # Validate directory structure against NRG format
+    study_name, subject_id, session, modality = directory_components[-4:-1] + [directory_components[-1].split(&#39;/&#39;)[0]]
+    if not all([study_name, subject_id, session, modality]):
+        return False, &#34;Directory structure does not follow NRG format. Ensure StudyName, SubjectID, Session (ses_x), and Modality are correctly specified.&#34;
+    
+    # If all checks pass
+    return True, &#34;The path conforms to the NRG format.&#34;</code></pre>
 </details>
 </dd>
 <dt id="antspymm.mm.version"><code class="name flex">
@@ -21351,6 +22357,8 @@ the primary outputs will be</code></dt>
     if &#39;flair&#39; in mm:
         if mm[&#39;flair&#39;] is not None:
             myop = output_prefix + separator + &#39;wmh.nii.gz&#39;
+            pngfnb = output_prefix + separator + &#39;wmh_seg.png&#39;
+            ants.plot( mm[&#39;flair&#39;][&#39;flair&#39;], mm[&#39;flair&#39;][&#39;WMH_posterior_probability_map&#39;], axis=2, nslices=21, ncol=7, filename=pngfnb, crop=True )
             if mm[&#39;flair&#39;][&#39;WMH_probability_map&#39;] is not None:
                 image_write_with_thumbnail( mm[&#39;flair&#39;][&#39;WMH_probability_map&#39;], myop, thumb=False )
             flwide = dict_to_dataframe( mm[&#39;flair&#39;] )
@@ -21398,9 +22406,10 @@ the primary outputs will be</code></dt>
                 mm_wide[&#39;dti_high_motion_count&#39;] =  mydti[&#39;high_motion_count&#39;]
                 mm_wide[&#39;dti_FD_mean&#39;] = mydti[&#39;framewise_displacement&#39;].mean()
                 mm_wide[&#39;dti_FD_max&#39;] = mydti[&#39;framewise_displacement&#39;].max()
+                mm_wide[&#39;dti_FD_sd&#39;] = mydti[&#39;framewise_displacement&#39;].std()
                 fdfn = output_prefix + separator + &#39;_fd.csv&#39;
             else:
-                mm_wide[&#39;dti_FD_mean&#39;] = mm_wide[&#39;dti_FD_max&#39;] = &#39;NA&#39;
+                mm_wide[&#39;dti_FD_mean&#39;] = mm_wide[&#39;dti_FD_max&#39;] = mm_wide[&#39;dti_FD_sd&#39;] = &#39;NA&#39;
 
     if &#39;perf&#39; in mm:
         if mm[&#39;perf&#39;] is not None:
@@ -21534,6 +22543,7 @@ the primary outputs will be</code></dt>
 <li><code><a title="antspymm.mm.tra_initializer" href="#antspymm.mm.tra_initializer">tra_initializer</a></code></li>
 <li><code><a title="antspymm.mm.trim_dti_mask" href="#antspymm.mm.trim_dti_mask">trim_dti_mask</a></code></li>
 <li><code><a title="antspymm.mm.tsnr" href="#antspymm.mm.tsnr">tsnr</a></code></li>
+<li><code><a title="antspymm.mm.validate_nrg_file_format" href="#antspymm.mm.validate_nrg_file_format">validate_nrg_file_format</a></code></li>
 <li><code><a title="antspymm.mm.version" href="#antspymm.mm.version">version</a></code></li>
 <li><code><a title="antspymm.mm.wmh" href="#antspymm.mm.wmh">wmh</a></code></li>
 <li><code><a title="antspymm.mm.write_bvals_bvecs" href="#antspymm.mm.write_bvals_bvecs">write_bvals_bvecs</a></code></li>
