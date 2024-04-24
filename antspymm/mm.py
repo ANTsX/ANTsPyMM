@@ -10440,6 +10440,8 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     mydict = pd.read_csv(data_dictionary_path)
     mydict = mydict[~mydict['Measurement'].str.contains("tractography-based connectivity", na=False)]
 
+    statistical_df['anat'] = statistical_df['anat'].str.replace("_", ".", regex=True)
+
     # Load image and process it
     edgeimg = ants.iMath(brain_image,"Normalize")
     if edge_image_dilation > 0:
@@ -10520,6 +10522,10 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             elif whichatlas == 'yeo_homotopic':
                 myext = 'yeo'
             if myext is None and verbose:
+                if whichatlas is None:
+                    whichatlas='None'
+                if anattoshow[k] is None:
+                    anattoshow[k]='None'
                 print( "MYEXT " + anattoshow[k] + ' unfound ' + whichatlas )
             else:
                 if verbose:
