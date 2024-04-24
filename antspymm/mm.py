@@ -10499,7 +10499,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             myext = None
             if 'dktcortex' in anattoshow[k] or whichatlas == 'desikan-killiany-tourville' or 'dtkregions' in anattoshow[k]:
                 myext = 'dkt_cortex'
-            elif 'cit168' in anattoshow[k]:
+            elif 'cit168' in anattoshow[k] or whichatlas == 'CIT168':
                 myext = 'cit168lab'
             elif 'mtl' in anattoshow[k]:
                 myext = 'mtl'
