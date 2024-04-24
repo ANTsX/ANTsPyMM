@@ -10481,6 +10481,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             anatsear=re.sub("dti.mean.md.","",anatsear)
             anatsear=re.sub("dti.mean.fa.","",anatsear)
             anatsear=re.sub("lravg","",anatsear)
+            anatsear=re.sub("cbf.","",anatsear)
             atlassearch = mydict['tidynames'].str.contains(anatsear)
             if atlassearch.sum() > 0:
                 whichatlas = mydict[atlassearch]['Atlas'].iloc[0]
@@ -10601,9 +10602,17 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
                 print("oglabelname " + oglabelname )
 
             if myext == 'cerebellum':
-                atlasDescript['Description'] = atlasDescript['Description'].str.replace("l_", "")
-                atlasDescript['Description'] = atlasDescript['Description'].str.replace("r_", "")
-                whichindex = atlasDescript.index[atlasDescript['Description'] == oglabelname].values[0]
+                if not atlasDescript.empty and 'Description' in atlasDescript.columns:
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("l_", "")
+                    atlasDescript['Description'] = atlasDescript['Description'].str.replace("r_", "")
+                    oglabelname=re.sub("ravg","",oglabelname)
+                    oglabelname=re.sub("lavg","",oglabelname)
+                    whichindex = atlasDescript.index[atlasDescript['Description'] == oglabelname].values[0]
+                else:
+                    if atlasDescript.empty:
+                        print("The DataFrame 'atlasDescript' is empty.")
+                    if 'Description' not in atlasDescript.columns:
+                        print("The column 'Description' does not exist in 'atlasDescript'.")
             else:
                 whichindex = atlasDescript.index[atlasDescript['Description'].str.contains(oglabelname)]
 
