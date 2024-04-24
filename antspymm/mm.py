@@ -10467,6 +10467,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
                 print(str(k) +  " " + anattoshow[k]  )
             mysub = zz[zz['anat'].str.contains(anattoshow[k])]
             anatsear=re.sub("dti.fa","",anattoshow[k])
+            anatsear=re.sub("cbf.","",anatsear)
             anatsear=re.sub("t1.volasym","",anatsear)
             anatsear=re.sub("t1.thkasym","",anatsear)
             anatsear=re.sub("t1.areaasym","",anatsear)
@@ -10481,8 +10482,9 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             anatsear=re.sub("dti.mean.md.","",anatsear)
             anatsear=re.sub("dti.mean.fa.","",anatsear)
             anatsear=re.sub("lravg","",anatsear)
-            anatsear=re.sub("cbf.","",anatsear)
             atlassearch = mydict['tidynames'].str.contains(anatsear)
+            if verbose:
+                print( " anatsear " + anatsear + " atlassearch " )
             if atlassearch.sum() > 0:
                 whichatlas = mydict[atlassearch]['Atlas'].iloc[0]
                 oglabelname = mydict[atlassearch]['Label'].iloc[0]
@@ -10491,11 +10493,11 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
                 oglabelname='unknown'
                 whichatlas=None
             if verbose:
-                print("oglabelname " + oglabelname )
+                print("oglabelname " + oglabelname + " whichatlas " + str(whichatlas) )
             vals2viz = mysub[col2viz].agg(['min', 'max'])
             vals2viz = vals2viz[abs(vals2viz).idxmax()]
             myext = None
-            if 'dktcortex' in anattoshow[k]:
+            if 'dktcortex' in anattoshow[k] or whichatlas == 'desikan-killiany-tourville' or 'dtkregions' in anattoshow[k]:
                 myext = 'dkt_cortex'
             elif 'cit168' in anattoshow[k]:
                 myext = 'cit168lab'
@@ -10654,10 +10656,10 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             if fixed_overlay_range is not None:
                 addemC[0:3,0:3,0:3]=fixed_overlay_range[0]
                 addemC[4:7,4:7,4:7]=fixed_overlay_range[1]
-                addemC[ addemC < fixed_overlay_range[0] ] = fixed_overlay_range[0]
-                addemC[ addemC > fixed_overlay_range[1] ] = fixed_overlay_range[1]
+                addemC[ addemC <= fixed_overlay_range[0] ] = 0 # fixed_overlay_range[0]
+                addemC[ addemC >= fixed_overlay_range[1] ] = fixed_overlay_range[1]
             ants.plot(edgeimgC, addemC, axis=axx, nslices=nslices, ncol=ncol,       
-                overlay_cmap=overlay_cmap, resample=False,
+                overlay_cmap=overlay_cmap, resample=False, overlay_alpha=1.0,
                 filename=figfn, cbar=axx==axes[0], crop=True, black_bg=black_bg )
         if verbose:
             print(f"{col2viz} done")
