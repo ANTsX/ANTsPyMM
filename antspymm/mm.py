@@ -11392,15 +11392,16 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
 
     prefixes = ['NM1_', 'NM2_', 'NM3_', 'NM4_', 'NM5_', 'NM6_']  
     undfmod = nmdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
-    if verbose:
-        print('start NM')
-        print( undfmod.shape )
-    for prefix in prefixes:
-        if undfmod.shape[0] > 50:
-            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
-            if verbose:
-                print( prefix )
-                print( undfmod.shape )
+    if undfmod is not None:
+        if verbose:
+            print('start NM')
+            print( undfmod.shape )
+        for prefix in prefixes:
+            if undfmod.shape[0] > 50:
+                mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+                if verbose:
+                    print( prefix )
+                    print( undfmod.shape )
 
     criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'dimt':'max'}
     # higher bvalues lead to more noise ...
