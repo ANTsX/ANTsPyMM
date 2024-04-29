@@ -1061,6 +1061,27 @@ def nrg_format_path( projectID, subjectID, date, modality, imageID, separator='-
     return os.path.join( thedirectory, thefilename )
 
 
+def get_first_item_as_string(df, column_name):
+    """
+    Check if the first item in the specified column of the DataFrame is a string.
+    If it is not a string, attempt to convert it to an integer and then to a string.
+
+    Parameters:
+    df (pd.DataFrame): The DataFrame to operate on.
+    column_name (str): The name of the column to check.
+
+    Returns:
+    str: The first item in the specified column, guaranteed to be returned as a string.
+    """
+    if isinstance(df[column_name].iloc[0], str):
+        return df[column_name].iloc[0]
+    else:
+        try:
+            return str(int(df[column_name].iloc[0]))
+        except ValueError:
+            raise ValueError("The value cannot be converted to an integer.")
+
+
 def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
     """
     converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
@@ -1080,10 +1101,10 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         if not musthavecols[k] in matched_dataframe.keys():
             raise ValueError('matched_dataframe is missing column ' +musthavecols[k] + ' in study_dataframe_from_qc_dataframe' )
     csvrow=matched_dataframe.dropna(axis=1)
-    pid=str(csvrow['projectID'].iloc[0] )
-    sid=str(csvrow['subjectID'].iloc[0] )
-    dt=str(csvrow['date'].iloc[0])
-    iid=str(csvrow['imageID'].iloc[0])
+    pid=get_first_item_as_string( csvrow, 'projectID'  )
+    sid=get_first_item_as_string( csvrow, 'subjectID'  ) # str(csvrow['subjectID'].iloc[0] )
+    dt=get_first_item_as_string( csvrow, 'date'  )  # str(csvrow['date'].iloc[0])
+    iid=get_first_item_as_string( csvrow, 'imageID'  ) # str(csvrow['imageID'].iloc[0])
     nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['filename'].iloc[0]+iext) )
     if not exists( nrgt1fn ):
         raise ValueError("T1 " + nrgt1fn + " does not exist in study_dataframe_from_qc_dataframe")
@@ -1092,32 +1113,32 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     rsfList=[]
     nmList=[]
     if 'flairfn' in csvrow.keys():
-        flid=str(int(csvrow['flairid'].iloc[0]))
+        flid=get_first_item_as_string( csvrow, 'flairid' )
         nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'T2Flair', flid, str(csvrow['flairfn'].iloc[0]+iext) )
         if exists( nrgt2fn ):
             flList.append( nrgt2fn )
     if 'dtfn1' in csvrow.keys():
-        dtid=str(int(csvrow['dtid1'].iloc[0]))
+        dtid=get_first_item_as_string( csvrow, 'dtid1' )
         dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))[0]
         if exists( dtfn1 ):
             dtList.append( dtfn1 )
     if 'dtfn2' in csvrow.keys():
-        dtid=str(int(csvrow['dtid2'].iloc[0]))
+        dtid=get_first_item_as_string( csvrow, 'dtid2' )
         dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))[0]
         if exists( dtfn2 ):
             dtList.append( dtfn2 )
     if 'dtfn3' in csvrow.keys():
-        dtid=str(int(csvrow['dtid3'].iloc[0]))
+        dtid=get_first_item_as_string( csvrow, 'dtid3' )
         dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn3'].iloc[0]+iext) ))[0]
         if exists( dtfn3 ):
             dtList.append( dtfn3 )
     if 'rsffn1' in csvrow.keys():
-        rsid=str(int(csvrow['rsfid1'].iloc[0]))
+        rsid=get_first_item_as_string( csvrow, 'rsfid1' )
         rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))[0]
         if exists( rsfn1 ):
             rsfList.append( rsfn1 )
     if 'rsffn2' in csvrow.keys():
-        rsid=str(int(csvrow['rsfid2'].iloc[0]))
+        rsid=get_first_item_as_string( csvrow, 'rsfid2' )
         rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn2'].iloc[0]+iext) ))[0]
         if exists( rsfn2 ):
             rsfList.append( rsfn2 )
@@ -1125,7 +1146,7 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         keyname="nmfn"+str(j)
         keynameid="nmid"+str(j)
         if keyname in csvrow.keys() and keynameid in csvrow.keys():
-            nmid=str(int(csvrow[keynameid].iloc[0]))
+            nmid=get_first_item_as_string( csvrow, keynameid )
             nmsearchpath=os.path.join( rootdir, pid, sid, dt, 'NM2DMT', nmid, "*"+nmid+iext)
             nmfn=glob.glob( nmsearchpath )
             nmfn=nmfn[0]
