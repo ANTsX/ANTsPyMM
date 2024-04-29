@@ -11212,7 +11212,7 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
     if df_b is not None:
         df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')].copy()
     else:
-        return df_a
+        return df_a, pd.DataFrame()
     
     # Normalize df_b based on criteria
     for col, crit in criteria.items():
