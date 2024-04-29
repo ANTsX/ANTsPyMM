@@ -11208,8 +11208,11 @@ def mm_match_by_qc_scoring(df_a, df_b, match_column, criteria, prefix='matched_'
         2. A DataFrame containing rows from df_b that were not matched to df_a.
     """
     from scipy.stats import zscore
-    df_a = df_a.loc[:, ~df_a.columns.str.startswith('Unnamed:')]
-    df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')].copy()
+    df_a = df_a.loc[:, ~df_a.columns.str.startswith('Unnamed:')].copy()
+    if df_b is not None:
+        df_b = df_b.loc[:, ~df_b.columns.str.startswith('Unnamed:')].copy()
+    else:
+        return df_a
     
     # Normalize df_b based on criteria
     for col, crit in criteria.items():
