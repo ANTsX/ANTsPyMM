@@ -1099,7 +1099,7 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     musthavecols = ['projectID', 'subjectID','date','imageID','filename']
     for k in range(len(musthavecols)):
         if not musthavecols[k] in matched_dataframe.keys():
-            raise ValueError('matched_dataframe is missing column ' +musthavecols[k] + ' in study_dataframe_from_qc_dataframe' )
+            raise ValueError('matched_dataframe is missing column ' + musthavecols[k] + ' in study_dataframe_from_qc_dataframe' )
     csvrow=matched_dataframe.dropna(axis=1)
     pid=get_first_item_as_string( csvrow, 'projectID'  )
     sid=get_first_item_as_string( csvrow, 'subjectID'  ) # str(csvrow['subjectID'].iloc[0] )
@@ -10982,10 +10982,10 @@ def aggregate_antspymm_results_sdf(
         myfn = os.path.basename( df['filename'].iloc[x] )
         temp = myfn.split( splitsep )
         # Generalized search paths
-        sid0 = str( temp[0] )
+        sid0 = str( temp[1] )
         sid = str( df[subject_col].iloc[x] )
         if sid0 != sid:
-            warnings.warn("OUTER: the id derived from the filename " + sid + " does not match the id stored in the data frame " + sid )
+            warnings.warn("OUTER: the id derived from the filename " + sid0 + " does not match the id stored in the data frame " + sid )
             warnings.warn( "filename is : " +  myfn )
             warnings.warn( "sid is : " + sid )
             warnings.warn( "x is : " + str(x) )
