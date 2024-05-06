@@ -10893,6 +10893,7 @@ def aggregate_antspymm_results_sdf(
     splitsep='-',
     idsep='-',
     wild_card_modality_id=False,
+    second_split=False,
     verbose=False ):
     """
     Aggregate ANTsPyMM results from the specified study data frame and store the aggregated results in a new data frame.  This assumes data is organized on disk 
@@ -10911,6 +10912,7 @@ def aggregate_antspymm_results_sdf(
     - idsep (str): the separator used to partition subjectid date and imageid 
         for example, if idsep is - then we have subjectid-date-imageid
     - wild_card_modality_id (bool): keep if False for safer execution
+    - second_split (bool): this is a hack that will split the imageID by . and keep the first part of the split; may be needed when the input filenames contain .
     - verbose : boolean
 
     Note:
@@ -10992,12 +10994,24 @@ def aggregate_antspymm_results_sdf(
         myproj = str(df[project_col].iloc[x])
         mydate = str(df[date_col].iloc[x])
         myid = str(df[image_col].iloc[x])
+        if second_split:
+            myid = myid.split(".")[0]
         path_template = base_path + "/" + myproj +  "/" + sid + "/" + mydate + '/' + hiervariable + '/' + str(myid) + "/"
         hierfn = sorted(glob( path_template + "*" + hiervariable + "*wide.csv" ) )
+        if len( hierfn ) == 0:
+            print( hierfn )
+            print( path_template )
+            print( myproj )
+            print( sid )
+            print( mydate ) 
+            print( myid )
         if len( hierfn ) > 0:
             keep[x]=True
 
-    df=df[keep]
+    # df=df[keep]
+    if df.shape[0] == 0:
+        warnings.warn("input data frame shape is filtered down to zero")
+        return df
 
     if not df.index.is_unique:
         warnings.warn("data frame does not have unique indices.  we therefore reset the index to allow the function to continue on." )
@@ -11030,7 +11044,8 @@ def aggregate_antspymm_results_sdf(
         myproj = str(df[project_col].iloc[x])
         mydate = str(df[date_col].iloc[x])
         myid = str(df[image_col].iloc[x])
-        myt1id = myid
+        if second_split:
+            myid = myid.split(".")[0]
         if verbose:
             print( myfn )
             print( temp )
@@ -11108,9 +11123,11 @@ def aggregate_antspymm_results_sdf(
             hdf.index = subdf.index.copy()
             subdf = pd.concat( [subdf,hdf], axis=1, ignore_index=False)
             dfout = pd.concat( [dfout,subdf], axis=0, ignore_index=False )
-    badnames = get_names_from_data_frame( ['Unnamed'], dfout )
-    dfout=dfout.drop(badnames, axis=1)
-    return( dfout )
+
+    if dfout.shape[0] > 0:
+        badnames = get_names_from_data_frame( ['Unnamed'], dfout )
+        dfout=dfout.drop(badnames, axis=1)
+    return dfout
 
 def enantiomorphic_filling_without_mask( image, axis=0, intensity='low' ):
     """
