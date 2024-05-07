@@ -3451,6 +3451,9 @@ def dipy_dti_recon(
         bvals = bvalsfn.copy()
         bvecs = bvecsfn.copy()
 
+    if bvals.max() < 1.0:
+        raise ValueError("DTI recon error: maximum bvalues are too small.")
+
     b0_idx = segment_timeseries_by_bvalue( bvals )['highermeans']
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
