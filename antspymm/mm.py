@@ -9556,6 +9556,7 @@ def blind_image_assessment(
             if exists( bval_name ) and exists( bvec_name ):
                 bvals, bvecs = read_bvals_bvecs( bval_name , bvec_name  )
                 bvalueMax = bvals.max()
+                bvecnorm = np.linalg.norm(bvecs,axis=1).reshape( bvecs.shape[0],1 )
         else:
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
     else:
@@ -9721,11 +9722,11 @@ def blind_image_assessment(
             noizlevel, snrref, cnrref, psnrref, ssimref, mymi, asym_err, myevr, msk_vol, 
             spc[0], spc[1], spc[2],org[0], org[1], org[2], 
             image.shape[0], image.shape[1], image.shape[2], ntimepoints, 
-            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode, bvalueMax ]], 
+            jjj, modality, mriseries, mrimfg, mrimodel, MagneticFieldStrength, mriSAR, PixelBandwidth, BandwidthPerPixelPhaseEncode, bvalueMax, bvecnorm ]], 
             columns=[
                 'filename', 
                 'dimensionality',
-                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel', 'mriMagneticFieldStrength', 'mriSAR', 'mriPixelBandwidth', 'mriPixelBandwidthPE', 'dti_bvalueMax' ])
+                'noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol', 'spc0','spc1','spc2','org0','org1','org2','dimx','dimy','dimz','dimt','slice','modality', 'mriseries', 'mrimfg', 'mrimodel', 'mriMagneticFieldStrength', 'mriSAR', 'mriPixelBandwidth', 'mriPixelBandwidthPE', 'dti_bvalueMax', 'dti_bvecnorm' ])
         outdf = pd.concat( [outdf, df ], axis=0, ignore_index=False )
         if verbose:
             print( outdf )
@@ -11105,7 +11106,6 @@ def aggregate_antspymm_results_sdf(
                     nlarge = len(t1wfn)
                     t1wfn = find_most_recent_file( t1wfn )
                     warnings.warn("there are " + str( nlarge ) + " number of wide fns with search path " + modsearch + " we take the most recent of these " + t1wfn[0] )
-#                    raise ValueError("there are " + str( len( t1wfn ) ) + " number of wide fns with search path " + modsearch )
                 if len( t1wfn ) == 1:
                     if verbose:
                         print(t1wfn)
