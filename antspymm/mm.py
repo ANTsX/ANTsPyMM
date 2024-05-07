@@ -9557,6 +9557,7 @@ def blind_image_assessment(
                 bvals, bvecs = read_bvals_bvecs( bval_name , bvec_name  )
                 bvalueMax = bvals.max()
                 bvecnorm = np.linalg.norm(bvecs,axis=1).reshape( bvecs.shape[0],1 )
+                bvecnorm = bvecnorm.max()
         else:
             image_b0 = ants.get_average_of_timeseries( image_reference ).iMath("Normalize")
     else:
