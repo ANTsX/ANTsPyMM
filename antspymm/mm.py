@@ -9544,6 +9544,7 @@ def blind_image_assessment(
         image_reference = ants.image_clone( image )
     ntimepoints = 1
     bvalueMax=None
+    bvecnorm=None
     if image_reference.dimension == 4:
         ntimepoints = image_reference.shape[3]
         if "DTI" in image_filename:
