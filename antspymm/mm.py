@@ -7978,13 +7978,19 @@ def mm_csv(
                 hier['dataframes'], identifier=None )
         t1wide.to_csv( hierfn + 'mmwide.csv' )
     ################# read the hierarchical data ###############################
+    # over-write the rbp data with a consistent and recent approach ############
+    print( "ASS " + hierfn + 'rbp' )
+    print( pd.read_csv( hierfn + 'rbp.csv' ) )
+    myx = antspyt1w.inspect_raw_t1( t1, hierfn + 'rbp_TEST' , option='both' ) 
+    del myx
+    derka
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
     elif not testloop:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-    if t1wide['resnetGrade'].iloc[0] < 0.35:
+    if t1wide['resnetGrade'].iloc[0] < 0.20:
         rgrade = str( t1wide['resnetGrade'].iloc[0] )
         warnings.warn('T1w quality check indicates failure: ' + rgrade + " will not process." )
         return
