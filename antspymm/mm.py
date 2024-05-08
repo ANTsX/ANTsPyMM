@@ -7984,11 +7984,8 @@ def mm_csv(
     myx['brain'].to_csv( hierfn + 'rbpbrain.csv', index=False )
     del myx
     hier = antspyt1w.read_hierarchical( hierfn )
-    if exists( hierfn + 'mmwide.csv' ) :
-        t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
-    elif not testloop:
-        t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
-                hier['dataframes'], identifier=None )
+    t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+        hier['dataframes'], identifier=None )
     rgrade = str( t1wide['resnetGrade'].iloc[0] )
     if t1wide['resnetGrade'].iloc[0] < 0.20:
         warnings.warn('T1w quality check indicates failure: ' + rgrade + " will not process." )
