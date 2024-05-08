@@ -7980,10 +7980,8 @@ def mm_csv(
     ################# read the hierarchical data ###############################
     # over-write the rbp data with a consistent and recent approach ############
     myx = antspyt1w.inspect_raw_t1( t1, hierfn + 'rbp' , option='both' )
-    print( myx['brain'] )
     myx['brain'].to_csv( hierfn + 'rbp.csv', index=False )
     del myx
-    DEARAED
     hier = antspyt1w.read_hierarchical( hierfn )
     if exists( hierfn + 'mmwide.csv' ) :
         t1wide = pd.read_csv( hierfn + 'mmwide.csv' )
