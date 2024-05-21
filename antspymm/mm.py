@@ -8145,10 +8145,11 @@ def mm_csv(
                         print(f"antspymmerror occurred while processing {overmodX}: {e}")
                         pass
                     if not test_run:
-                        write_mm( output_prefix=mymm, mm=tabPro, mm_norm=normPro, t1wide=None, separator=mysep )
+                        write_mm( output_prefix=mymm, mm=tabPro,
+                            mm_norm=normPro, t1wide=None, separator=mysep )
                         nmpro = tabPro['NM']
-                        mysl = range( nmpro['NM_avg'].shape[2] )
-                    if visualize:
+                        print( nmpro )
+                    if visualize and nmpro['NM_avg'] is not None:
                         mysl = range( nmpro['NM_avg'].shape[2] )
                         ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+mysep+"NMavg.png" )
                         mysl = range( nmpro['NM_avg_cropped'].shape[2] )
