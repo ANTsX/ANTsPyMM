@@ -8145,6 +8145,7 @@ def mm_csv(
                         print(f"antspymmerror occurred while processing {overmodX}: {e}")
                         pass
                     if not test_run:
+                        print( mymm )
                         write_mm( output_prefix=mymm, mm=tabPro,
                             mm_norm=normPro, t1wide=None, separator=mysep )
                         nmpro = tabPro['NM']
