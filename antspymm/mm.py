@@ -8086,6 +8086,8 @@ def mm_csv(
                 print( 'example image name is : '  )
                 print( myimgsr )
             if overmodX == 'NM2DMT':
+                dowrite = True
+                visualize = True
                 subjectpropath = os.path.dirname( mydoc['outprefix'] )
                 if verbose:
                     print("subjectpropath is")
@@ -8148,14 +8150,14 @@ def mm_csv(
                         if dowrite:
                             write_mm( output_prefix=mymm, mm=tabPro,
                                 mm_norm=normPro, t1wide=None, separator=mysep )
+                        if visualize :
                             nmpro = tabPro['NM']
-                    if visualize :
-                        mysl = range( nmpro['NM_avg'].shape[2] )
-                        ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+mysep+"NMavg.png" )
-                        mysl = range( nmpro['NM_avg_cropped'].shape[2] )
-                        ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+mysep+"NMavgcrop.png" )
-                        ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
-                        ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
+                            mysl = range( nmpro['NM_avg'].shape[2] )
+                            ants.plot( nmpro['NM_avg'],  nmpro['t1_to_NM'], slices=mysl, axis=2, title='nm + t1', filename=mymm+mysep+"NMavg.png" )
+                            mysl = range( nmpro['NM_avg_cropped'].shape[2] )
+                            ants.plot( nmpro['NM_avg_cropped'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop', filename=mymm+mysep+"NMavgcrop.png" )
+                            ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
+                            ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
             else :
                 if len( myimgsr ) > 0:
                     dowrite=False
