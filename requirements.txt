@@ -10,7 +10,7 @@ absl-py==2.1.0
     #   tensorboard
     #   tensorflow
     #   tensorflow-probability
-antspynet==0.2.5
+antspynet==0.2.6
     # via
     #   antspymm (pyproject.toml)
     #   antspyt1w
@@ -73,9 +73,7 @@ iniconfig==2.0.0
 joblib==1.4.2
     # via scikit-learn
 keras==3.3.3
-    # via
-    #   antspynet
-    #   tensorflow
+    # via tensorflow
 kiwisolver==1.4.5
     # via matplotlib
 lazy-loader==0.4

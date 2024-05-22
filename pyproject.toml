@@ -18,7 +18,7 @@ dependencies = [
     "numpy>=1.19.4",
     "pandas>=1.0.1",
     "antspyx",
-    "antspynet>=0.2.5",
+    "antspynet>=0.2.6",
     "antspyt1w>=0.9.3",
     "pathlib",
     "dipy",
