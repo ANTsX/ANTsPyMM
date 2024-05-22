@@ -24,7 +24,8 @@ dependencies = [
     "nibabel",
     "scipy",
     "siq",
-    "scikit-learn"
+    "scikit-learn",
+    "tensorflow-probability[tf]"
 ]
 
 [tool.setuptools.packages]

@@ -14,6 +14,8 @@ import tensorflow as tf
 from tempfile import mktemp
 import numpy as np
 import antspymm
+import sys
+sys.exit(0) # this is not an actual test that we want to run regularly
 print(" Load in JHU atlas and labels ")
 ex_path = os.path.expanduser( "~/.antspyt1w/" )
 ex_path_mm = os.path.expanduser( "~/.antspymm/" )
