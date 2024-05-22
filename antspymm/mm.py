@@ -154,11 +154,11 @@ def version( ):
     """
     import pkg_resources
     return {
-              'tensorflow': pkg_resources.require("tensorflow")[0].version,
-              'antspyx': pkg_resources.require("antspyx")[0].version,
-              'antspynet': pkg_resources.require("antspynet")[0].version,
-              'antspyt1w': pkg_resources.require("antspyt1w")[0].version,
-              'antspymm': pkg_resources.require("antspymm")[0].version
+              'tensorflow': pkg_resources.get_distribution("tensorflow").version,
+              'antspyx': pkg_resources.get_distribution("antspyx").version,
+              'antspynet': pkg_resources.get_distribution("antspynet").version,
+              'antspyt1w': pkg_resources.get_distribution("antspyt1w").version,
+              'antspymm': pkg_resources.get_distribution("antspymm").version
               }
 
 def nrg_filename_to_subjectvisit(s, separator='-'):
