@@ -10,10 +10,17 @@ absl-py==2.1.0
     #   tensorboard
     #   tensorflow
     #   tensorflow-probability
-antspyt1w==0.9.2
+antspynet==0.2.5
+    # via
+    #   antspymm (pyproject.toml)
+    #   antspyt1w
+antspyt1w==0.9.3
     # via antspymm (pyproject.toml)
 antspyx==0.4.2
-    # via antspymm (pyproject.toml)
+    # via
+    #   antspymm (pyproject.toml)
+    #   antspynet
+    #   antspyt1w
 astunparse==1.6.3
     # via tensorflow
 certifi==2024.2.2
@@ -53,6 +60,7 @@ grpcio==1.64.0
 h5py==3.11.0
     # via
     #   antspymm (pyproject.toml)
+    #   antspyt1w
     #   dipy
     #   keras
     #   tensorflow
@@ -60,10 +68,14 @@ idna==3.7
     # via requests
 imageio==2.34.1
     # via scikit-image
+iniconfig==2.0.0
+    # via pytest
 joblib==1.4.2
     # via scikit-learn
 keras==3.3.3
-    # via tensorflow
+    # via
+    #   antspynet
+    #   tensorflow
 kiwisolver==1.4.5
     # via matplotlib
 lazy-loader==0.4
@@ -77,7 +89,10 @@ markdown-it-py==3.0.0
 markupsafe==2.1.5
     # via werkzeug
 matplotlib==3.9.0
-    # via antspyx
+    # via
+    #   antspynet
+    #   antspyt1w
+    #   antspyx
 mdurl==0.1.2
     # via markdown-it-py
 ml-dtypes==0.3.2
@@ -97,6 +112,8 @@ nibabel==5.2.1
 numpy==1.26.4
     # via
     #   antspymm (pyproject.toml)
+    #   antspynet
+    #   antspyt1w
     #   antspyx
     #   contourpy
     #   dipy
@@ -109,6 +126,7 @@ numpy==1.26.4
     #   opt-einsum
     #   pandas
     #   patsy
+    #   pynomaly
     #   scikit-image
     #   scikit-learn
     #   scipy
@@ -131,6 +149,7 @@ packaging==24.0
     #   matplotlib
     #   nibabel
     #   plotly
+    #   pytest
     #   scikit-image
     #   setuptools-scm
     #   statsmodels
@@ -138,38 +157,51 @@ packaging==24.0
 pandas==2.2.2
     # via
     #   antspymm (pyproject.toml)
+    #   antspyt1w
     #   antspyx
     #   statsmodels
 pathlib==1.0.1
-    # via antspymm (pyproject.toml)
+    # via
+    #   antspymm (pyproject.toml)
+    #   antspyt1w
 patsy==0.5.6
     # via statsmodels
 pillow==10.3.0
     # via
+    #   antspyt1w
     #   antspyx
     #   imageio
     #   matplotlib
     #   scikit-image
 plotly==5.22.0
     # via chart-studio
+pluggy==1.5.0
+    # via pytest
 protobuf==4.25.3
     # via
     #   tensorboard
     #   tensorflow
 pygments==2.18.0
     # via rich
+pynomaly==0.3.3
+    # via antspyt1w
 pyparsing==3.1.2
     # via matplotlib
+pytest==8.2.1
+    # via antspyt1w
 python-dateutil==2.9.0.post0
     # via
     #   matplotlib
     #   pandas
+python-utils==3.8.2
+    # via pynomaly
 pytz==2024.1
     # via pandas
 pyyaml==6.0.1
     # via antspyx
 requests==2.32.2
     # via
+    #   antspynet
     #   chart-studio
     #   tensorflow
 retrying==1.3.4
@@ -181,10 +213,12 @@ scikit-image==0.23.2
 scikit-learn==1.5.0
     # via
     #   antspymm (pyproject.toml)
+    #   antspynet
     #   antspyx
 scipy==1.13.0
     # via
     #   antspymm (pyproject.toml)
+    #   antspyt1w
     #   antspyx
     #   dipy
     #   scikit-image
@@ -206,7 +240,9 @@ six==1.16.0
     #   tensorflow
     #   tensorflow-probability
 statsmodels==0.14.2
-    # via antspyx
+    # via
+    #   antspynet
+    #   antspyx
 tenacity==8.3.0
     # via plotly
 tensorboard==2.16.2
@@ -215,10 +251,11 @@ tensorboard-data-server==0.7.2
     # via tensorboard
 tensorflow==2.16.1
     # via
+    #   antspynet
     #   tensorflow-probability
     #   tf-keras
 tensorflow-probability[tf]==0.24.0
-    # via antspymm (pyproject.toml)
+    # via antspyt1w
 termcolor==2.4.0
     # via tensorflow
 tf-keras==2.16.0
@@ -234,6 +271,7 @@ trx-python==0.2.9
 typing-extensions==4.11.0
     # via
     #   optree
+    #   python-utils
     #   tensorflow
 tzdata==2024.1
     # via pandas
