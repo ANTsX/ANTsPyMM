@@ -1,5 +1,7 @@
 # ANTsPyMM
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/ANTsX/ANTsPyMM/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/ANTsX/ANTsPyMM/tree/main)
+
 ![mapping](https://i.imgur.com/qKqYjU9.jpeg)
 
 ## processing utilities for timeseries/multichannel images - mostly neuroimaging
