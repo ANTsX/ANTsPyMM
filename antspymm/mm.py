@@ -3445,6 +3445,9 @@ def dipy_dti_recon(
     -------
     >>> import antspymm
     """
+
+    import dipy.reconst.fwdti as fwdti
+
     if isinstance(bvecsfn, str):
         bvals, bvecs = read_bvals_bvecs( bvalsfn , bvecsfn   )
     else: # assume we already read them
@@ -3472,7 +3475,7 @@ def dipy_dti_recon(
     if verbose:
         print("recon dti.TensorModel",flush=True)
 
-    def justthefit( gtab, fit_method, imagein, maskin ):
+    def justthefit( gtab, fit_method, imagein, maskin, free_water=False ):
         if fit_method is None:
             return None, None, None, None
         maskedimage=[]
@@ -3481,8 +3484,12 @@ def dipy_dti_recon(
             maskedimage.append( b0 * maskin )
         maskedimage = ants.list_to_ndimage( imagein, maskedimage )
         maskdata = maskedimage.numpy()
-        tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
-        tenfit = tenmodel.fit(maskdata)
+        if free_water:
+            tenmodel = fwdti.FreeWaterTensorModel(gtab)
+            tenfit = fwdtimodel.fit(maskdata)
+        else:
+            tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
+            tenfit = tenmodel.fit(maskdata)
         FA = fractional_anisotropy(tenfit.evals)
         FA[np.isnan(FA)] = 1
         FA = np.clip(FA, 0, 1)
