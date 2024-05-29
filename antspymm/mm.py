@@ -5049,6 +5049,11 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   snintmeanabovethresh = float( ( simg * nmabovekthresh_mask ).mean() )
   snintsumabovethresh = float( ( simg * nmabovekthresh_mask ).sum() )
 
+  k = 3.0
+  rrthresh = (rravg + k * rrstd)
+  nmabovekthresh_mask3 = sn_mask * ants.threshold_image( simg, rrthresh, math.inf)
+  snvolabovethresh3 = vol_element * nmabovekthresh_mask3.sum()
+
   k = 4.0
   rrthresh = (rravg + k * rrstd)
   nmabovekthresh_mask4 = sn_mask * ants.threshold_image( simg, rrthresh, math.inf)
@@ -5077,6 +5082,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_volume_substantianigra_2std' : snvolabovethresh,
       'NM_intmean_substantianigra_2std' : snintmeanabovethresh,
       'NM_intsum_substantianigra_2std' : snintsumabovethresh,
+      'NM_volume_substantianigra_3std' : snvolabovethresh3,
       'NM_volume_substantianigra_4std' : snvolabovethresh4,
       'NM_avg_refregion' : rravg,
       'NM_std_refregion' : rrstd,
