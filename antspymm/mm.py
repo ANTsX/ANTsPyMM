@@ -3515,6 +3515,8 @@ def dipy_dti_recon(
 
     bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs, atol=2.0 )
+    if free_water:
+        free_water=len( np.unique( bvals ) ) >= 3
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil, free_water=free_water )
     if verbose:
         print("recon dti.TensorModel done",flush=True)
@@ -3606,7 +3608,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
-    free_water = False,
+    free_water = True,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3772,6 +3774,7 @@ def joint_dti_recon(
     if verbose:
         print("final recon", flush=True)
         print(img_LRdwp)
+
     recon_LR_dewarp = dipy_dti_recon(
             img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask,
@@ -3840,6 +3843,7 @@ def joint_dti_recon(
         'reg_RL':reg_RL,
         'dtrecon_LR_dewarp':recon_LR_dewarp,
         'dwi_LR_dewarped':img_LRdwp,
+        'free_water': len(np.unique(bval_LR)),
         'bval_LR':bval_LR,
         'bvec_LR':bvec_LR,
         'bval_RL':bval_RL,
@@ -5083,7 +5087,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     print( "nm intsum @2std above rrmean: " + str( snintsumabovethresh ) )
     print( "nm done" )
 
-  return{
+  return convert_np_in_dict( {
       'NM_avg' : nm_avg,
       'NM_avg_cropped' : nm_avg_cropped,
       'NM_labels': labels2nm,
@@ -5115,7 +5119,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_substantianigra_z_coordinate' : sn_z,
       'NM_evr' : nm_evr,
       'NM_count': len( list_nm_images )
-       }
+       } )
 
 
 
