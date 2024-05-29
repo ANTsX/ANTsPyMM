@@ -3404,6 +3404,7 @@ def dipy_dti_recon(
     mask_closing = 5,
     fit_method='WLS',
     trim_the_mask=2.0,
+    free_water=False,
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -3429,6 +3430,8 @@ def dipy_dti_recon(
     fit_method : string one of WLS LS NLLS or restore - see import dipy.reconst.dti as dti and help(dti.TensorModel) ... if None, will not reconstruct DTI.
 
     trim_the_mask : float >=0 post-hoc method for trimming the mask
+
+    free_water : boolean
 
     verbose : boolean
 
@@ -3463,10 +3466,16 @@ def dipy_dti_recon(
     bxtmod='bold'
     bxtmod='t2'
     constant_mask=False
+    if verbose:
+        print( np.unique( bvals ), flush=True )
     if mask is not None:
+        if verbose:
+            print("use set bxt in dipy_dti_recon", flush=True)
         constant_mask=True
         mask = ants.resample_image_to_target( mask, b0, interp_type='nearestNeighbor')
     else:
+        if verbose:
+            print("use deep learning bxt in dipy_dti_recon")
         mask = antspynet.brain_extraction( b0, bxtmod ).threshold_image(0.5,1).iMath("GetLargestComponent").morphology("close",2).iMath("FillHoles")
     if mask_closing > 0 and not constant_mask :
         mask = ants.morphology( mask, "close", mask_closing ) # good
@@ -3486,10 +3495,9 @@ def dipy_dti_recon(
         maskdata = maskedimage.numpy()
         if free_water:
             tenmodel = fwdti.FreeWaterTensorModel(gtab)
-            tenfit = fwdtimodel.fit(maskdata)
         else:
             tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
-            tenfit = tenmodel.fit(maskdata)
+        tenfit = tenmodel.fit(maskdata)
         FA = fractional_anisotropy(tenfit.evals)
         FA[np.isnan(FA)] = 1
         FA = np.clip(FA, 0, 1)
@@ -3507,14 +3515,14 @@ def dipy_dti_recon(
 
     bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs, atol=2.0 )
-    tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil )
+    tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil, free_water=free_water )
     if verbose:
         print("recon dti.TensorModel done",flush=True)
 
     # change the brain mask based on high FA values
     if trim_the_mask > 0 and fit_method is not None:
         mask = trim_dti_mask( FA, mask, trim_the_mask )
-        tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, mask )
+        tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, mask, free_water=free_water  )
 
     return {
         'tensormodel' : tenfit,
