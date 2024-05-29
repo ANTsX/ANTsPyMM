@@ -5028,7 +5028,8 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   rravg = nm_avg_cropped[ rr_mask == 1].mean()
   snstd = nm_avg_cropped[ sn_mask == 1].std()
   rrstd = nm_avg_cropped[ rr_mask == 1].std()
-  snvol = np.prod( ants.get_spacing(sn_mask) ) * sn_mask.sum()
+  vol_element = np.prod( ants.get_spacing(sn_mask) )
+  snvol = vol_element * sn_mask.sum()
 
   # get the mean voxel position of the SN
   if snvol > 0:
@@ -5037,7 +5038,18 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   else:
       sn_z = math.nan
 
-  nm_evr = antspyt1w.patch_eigenvalue_ratio( nm_avg, 512, [6,6,6], evdepth = 0.9, mask=cropper2nm )
+  nm_evr = 0.0
+  if cropper2nm.sum() > 0:
+    nm_evr = antspyt1w.patch_eigenvalue_ratio( nm_avg, 512, [6,6,6], 
+        evdepth = 0.9, mask=cropper2nm )
+
+  simg = ants.smooth_image( nm_avg_cropped, np.min(ants.get_spacing(nm_avg_cropped)) )
+  k = 2.0
+  rrthresh = (rravg + k * rrstd)
+  nmabovekthresh_mask = sn_mask * ants.threshold_image( simg, rrthresh, math.inf)
+  snvolabovethresh = vol_element * nmabovekthresh_mask.sum()
+  snintmeanabovethresh = ( simg * nmabovekthresh_mask ).mean()
+  snintsumabovethresh = ( simg * nmabovekthresh_mask ).mean()
 
   return{
       'NM_avg' : nm_avg,
@@ -5053,6 +5065,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       'NM_avg_substantianigra' : snavg,
       'NM_std_substantianigra' : snstd,
       'NM_volume_substantianigra' : snvol,
+      'NM_volume_substantianigra_above_k_thresh' : snvolabovethresh,
+      'NM_intmean_substantianigra_above_k_thresh' : snintmeanabovethresh,
+      'NM_intsum_substantianigra_above_k_thresh' : snintsumabovethresh,
       'NM_avg_refregion' : rravg,
       'NM_std_refregion' : rrstd,
       'NM_min' : nm_avg_cropped.min(),
