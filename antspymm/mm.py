@@ -3606,6 +3606,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
+    free_water = False,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3659,6 +3660,8 @@ def joint_dti_recon(
     impute : boolean
 
     censor : boolean
+
+    free_water : boolean
 
     verbose : boolean
 
@@ -3773,7 +3776,7 @@ def joint_dti_recon(
             img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask,
             fit_method=fit_method,
-            mask_dilation=0, verbose=True )
+            mask_dilation=0, free_water=free_water, verbose=True )
     if verbose:
         print("recon done", flush=True)
 
