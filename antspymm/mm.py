@@ -285,7 +285,7 @@ def get_antsimage_keys(dictionary):
     :param dictionary: A dictionary to inspect
     :return: A list of keys for which the values are ANTsImages
     """
-    return [key for key, value in dictionary.items() if isinstance(value, ants.ANTsImage)]
+    return [key for key, value in dictionary.items() if isinstance(value, ants.core.ants_image.ANTsImage)]
 
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
@@ -328,7 +328,7 @@ def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, conver
                 print( " Key " + key + " is nparray with mean " + str(meanvalue) + " to " + newkey )
             if newkey not in data_dict.keys():
                 processed_data[newkey] = meanvalue
-        elif isinstance(value, ants.ANTsImage) and convert_images:
+        elif isinstance(value, ants.core.ants_image.ANTsImage ) and convert_images:
             meanvalue = value.mean()
             newkey = key+"_mean"
             if newkey not in data_dict.keys():
@@ -3608,7 +3608,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
-    free_water = True,
+    free_water = False,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -10045,7 +10045,7 @@ def remove_volumes_from_timeseries(time_series, volumes_to_remove):
     :param volumes_to_remove: List of volume indices to remove.
     :return: ANTsImage with specified volumes removed.
     """
-    if not isinstance(time_series, ants.ANTsImage):
+    if not isinstance(time_series, ants.core.ants_image.ANTsImage):
         raise ValueError("time_series must be an ANTsImage.")
 
     if time_series.dimension != 4:
@@ -10083,7 +10083,7 @@ def impute_timeseries(time_series, volumes_to_impute, method='linear', verbose=F
     :param verbose: boolean
     :return: ANTsImage with specified volumes imputed.
     """
-    if not isinstance(time_series, ants.ANTsImage):
+    if not isinstance(time_series, ants.core.ants_image.ANTsImage):
         raise ValueError("time_series must be an ANTsImage.")
 
     if time_series.dimension != 4:
