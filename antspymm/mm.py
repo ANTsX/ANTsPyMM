@@ -5017,8 +5017,6 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nmdf_wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
               {'NM' : nmdf},
               col_names = ['Mean'] )
-  if verbose:
-      print( "nm done" )
 
   rr_mask = ants.mask_image( labels2nm, labels2nm, [33,34] , binarize=True )
   sn_mask = ants.mask_image( labels2nm, labels2nm, [7,9,23,25] , binarize=True )
@@ -5049,7 +5047,13 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nmabovekthresh_mask = sn_mask * ants.threshold_image( simg, rrthresh, math.inf)
   snvolabovethresh = vol_element * nmabovekthresh_mask.sum()
   snintmeanabovethresh = ( simg * nmabovekthresh_mask ).mean()
-  snintsumabovethresh = ( simg * nmabovekthresh_mask ).mean()
+  snintsumabovethresh = ( simg * nmabovekthresh_mask ).sum()
+  
+  if verbose:
+    print( "nm vol @2std above rrmean: " + str( snvolabovethresh ) )
+    print( "nm intmean @2std above rrmean: " + str( snintmeanabovethresh ) )
+    print( "nm intsum @2std above rrmean: " + str( snintsumabovethresh ) )
+    print( "nm done" )
 
   return{
       'NM_avg' : nm_avg,
