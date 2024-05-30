@@ -3608,7 +3608,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
-    free_water = False,
+    free_water = True,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3843,7 +3843,7 @@ def joint_dti_recon(
         'reg_RL':reg_RL,
         'dtrecon_LR_dewarp':recon_LR_dewarp,
         'dwi_LR_dewarped':img_LRdwp,
-        'free_water': len(np.unique(bval_LR)),
+        'bval_unique_count': len(np.unique(bval_LR)),
         'bval_LR':bval_LR,
         'bvec_LR':bvec_LR,
         'bval_RL':bval_RL,
