@@ -3608,7 +3608,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
-    free_water = True,
+    free_water = False,
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
