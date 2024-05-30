@@ -65,6 +65,7 @@ myoutx = antspymm.joint_dti_recon(
         motion_correct = 'Rigid',
         brain_mask = mask,
         denoise = False,
+        free_water = True,
         verbose = True )
 
 if True:
@@ -73,6 +74,7 @@ if True:
     ants.image_write( myoutx['dwi_LR_dewarped'], '/tmp/temp1moco.nii.gz'  )
     ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp1rgb.nii.gz'  )
 
+derka
 
 myoutx = antspymm.joint_dti_recon(
         img_LR_in,
