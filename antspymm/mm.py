@@ -2242,7 +2242,9 @@ def dti_reg(
         print("remove_it " + str( remove_it ) )
 
     if b0_idx is None:
-        b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+        # b0_idx = segment_timeseries_by_meanvalue( image )['highermeans']
+        b0_idx = segment_timeseries_by_bvalue( bvals )['lowbvals']
+
     # first get a local deformation from slice to local avg space
     # then get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0( image )
@@ -2953,21 +2955,33 @@ def segment_timeseries_by_bvalue(bvals):
     - bvals (numpy.ndarray): An array of b-values.
 
     Returns:
-    - dict: A dictionary with two keys, 'lowermeans' and 'highermeans', each containing
+    - dict: A dictionary with two keys, 'largerbvals' and 'lowbvals', each containing
       the indices of bvals where the b-values are above and at/below the threshold, respectively.
     """
     # Define the threshold
     threshold = 1e-12
-    
+    def find_min_value(data):
+        if isinstance(data, list):
+            return min(data)
+        elif isinstance(data, np.ndarray):
+            return np.min(data)
+        else:
+            raise TypeError("Input must be either a list or a numpy array")
+
     # Get indices where b-values are greater than the threshold
     lowermeans = list(np.where(bvals > threshold)[0])
     
     # Get indices where b-values are less than or equal to the threshold
     highermeans = list(np.where(bvals <= threshold)[0])
     
+    if len(highermeans) == 0:
+        minval = find_min_value( bvals )
+        lowermeans = list(np.where(bvals > minval )[0])
+        highermeans = list(np.where(bvals <= minval)[0])
+
     return {
-        'lowermeans': lowermeans,
-        'highermeans': highermeans
+        'largerbvals': lowermeans,
+        'lowbvals': highermeans
     }
 
 def segment_timeseries_by_meanvalue( image, quantile = 0.995 ):
@@ -3460,7 +3474,7 @@ def dipy_dti_recon(
     if bvals.max() < 1.0:
         raise ValueError("DTI recon error: maximum bvalues are too small.")
 
-    b0_idx = segment_timeseries_by_bvalue( bvals )['highermeans']
+    b0_idx = segment_timeseries_by_bvalue( bvals )['lowbvals']
 
     b0 = ants.slice_image( image, axis=3, idx=b0_idx[0] )
     bxtmod='bold'
