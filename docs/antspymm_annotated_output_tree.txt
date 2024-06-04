@@ -1,0 +1,391 @@
+A typical ANTsPyMM run will produce a tree of output similar to the one below.   Naming follows the “NRG” format :  project-subjectID-date-modality-imageID-outputtype .
+
+These derived data have - in some cases - the T1 ID attached as in the DTI example below.
+
+PPMI-250888-20231016-DTI-10295171_10295175-DTIRGB.nii.gz
+
+This indicates which T1 was used to guide the processing of this DTI RGB image.   Auto-generated ti-planar thumbnail images are *thumb.png.  other .png images are used for quick curation / data checking.   *norm.nii.gz images are mapped into the space of the user-chosen template.  *mmwide.csv are tables of data in wide format for the given modality.   These can be stacked across subjects or aligned within subject across modalities.  The majority of the names are chosen to follow standard abbreviations used for these derivatives and which are explained in the data dictionary.  Any registration outputs are *mat and *Warp.nii.gz following ANTs standards.  Modality specific notes appear below.  
+
+
+tree processedCSV/PPMI/250888/20231016/
+processedCSV/PPMI/250888/20231016/
+├── DTI
+│   └── 10295171
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-DTIRGB.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-DTI_norm.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-FAJHU.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-FA_norm.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-FA_norm_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-FAbetter.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-MD.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-MD_norm.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-MD_norm_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-b0avg.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-b0avg_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dti.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtifa.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtifa_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtijhulabels.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtijhulabels_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtimd.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtimd_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dtistreamlineconn.csv
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dwi.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dwi_4dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dwiavg.nii.gz
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-dwiavg_3dthumb.png
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-joined.bval
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-joined.bvec
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-mmwide.csv
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-reoriented.bval
+│       ├── PPMI-250888-20231016-DTI-10295171_10295175-reoriented.bvec
+│       └── PPMI-250888-20231016-DTI-10295171_10295175-tractogram.trk
+
+Neuromelanin derivatives use CIT168 labels as well as a custom template-based mid-brain slab label.  We output the averaged NM image as well as the cropped version and its labels.
+├── NM2DMT
+│   ├── 10295176
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_avg.nii.gz
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_avg_cropped.nii.gz
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_labels.nii.gz
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_midbrainROI.nii.gz
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_norm.nii.gz
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NM_norm_3dthumb.png
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NMavg.png
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NMavgcrop.png
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NMavgcroplabels.png
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-NMavgcropt1.png
+│   │   ├── PPMI-250888-20231016-NM2DMT-10295176_10295175-mmwide.csv
+│   │   └── PPMI-250888-20231016-NM2DMT-10295176_10295175-t1_to_NM.nii.gz
+│   └── 10295178
+The T1w directory contains outputs related to DiReCT cortical thickness processing and also template-based registration to the user-provided template.  The jacobian image provided here is appropriate for tensor-based morphometry.
+
+├── T1w
+│   └── 10295175
+│       ├── PPMI-250888-20231016-T1w-10295175-brainextraction.png
+│       ├── PPMI-250888-20231016-T1w-10295175-kk_norm.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-kk_norm_3dthumb.png
+│       ├── PPMI-250888-20231016-T1w-10295175-kkthickness.png
+│       ├── PPMI-250888-20231016-T1w-10295175-mmwide.csv
+│       ├── PPMI-250888-20231016-T1w-10295175-ppmi0GenericAffine.mat
+│       ├── PPMI-250888-20231016-T1w-10295175-ppmi1InverseWarp.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-ppmi1Warp.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-ppmilogjacobian.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-syn0GenericAffine.mat
+│       ├── PPMI-250888-20231016-T1w-10295175-syn1InverseWarp.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-syn1Warp.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-synjacobian.png
+│       ├── PPMI-250888-20231016-T1w-10295175-synlogjacobian.nii.gz
+│       ├── PPMI-250888-20231016-T1w-10295175-syntotemplate.png
+│       ├── PPMI-250888-20231016-T1w-10295175-thickness_image.nii.gz
+│       └── PPMI-250888-20231016-T1w-10295175-thickness_image_3dthumb.png
+
+The T1wHierarchical directory contains output from antspyt1w which is the primary source of the T1-derived outputs and is described in this paper. 
+ 
+├── T1wHierarchical
+│   └── 10295175
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYN_region_reg.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYNregion_jacobian.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYNregion_reg.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYNregion_reg0GenericAffine.mat
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYNregion_reg1InverseWarp.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_CIT168RRSYNregion_reg1Warp.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREG_region_reg.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREGregion_jacobian.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREGregion_reg.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREGregion_reg0GenericAffine.mat
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREGregion_reg1InverseWarp.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_SNREGregion_reg1Warp.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-_seg.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-bf.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-bf.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brain.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brain.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brain_extraction.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brain_n4_dnz.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brainstem.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-brainstem.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-cerebellum.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-cerebellum.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-cit168.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-cit168lab.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-deep_cit168.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-deep_cit168lab.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dkt_cortex.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dkt_lobes.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dkt_parcellation.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dktcortex.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dktlobes.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-dktregions.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-hemisphere_labels.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-hemispheres.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-left_right.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-mmwide.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-mtl.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-mtl.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-rbp.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-rbpbrain.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-rbpbrain.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-rbphead.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-rbphead.png
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-snseg.csv
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-snseg.nii.gz
+│       ├── PPMI-250888-20231016-T1wHierarchical-10295175-tissue_segmentation.nii.gz
+│       └── PPMI-250888-20231016-T1wHierarchical-10295175-tissues.csv
+
+The FLAIR processing primarily outputs periventricular white matter hyperintensity volume.  Just one important value.
+├── T2Flair
+│   └── 10295174
+│       ├── PPMI-250888-20231016-T2Flair-10295174_10295175-flair.png
+│       ├── PPMI-250888-20231016-T2Flair-10295174_10295175-flairWMH.png
+│       ├── PPMI-250888-20231016-T2Flair-10295174_10295175-flairpriorWMH.png
+│       ├── PPMI-250888-20231016-T2Flair-10295174_10295175-mmwide.csv
+│       ├── PPMI-250888-20231016-T2Flair-10295174_10295175-wmh.nii.gz
+│       └── PPMI-250888-20231016-T2Flair-10295174_10295175-wmh_seg.png
+
+
+The rsfMRI processing is based on the 500 parcel homotopic labels from Yeo.  The network images are aggregates of these labels based on the neural system they support.  Three different sets of parameters are run due to the lack of consensus on one “best” processing approach for all data.   Shirer et al provide guidance for the processing approaches ( paper ).
+└── rsfMRI
+    └── 10295164
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-122-boldALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-122-boldDefaultMode.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-122-boldfALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-122-meanBOLD.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-129-boldALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-129-boldDefaultMode.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-129-boldfALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-129-meanBOLD.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-134-boldALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-134-boldDefaultMode.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-134-boldfALFF.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-134-meanBOLD.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_BasalGanglia.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_BasalGanglia_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_CITLimbic.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_CITLimbic_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_ContC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultMode.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DefaultMode_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Dopamine.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Dopamine_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DorsAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DorsAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DorsAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_DorsAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_LimbicA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_LimbicA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_LimbicB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_LimbicB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_MidBrain.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_MidBrain_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_PerAF.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_PerAF_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SalVentAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SalVentAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SalVentAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SalVentAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SomMotA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SomMotA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SomMotB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_SomMotB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Striatum.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Striatum_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_TempPar.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_TempPar_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_VisCent.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_VisCent_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_VisPeri.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_VisPeri_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Visual.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_Visual_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_alff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_alff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_brainmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_brainmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_falff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_falff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_fmri_template.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_fmri_template_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_gmmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_gmmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_meanBold.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_meanBold_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_motion_corrected.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_motion_corrected_4dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_nodescorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_rsfcorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_tsnr.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro122_tsnr_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_BasalGanglia.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_BasalGanglia_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_CITLimbic.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_CITLimbic_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_ContC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultMode.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DefaultMode_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Dopamine.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Dopamine_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DorsAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DorsAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DorsAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_DorsAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_LimbicA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_LimbicA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_LimbicB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_LimbicB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_MidBrain.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_MidBrain_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_PerAF.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_PerAF_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SalVentAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SalVentAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SalVentAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SalVentAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SomMotA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SomMotA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SomMotB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_SomMotB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Striatum.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Striatum_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_TempPar.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_TempPar_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_VisCent.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_VisCent_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_VisPeri.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_VisPeri_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Visual.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_Visual_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_alff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_alff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_brainmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_brainmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_falff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_falff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_fmri_template.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_fmri_template_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_gmmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_gmmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_meanBold.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_meanBold_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_motion_corrected.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_motion_corrected_4dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_nodescorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_rsfcorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_tsnr.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro129_tsnr_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_BasalGanglia.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_BasalGanglia_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_CITLimbic.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_CITLimbic_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_ContC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultC.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultC_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultMode.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DefaultMode_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Dopamine.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Dopamine_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DorsAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DorsAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DorsAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_DorsAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_LimbicA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_LimbicA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_LimbicB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_LimbicB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_MidBrain.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_MidBrain_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_PerAF.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_PerAF_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SalVentAttnA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SalVentAttnA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SalVentAttnB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SalVentAttnB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SomMotA.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SomMotA_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SomMotB.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_SomMotB_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Striatum.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Striatum_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_TempPar.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_TempPar_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_VisCent.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_VisCent_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_VisPeri.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_VisPeri_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Visual.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_Visual_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_alff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_alff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_brainmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_brainmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_falff.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_falff_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_fmri_template.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_fmri_template_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_gmmask.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_gmmask_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_meanBold.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_meanBold_3dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_motion_corrected.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_motion_corrected_4dthumb.png
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_nodescorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_rsfcorr.csv
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_tsnr.nii.gz
+        ├── PPMI-250888-20231016-rsfMRI-10295164_10295175-fcnxpro134_tsnr_3dthumb.png
+        └── PPMI-250888-20231016-rsfMRI-10295164_10295175-mmwide.csv
+
+
+Perfusion outputs are organized similarly to those above where we provide both raw perfusion and CBF estimates ( this example perfusion data is from the PTBP dataset not PPMI ) :
+
+├── perf
+│   └── 000
+│       ├── PTBP-PEDS055-20110311-perf-000_000-brain_mask.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-brainmask.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-cbf.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-cbf.png
+│       ├── PTBP-PEDS055-20110311-perf-000_000-cbf_norm.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-cbf_norm_3dthumb.png
+│       ├── PTBP-PEDS055-20110311-perf-000_000-gmseg.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-m0.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-m0.png
+│       ├── PTBP-PEDS055-20110311-perf-000_000-meanBold.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-mmwide.csv
+│       ├── PTBP-PEDS055-20110311-perf-000_000-motion_corrected.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-perf_norm.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-perf_norm_3dthumb.png
+│       ├── PTBP-PEDS055-20110311-perf-000_000-perfusion.nii.gz
+│       ├── PTBP-PEDS055-20110311-perf-000_000-perfusion.png
+│       └── PTBP-PEDS055-20110311-perf-000_000-tsnr.nii.gz
