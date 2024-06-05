@@ -2248,7 +2248,8 @@ def dti_reg(
     # first get a local deformation from slice to local avg space
     # then get a global deformation from avg to ref space
     ab0, adw = get_average_dwi_b0( image )
-    mask = ants.get_mask(adw)
+    # mask is used to roughly locate middle of brain
+    mask = ants.threshold_image( ants.iMath(adw,'Normalize'), 0.1, 1.0 )
     motion_parameters = list()
     motion_corrected = list()
     centerOfMass = mask.get_center_of_mass()
