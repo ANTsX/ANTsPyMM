@@ -1233,13 +1233,14 @@ def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
     return mxdfin[useit]
 
 
-def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column='ol_loop',  verbose=False ):
+def match_modalities( qc_dataframe, unique_identifier='filename', outlier_column='ol_loop', mysep='-', verbose=False ):
     """
     Find the best multiple modality dataset at each time point
 
     :param qc_dataframe: quality control data frame with
     :param unique_identifier : the unique NRG filename for each image
     :param outlier_column: outlierness score used to identify the best image (pair) at a given date
+    :param mysep (str, optional): the separator used in the image file names. Defaults to '-'.
     :param verbose: boolean
     :return: filtered matched modality data frame
     """
@@ -11458,7 +11459,7 @@ def renameit(df, old_col_name, new_col_name):
     df.rename(columns={old_col_name: new_col_name}, inplace=True)
 
 
-def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
+def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=True ):
     """
     Processes a quality control (QC) DataFrame to perform modality-specific matching and filtering based
     on predefined criteria, optimizing for minimal outliers and noise, and maximal signal-to-noise ratio (SNR),
@@ -11473,6 +11474,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     qc_dataframe : pandas.DataFrame
         The DataFrame containing QC metrics for different modalities and imaging data.
     fix_LRRL : bool, optional
+    mysep : string, character such as - or _ the usual antspymm separator argument
 
     verbose : bool, optional
         If True, prints the progress and the shape of the DataFrame being processed in each step.
@@ -11496,11 +11498,11 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, verbose=True ):
     qc_dataframe['ol_lof']=qc_dataframe['ol_lof'].astype(float)
     qc_dataframe['ol_lof_decision']=qc_dataframe['ol_lof_decision'].astype(float)
     outlier_column='ol_loop'
-    mmdf0 = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column )['filt']
-    fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column )['filt']
-    nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column )['filt']
-    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column )['filt']
-    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column )['filt']
+    mmdf0 = best_mmm( qc_dataframe, 'T1w', outlier_column=outlier_column, mysep=mysep )['filt']
+    fldf = best_mmm( qc_dataframe, 'T2Flair', outlier_column=outlier_column, mysep=mysep  )['filt']
+    nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column, mysep=mysep  )['filt']
+    rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column, mysep=mysep  )['filt']
+    dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column, mysep=mysep  )['filt']
 
     criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'reflection_err':'min'}
     xcl = [ 'mrimfg', 'mrimodel','mriMagneticFieldStrength', 'dti_failed', 'rsf_failed', 'subjectID', 'date', 'subjectIDdate','repeat']
