@@ -1124,7 +1124,11 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
             flList.append( nrgt2fn )
     if 'dtfn1' in csvrow.keys():
         dtid=get_first_item_as_string( csvrow, 'dtid1' )
-        dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))[0]
+        dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))
+        if len( dtfn1) == 0 :
+            dtid = '000'
+            dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))
+        print( dtfn1 )
         if exists( dtfn1 ):
             dtList.append( dtfn1 )
     if 'dtfn2' in csvrow.keys():
