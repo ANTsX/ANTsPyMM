@@ -1128,27 +1128,43 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         if len( dtfn1) == 0 :
             dtid = '000'
             dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))
-        print( dtfn1 )
+        dtfn1=dtfn1[0]
         if exists( dtfn1 ):
             dtList.append( dtfn1 )
     if 'dtfn2' in csvrow.keys():
         dtid=get_first_item_as_string( csvrow, 'dtid2' )
-        dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))[0]
+        dtfn2=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))
+        if len( dtfn2) == 0 :
+            dtid = '000'
+            dtfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn2'].iloc[0]+iext) ))
+        dtfn2=dtfn2[0]
         if exists( dtfn2 ):
             dtList.append( dtfn2 )
     if 'dtfn3' in csvrow.keys():
         dtid=get_first_item_as_string( csvrow, 'dtid3' )
-        dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn3'].iloc[0]+iext) ))[0]
+        dtfn3=glob.glob(os.path.join(rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn3'].iloc[0]+iext) ))
+        if len( dtfn3) == 0 :
+            dtid = '000'
+            dtfn3=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn3'].iloc[0]+iext) ))
+        dtfn3=dtfn3[0]
         if exists( dtfn3 ):
             dtList.append( dtfn3 )
     if 'rsffn1' in csvrow.keys():
         rsid=get_first_item_as_string( csvrow, 'rsfid1' )
-        rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))[0]
+        rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))
+        if len( rsfn1 ) == 0 :
+            rsid = '000'
+            rsfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn1'].iloc[0]+iext) ))
+        rsfn1=rsfn1[0]
         if exists( rsfn1 ):
             rsfList.append( rsfn1 )
     if 'rsffn2' in csvrow.keys():
         rsid=get_first_item_as_string( csvrow, 'rsfid2' )
         rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn2'].iloc[0]+iext) ))[0]
+        if len( rsfn2 ) == 0 :
+            rsid = '000'
+            rsfn2=glob.glob(os.path.join( rootdir, pid, sid, dt, 'rsfMRI*', rsid, str(csvrow['rsffn2'].iloc[0]+iext) ))
+        rsfn2=rsfn2[0]
         if exists( rsfn2 ):
             rsfList.append( rsfn2 )
     for j in range(11):
