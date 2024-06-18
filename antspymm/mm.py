@@ -1082,7 +1082,7 @@ def get_first_item_as_string(df, column_name):
             raise ValueError("The value cannot be converted to an integer.")
 
 
-def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
+def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, mysep='-', verbose=False ):
     """
     converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
 
@@ -1091,6 +1091,8 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     rootdir : location for the input data root folder (in e.g. NRG format)
 
     outputdir : location for the output data
+
+    mysep : character usual antspymm separator - or _
 
     verbose : boolean
     """
