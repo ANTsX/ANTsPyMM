@@ -1106,6 +1106,9 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     dt=get_first_item_as_string( csvrow, 'date'  )  # str(csvrow['date'].iloc[0])
     iid=get_first_item_as_string( csvrow, 'imageID'  ) # str(csvrow['imageID'].iloc[0])
     nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['filename'].iloc[0]+iext) )
+    if not exists( nrgt1fn ) and iid == '0':
+        iid='000'
+        nrgt1fn=os.path.join( rootdir, pid, sid, dt, 'T1w', iid, str(csvrow['filename'].iloc[0]+iext) )
     if not exists( nrgt1fn ):
         raise ValueError("T1 " + nrgt1fn + " does not exist in study_dataframe_from_qc_dataframe")
     flList=[]
