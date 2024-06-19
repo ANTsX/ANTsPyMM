@@ -11532,12 +11532,16 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=
     nmdf = best_mmm( qc_dataframe, 'NM2DMT', outlier_column=outlier_column, mysep=mysep  )['filt']
     rsdf = best_mmm( qc_dataframe, 'rsfMRI', outlier_column=outlier_column, mysep=mysep  )['filt']
     dtdf = best_mmm( qc_dataframe, 'DTI', outlier_column=outlier_column, mysep=mysep  )['filt']
+    pfdf = best_mmm( qc_dataframe, 'perf', outlier_column=outlier_column, mysep=mysep  )['filt']
 
     criteria = {'ol_loop': 'min', 'noise': 'min', 'snr': 'max', 'EVR': 'max', 'reflection_err':'min'}
     xcl = [ 'mrimfg', 'mrimodel','mriMagneticFieldStrength', 'dti_failed', 'rsf_failed', 'subjectID', 'date', 'subjectIDdate','repeat']
     # Assuming df_a and df_b are already loaded
     mmdf, undffl = mm_match_by_qc_scoring(mmdf0, fldf, 'subjectIDdate', criteria, 
                         prefix='T2Flair_', exclude_columns=xcl )
+
+    mmdf, undfpf = mm_match_by_qc_scoring(mmdf, pfdf, 'subjectIDdate', criteria, 
+                        prefix='perf_', exclude_columns=xcl )
 
     prefixes = ['NM1_', 'NM2_', 'NM3_', 'NM4_', 'NM5_', 'NM6_']  
     undfmod = nmdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
