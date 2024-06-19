@@ -9671,6 +9671,10 @@ def blind_image_assessment(
         modality='unknown'
         if "rsfMRI" in image_filename:
             modality='rsfMRI'
+        elif "perf" in image_filename:
+            modality='perf'
+        elif "DTI" in image_filename:
+            modality='DTI'
         elif "T1w" in image_filename:
             modality='T1w'
         elif "T2Flair" in image_filename:
