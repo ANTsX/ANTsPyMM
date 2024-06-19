@@ -9587,7 +9587,7 @@ def quick_viz_mm_nrg(
                 vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
             vimg=ants.crop_image(vimg,msk)
-            if overmodX == 'T1w':
+            if 'T1w' in overmodX :
                 refimg=ants.image_clone( vimg )
                 noizimg = ants.add_noise_to_image( refimg*0, 'additivegaussian', [100,1] )
                 vizlist.append( vimg )
