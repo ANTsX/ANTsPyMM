@@ -9481,7 +9481,7 @@ def quick_viz_mm_nrg(
         nrg_modality_list = [ 'T1wHierarchical', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     for nrgNum in [0,1,2,3,4,5]:
         overmodX = nrg_modality_list[nrgNum]
-        if overmodX == 'T1w' or overmodX == 'T1wHierarchical' :
+        if  'T1w' in overmodX :
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
             if post:
                 mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*brain_n4_dnz.nii.gz")
@@ -9489,6 +9489,18 @@ def quick_viz_mm_nrg(
             if len( myimgsr ) == 0:
                 if verbose:
                     print("No t1 images: " + sid + dtid )
+                return None
+            myimgsr.sort()
+            myimgsr=myimgsr[0]
+            vimg=ants.image_read( myimgsr )
+        elif  'T2Flair' in overmodX :
+            mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*wmh.nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) == 0:
+                if verbose:
+                    print("No FLAIR images: " + sid + dtid )
                 return None
             myimgsr.sort()
             myimgsr=myimgsr[0]
@@ -9586,6 +9598,10 @@ def quick_viz_mm_nrg(
             elif vimg.dimension == 4 :
                 vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
+            if 'T1w' in overmodX:
+                t1msk=msk
+            if overmodX == 'T2Flair':
+                msk=t1msk
             vimg=ants.crop_image(vimg,msk)
             if 'T1w' in overmodX :
                 refimg=ants.image_clone( vimg )
