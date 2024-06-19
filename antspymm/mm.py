@@ -1082,7 +1082,7 @@ def get_first_item_as_string(df, column_name):
             raise ValueError("The value cannot be converted to an integer.")
 
 
-def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, mysep='-', verbose=False ):
+def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdir, verbose=False ):
     """
     converts the output of antspymm.match_modalities dataframe (one row) to that needed for a study-driving dataframe for input to mm_csv
 
@@ -1091,8 +1091,6 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     rootdir : location for the input data root folder (in e.g. NRG format)
 
     outputdir : location for the output data
-
-    mysep : character usual antspymm separator - or _
 
     verbose : boolean
     """
@@ -1117,11 +1115,31 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
     dtList=[]
     rsfList=[]
     nmList=[]
+    perfList=[]
     if 'flairfn' in csvrow.keys():
         flid=get_first_item_as_string( csvrow, 'flairid' )
         nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'T2Flair', flid, str(csvrow['flairfn'].iloc[0]+iext) )
+        if not exists( nrgt2fn ) and flid == '0':
+            flid='000'
+            nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'T2Flair', flid, str(csvrow['flairfn'].iloc[0]+iext) )
+        if verbose:
+            print("Trying " + nrgt2fn )
         if exists( nrgt2fn ):
+            if verbose:
+                print("success" )
             flList.append( nrgt2fn )
+    if 'perffn' in csvrow.keys():
+        flid=get_first_item_as_string( csvrow, 'perfid' )
+        nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'perf', flid, str(csvrow['perffn'].iloc[0]+iext) )
+        if not exists( nrgt2fn ) and flid == '0':
+            flid='000'
+            nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'perf', flid, str(csvrow['flairfn'].iloc[0]+iext) )
+        if verbose:
+            print("Trying " + nrgt2fn )
+        if exists( nrgt2fn ):
+            if verbose:
+                print("success" )
+            perfList.append( nrgt2fn )
     if 'dtfn1' in csvrow.keys():
         dtid=get_first_item_as_string( csvrow, 'dtid1' )
         dtfn1=glob.glob(os.path.join( rootdir, pid, sid, dt, 'DTI*', dtid, str(csvrow['dtfn1'].iloc[0]+iext) ))
@@ -1188,6 +1206,8 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         print(dtList)
         print("rsfMRI")
         print(rsfList)
+        print("perf")
+        print(perfList)
     studycsv = generate_mm_dataframe(
         pid,
         sid,
@@ -1200,7 +1220,8 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         flair_filename=flList,
         dti_filenames=dtList,
         rsf_filenames=rsfList,
-        nm_filenames=nmList)
+        nm_filenames=nmList,
+        perf_filename=perfList)
     return studycsv.dropna(axis=1)
 
 def highest_quality_repeat(mxdfin, idvar, visitvar, qualityvar):
