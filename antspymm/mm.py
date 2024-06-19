@@ -1133,7 +1133,7 @@ def study_dataframe_from_matched_dataframe( matched_dataframe, rootdir, outputdi
         nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'perf', flid, str(csvrow['perffn'].iloc[0]+iext) )
         if not exists( nrgt2fn ) and flid == '0':
             flid='000'
-            nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'perf', flid, str(csvrow['flairfn'].iloc[0]+iext) )
+            nrgt2fn=os.path.join( rootdir, pid, sid, dt, 'perf', flid, str(csvrow['perffn'].iloc[0]+iext) )
         if verbose:
             print("Trying " + nrgt2fn )
         if exists( nrgt2fn ):
