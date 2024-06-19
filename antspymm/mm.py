@@ -1554,8 +1554,8 @@ def mm_read_to_3d( x, slice=None, modality='' ):
     read an image from a filename - and return as 3d or None if that is not possible
     """
     img = ants.image_read( x, reorient=False )
-    if img.dimension < 3:
-        return None
+    if img.dimension <= 3:
+        return img
     elif img.dimension == 4:
         nslices = img.shape[3]
         if slice is None:
@@ -1565,7 +1565,7 @@ def mm_read_to_3d( x, slice=None, modality='' ):
         if sl > nslices:
             sl = nslices-1
         return ants.slice_image( img, axis=3, idx=int(sl) )
-    elif img.dimension == 3:
+    elif img.dimension > 4:
         return img
     return None
 
@@ -9412,6 +9412,7 @@ def quick_viz_mm_nrg(
     dtid, # date
     extract_brain=True,
     slice_factor = 0.55,
+    post = False,
     show_it = None, # output path
     verbose = True
 ):
@@ -9431,6 +9432,8 @@ def quick_viz_mm_nrg(
     extract_brain (bool): If True, the function extracts the brain from the T1w image. Default is True.
     
     slice_factor (float): The slice to be visualized is determined by multiplying the image size by this factor. Default is 0.55.
+
+    post ( bool ) : if True, will visualize example post-processing results.
     
     show_it (str): Output path. If not None, the visualizations will be saved at this location. Default is None.
     
@@ -9474,10 +9477,14 @@ def quick_viz_mm_nrg(
         print(  " we have : " + str(nimages) + " modalities.  will visualize T1 NM rsfMRI DTIB0 DTIDWI FLAIR perfusion")
     # nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
     nrg_modality_list = [ 'T1w', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
+    if post:
+        nrg_modality_list = [ 'T1wHierarchical', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     for nrgNum in [0,1,2,3,4,5]:
         overmodX = nrg_modality_list[nrgNum]
-        if overmodX == 'T1w':
+        if overmodX == 'T1w' or overmodX == 'T1wHierarchical' :
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*brain_n4_dnz.nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) == 0:
                 if verbose:
@@ -9488,6 +9495,8 @@ def quick_viz_mm_nrg(
             vimg=ants.image_read( myimgsr )
         elif overmodX == 'DTI':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*fa.nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
                 myimgsr.sort()
@@ -9510,6 +9519,8 @@ def quick_viz_mm_nrg(
                 vimg = noizimg
         elif overmodX == 'NM2DMT':
             mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*NM_avg.nii.gz" )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
                 myimgsr.sort()
@@ -9524,6 +9535,8 @@ def quick_viz_mm_nrg(
                 vimg = noizimg
         elif overmodX == 'rsfMRI':
             mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*fcnxpro122_meanBold.nii.gz" )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
                 myimgsr.sort()
@@ -9535,6 +9548,8 @@ def quick_viz_mm_nrg(
                 vimg = noizimg
         elif overmodX == 'perf':
             mod_search_path = os.path.join(subjectrootpath, 'perf*', "*", "*nii.gz")
+            if post:
+                mod_search_path = os.path.join(subjectrootpath, 'perf*', "*", "*cbf.nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
                 myimgsr.sort()
@@ -9547,6 +9562,8 @@ def quick_viz_mm_nrg(
         else :
             mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
+            if post:
+                myimgsr=[]
             if len( myimgsr ) > 0:
                 myimgsr.sort()
                 myimgsr=myimgsr[0]
@@ -9556,17 +9573,17 @@ def quick_viz_mm_nrg(
                     print("No " + overmodX)
                 vimg = noizimg
         if True:
-            if extract_brain and overmodX == 'T1w':
+            if extract_brain and overmodX == 'T1w' and post == False:
                 vimg = vimg * antspyt1w.brain_extraction(vimg)
             if verbose:
                 print(f"modality search path: {myimgsr}" + " num: " + str(nrgNum))
-            if len( vimg.shape ) == 4 and ( overmodX == "DTI2"  ):
+            if vimg.dimension == 4 and ( overmodX == "DTI2"  ):
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttdw
-            elif len( vimg.shape ) == 4 and overmodX == "DTI":
+            elif vimg.dimension == 4 and overmodX == "DTI":
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttb0
-            elif len( vimg.shape ) == 4 :
+            elif vimg.dimension == 4 :
                 vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
             vimg=ants.crop_image(vimg,msk)
