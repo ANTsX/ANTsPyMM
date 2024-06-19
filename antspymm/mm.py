@@ -9471,9 +9471,9 @@ def quick_viz_mm_nrg(
     nimages = len(myimgsInput)
     vizlist=[]
     if verbose:
-        print(  " we have : " + str(nimages) + " modalities.  will visualize T1 NM rsfMRI DTIB0 DTIDWI FLAIR")
+        print(  " we have : " + str(nimages) + " modalities.  will visualize T1 NM rsfMRI DTIB0 DTIDWI FLAIR perfusion")
     # nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
-    nrg_modality_list = [ 'T1w', 'NM2DMT', 'rsfMRI', 'DWI1', 'DWI2', 'T2Flair' ]
+    nrg_modality_list = [ 'T1w', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     for nrgNum in [0,1,2,3,4,5]:
         overmodX = nrg_modality_list[nrgNum]
         if overmodX == 'T1w':
@@ -9486,7 +9486,7 @@ def quick_viz_mm_nrg(
             myimgsr.sort()
             myimgsr=myimgsr[0]
             vimg=ants.image_read( myimgsr )
-        elif overmodX == 'DWI1':
+        elif overmodX == 'DTI':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
@@ -9497,7 +9497,7 @@ def quick_viz_mm_nrg(
                 if verbose:
                     print("No " + overmodX)
                 vimg = noizimg
-        elif overmodX == 'DWI2':
+        elif overmodX == 'DTI2':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
@@ -9533,6 +9533,17 @@ def quick_viz_mm_nrg(
                 if verbose:
                     print("No " + overmodX)
                 vimg = noizimg
+        elif overmodX == 'perf':
+            mod_search_path = os.path.join(subjectrootpath, 'perf*', "*", "*nii.gz")
+            myimgsr = glob.glob(mod_search_path)
+            if len( myimgsr ) > 0:
+                myimgsr.sort()
+                myimgsr=myimgsr[0]
+                vimg=mm_read_to_3d( myimgsr )
+            else:
+                if verbose:
+                    print("No " + overmodX)
+                vimg = noizimg
         else :
             mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
@@ -9549,10 +9560,10 @@ def quick_viz_mm_nrg(
                 vimg = vimg * antspyt1w.brain_extraction(vimg)
             if verbose:
                 print(f"modality search path: {myimgsr}" + " num: " + str(nrgNum))
-            if len( vimg.shape ) == 4 and ( overmodX == "DWI2"  ):
+            if len( vimg.shape ) == 4 and ( overmodX == "DTI2"  ):
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttdw
-            elif len( vimg.shape ) == 4 and overmodX == "DWI1":
+            elif len( vimg.shape ) == 4 and overmodX == "DTI":
                 ttb0, ttdw=get_average_dwi_b0(vimg)
                 vimg = ttb0
             elif len( vimg.shape ) == 4 :
