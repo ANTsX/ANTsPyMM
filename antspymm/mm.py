@@ -9637,7 +9637,6 @@ def quick_viz_mm_nrg(
             vimg=ants.crop_image(vimg,msk)
             if underlay is not None:
                 print( overmodX + " has underlay" )
-                underlay = ants.crop_image(underlay,msk)
             else:
                 underlay = vimg * 0.0
             if 'T1w' in overmodX :
@@ -9649,7 +9648,7 @@ def quick_viz_mm_nrg(
                 vimg = ants.resample_image_to_target( vimg, refimg )
                 vimg = ants.iMath( vimg, 'TruncateIntensity',0.01,0.98)
                 vizlist.append( ants.iMath( vimg, 'Normalize' ) * 255 )
-                underlay = ants.resample_image_to_target( underlay, refimg )
+                underlay = ants.resample_image_to_target( underlay, vimg )
                 undlist.append( underlay )
 
     ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, filename=filename )
