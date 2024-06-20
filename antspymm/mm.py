@@ -9528,6 +9528,7 @@ def quick_viz_mm_nrg(
                     if verbose:
                         print("Flair overlay " + myol[0] )
                     underlay=ants.image_read( myol[0] )
+                    underlay=underlay*ants.threshold_image(underlay,0.2,1.0)
             if original_sourcedir is None:
                 myimgsr = glob.glob(mod_search_path)
                 if len( myimgsr ) == 0:
@@ -9580,6 +9581,11 @@ def quick_viz_mm_nrg(
             mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*nii.gz")
             if post:
                 mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*fcnxpro122_meanBold.nii.gz" )
+                mod_search_path_ol = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*fcnxpro122_DefaultMode.nii.gz.nii.gz" )
+                myol = glob.glob(mod_search_path_ol)
+                if len( myol ) > 0:
+                    underlay = ants.image_read( myol[0] )
+                    underlay = underlay * ants.threshold_image( underlay, 0.1, 1.0 )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
                 myimgsr.sort()
