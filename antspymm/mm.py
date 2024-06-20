@@ -9517,12 +9517,16 @@ def quick_viz_mm_nrg(
                     print("post in flair mod_search_path " + mod_search_path )
                 myimgul = glob.glob(mod_search_path_under)
                 myimgul.sort()
-                myimgsr = ants.image_read( myimgul[0] )
+                if verbose:
+                    print("Flair  " + myimgul[0] )
+                vimg = ants.image_read( myimgul[0] )
                 myol = glob.glob(mod_search_path)
                 if len( myol ) == 0:
                     underlay = myimgsr * 0.0
                 else:
                     myol.sort()
+                    if verbose:
+                        print("Flair overlay " + myol[0] )
                     underlay=ants.image_read( myol[0] )
             if original_sourcedir is None:
                 myimgsr = glob.glob(mod_search_path)
@@ -9599,6 +9603,8 @@ def quick_viz_mm_nrg(
                     print("No " + overmodX)
                 vimg = noizimg
         else :
+            if verbose:
+                print("Something else here")
             mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if post:
@@ -9626,9 +9632,10 @@ def quick_viz_mm_nrg(
                 vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
             if overmodX == 'T2Flair':
-                msk=ants.threshold_image( ants.iMath(vimg,'Normalize'),0.01,1)
+                msk=vimg*0+1
             vimg=ants.crop_image(vimg,msk)
             if underlay is not None:
+                print( overmodX + " has underlay" )
                 underlay = ants.crop_image(underlay,msk)
             else:
                 underlay = vimg * 0.0
