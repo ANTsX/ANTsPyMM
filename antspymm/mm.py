@@ -9506,18 +9506,22 @@ def quick_viz_mm_nrg(
                     print("post in flair mod_search_path " + mod_search_path )
                 myimgul = glob.glob(mod_search_path_under)
                 myimgul.sort()
-                if verbose:
-                    print("Flair  " + myimgul[0] )
-                vimg = ants.image_read( myimgul[0] )
-                myol = glob.glob(mod_search_path)
-                if len( myol ) == 0:
-                    underlay = myimgsr * 0.0
-                else:
-                    myol.sort()
+                if len( myimgul ) > 0:
                     if verbose:
-                        print("Flair overlay " + myol[0] )
-                    underlay=ants.image_read( myol[0] )
-                    underlay=underlay*ants.threshold_image(underlay,0.05,math.inf)
+                        print("Flair  " + myimgul[0] )
+                    vimg = ants.image_read( myimgul[0] )
+                    myol = glob.glob(mod_search_path)
+                    if len( myol ) == 0:
+                        underlay = myimgsr * 0.0
+                    else:
+                        myol.sort()
+                        if verbose:
+                            print("Flair overlay " + myol[0] )
+                        underlay=ants.image_read( myol[0] )
+                        underlay=underlay*ants.threshold_image(underlay,0.05,math.inf)
+                else:
+                    vimg = noizimg
+                    underlay = vimg * 0.0
             if original_sourcedir is None:
                 myimgsr = glob.glob(mod_search_path)
                 if len( myimgsr ) == 0:
