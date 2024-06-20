@@ -9450,24 +9450,11 @@ def quick_viz_mm_nrg(
     import glob as glob
     from os.path import exists
     import ants
-    ex_path = os.path.expanduser( "~/.antspyt1w/" )
-    ex_pathmm = os.path.expanduser( "~/.antspymm/" )
-    templatefn = ex_path + 'CIT168_T1w_700um_pad_adni.nii.gz'
-    if not exists( templatefn ):
-        print( "**missing files** => call get_data from latest antspyt1w and antspymm." )
-        antspyt1w.get_data( force_download=True )
-        get_data( force_download=True )
     temp = sourcedir.split( "/" )
-    splitCount = len( temp )
-    template = mm_read( templatefn ) # Read in template
     subjectrootpath = os.path.join(sourcedir, projectid, sid, dtid)
     if verbose:
         print( 'subjectrootpath' )
         print( subjectrootpath )
-    myimgsInput = glob.glob( subjectrootpath+"/*" )
-    myimgsInput.sort( )
-    if verbose:
-        print( myimgsInput )
     t1_search_path = os.path.join(subjectrootpath, "T1w", "*", "*nii.gz")
     if verbose:
         print(f"t1 search path: {t1_search_path}")
@@ -9475,14 +9462,8 @@ def quick_viz_mm_nrg(
     t1fn.sort()
     if len( t1fn ) < 1:
         raise ValueError('quick_viz_mm_nrg cannot find the T1w @ ' + subjectrootpath )
-    t1fn = t1fn[0]
-    t1 = mm_read( t1fn )
-    nimages = len(myimgsInput)
     vizlist=[]
     undlist=[]
-    if verbose:
-        print(  " we have : " + str(nimages) + " images.  will visualize T1 NM rsfMRI DTI  FLAIR perfusion")
-    # nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
     nrg_modality_list = [ 'T1w', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     if post:
         nrg_modality_list = [ 'T1wHierarchical', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
