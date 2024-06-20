@@ -9528,7 +9528,7 @@ def quick_viz_mm_nrg(
                     if verbose:
                         print("Flair overlay " + myol[0] )
                     underlay=ants.image_read( myol[0] )
-                    underlay=underlay*ants.threshold_image(underlay,0.2,1.0)
+                    underlay=underlay*ants.threshold_image(underlay,0.05,math.inf)
             if original_sourcedir is None:
                 myimgsr = glob.glob(mod_search_path)
                 if len( myimgsr ) == 0:
