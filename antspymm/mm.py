@@ -9413,7 +9413,8 @@ def quick_viz_mm_nrg(
     extract_brain=True,
     slice_factor = 0.55,
     post = False,
-    show_it = None, # output path
+    original_sourcedir = None,
+    filename = None, # output path
     verbose = True
 ):
     """
@@ -9421,7 +9422,7 @@ def quick_viz_mm_nrg(
 
     Args:
 
-    sourcedir (str): Root folder.
+    sourcedir (str): Root folder for original data (if post=False) or processed data (post=True)
     
     projectid (str): Project name.
     
@@ -9435,12 +9436,14 @@ def quick_viz_mm_nrg(
 
     post ( bool ) : if True, will visualize example post-processing results.
     
-    show_it (str): Output path. If not None, the visualizations will be saved at this location. Default is None.
+    original_sourcedir (str): Root folder for original data (used if post=True)
+    
+    filename (str): Output path with extension (.png)
     
     verbose (bool): If True, information will be printed while running the function. Default is True.
 
     Returns:
-    vizlist (list): List of image visualizations.
+    None
 
     """
     iid='*'
@@ -9458,6 +9461,9 @@ def quick_viz_mm_nrg(
     splitCount = len( temp )
     template = mm_read( templatefn ) # Read in template
     subjectrootpath = os.path.join(sourcedir, projectid, sid, dtid)
+    if verbose:
+        print( 'subjectrootpath' )
+        print( subjectrootpath )
     myimgsInput = glob.glob( subjectrootpath+"/*" )
     myimgsInput.sort( )
     if verbose:
@@ -9473,13 +9479,15 @@ def quick_viz_mm_nrg(
     t1 = mm_read( t1fn )
     nimages = len(myimgsInput)
     vizlist=[]
+    undlist=[]
     if verbose:
-        print(  " we have : " + str(nimages) + " modalities.  will visualize T1 NM rsfMRI DTIB0 DTIDWI FLAIR perfusion")
+        print(  " we have : " + str(nimages) + " images.  will visualize T1 NM rsfMRI DTI  FLAIR perfusion")
     # nrg_modality_list = ["T1w", "NM2DMT", "rsfMRI","rsfMRI_LR","rsfMRI_RL","DTI","DTI_LR", "T2Flair" ],
     nrg_modality_list = [ 'T1w', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     if post:
         nrg_modality_list = [ 'T1wHierarchical', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     for nrgNum in [0,1,2,3,4,5]:
+        underlay = None
         overmodX = nrg_modality_list[nrgNum]
         if  'T1w' in overmodX :
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
@@ -9495,16 +9503,27 @@ def quick_viz_mm_nrg(
             vimg=ants.image_read( myimgsr )
         elif  'T2Flair' in overmodX :
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
-            if post:
+            if post and original_sourcedir is not None:
+                mysubdir = os.path.join(original_sourcedir, projectid, sid, dtid)
+                mod_search_path_under = os.path.join(mysubdir, overmodX, iid, "*T2Flair*.nii.gz")
                 mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*wmh.nii.gz")
-            myimgsr = glob.glob(mod_search_path)
-            if len( myimgsr ) == 0:
-                if verbose:
-                    print("No FLAIR images: " + sid + dtid )
-                return None
-            myimgsr.sort()
-            myimgsr=myimgsr[0]
-            vimg=ants.image_read( myimgsr )
+                myimgul = glob.glob(mod_search_path_under)
+                myimgul.sort()
+                myimgsr = ants.image_read( myimgul[0] )
+                myol = glob.glob(mod_search_path)
+                if len( myol ) == 0:
+                    underlay = myimgsr * 0.0
+                else:
+                    myol.sort()
+                    underlay=ants.image_read( myol[0] )
+            if original_sourcedir is None:
+                myimgsr = glob.glob(mod_search_path)
+                if len( myimgsr ) == 0:
+                    vimg = noizimg
+                else:
+                    myimgsr.sort()
+                    myimgsr=myimgsr[0]
+                    vimg=ants.image_read( myimgsr )
         elif overmodX == 'DTI':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
             if post:
@@ -9598,22 +9617,28 @@ def quick_viz_mm_nrg(
             elif vimg.dimension == 4 :
                 vimg=ants.get_average_of_timeseries(vimg)
             msk=ants.get_mask(vimg)
-            if 'T1w' in overmodX:
-                t1msk=msk
             if overmodX == 'T2Flair':
-                msk=t1msk
+                msk=ants.threshold_image( ants.iMath(vimg,'Normalize'),0.01,1)
             vimg=ants.crop_image(vimg,msk)
+            if underlay is not None:
+                underlay = ants.crop_image(underlay,msk)
+            else:
+                underlay = vimg * 0.0
             if 'T1w' in overmodX :
                 refimg=ants.image_clone( vimg )
                 noizimg = ants.add_noise_to_image( refimg*0, 'additivegaussian', [100,1] )
                 vizlist.append( vimg )
+                undlist.append( underlay )
             else:
                 vimg = ants.resample_image_to_target( vimg, refimg )
                 vimg = ants.iMath( vimg, 'TruncateIntensity',0.01,0.98)
                 vizlist.append( ants.iMath( vimg, 'Normalize' ) * 255 )
+                undlist.append( underlay )
 
-    listlen = len( vizlist )
-    vizlist = np.asarray( vizlist )
+    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=True, filename=filename )
+    return
+    # listlen = len( vizlist )
+    # vizlist = np.asarray( vizlist )
     if show_it is not None:
         filenameout=None
         if verbose:
@@ -9625,7 +9650,7 @@ def quick_viz_mm_nrg(
                 filenameout=show_it+'_ax'+str(int(a))+'_sl'+str(n)+'.png'
                 if verbose:
                     print( filenameout )
-            ants.plot_grid(vizlist.reshape(2,3), slices.reshape(2,3), title='MM Subject ' + sid + ' ' + dtid, rfacecolor='white', axes=a, filename=filenameout )
+#            ants.plot_grid(vizlist.reshape(2,3), slices.reshape(2,3), title='MM Subject ' + sid + ' ' + dtid, rfacecolor='white', axes=a, filename=filenameout )
     if verbose:
         print("viz complete.")
     return vizlist
@@ -11586,6 +11611,7 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=
         The matched and filtered DataFrame after applying all QC scoring and matching operations across specified modalities.
 
     """
+    qc_dataframe=remove_unwanted_columns( qc_dataframe )
     qc_dataframe['modality'] = qc_dataframe['modality'].replace(['DTIdwi', 'DTIb0'], 'DTI', regex=True)
     qc_dataframe['filename']=qc_dataframe['filename'].astype(str)
     qc_dataframe['ol_loop']=qc_dataframe['ol_loop'].astype(float)
