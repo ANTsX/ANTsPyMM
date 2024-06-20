@@ -9494,6 +9494,7 @@ def quick_viz_mm_nrg(
             if post:
                 mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*brain_n4_dnz.nii.gz")
                 mod_search_path_ol = os.path.join(subjectrootpath, overmodX, iid, "*thickness_image.nii.gz" )
+                mod_search_path_ol = re.sub( "T1wHierarchical","T1w",mod_search_path_ol)
                 myol = glob.glob(mod_search_path_ol)
                 if len( myol ) > 0:
                     underlay = ants.image_read( myol[0] )
