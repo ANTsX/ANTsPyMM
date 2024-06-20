@@ -9493,6 +9493,13 @@ def quick_viz_mm_nrg(
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
             if post:
                 mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*brain_n4_dnz.nii.gz")
+                mod_search_path_ol = os.path.join(subjectrootpath, overmodX, iid, "*thickness_image.nii.gz" )
+                myol = glob.glob(mod_search_path_ol)
+                if len( myol ) > 0:
+                    underlay = ants.image_read( myol[0] )
+                    if verbose:
+                        print("T1w overlay " + myol[0] )
+                    underlay = underlay * ants.threshold_image( underlay, 0.2, math.inf )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) == 0:
                 if verbose:
@@ -9585,6 +9592,8 @@ def quick_viz_mm_nrg(
                 myol = glob.glob(mod_search_path_ol)
                 if len( myol ) > 0:
                     underlay = ants.image_read( myol[0] )
+                    if verbose:
+                        print("BOLD overlay " + myol[0] )
                     underlay = underlay * ants.threshold_image( underlay, 0.1, math.inf )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
