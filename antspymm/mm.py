@@ -9647,7 +9647,7 @@ def quick_viz_mm_nrg(
                 vizlist.append( ants.iMath( vimg, 'Normalize' ) * 255 )
                 undlist.append( underlay )
 
-    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=True, filename=filename )
+    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, filename=filename )
     return
     # listlen = len( vizlist )
     # vizlist = np.asarray( vizlist )
