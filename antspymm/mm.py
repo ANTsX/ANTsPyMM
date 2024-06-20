@@ -9502,11 +9502,19 @@ def quick_viz_mm_nrg(
             myimgsr=myimgsr[0]
             vimg=ants.image_read( myimgsr )
         elif  'T2Flair' in overmodX :
+            if verbose:
+                print("search flair")
             mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*nii.gz")
             if post and original_sourcedir is not None:
+                if verbose:
+                    print("post in flair")
                 mysubdir = os.path.join(original_sourcedir, projectid, sid, dtid)
                 mod_search_path_under = os.path.join(mysubdir, overmodX, iid, "*T2Flair*.nii.gz")
+                if verbose:
+                    print("post in flair mod_search_path_under " + mod_search_path_under)
                 mod_search_path = os.path.join(subjectrootpath, overmodX, iid, "*wmh.nii.gz")
+                if verbose:
+                    print("post in flair mod_search_path " + mod_search_path )
                 myimgul = glob.glob(mod_search_path_under)
                 myimgul.sort()
                 myimgsr = ants.image_read( myimgul[0] )
