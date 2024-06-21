@@ -9477,6 +9477,7 @@ def quick_viz_mm_nrg(
                 mod_search_path_ol = os.path.join(subjectrootpath, overmodX, iid, "*thickness_image.nii.gz" )
                 mod_search_path_ol = re.sub( "T1wHierarchical","T1w",mod_search_path_ol)
                 myol = glob.glob(mod_search_path_ol)
+                myol.sort()
                 if len( myol ) > 0:
                     underlay = ants.image_read( myol[0] )
                     if verbose:
@@ -9520,12 +9521,12 @@ def quick_viz_mm_nrg(
                         underlay=ants.image_read( myol[0] )
                         underlay=underlay*ants.threshold_image(underlay,0.05,math.inf)
                 else:
-                    vimg = noizimg
+                    vimg = noizimg.clone()
                     underlay = vimg * 0.0
             if original_sourcedir is None:
                 myimgsr = glob.glob(mod_search_path)
                 if len( myimgsr ) == 0:
-                    vimg = noizimg
+                    vimg = noizimg.clone()
                 else:
                     myimgsr.sort()
                     myimgsr=myimgsr[0]
@@ -9542,7 +9543,7 @@ def quick_viz_mm_nrg(
             else:
                 if verbose:
                     print("No " + overmodX)
-                vimg = noizimg
+                vimg = noizimg.clone()
         elif overmodX == 'DTI2':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
             myimgsr = glob.glob(mod_search_path)
@@ -9553,7 +9554,7 @@ def quick_viz_mm_nrg(
             else:
                 if verbose:
                     print("No " + overmodX)
-                vimg = noizimg
+                vimg = noizimg.clone()
         elif overmodX == 'NM2DMT':
             mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*nii.gz")
             if post:
@@ -9569,7 +9570,7 @@ def quick_viz_mm_nrg(
             else:
                 if verbose:
                     print("No " + overmodX)
-                vimg = noizimg
+                vimg = noizimg.clone()
         elif overmodX == 'rsfMRI':
             mod_search_path = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*nii.gz")
             if post:
@@ -9589,7 +9590,7 @@ def quick_viz_mm_nrg(
             else:
                 if verbose:
                     print("No " + overmodX)
-                vimg = noizimg
+                vimg = noizimg.clone()
         elif overmodX == 'perf':
             mod_search_path = os.path.join(subjectrootpath, 'perf*', "*", "*nii.gz")
             if post:
@@ -9602,7 +9603,7 @@ def quick_viz_mm_nrg(
             else:
                 if verbose:
                     print("No " + overmodX)
-                vimg = noizimg
+                vimg = noizimg.clone()
         else :
             if verbose:
                 print("Something else here")
@@ -9634,24 +9635,33 @@ def quick_viz_mm_nrg(
             msk=ants.get_mask(vimg)
             if overmodX == 'T2Flair':
                 msk=vimg*0+1
-            vimg=ants.crop_image(vimg,msk)
             if underlay is not None:
                 print( overmodX + " has underlay" )
             else:
                 underlay = vimg * 0.0
-            if 'T1w' in overmodX :
+            if nrgNum == 0:
                 refimg=ants.image_clone( vimg )
                 noizimg = ants.add_noise_to_image( refimg*0, 'additivegaussian', [100,1] )
                 vizlist.append( vimg )
                 undlist.append( underlay )
             else:
-                vimg = ants.resample_image_to_target( vimg, refimg )
                 vimg = ants.iMath( vimg, 'TruncateIntensity',0.01,0.98)
                 vizlist.append( ants.iMath( vimg, 'Normalize' ) * 255 )
-                underlay = ants.resample_image_to_target( underlay, vimg )
                 undlist.append( underlay )
 
-    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, filename=filename )
+    # mask & crop systematically ...
+    msk = ants.get_mask( refimg )
+    refimg = ants.crop_image( refimg, msk )
+
+    for jj in range(len(vizlist)):
+        vizlist[jj]=ants.resample_image_to_target( vizlist[jj], refimg )
+        undlist[jj]=ants.resample_image_to_target( undlist[jj], refimg )
+        print( 'viz: ' + str( jj ) )
+        print( vizlist[jj] )
+        print( 'und: ' + str( jj ) )
+        print( undlist[jj] )
+
+    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, reorient=False, filename=filename, orient_labels=False )
     return
     # listlen = len( vizlist )
     # vizlist = np.asarray( vizlist )
