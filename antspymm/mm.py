@@ -9459,7 +9459,6 @@ def quick_viz_mm_nrg(
     if verbose:
         print(f"t1 search path: {t1_search_path}")
     t1fn = glob.glob(t1_search_path)
-    t1fn.sort()
     if len( t1fn ) < 1:
         raise ValueError('quick_viz_mm_nrg cannot find the T1w @ ' + subjectrootpath )
     vizlist=[]
@@ -9477,19 +9476,18 @@ def quick_viz_mm_nrg(
                 mod_search_path_ol = os.path.join(subjectrootpath, overmodX, iid, "*thickness_image.nii.gz" )
                 mod_search_path_ol = re.sub( "T1wHierarchical","T1w",mod_search_path_ol)
                 myol = glob.glob(mod_search_path_ol)
-                myol.sort()
                 if len( myol ) > 0:
-                    underlay = ants.image_read( myol[0] )
+                    temper = find_most_recent_file( myol )[0]
+                    underlay = ants.image_read(  temper )
                     if verbose:
-                        print("T1w overlay " + myol[0] )
+                        print("T1w overlay " + temper )
                     underlay = underlay * ants.threshold_image( underlay, 0.2, math.inf )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) == 0:
                 if verbose:
                     print("No t1 images: " + sid + dtid )
                 return None
-            myimgsr.sort()
-            myimgsr=myimgsr[0]
+            myimgsr=find_most_recent_file( myimgsr )[0]
             vimg=ants.image_read( myimgsr )
         elif  'T2Flair' in overmodX :
             if verbose:
@@ -9506,19 +9504,19 @@ def quick_viz_mm_nrg(
                 if verbose:
                     print("post in flair mod_search_path " + mod_search_path )
                 myimgul = glob.glob(mod_search_path_under)
-                myimgul.sort()
                 if len( myimgul ) > 0:
+                    myimgul = find_most_recent_file( myimgul )[0]
                     if verbose:
-                        print("Flair  " + myimgul[0] )
-                    vimg = ants.image_read( myimgul[0] )
+                        print("Flair  " + myimgul )
+                    vimg = ants.image_read( myimgul )
                     myol = glob.glob(mod_search_path)
                     if len( myol ) == 0:
                         underlay = myimgsr * 0.0
                     else:
-                        myol.sort()
+                        myol = find_most_recent_file( myol )[0]
                         if verbose:
-                            print("Flair overlay " + myol[0] )
-                        underlay=ants.image_read( myol[0] )
+                            print("Flair overlay " + myol )
+                        underlay=ants.image_read( myol )
                         underlay=underlay*ants.threshold_image(underlay,0.05,math.inf)
                 else:
                     vimg = noizimg.clone()
@@ -9528,8 +9526,7 @@ def quick_viz_mm_nrg(
                 if len( myimgsr ) == 0:
                     vimg = noizimg.clone()
                 else:
-                    myimgsr.sort()
-                    myimgsr=myimgsr[0]
+                    myimgsr=find_most_recent_file( myimgsr )[0]
                     vimg=ants.image_read( myimgsr )
         elif overmodX == 'DTI':
             mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*nii.gz")
@@ -9537,8 +9534,7 @@ def quick_viz_mm_nrg(
                 mod_search_path = os.path.join(subjectrootpath, 'DTI*', "*", "*fa.nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
-                myimgsr.sort()
-                myimgsr=myimgsr[0]
+                myimgsr=find_most_recent_file( myimgsr )[0]
                 vimg=ants.image_read( myimgsr )
             else:
                 if verbose:
@@ -9561,7 +9557,6 @@ def quick_viz_mm_nrg(
                 mod_search_path = os.path.join(subjectrootpath, overmodX, "*", "*NM_avg.nii.gz" )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
-                myimgsr.sort()
                 myimgsr0=myimgsr[0]
                 vimg=ants.image_read( myimgsr0 )
                 for k in range(1,len(myimgsr)):
@@ -9578,14 +9573,14 @@ def quick_viz_mm_nrg(
                 mod_search_path_ol = os.path.join(subjectrootpath, 'rsfMRI*', "*", "*fcnxpro122_DefaultMode.nii.gz" )
                 myol = glob.glob(mod_search_path_ol)
                 if len( myol ) > 0:
-                    underlay = ants.image_read( myol[0] )
+                    myol = find_most_recent_file( myol )[0]
+                    underlay = ants.image_read( myol )
                     if verbose:
-                        print("BOLD overlay " + myol[0] )
+                        print("BOLD overlay " + myol )
                     underlay = underlay * ants.threshold_image( underlay, 0.1, math.inf )
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
-                myimgsr.sort()
-                myimgsr=myimgsr[0]
+                myimgsr=find_most_recent_file( myimgsr )[0]
                 vimg=mm_read_to_3d( myimgsr )
             else:
                 if verbose:
@@ -9597,8 +9592,7 @@ def quick_viz_mm_nrg(
                 mod_search_path = os.path.join(subjectrootpath, 'perf*', "*", "*cbf.nii.gz")
             myimgsr = glob.glob(mod_search_path)
             if len( myimgsr ) > 0:
-                myimgsr.sort()
-                myimgsr=myimgsr[0]
+                myimgsr=find_most_recent_file( myimgsr )[0]
                 vimg=mm_read_to_3d( myimgsr )
             else:
                 if verbose:
@@ -9612,8 +9606,7 @@ def quick_viz_mm_nrg(
             if post:
                 myimgsr=[]
             if len( myimgsr ) > 0:
-                myimgsr.sort()
-                myimgsr=myimgsr[0]
+                myimgsr=find_most_recent_file( myimgsr )[0]
                 vimg=ants.image_read( myimgsr )
             else:
                 if verbose:
