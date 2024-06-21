@@ -9661,7 +9661,17 @@ def quick_viz_mm_nrg(
         print( 'und: ' + str( jj ) )
         print( undlist[jj] )
 
-    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, reorient=False, filename=filename, orient_labels=False )
+
+    xyz = [None]*3
+    for i in range(3):
+        if xyz[i] is None:
+            xyz[i] = int(refimg.shape[i] * slice_factor )
+
+    if verbose:
+        print('slice positions')
+        print( xyz )
+
+    ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, reorient=False, filename=filename, xyz=xyz, orient_labels=False )
     return
     # listlen = len( vizlist )
     # vizlist = np.asarray( vizlist )
