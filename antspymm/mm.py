@@ -11681,27 +11681,29 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=
     criteria = {'ol_loop': 'min', 'noise': 'min',  'dti_bvalueMax':'min',  'dimt':'max'}
     prefixes = ['DTI1_', 'DTI2_', 'DTI3_']  # List of prefixes for each matching iteration
     undfmod = dtdf
-    if verbose:
-        print('start DT')
-        print( undfmod.shape )
-    for prefix in prefixes:
-        if undfmod.shape[0] > 50:
-            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
-            if verbose:
-                print( prefix )
-                print( undfmod.shape )
+    if undfmod is not None:
+        if verbose:
+            print('start DT')
+            print( undfmod.shape )
+        for prefix in prefixes:
+            if undfmod.shape[0] > 50:
+                mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+                if verbose:
+                    print( prefix )
+                    print( undfmod.shape )
 
     prefixes = ['rsf1_', 'rsf2_', 'rsf3_']  # List of prefixes for each matching iteration
     undfmod = rsdf  # Initialize 'undfmod' with 'nmdf' for the first iteration
-    if verbose:
-        print('start rsf')
-        print( undfmod.shape )
-    for prefix in prefixes:
-        if undfmod.shape[0] > 50:
-            mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
-            if verbose:
-                print( prefix )
-                print( undfmod.shape )
+    if undfmod is not None:
+        if verbose:
+            print('start rsf')
+            print( undfmod.shape )
+        for prefix in prefixes:
+            if undfmod.shape[0] > 50:
+                mmdf, undfmod = mm_match_by_qc_scoring(mmdf, undfmod, 'subjectIDdate', criteria, prefix=prefix, exclude_columns=xcl)
+                if verbose:
+                    print( prefix )
+                    print( undfmod.shape )
     
     if fix_LRRL:
         #        mmdf=fix_LR_RL_stuff( mmdf, 'DTI1_filename', 'DTI2_filename', 'DTI1_dimt', 'DTI2_dimt')
