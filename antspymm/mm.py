@@ -10772,6 +10772,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
             anatsear=re.sub("sup.corona.radiata","sup.cor.rad",anatsear)
             anatsear=re.sub("posterior.thalamic.radiation.include.optic.radiation","post.thalamic.radiation",anatsear)
             anatsear=re.sub("retrolenticular.part.of.internal.capsule","rent.int.cap",anatsear)
+            anatsear=re.sub("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus","ilf.and.ifo",anatsear)
             atlassearch = mydict['tidynames'].str.contains(anatsear)
             if atlassearch.sum() == 0:
                 atlassearch = mydict2['tidynames'].str.contains(anatsear)
