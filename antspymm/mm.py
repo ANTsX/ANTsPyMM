@@ -3546,7 +3546,7 @@ def dipy_dti_recon(
     if verbose:
         print("recon dti.TensorModel",flush=True)
 
-    def justthefit( gtab, fit_method, imagein, maskin, free_water=False ):
+    def justthefit( gtab, fit_method, imagein, maskin, recon_step_size=1000, free_water=False ):
         if fit_method is None:
             return None, None, None, None
         maskedimage=[]
@@ -3556,9 +3556,9 @@ def dipy_dti_recon(
         maskedimage = ants.list_to_ndimage( imagein, maskedimage )
         maskdata = maskedimage.numpy()
         if free_water:
-            tenmodel = fwdti.FreeWaterTensorModel(gtab)
+            tenmodel = fwdti.FreeWaterTensorModel(gtab, step=recon_step_size)
         else:
-            tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
+            tenmodel = dti.TensorModel(gtab,fit_method=fit_method, step=recon_step_size)
         tenfit = tenmodel.fit(maskdata)
         FA = fractional_anisotropy(tenfit.evals)
         FA[np.isnan(FA)] = 1
