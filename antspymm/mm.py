@@ -10654,7 +10654,7 @@ def novelty_detection_quantile(df_train, df_test):
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
 
-def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=0 ):
+def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=0 ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -10666,7 +10666,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
         with respect to regions that are measured in antspymm.   value will be 
         the value to be displayed.   if two examples of a given region exist in 
         statistical_df, then the largest absolute value will be taken for display.
-    - data_dictionary_path (str): Path to the data dictionary CSV file.
+    - data_dictionary (pandas dataframe): antspymm data dictionary.
     - output_prefix (str): Prefix for the output figure filenames.
     - brain_image (antsImage): the brain image on which results will overlay.
     - overlay_cmap (str): see matplotlib
@@ -10688,7 +10688,7 @@ def brainmap_figure(statistical_df, data_dictionary_path, output_prefix, brain_i
     zz = statistical_df 
     
     # Read the data dictionary from a CSV file
-    mydict = pd.read_csv(data_dictionary_path)
+    mydict = data_dictionary
     mydict = mydict[~mydict['Measurement'].str.contains("tractography-based connectivity", na=False)]
     mydict2=mydict.copy()
     mydict2['tidynames']=mydict2['tidynames'].str.replace(".left","")
