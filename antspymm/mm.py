@@ -10684,6 +10684,9 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
     """
     import re
 
+    def is_bst_region(filename):
+        return filename[-4:] == '.bst'
+
     # Read the statistical file
     zz = statistical_df 
     
@@ -10765,6 +10768,7 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             anatsear=re.sub("fornix.cres.stria.terminalis.can.not.be.resolved.with.current.resolution","fornix.column.and.body.of.fornix",anatsear)
             anatsear=re.sub("external.capsule","ext.cap",anatsear)
             anatsear=re.sub(".jhu.icbm.labels.1mm","",anatsear)
+            anatsear=re.sub("dp.",".",anatsear)
             anatsear=re.sub("mtg.sn.snc.",".snc.",anatsear)
             anatsear=re.sub("mtg.sn.snr.",".snr.",anatsear)
             anatsear=re.sub("anterior.","ant.",anatsear)
@@ -10796,7 +10800,7 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
                 myext = 'JHU_wm'
             elif 'dktcortex' in anattoshow[k] or whichatlas == 'desikan-killiany-tourville' or 'dtkregions' in anattoshow[k]  :
                 myext = 'dkt_cortex'
-            elif ('cit168' in anattoshow[k] or whichatlas == 'CIT168') and not 'brainstem' in anattoshow[k]:
+            elif ('cit168' in anattoshow[k] or whichatlas == 'CIT168') and not 'brainstem' in anattoshow[k] and not is_bst_region(anatsear):
                 myext = 'cit168lab'
             elif 'mtl' in anattoshow[k]:
                 myext = 'mtl'
@@ -10805,7 +10809,7 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
                 myext = 'cerebellum'
                 oglabelname=re.sub('cerebellum', '',anatsear)
                 # oglabelname=oglabelname[2:]
-            elif 'brainstem' in anattoshow[k]:
+            elif 'brainstem' in anattoshow[k] or is_bst_region(anatsear):
                 myext = 'brainstem'
             elif any(item in anattoshow[k] for item in ['nbm', 'bf']):
                 myext = 'bf'
