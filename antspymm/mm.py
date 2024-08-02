@@ -10776,6 +10776,7 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             anatsear=re.sub("mtg.sn.snc.",".snc.",anatsear)
             anatsear=re.sub("mtg.sn.snr.",".snr.",anatsear)
             anatsear=re.sub("anterior.","ant.",anatsear)
+            anatsear=re.sub("rsf.","",anatsear)
             anatsear=re.sub("ant.corona.radiata","ant.cor.rad",anatsear)
             anatsear=re.sub("sup.corona.radiata","sup.cor.rad",anatsear)
             anatsear=re.sub("posterior.thalamic.radiation.include.optic.radiation","post.thalamic.radiation",anatsear)
