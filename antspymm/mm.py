@@ -10759,6 +10759,8 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             anatsear=re.sub("superior","sup",anatsear)
             anatsear=re.sub("cerebellum","",anatsear)
             anatsear=re.sub("brainstem","",anatsear)
+            anatsear=re.sub("precentral","precent",anatsear)
+            anatsear=re.sub("postcentral","postcent",anatsear)
             anatsear=re.sub("sup.cerebellar.peduncle","sup.cereb.ped",anatsear)
             anatsear=re.sub("inferior.cerebellar.peduncle","inf.cereb.ped",anatsear)
             anatsear=re.sub(".crossing.tract.a.part.of.mcp.","",anatsear)
