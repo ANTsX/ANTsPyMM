@@ -10654,6 +10654,135 @@ def novelty_detection_quantile(df_train, df_test):
         myqs[mykey] = abs( temp - 0.5 ) / 0.5
     return myqs
 
+
+
+def shorten_pymm_names(x):
+    """
+    Shortens pmymm names by applying a series of regex substitutions.
+    
+    Parameters:
+    x (str): The input string to be shortened
+    
+    Returns:
+    str: The shortened string
+    """
+    xx = x.lower()
+    xx = re.sub("_", ".", xx)  # Replace underscores with periods
+    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    # Apply the following regex substitutions in order
+    xx = re.sub("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.","ilf.and.ifo", xx, flags=re.I)
+    xx = re.sub(r"sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.", "ilf.and.ifo", xx, flags=re.I)
+    xx = re.sub(r".cres.stria.terminalis.can.not.be.resolved.with.current.resolution.", "", 
+xx, flags=re.I)
+    xx = re.sub("_", ".", xx)  # Replace underscores with periods
+    xx = re.sub(r"longitudinal.fasciculus", "l.fasc", xx, flags=re.I)
+    xx = re.sub(r"corona.radiata", "cor.rad", xx, flags=re.I)
+    xx = re.sub("central", "cent", xx, flags=re.I)
+    xx = re.sub(r"deep.cit168", "dp.", xx, flags=re.I)
+    xx = re.sub("cit168", "", xx, flags=re.I)
+    xx = re.sub(".include", "", xx, flags=re.I)
+    xx = re.sub("mtg.sn", "", xx, flags=re.I)
+    xx = re.sub("brainstem", ".bst", xx, flags=re.I)
+    xx = re.sub(r"rsfmri.", "rsf.", xx, flags=re.I)
+    xx = re.sub(r"dti.mean.fa.", "dti.fa.", xx, flags=re.I)
+    xx = re.sub("perf.cbf.mean.", "cbf.", xx, flags=re.I)
+    xx = re.sub(".jhu.icbm.labels.1mm", "", xx, flags=re.I)
+    xx = re.sub(".include.optic.radiation.", "", xx, flags=re.I)
+    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    xx = re.sub("cerebellar.peduncle", "cereb.ped", xx, flags=re.I)
+    xx = re.sub(r"anterior.limb.of.internal.capsule", "ant.int.cap", xx, flags=re.I)
+    xx = re.sub(r"posterior.limb.of.internal.capsule", "post.int.cap", xx, flags=re.I)
+    xx = re.sub("t1hier.", "t1.", xx, flags=re.I)
+    xx = re.sub("anterior", "ant", xx, flags=re.I)
+    xx = re.sub("posterior", "post", xx, flags=re.I)
+    xx = re.sub("inferior", "inf", xx, flags=re.I)
+    xx = re.sub("superior", "sup", xx, flags=re.I)
+    xx = re.sub(r"dktcortex", ".ctx", xx, flags=re.I)
+    xx = re.sub(".lravg", "", xx, flags=re.I)
+    xx = re.sub("dti.mean.fa", "dti.fa", xx, flags=re.I)
+    xx = re.sub(r"retrolenticular.part.of.internal", "rent.int.cap", xx, flags=re.I)
+    xx = re.sub(r"iculus.could.be.a.part.of.ant.internal.capsule", "", xx, flags=re.I)  # Twice
+    xx = re.sub(".fronto.occipital.", ".frnt.occ.", xx, flags=re.I)
+    xx = re.sub(r".longitidinal.fasciculus.", ".long.fasc.", xx, flags=re.I)  # Twice
+    xx = re.sub(".external.capsule", ".ext.cap", xx, flags=re.I)
+    xx = re.sub("of.internal.capsule", ".int.cap", xx, flags=re.I)
+    xx = re.sub("fornix.cres.stria.terminalis", "fornix.", xx, flags=re.I)
+    xx = re.sub("capsule", "", xx, flags=re.I)
+    xx = re.sub("and.inf.frnt.occ.fasciculus.", "", xx, flags=re.I)
+    xx = re.sub("crossing.tract.a.part.of.mcp.", "", xx, flags=re.I)
+    return xx[:40]  # Truncate to first 40 characters
+
+
+def shorten_pymm_names2(x, verbose=False ):
+    """
+    Shortens pmymm names by applying a series of regex substitutions.
+
+    Parameters:
+    x (str): The input string to be shortened
+
+    verbose (bool): explain the patterns and replacements and their impact
+
+    Returns:
+    str: The shortened string
+    """
+    # Define substitution patterns as tuples
+    substitutions = [
+        ("_", "."),  
+        ("\.\.", "."),
+        ("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.","ilf.and.ifo"),
+        (r"sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.", "ilf.and.ifo"),
+        (r".cres.stria.terminalis.can.not.be.resolved.with.current.resolution.", ""),
+        ("_", "."),
+        (r"longitudinal.fasciculus", "l.fasc"),
+        (r"corona.radiata", "cor.rad"),
+        ("central", "cent"),
+        (r"deep.cit168", "dp."),
+        ("cit168", ""),
+        (".include", ""),
+        ("mtg.sn", ""),
+        ("brainstem", ".bst"),
+        (r"rsfmri.", "rsf."),
+        (r"dti.mean.fa.", "dti.fa."),
+        ("perf.cbf.mean.", "cbf."),
+        (".jhu.icbm.labels.1mm", ""),
+        (".include.optic.radiation.", ""),
+        ("\.\.", "."),  # Replace double dots with single dot
+        ("\.\.", "."),  # Replace double dots with single dot
+        ("cerebellar.peduncle", "cereb.ped"),
+        (r"anterior.limb.of.internal.capsule", "ant.int.cap"),
+        (r"posterior.limb.of.internal.capsule", "post.int.cap"),
+        ("t1hier.", "t1."),
+        ("anterior", "ant"),
+        ("posterior", "post"),
+        ("inferior", "inf"),
+        ("superior", "sup"),
+        (r"dktcortex", ".ctx"),
+        (".lravg", ""),
+        ("dti.mean.fa", "dti.fa"),
+        (r"retrolenticular.part.of.internal", "rent.int.cap"),
+        (r"iculus.could.be.a.part.of.ant.internal.capsule", ""),  # Twice
+        (".fronto.occipital.", ".frnt.occ."),
+        (r".longitidinal.fasciculus.", ".long.fasc."),  # Twice
+        (".external.capsule", ".ext.cap"),
+        ("of.internal.capsule", ".int.cap"),
+        ("fornix.cres.stria.terminalis", "fornix."),
+        ("capsule", ""),
+        ("and.inf.frnt.occ.fasciculus.", ""),
+        ("crossing.tract.a.part.of.mcp.", "")
+      ]
+
+    # Apply substitutions in order
+    for pattern, replacement in substitutions:
+        if verbose:
+            print("Pre " + x + " pattern "+pattern + " repl " + replacement )
+        x = re.sub(pattern, replacement, x.lower(), flags=re.IGNORECASE)
+        if verbose:
+            print("Post " + x)
+
+    return x[:40]  # Truncate to first 40 characters
+
+
 def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=0 ):
     """
     Create figures based on statistical data and an underlying brain image.
@@ -10722,8 +10851,18 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             if verbose > 0 :
                 print(str(k) +  " " + anattoshow[k]  )
             mysub = zz[zz['anat'].str.contains(anattoshow[k])]
-            anatsear=re.sub(r'[()]', '.', anattoshow[k])
-            anatsear=re.sub(r'\.\.', '.', anatsear)
+            anatsear=shorten_pymm_names( anattoshow[k] )
+            anatsear=re.sub(r'[()]', '.', anatsear )
+            anatsear=re.sub(r'\.\.', '.', anatsear )
+            anatsear=re.sub("dti.mean.md.snc","md.snc",anatsear)
+            anatsear=re.sub("dti.mean.fa.snc","fa.snc",anatsear)
+            anatsear=re.sub("dti.mean.md.snr","md.snr",anatsear)
+            anatsear=re.sub("dti.mean.fa.snr","fa.snr",anatsear)
+            anatsear=re.sub("dti.mean.md.","",anatsear)
+            anatsear=re.sub("dti.mean.fa.","",anatsear)
+            anatsear=re.sub("dti.md.","",anatsear)
+            anatsear=re.sub("dti.fa.","",anatsear)
+            anatsear=re.sub("dti.md","",anatsear)
             anatsear=re.sub("dti.fa","",anatsear)
             anatsear=re.sub("cbf.","",anatsear)
             anatsear=re.sub("rsfmri.fcnxpro122.","",anatsear)
@@ -10744,12 +10883,6 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             anatsear=re.sub("t1.area.","",anatsear)
             anatsear=re.sub("asymdp.","",anatsear)
             anatsear=re.sub("asym.","",anatsear)
-            anatsear=re.sub("dti.md.","",anatsear)
-            anatsear=re.sub("dti.fa.","",anatsear)
-            anatsear=re.sub("dti.md","",anatsear)
-            anatsear=re.sub("dti.mean.md.","",anatsear)
-            anatsear=re.sub("dti.mean.fa.","",anatsear)
-            anatsear=re.sub("asym.","",anatsear)
             anatsear=re.sub("asym","",anatsear)
             anatsear=re.sub("lravg.","",anatsear)
             anatsear=re.sub("lravg","",anatsear)
@@ -10767,20 +10900,26 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             anatsear=re.sub("inferior.cerebellar.peduncle","inf.cereb.ped",anatsear)
             anatsear=re.sub(".crossing.tract.a.part.of.mcp.","",anatsear)
             anatsear=re.sub(".column.and.body.of.fornix.","",anatsear)
-            anatsear=re.sub("fronto.occipital.fasciculus.could.be.a.part.of.anterior.internal.capsule","frnt.occ",anatsear)
+            anatsear=re.sub("fronto.occipital.fasciculus.could.be.a.part.of.ant.internal.capsule","frnt.occ",anatsear)
             anatsear=re.sub("inferior.fronto.occipital.fasciculus.could.be.a.part.of.anterior.internal.capsule","inf.frnt.occ",anatsear)
             anatsear=re.sub("fornix.cres.stria.terminalis.can.not.be.resolved.with.current.resolution","fornix.column.and.body.of.fornix",anatsear)
             anatsear=re.sub("external.capsule","ext.cap",anatsear)
             anatsear=re.sub(".jhu.icbm.labels.1mm","",anatsear)
             anatsear=re.sub("dp.",".",anatsear)
+            anatsear=re.sub(".mtg.sn.snc.",".snc.",anatsear)
+            anatsear=re.sub(".mtg.sn.snr.",".snr.",anatsear)
             anatsear=re.sub("mtg.sn.snc.",".snc.",anatsear)
             anatsear=re.sub("mtg.sn.snr.",".snr.",anatsear)
+            anatsear=re.sub("mtg.sn.snc",".snc.",anatsear)
+            anatsear=re.sub("mtg.sn.snr",".snr.",anatsear)
             anatsear=re.sub("anterior.","ant.",anatsear)
             anatsear=re.sub("rsf.","",anatsear)
             anatsear=re.sub("ant.corona.radiata","ant.cor.rad",anatsear)
             anatsear=re.sub("sup.corona.radiata","sup.cor.rad",anatsear)
             anatsear=re.sub("posterior.thalamic.radiation.include.optic.radiation","post.thalamic.radiation",anatsear)
             anatsear=re.sub("retrolenticular.part.of.internal.capsule","rent.int.cap",anatsear)
+            anatsear=re.sub("post.limb.of.internal.capsule","post.int.cap",anatsear)
+            anatsear=re.sub("ant.limb.of.internal.capsule","ant.int.cap",anatsear)
             anatsear=re.sub("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus","ilf.and.ifo",anatsear)
             atlassearch = mydict['tidynames'].str.contains(anatsear)
             if atlassearch.sum() == 0:
