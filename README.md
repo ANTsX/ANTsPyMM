@@ -90,6 +90,60 @@ achieved through four steps (recommended approach):
 
 4. run the main antspymm function
 
+# formal description
+
+<details>
+<summary>Overview</summary>
+
+The Advanced Normalization Tools Ecosystem (ANTsX) is a collection of interrelated, open-source software libraries for biological and medical image processing [1](https://pubmed.ncbi.nlm.nih.gov/33907199/) and analysis built on the NIH’s Insight Toolkit (ITK).  ANTsX has demonstrated significant applicability for a variety of organ systems, species, and imaging modalities [2](https://pubmed.ncbi.nlm.nih.gov/25977810/) [3](https://pubmed.ncbi.nlm.nih.gov/38746199/) [4](https://pubmed.ncbi.nlm.nih.gov/35703369/).  ANTsX-based processing of multi-modality studies utilizes the Python-based ANTsPyMM library.  This includes structural (T1-w, DTI), functional (fMRI), and perfusion (ASL) modalities.
+
+</details>
+
+<details>
+<summary>T1-weighted MRI</summary>
+
+T1-weighted MRI processing has been previously described [1](https://pubmed.ncbi.nlm.nih.gov/33907199/) [2](https://pubmed.ncbi.nlm.nih.gov/38632390/).  It is coordinated by ANTsPyT1w, a sub-component of ANTsPyMM, and includes tools for image registration, segmentation, and super-resolution as customized for the human brain. Processing components include preprocessing (denoising + bias correction), brain extraction, sis-tissue parenchymal parcellation (CSF, gray matter, white matter, deep gray matter, brain stem, and cerebellum), and cortical parcellation for morphological quantitation.  Derived measurements are tabulated by the neuroanatomical coordinates defined above and include cortical and subcortical measurements and morphological measurements of the hippocampus, basal forebrain and cerebellum.
+
+</details>
+
+<details>
+<summary>Diffusion</summary>
+
+Diffusion processing.  ANTsPyMM couples the ANTsX toolkit with the Diffusion Imaging in Python (Dipy) library for the processing and analysis of diffusion MRI [1](https://pubmed.ncbi.nlm.nih.gov/24600385/).   The former is used for motion correction and normalization to corresponding T1-w images.  Output consists of various input including salient scalar images including fractional anisotropy (FA) and radial diffusivity (RD).  
+
+</details>
+
+<details>
+<summary>Resting-state fMRI</summary>
+
+Several preprocessing steps are included in the ANTsPyMM processing of resting state fMRI (rsfMRI) data.  First, slice timing correction is used to align the acquisition timing of each slice to a common reference time.  Each volume is then registered to a reference volume frame for motion correction.   This is followed by brain extraction and spatial smoothing.  Finally, CompCor is used to remove noise reduction from the white matter and CSF [1](https://pubmed.ncbi.nlm.nih.gov/17560126/).  
+
+</details>
+
+<details>
+<summary>ASL</summary>
+
+ASL processing.  Cerebral blood flow (CBF) is a critical parameter in understanding brain function and its alterations in various neurological conditions. Arterial spin labeling (ASL) MRI is a non-invasive technique that can measure CBF without the need for contrast agents. ANTsPyMM estimates CBF from ASL MRI data through a combination of image processing and mathematical modeling techniques [1](https://pubmed.ncbi.nlm.nih.gov/24715426/).  First, motion artifacts and outliers are removed from the time series data.  Second, the preprocessed data is registered to the reference T1-w space using a rigid transformation optimized through the ANTs registration tools [2](https://pubmed.ncbi.nlm.nih.gov/24817849/).  Third, the six-tissue segmentation generated during the T1-w segmentation is used to partition the registered ASL data from which the CBF is estimated using a mathematical model that takes into account the ASL MRI signal, the labeling efficiency, and the longitudinal relaxation time of blood.  Finally, the M0 image, which represents the equilibrium magnetization of brain tissue, is estimated using a separate mathematical model.
+
+</details>
+
+<details>
+<summary>Magnetic resonance angiography</summary>
+
+MRA processing and analysis.   A precursor for quantitative measures of potential vascular irregularities is the segmentation derived from MR angiography.  To extract these image-based quantitative measures (described below), we developed and trained a deep learning network as part of the ANTsXNet functional library.  Training data was adapted from a publicly available resource [1](https://data.kitware.com/#item/58a372e48d777f0721a64dc9) consisting of 42 subjects with vascular network segmentations and brain masks provided.  A previously constructed high-resolution template was generated from the Human Connectome Project Young Adult cohort comprising T1-w, T2-w, and FA modalities using ANTs functionality [2](https://pubmed.ncbi.nlm.nih.gov/19818860/) [3](https://pubmed.ncbi.nlm.nih.gov/25433513/) and served as the prediction space for network training.  Prior spatial information was included by warping all vascular segmentations to the template space, averaged, spatially smoothed, and renormalized to the intensity range [0,1].  Aggressive data augmentation was used to generate additional data in real time during training consisting of random spatial linear and deformable transformations, random Gaussian additive noise, random histogram-based intensity warping [4](https://pubmed.ncbi.nlm.nih.gov/34227163/), and simulated bias field based on the popular N4 algorithm [5](https://pubmed.ncbi.nlm.nih.gov/20378467/). The functionality is available as open-source in both the R-based ANTsRNet (``brainMraVesselSegmentation(...)``) and Python-based ANTsPyNet (``brain_mra_vessel_segmentation(...)``).
+
+</details>
+
+<details>
+<summary>Periventricular spaces and white matter hyperintensities</summary>
+
+Traditional measures for indicating abnormal vascular morphology can then be calculated, such as tortuosity [1](https://pubmed.ncbi.nlm.nih.gov/12956271/).  For example, tight vascular coils (i.e., high tortuosity) are often associated with the presence of malignant tumors.  From the centerline of the vessel segmentation, various tortuosity measures have been proposed including 1) distance metric: the ratio of the length of the centerline to the distance between the two endpoints, 2) inflection count metric: the distance metric multiplied by the number of the inflection points (i.e., a point of minimum total curvature), 3) sum of angles metric: the integrated total curvature normalized by total path length.   
+
+For quantitative assessment of enlarged perivascular spaces, we employ functionality made publicly available through the ANTsX toolkit.  Specifically, previous published research [2](https://pubmed.ncbi.nlm.nih.gov/34262443/) has been ported to the ANTsXNet library and will be used for segmenting enlarged perivascular spaces.  Using both T1 and FLAIR modalities, a trained deep learning U-net neural network was trained using 40 datasets in which all visible perivascular spaces were manually annotated by an expert.  An ensemble of trained weights is used to produce the final probability image.  Previous work in MRI super resolution [3](https://www.medrxiv.org/content/10.1101/2023.02.02.23285376v1) will be used to explore the possible output enhancement.  PVS segmentation results will be tabulated per lobe using separate ANTsXNet functionality [4](https://pubmed.ncbi.nlm.nih.gov/38632390/).
+
+Similar functionality exists for segmentation of white matter hyperintensities and will be included in the MRI processing for this project.  Several algorithms have been ported to ANTsXNet from previous research from multiple groups to complement existing capabilities [5](https://pubmed.ncbi.nlm.nih.gov/30125711/) [6](https://pubmed.ncbi.nlm.nih.gov/35088930/) [7](https://pubmed.ncbi.nlm.nih.gov/38050769/).  Regional tabulation will also depend on the lobar segmentation within the white matter as with the PVS segmentation results.
+
+</details>
 
 # first time setup
 
