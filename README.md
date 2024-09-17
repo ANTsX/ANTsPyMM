@@ -95,7 +95,7 @@ achieved through four steps (recommended approach):
 <details>
 <summary>Overview</summary>
 
-The Advanced Normalization Tools Ecosystem (ANTsX) is a collection of interrelated, open-source software libraries for biological and medical image processing [1](https://pubmed.ncbi.nlm.nih.gov/33907199/) and analysis built on the NIH’s Insight Toolkit (ITK).  ANTsX has demonstrated significant applicability for a variety of organ systems, species, and imaging modalities [2](https://pubmed.ncbi.nlm.nih.gov/25977810/) [3](https://pubmed.ncbi.nlm.nih.gov/38746199/) [4](https://pubmed.ncbi.nlm.nih.gov/35703369/).  ANTsX-based processing of multi-modality studies utilizes the Python-based ANTsPyMM library.  This includes structural (T1-w, DTI), functional (fMRI), and perfusion (ASL) modalities.
+The Advanced Normalization Tools Ecosystem (ANTsX) is a collection of interrelated, open-source software libraries for biological and medical image processing [1](https://pubmed.ncbi.nlm.nih.gov/33907199/) and analysis built on the NIH’s Insight Toolkit (ITK).  ANTsX has demonstrated significant applicability for a variety of organ systems, species, and imaging modalities [2](https://pubmed.ncbi.nlm.nih.gov/25977810/) [3](https://pubmed.ncbi.nlm.nih.gov/38746199/) [4](https://pubmed.ncbi.nlm.nih.gov/35703369/).  ANTsX-based processing of multi-modality studies utilizes the Python-based ANTsPyMM library.  This includes structural (T1-w, DTI, FLAIR), functional (fMRI), and perfusion (ASL) modalities.
 
 </details>
 
