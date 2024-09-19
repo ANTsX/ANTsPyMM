@@ -14,8 +14,7 @@ from scipy.stats import median_abs_deviation
 import math
 testingClass = unittest.TestCase( )
 islocal = False
-idp = "sub-01_asl"
+idp = "LS2001_3T_rfMRI_REST1_LR_gdc"
 fmri = ants.image_read( antspymm.get_data( idp, target_extension=".nii.gz") )
-fmriavg = ants.get_average_of_timeseries(fmri)
-mask = ants.get_mask( fmriavg )
-fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.5, mask=mask )
+fmri = ants.resample_image( fmri, [20,20,20,20], use_voxels=True )
+fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
