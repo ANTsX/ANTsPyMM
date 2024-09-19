@@ -10219,7 +10219,7 @@ def remove_volumes_from_timeseries(time_series, volumes_to_remove):
     volumes_to_keep = [i for i in range(time_series.shape[3]) if i not in volumes_to_remove]
 
     # Select the volumes to keep
-    filtered_time_series = ants.from_numpy( time_series[..., volumes_to_keep] )
+    filtered_time_series = ants.from_numpy( time_series.numpy()[..., volumes_to_keep] )
 
     return ants.copy_image_info( time_series, filtered_time_series )
 
