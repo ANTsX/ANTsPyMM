@@ -109,14 +109,14 @@ T1-weighted MRI processing has been previously described [1](https://pubmed.ncbi
 <details>
 <summary>Diffusion</summary>
 
-Diffusion processing.  ANTsPyMM couples the ANTsX toolkit with the Diffusion Imaging in Python (Dipy) library for the processing and analysis of diffusion MRI [1](https://pubmed.ncbi.nlm.nih.gov/24600385/).   The former is used for motion correction and normalization to corresponding T1-w images.  Output consists of various input including salient scalar images including fractional anisotropy (FA) and radial diffusivity (RD).  
+Diffusion processing.  ANTsPyMM couples the ANTsX toolkit with the Diffusion Imaging in Python (Dipy) library for the processing and analysis of diffusion MRI [1](https://pubmed.ncbi.nlm.nih.gov/24600385/).   The former is used for motion correction and normalization to corresponding T1-w images.  Output consists of QC images, the motion corrected diffusion series, RGB images, FA, mean diffusion and dense tractography as well as tractography-based connectivity matrices.  Tabular summary of these metrics are written to csv.
 
 </details>
 
 <details>
 <summary>Resting-state fMRI</summary>
 
-Several preprocessing steps are included in the ANTsPyMM processing of resting state fMRI (rsfMRI) data.  First, slice timing correction is used to align the acquisition timing of each slice to a common reference time.  Each volume is then registered to a reference volume frame for motion correction.   This is followed by brain extraction and spatial smoothing.  Finally, CompCor is used to remove noise reduction from the white matter and CSF [1](https://pubmed.ncbi.nlm.nih.gov/17560126/).  
+Several preprocessing steps are included in the ANTsPyMM processing of resting state fMRI (rsfMRI) data.  First, motion correction is used to align the time series to a series specific fMRI template.  Distortion correction to t1 is also performed along with brain extraction.  A homotopic coordinate system is transformed to the time series space and used to derive network correlation matrices.  CompCor is used to model physiological noise [1](https://pubmed.ncbi.nlm.nih.gov/17560126/).  Censoring is performed for problematic volumes.  By default, three different sets of processing parameters are employed.  These were chosen based on an empirical evaluation of reproducibility in a traveling participant cohort.  Several QC measurements are derived and all of these data are summarized in a tabular format.
 
 </details>
 
