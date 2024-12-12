@@ -2738,11 +2738,47 @@ def get_data( name=None, force_download=False, version=25, target_extension='.cs
     """
     os.makedirs(DATA_PATH, exist_ok=True)
 
+    def mv_subfolder_files(folder, verbose=False):
+        """
+        Move files from subfolders to the parent folder.
+
+        Parameters
+        ----------
+        folder : str
+            Path to the folder.
+        verbose : bool, optional
+            Print information about the files and folders being processed (default is False).
+
+        Returns
+        -------
+        None
+        """
+        import os
+        import shutil
+        for root, dirs, files in os.walk(folder):
+            if verbose:
+                print(f"Processing directory: {root}")
+                print(f"Subdirectories: {dirs}")
+                print(f"Files: {files}")
+            
+            for file in files:
+                if root != folder:
+                    if verbose:
+                        print(f"Moving file: {file} from {root} to {folder}")
+                    shutil.move(os.path.join(root, file), folder)
+            
+            for dir in dirs:
+                if root != folder:
+                    if verbose:
+                        print(f"Removing directory: {dir} from {root}")
+                    shutil.rmtree(os.path.join(root, dir))
+
     def download_data( version ):
         url = "https://figshare.com/ndownloader/articles/16912366/versions/" + str(version)
         target_file_name = "16912366.zip"
         target_file_name_path = tf.keras.utils.get_file(target_file_name, url,
             cache_subdir=DATA_PATH, extract = True )
+        mv_subfolder_files( os.path.expanduser("~/.antspymm"), False )
         os.remove( DATA_PATH + target_file_name )
 
     if force_download:
@@ -2761,6 +2797,7 @@ def get_data( name=None, force_download=False, version=25, target_extension='.cs
             if ( fname.endswith(target_extension) ) :
                 fname = os.path.join(DATA_PATH, fname)
                 files.append(fname)
+
 
     if name == 'all':
         return files
