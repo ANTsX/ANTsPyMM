@@ -10993,6 +10993,7 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
             elif 'cerebellum' in anattoshow[k]:
                 myext = 'cerebellum'
                 oglabelname=re.sub('cerebellum', '',anatsear)
+                oglabelname=re.sub('t1.vo','',oglabelname)
                 # oglabelname=oglabelname[2:]
             elif 'brainstem' in anattoshow[k] or is_bst_region(anatsear):
                 myext = 'brainstem'
