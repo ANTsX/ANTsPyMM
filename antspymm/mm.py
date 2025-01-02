@@ -287,6 +287,24 @@ def get_antsimage_keys(dictionary):
     """
     return [key for key, value in dictionary.items() if isinstance(value, ants.core.ants_image.ANTsImage)]
 
+def get_ras_affine(rotation, spacing, origin) -> np.ndarray:
+    #Source: https://github.com/fepegar/torchio/blob/5983f83f0e7f13f9c5056e25f8753b03426ae18a/src/torchio/data/io.py#L357
+    rotation_zoom = rotation[:3,:3] * spacing[:3]
+    translation_ras = rotation[:3,:3].dot(origin[:3])
+    affine = np.eye(4)
+    affine[:3, :3] = rotation_zoom[:3,:3]
+    affine[:3, 3] = translation_ras
+    return affine
+
+def to_nibabel(img: "ants.core.ants_image.ANTsImage",header=None):
+    try:
+        from nibabel.nifti1 import Nifti1Image
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            "Could not import nibabel, for conversion to nibabel. Install nibabel with pip install nibabel"
+        ) from e
+    affine = get_ras_affine(rotation=img.direction, spacing=img.spacing, origin=img.origin)
+    return Nifti1Image(img.numpy(), affine, header)
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
@@ -4170,8 +4188,11 @@ def dwi_deterministic_tracking(
     from dipy.tracking.utils import path_length
     if verbose:
         print("begin tracking",flush=True)
-    dwi_img = dwi.to_nibabel()
+
+    # dwi_img = dwi.to_nibabel()
+    dwi_img = to_nibabel(dwi)
     affine = dwi_img.affine
+
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
@@ -4348,7 +4369,9 @@ def dwi_closest_peak_tracking(
 
     if verbose:
         print("begin tracking",flush=True)
-    dwi_img = dwi.to_nibabel()
+
+    dwi_img = to_nibabel(dwi)
+    # dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
@@ -4428,7 +4451,11 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
     """
     from dipy.tracking.streamline import Streamlines
     keep_streamlines = Streamlines()
-    affine = label_image.to_nibabel().affine
+
+
+    affine = to_nibabel(label_image).affine
+    # affine = label_image.to_nibabel().affine
+
     lin_T, offset = utils._mapping_to_voxel(affine)
     label_image_np = label_image.numpy()
     def check_it( sl, target_label, label_image, index, full=False ):
@@ -4486,7 +4513,10 @@ def dwi_streamline_pairwise_connectivity_old(
     from dipy.tracking.streamline import Streamlines
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
+    # affine = label_image.to_nibabel().affine
+
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -4576,7 +4606,10 @@ def dwi_streamline_connectivity(
     from dipy.tracking.streamline import Streamlines
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
+    # affine = label_image.to_nibabel().affine
+
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -4664,7 +4697,9 @@ def dwi_streamline_connectivity_old(
 
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
+    # affine = label_image.to_nibabel().affine
 
     if verbose:
         print("path length begin ... volUnit = " + str( volUnit ) )
