@@ -114,6 +114,7 @@ import re
 import datetime as dt
 from collections import Counter
 import tempfile
+import uuid
 import warnings
 
 from dipy.core.histeq import histeq
@@ -287,6 +288,12 @@ def get_antsimage_keys(dictionary):
     """
     return [key for key, value in dictionary.items() if isinstance(value, ants.core.ants_image.ANTsImage)]
 
+def to_nibabel(img: "ants.core.ants_image.ANTsImage"):
+    with tempfile.TemporaryDirectory() as tmp:
+        temp_file_name = os.path.join(tmp, str(uuid.uuid1()) + '.nii.gz')
+        ants.image_write(img, temp_file_name)
+        nibabel_image = nib.load(temp_file_name)
+        return(nibabel_image)
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
@@ -4170,8 +4177,10 @@ def dwi_deterministic_tracking(
     from dipy.tracking.utils import path_length
     if verbose:
         print("begin tracking",flush=True)
-    dwi_img = dwi.to_nibabel()
+
+    dwi_img = to_nibabel(dwi)
     affine = dwi_img.affine
+
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
@@ -4348,7 +4357,8 @@ def dwi_closest_peak_tracking(
 
     if verbose:
         print("begin tracking",flush=True)
-    dwi_img = dwi.to_nibabel()
+
+    dwi_img = to_nibabel(dwi)
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
@@ -4428,7 +4438,10 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
     """
     from dipy.tracking.streamline import Streamlines
     keep_streamlines = Streamlines()
-    affine = label_image.to_nibabel().affine
+
+
+    affine = to_nibabel(label_image).affine
+
     lin_T, offset = utils._mapping_to_voxel(affine)
     label_image_np = label_image.numpy()
     def check_it( sl, target_label, label_image, index, full=False ):
@@ -4486,7 +4499,9 @@ def dwi_streamline_pairwise_connectivity_old(
     from dipy.tracking.streamline import Streamlines
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
+
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -4576,7 +4591,9 @@ def dwi_streamline_connectivity(
     from dipy.tracking.streamline import Streamlines
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
+
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
     import pandas as pd
@@ -4664,7 +4681,8 @@ def dwi_streamline_connectivity_old(
 
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
-    affine = label_image.to_nibabel().affine
+
+    affine = to_nibabel(label_image).affine
 
     if verbose:
         print("path length begin ... volUnit = " + str( volUnit ) )
