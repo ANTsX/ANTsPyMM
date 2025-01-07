@@ -114,6 +114,7 @@ import re
 import datetime as dt
 from collections import Counter
 import tempfile
+import uuid
 import warnings
 
 from dipy.core.histeq import histeq
@@ -287,24 +288,12 @@ def get_antsimage_keys(dictionary):
     """
     return [key for key, value in dictionary.items() if isinstance(value, ants.core.ants_image.ANTsImage)]
 
-def get_ras_affine(rotation, spacing, origin) -> np.ndarray:
-    #Source: https://github.com/fepegar/torchio/blob/5983f83f0e7f13f9c5056e25f8753b03426ae18a/src/torchio/data/io.py#L357
-    rotation_zoom = rotation[:3,:3] * spacing[:3]
-    translation_ras = rotation[:3,:3].dot(origin[:3])
-    affine = np.eye(4)
-    affine[:3, :3] = rotation_zoom[:3,:3]
-    affine[:3, 3] = translation_ras
-    return affine
-
-def to_nibabel(img: "ants.core.ants_image.ANTsImage",header=None):
-    try:
-        from nibabel.nifti1 import Nifti1Image
-    except ModuleNotFoundError as e:
-        raise ModuleNotFoundError(
-            "Could not import nibabel, for conversion to nibabel. Install nibabel with pip install nibabel"
-        ) from e
-    affine = get_ras_affine(rotation=img.direction, spacing=img.spacing, origin=img.origin)
-    return Nifti1Image(img.numpy(), affine, header)
+def to_nibabel(img: "ants.core.ants_image.ANTsImage"):
+    with tempfile.TemporaryDirectory() as tmp:
+        temp_file_name = os.path.join(tmp, str(uuid.uuid1()) + '.nii.gz')
+        ants.image_write(img, temp_file_name)
+        nibabel_image = nib.load(temp_file_name)
+        return(nibabel_image)
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
