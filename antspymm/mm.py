@@ -4178,7 +4178,6 @@ def dwi_deterministic_tracking(
     if verbose:
         print("begin tracking",flush=True)
 
-    # dwi_img = dwi.to_nibabel()
     dwi_img = to_nibabel(dwi)
     affine = dwi_img.affine
 
@@ -4360,7 +4359,6 @@ def dwi_closest_peak_tracking(
         print("begin tracking",flush=True)
 
     dwi_img = to_nibabel(dwi)
-    # dwi_img = dwi.to_nibabel()
     affine = dwi_img.affine
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
@@ -4443,7 +4441,6 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
 
 
     affine = to_nibabel(label_image).affine
-    # affine = label_image.to_nibabel().affine
 
     lin_T, offset = utils._mapping_to_voxel(affine)
     label_image_np = label_image.numpy()
@@ -4504,7 +4501,6 @@ def dwi_streamline_pairwise_connectivity_old(
     labels = label_image.numpy()
 
     affine = to_nibabel(label_image).affine
-    # affine = label_image.to_nibabel().affine
 
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
@@ -4597,7 +4593,6 @@ def dwi_streamline_connectivity(
     labels = label_image.numpy()
 
     affine = to_nibabel(label_image).affine
-    # affine = label_image.to_nibabel().affine
 
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
@@ -4688,7 +4683,6 @@ def dwi_streamline_connectivity_old(
     labels = label_image.numpy()
 
     affine = to_nibabel(label_image).affine
-    # affine = label_image.to_nibabel().affine
 
     if verbose:
         print("path length begin ... volUnit = " + str( volUnit ) )
