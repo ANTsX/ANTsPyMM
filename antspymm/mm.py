@@ -454,6 +454,8 @@ def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None,
         imfns=['flairid']
     elif locmod == 'perf':
         imfns=['perfid']
+    elif locmod == 'pet3d':
+        imfns=['pet3did']
     elif locmod == 'NM2DMT':
         imfns=[]
         for i in range(11):
@@ -466,6 +468,8 @@ def docsamson(locmod, studycsv, outputdir, projid, sid, dtid, mysep, t1iid=None,
         imfns=[]
         for i in range(4):
             imfns.append('dtid' + str(i))
+    else:
+        raise ValueError("docsamson: no match of modality to filename id " + locmod )
 
     # Process each file name
     for i in imfns:
@@ -511,11 +515,11 @@ def get_valid_modalities( long=False, asString=False, qc=False ):
     asString - concat list to string
     """
     if long:
-        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "rsfMRILR", "rsfMRIRL", "DTI", "DTI_LR","DTI_RL",  "DTILR","DTIRL","T2Flair", "dwi", "dwi_ap", "dwi_pa", "func", "func_ap", "func_pa", "perf"]
+        mymod = ["T1w", "NM2DMT", "rsfMRI", "rsfMRI_LR", "rsfMRI_RL", "rsfMRILR", "rsfMRIRL", "DTI", "DTI_LR","DTI_RL",  "DTILR","DTIRL","T2Flair", "dwi", "dwi_ap", "dwi_pa", "func", "func_ap", "func_pa", "perf", 'pet3d']
     elif qc:
-        mymod = [ 'T1w', 'T2Flair', 'NM2DMT', 'DTI', 'DTIdwi','DTIb0', 'rsfMRI', "perf" ]
+        mymod = [ 'T1w', 'T2Flair', 'NM2DMT', 'DTI', 'DTIdwi','DTIb0', 'rsfMRI', "perf", 'pet3d' ]
     else:
-        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf" ]
+        mymod = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI", "perf", 'pet3d' ]
     if not asString:
         return mymod
     else:
@@ -538,7 +542,8 @@ def generate_mm_dataframe(
         rsf_filenames=[],
         dti_filenames=[],
         nm_filenames=[],
-        perf_filename=[]
+        perf_filename=[],
+        pet3d_filename=[],
 ):
     """
     Generate a DataFrame for medical imaging data with extensive validation of input parameters.
@@ -562,6 +567,7 @@ def generate_mm_dataframe(
     - dti_filenames (list): List of filenames for DTI images.
     - nm_filenames (list): List of filenames for NM images.
     - perf_filename (list): List of filenames for perfusion images.
+    - pet3d_filename (list): List of filenames for pet3d images.
 
     Returns:
     - pandas.DataFrame: A DataFrame containing the validated imaging study information.
@@ -624,6 +630,16 @@ def generate_mm_dataframe(
                 perf_filename=perf_filename[0]
     if perf_filename is not None and not "perf" in perf_filename:
             raise ValueError("perf_filename is not perf filename " + perf_filename)
+
+    if pet3d_filename is not None:
+        if isinstance(pet3d_filename,list):
+            if (len(pet3d_filename) == 0):
+                pet3d_filename=None
+            else:
+                print("Take first entry from pet3d_filename list")
+                pet3d_filename=pet3d_filename[0]
+    if pet3d_filename is not None and not "pet" in pet3d_filename:
+            raise ValueError("pet3d_filename is not pet filename " + pet3d_filename)
     
     for k in nm_filenames:
         if k is not None:
@@ -640,7 +656,7 @@ def generate_mm_dataframe(
     if perf_filename is not None:
         if not "perf" in perf_filename:
                 raise ValueError("perf_filename is not a valid perfusion (perf) filename " + k)
-    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames + [perf_filename]
+    allfns = [t1_filename] + [flair_filename] + nm_filenames + dti_filenames + rsf_filenames + [perf_filename] + [pet3d_filename]
     for k in allfns:
         if k is not None:
             if not isinstance(k, str):
@@ -657,7 +673,8 @@ def generate_mm_dataframe(
         output_image_directory,
         t1_filename,
         flair_filename, 
-        perf_filename]
+        perf_filename,
+        pet3d_filename]
     mydata0 = coredata +  rsf_filenames + dti_filenames
     mydata = mydata0 + nm_filenames
     corecols = [
@@ -670,16 +687,21 @@ def generate_mm_dataframe(
         'outputdir',
         'filename',
         'flairid',
-        'perfid']
+        'perfid',
+        'pet3did']
     mycols0 = corecols + [
         'rsfid1', 'rsfid2',
         'dtid1', 'dtid2','dtid3']
     nmext = [
-        'nmid1', 'nmid2' 'nmid3', 'nmid4', 'nmid5',
-        'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10', 'nmid11'
+        'nmid1', 'nmid2', 'nmid3', 'nmid4', 'nmid5',
+        'nmid6', 'nmid7','nmid8', 'nmid9', 'nmid10' #, 'nmid11'
     ]
     mycols = mycols0 + nmext
     if not check_pd_construction( [mydata], mycols ) :
+#        print( mydata )
+#        print( len(mydata ))
+#        print( mycols )
+#        print( len(mycols ))
         raise ValueError( "Error in generate_mm_dataframe: len( mycols ) != len( mydata ) which indicates a bad input parameter to this function." )
     studycsv = pd.DataFrame([ mydata ], columns=mycols)
     return studycsv
@@ -6267,8 +6289,6 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   ---------
   fmri : BOLD fmri antsImage
 
-  fmri_template : reference space for BOLD
-
   t1head : ANTsImage
     input 3-D T1 brain image (not brain extracted)
 
@@ -6653,6 +6673,115 @@ Where:
   return convert_np_in_dict( outdict )
 
 
+def pet3d_summary( pet3d, t1head, t1, t1segmentation, t1dktcit,
+                   spa = (0., 0., 0.),
+                   type_of_transform='Rigid',
+                   upsample=True,
+                   verbose=False ):
+  """
+  Estimate perfusion from a BOLD time series image.  Will attempt to figure out the T-C labels from the data.  The function uses defaults to quantify CBF but these will usually not be correct for your own data.  See the function calculate_CBF for an example of how one might do quantification based on the outputs of this function specifically the perfusion, m0 and mask images that are part of the output dictionary.
+
+  Arguments
+  ---------
+  pet3d : 3D PET antsImage
+
+  t1head : ANTsImage
+    input 3-D T1 brain image (not brain extracted)
+
+  t1 : ANTsImage
+    input 3-D T1 brain image (brain extracted)
+
+  t1segmentation : ANTsImage
+    t1 segmentation - a six tissue segmentation image in T1 space
+
+  t1dktcit : ANTsImage
+    t1 dkt cortex plus cit parcellation
+
+  type_of_transform : SyN or Rigid
+
+  upsample: boolean
+
+  verbose : boolean
+
+  Returns
+  ---------
+  a dictionary containing the derived network maps
+
+  """
+  import numpy as np
+  import pandas as pd
+  import re
+  import math
+
+  ex_path = os.path.expanduser( "~/.antspyt1w/" )
+  cnxcsvfn = ex_path + "dkt_cortex_cit_deep_brain.csv"
+  
+  pet3dr=pet3d
+  if upsample:
+      spc = ants.get_spacing( pet3d )
+      minspc = 1.0
+      if min(spc) < minspc:
+        minspc = min(spc)
+      newspc = [minspc,minspc,minspc]
+      pet3dr = ants.resample_image( pet3d, newspc, interp_type=0 )
+
+  rig = ants.registration( pet3dr, t1head, 'BOLDRigid' )
+  bmask = ants.apply_transforms( pet3dr, 
+    ants.threshold_image(t1segmentation,1,6), 
+    rig['fwdtransforms'][0], 
+    interpolator='genericLabel' )
+  if verbose:
+    print("End t1=>pet registration")
+
+  und = pet3dr * bmask
+#  t1reg = ants.registration( und, t1, "antsRegistrationSyNQuickRepro[s]" )
+  t1reg = rig # ants.registration( und, t1, "Rigid" )
+  gmseg = ants.threshold_image( t1segmentation, 2, 2 )
+  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
+  gmseg = ants.threshold_image( gmseg, 1, 4 )
+  gmseg = ants.iMath( gmseg, 'MD', 1 )
+  gmseg = ants.apply_transforms( und, gmseg,
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  csfseg = ants.threshold_image( t1segmentation, 1, 1 )
+  wmseg = ants.threshold_image( t1segmentation, 3, 3 )
+  csfAndWM = ( csfseg + wmseg ).morphology("erode",1)
+  csfAndWM = ants.apply_transforms( und, csfAndWM,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  csfseg = ants.apply_transforms( und, csfseg,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  wmseg = ants.apply_transforms( und, wmseg,
+    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+  wmsignal = pet3dr[ ants.iMath(wmseg,"ME",1) == 1 ].mean()
+  gmsignal = pet3dr[ gmseg == 1 ].mean()
+  csfsignal = pet3dr[ csfseg == 1 ].mean()
+  if verbose:
+    print("pet3dr.max() " + str(  pet3dr.max() ) )
+  if verbose:
+      print("pet3d dataframe begin")
+  dktseg = ants.apply_transforms( und, t1dktcit,
+    t1reg['fwdtransforms'], interpolator = 'genericLabel' ) * bmask
+  df_pet3d = antspyt1w.map_intensity_to_dataframe(
+        'dkt_cortex_cit_deep_brain',
+        und,
+        dktseg)
+  df_pet3d = antspyt1w.merge_hierarchical_csvs_to_wide_format(
+              {'pet3d' : df_pet3d},
+              col_names = ['Mean'] )
+  if verbose:
+      print("pet3d dataframe end")
+
+  outdict = {}
+  outdict['pet3d_dataframe']=df_pet3d
+  outdict['pet3d'] = pet3dr
+  outdict['brainmask'] = bmask
+  outdict['gm_mean']=gmsignal
+  outdict['wm_mean']=wmsignal
+  outdict['csf_mean']=csfsignal
+  outdict['pet3d_dataframe']=df_pet3d
+  outdict['t1reg'] = t1reg
+  return convert_np_in_dict( outdict )
+
+
 def write_bvals_bvecs(bvals, bvecs, prefix ):
     ''' Write FSL FDT bvals and bvecs files
 
@@ -6737,6 +6866,7 @@ def mm(
     perfusion_m0_image=None,
     perfusion_m0=None,
     rsf_upsampling=3.0,
+    pet_3d_image=None,
     test_run = False,
     verbose = False ):
     """
@@ -6796,6 +6926,9 @@ def mm(
 
     rsf_upsampling : optional upsampling parameter value in mm; if set to zero, no upsampling is done
 
+    pet_3d_image : optional antsImage for a 3D pet; we make no assumptions about the contents of 
+        this image.  we just process it and provide summary information.
+
     test_run : boolean 
 
     verbose : boolean
@@ -6843,6 +6976,7 @@ def mm(
         'tractography' : None,
         'tractography_connectivity' : None,
         'perf' : None,
+        'pet3d' : None,
     }
     normalization_dict = {
         'kk_norm': None,
@@ -6861,7 +6995,8 @@ def mm(
         'FrontoparietalTaskControl_norm' : None,
         'Salience_norm' : None,
         'Subcortical_norm' : None,
-        'DorsalAttention_norm' : None
+        'DorsalAttention_norm' : None,
+        'pet3d_norm' : None
     }
     if test_run:
         return output_dict, normalization_dict
@@ -6871,7 +7006,7 @@ def mm(
             print('kk')
         output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
-    if  perfusion_image is not None:
+    if perfusion_image is not None:
         if perfusion_image.shape[3] > 1: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
                 perfusion_image,
@@ -6882,6 +7017,16 @@ def mm(
                 n_to_trim = perfusion_trim,
                 m0_image = perfusion_m0_image,
                 m0_indices = perfusion_m0,
+                verbose=verbose )
+
+    if pet_3d_image is not None:
+        if pet_3d_image.dimension == 3: # FIXME - better heuristic?
+            output_dict['pet3d'] = pet3d_summary(
+                pet_3d_image,
+                t1_image,
+                hier['brain_n4_dnz'],
+                t1atropos,
+                hier['dkt_parc']['dkt_cortex'] + hier['cit168lab'],
                 verbose=verbose )
     ################################## do the rsf .....
     if len(rsf_image) > 0:
@@ -7076,7 +7221,7 @@ def mm(
             if verbose:
                 print("We have only one DTI: " + str(len(dw_image)))
             dw_image = dw_image[0]
-            btpB0,btpDW=get_average_dwi_b0(dw_image)
+            btpB0, btpDW = get_average_dwi_b0(dw_image)
             initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
             tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly',
                 syn_metric='mattes', syn_sampling=32,
@@ -7236,6 +7381,16 @@ def mm(
             normalization_dict['cbf_norm'] = ants.apply_transforms( group_template,
                 output_dict['perf']['cbf'], comptx,
                 whichtoinvert=[False,False,True,False] )
+        if output_dict['pet3d'] is not None: # zizzer
+            secondTx=output_dict['pet3d']['t1reg']['invtransforms']
+            comptx = group_transform + secondTx
+            if len( secondTx ) == 2:
+                wti=[False,False,True,False]
+            else:
+                wti=[False,False,True]
+            normalization_dict['pet3d_norm'] = ants.apply_transforms( group_template,
+                output_dict['pet3d']['pet3d'], comptx,
+                whichtoinvert=wti )
         if nm_image_list is not None:
             nmpro = output_dict['NM']
             nmrig = nmpro['t1_to_NM_transform'] # this is an inverse tx
@@ -7424,6 +7579,23 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
             for mykey in get_antsimage_keys( mm['perf'] ):
                 tempfn = output_prefix + separator + mykey + '.nii.gz'
                 image_write_with_thumbnail( mm['perf'][mykey], tempfn, thumb=False )
+
+    if 'pet3d' in mm:
+        if mm['pet3d'] is not None:
+            pet3dpro = mm['pet3d']
+            prwide = dict_to_dataframe( pet3dpro )
+            if mm_wide.shape[0] > 0 and prwide.shape[0] > 0:
+                prwide.set_index( mm_wide.index, inplace=True )
+            mm_wide = pd.concat( [mm_wide, prwide ], axis=1, ignore_index=False )
+            if 'pet3d_dataframe' in pet3dpro.keys():
+                pderk = pet3dpro['pet3d_dataframe'].iloc[: , 1:]
+                pderk.set_index( mm_wide.index, inplace=True )
+                mm_wide = pd.concat( [ mm_wide, pderk ], axis=1, ignore_index=False )
+            else:
+                print("FIXME - pet3dusion dataframe")
+            for mykey in get_antsimage_keys( mm['pet3d'] ):
+                tempfn = output_prefix + separator + mykey + '.nii.gz'
+                image_write_with_thumbnail( mm['pet3d'][mykey], tempfn, thumb=False )
 
     mmwidefn = output_prefix + separator + 'mmwide.csv'
     mm_wide.to_csv( mmwidefn )
@@ -7959,7 +8131,8 @@ def mm_csv(
     perfusion_trim = 10,
     perfusion_m0_image = None,
     perfusion_m0 = None,
-    rsf_upsampling = 3.0
+    rsf_upsampling = 3.0,
+    pet3d = None,
 ):
     """
     too dangerous to document ... use with care.
@@ -8039,6 +8212,8 @@ def mm_csv(
     perfusion_m0 : optional list containing indices of the m0 in the perfusion time series
 
     rsf_upsampling : optional upsampling parameter value in mm; if set to zero, no upsampling is done
+
+    pet3d : optional antsImage for PET (or other 3d scalar) data which we want to summarize
 
     Returns
     ---------
@@ -8149,10 +8324,13 @@ def mm_csv(
         t1wide.to_csv( hierfn + 'mmwide.csv' )
     ################# read the hierarchical data ###############################
     # over-write the rbp data with a consistent and recent approach ############
-    myx = antspyt1w.inspect_raw_t1( t1, hierfn + 'rbp' , option='both' )
-    myx['brain'].to_csv( hierfn + 'rbp.csv', index=False )
-    myx['brain'].to_csv( hierfn + 'rbpbrain.csv', index=False )
-    del myx
+    redograding = True
+    if redograding:
+        myx = antspyt1w.inspect_raw_t1( t1, hierfn + 'rbp' , option='both' )
+        myx['brain'].to_csv( hierfn + 'rbp.csv', index=False )
+        myx['brain'].to_csv( hierfn + 'rbpbrain.csv', index=False )
+        del myx
+
     hier = antspyt1w.read_hierarchical( hierfn )
     t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
         hier['dataframes'], identifier=None )
@@ -8329,11 +8507,11 @@ def mm_csv(
                             ants.plot( nmpro['NM_avg_cropped'], nmpro['t1_to_NM'], axis=2, slices=mysl, overlay_alpha=0.3, title='nm crop + t1', filename=mymm+mysep+"NMavgcropt1.png" )
                             ants.plot( nmpro['NM_avg_cropped'], nmpro['NM_labels'], axis=2, slices=mysl, title='nm crop + labels', filename=mymm+mysep+"NMavgcroplabels.png" )
             else :
-                if len( myimgsr ) > 0:
+                if len( myimgsr ) > 0 :
                     dowrite=False
                     myimgcount=0
                     if len( myimgsr ) > 0 :
-                        myimg = myimgsr[myimgcount]
+                        myimg = myimgsr[ myimgcount ]
                         subjectpropath = os.path.dirname( mydoc['outprefix'] )
                         if verbose:
                             print("subjectpropath is")
@@ -8341,19 +8519,19 @@ def mm_csv(
                         os.makedirs( subjectpropath, exist_ok=True  )
                         mymmout = makewideout( mymm )
                         if verbose and not exists( mymmout ):
-                            print("Modality specific processing: " + mymod + " execution " )
+                            print( "Modality specific processing: " + mymod + " execution " )
                             print( mymm )
                         elif verbose and exists( mymmout ) :
                             print("Modality specific processing: " + mymod + " complete " )
                         if exists( mymmout ) :
                             continue
                         if verbose:
-                            print(subjectpropath)
+                            print( subjectpropath )
                             print( myimg )
                         if not testloop:
                             img = mm_read( myimg )
                             ishapelen = len( img.shape )
-                            if mymod == 'T1w' and ishapelen == 3: # for a real run, set to True
+                            if mymod == 'T1w' and ishapelen == 3:
                                 if not exists( mymm + mysep + "kk_norm.nii.gz" ):
                                     dowrite=True
                                     if verbose:
@@ -8486,6 +8664,32 @@ def mm_csv(
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='CBF image', filename=mymm+mysep+"cbf.png" )
                                     ants.plot( tabPro['perf']['m0'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='M0 image', filename=mymm+mysep+"m0.png" )
+
+                            if ( mymod == 'pet3d' ) and ishapelen == 3:
+                                dowrite=True
+                                try:
+                                    tabPro, normPro = mm( t1, hier,
+                                        srmodel=None,
+                                        do_tractography=False,
+                                        do_kk=False,
+                                        do_normalization=templateTx,
+                                        group_template = normalization_template,
+                                        group_transform = groupTx,
+                                        test_run=test_run,
+                                        pet_3d_image=img,
+                                        verbose=True )
+                                except Exception as e:
+                                        error_info = traceback.format_exc()
+                                        print(error_info)
+                                        visualize=False
+                                        dowrite=False
+                                        tabPro={'pet3d':None}
+                                        print(f"antspymmerror occurred while processing {overmodX}: {e}")
+                                        pass
+                                if tabPro['pet3d'] is not None and visualize:
+                                    maxslice = np.min( [21, tabPro['pet3d']['pet3d'].shape[2] ] )
+                                    ants.plot( tabPro['pet3d']['pet3d'],
+                                        axis=2, nslices=maxslice, ncol=7, crop=True, title='PET image', filename=mymm+mysep+"pet3d.png" )
                             if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
@@ -11483,6 +11687,7 @@ def aggregate_antspymm_results_sdf(
     vmoddict['imageID'] = 'T1w'
     vmoddict['flairid'] = 'T2Flair'
     vmoddict['perfid'] = 'perf'
+    vmoddict['pet3did'] = 'pet3d'
     vmoddict['rsfid1'] = 'rsfMRI'
 #    vmoddict['rsfid2'] = 'rsfMRI'
     vmoddict['dtid1'] = 'DTI'
