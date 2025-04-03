@@ -5355,6 +5355,7 @@ def PerAF( x, mask, globalmean=True ):
     return outimg
 
 
+
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.03, 0.08],
     FD_threshold=5.0,
