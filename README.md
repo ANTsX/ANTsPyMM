@@ -1,5 +1,7 @@
 # ANTsPyMM
 
+[![DOI](https://zenodo.org/badge/423404500.svg)](https://doi.org/10.5281/zenodo.15131653)
+
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/ANTsX/ANTsPyMM/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/ANTsX/ANTsPyMM/tree/main)
 
 ![mapping](https://i.imgur.com/qKqYjU9.jpeg)
