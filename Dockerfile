@@ -1,19 +1,47 @@
-FROM python:3.7-slim-buster
-LABEL maintainer="stnava"
+FROM tensorflow/tensorflow:2.16.2
 
-RUN apt-get update && \
-    apt-get install -y build-essential cmake libpng-dev pkg-config git
 
-RUN pip install numpy keras boto3 brisque
-RUN pip install --upgrade tensorflow tensorflow-probability
+# Set environment variables for optimal threading
+ENV TF_NUM_INTEROP_THREADS=8 \
+    TF_NUM_INTRAOP_THREADS=8 \
+    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 \
+    OPENBLAS_NUM_THREADS=8 \
+    MKL_NUM_THREADS=8
 
-ARG antspy_hash
-RUN pip install git+https://github.com/ANTsX/ANTsPy.git@$antspy_hash
+# Set working directory
+WORKDIR /workspace
 
-ARG antspynet_hash
-RUN pip install git+https://github.com/ANTsX/ANTsPyNet.git@$antspynet_hash
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY setup.py src/setup.py
-COPY superiq src/superiq
-WORKDIR src
-RUN python setup.py install
+# Upgrade pip and install Python libraries
+RUN pip install --upgrade pip \
+    && pip install \
+        numpy \
+        pandas \
+        scipy \
+        matplotlib \
+        scikit-learn \
+        ipython \
+        jupyterlab
+#        # Optional:
+#        antspynet \
+#        antspymm \
+#        siq
+#
+# Clone the ANTsPyMM repository
+# RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
+#
+# Optional: Run reference test script
+# RUN python /workspace/ANTsPyMM/tests/test_reference_run.py
+
+# Default command
+CMD ["bash"]
