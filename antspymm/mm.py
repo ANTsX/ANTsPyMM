@@ -10667,7 +10667,7 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
 
 
 def calculate_loop_scores(flattened_series, n_neighbors=20, 
-                                           n_features_sample=2000, seed=42, verbose=True):
+                                           n_features_sample=500, seed=42, verbose=True):
     """
     Approximate LoOP scores using a random subset of features to reduce memory usage.
 
@@ -10676,7 +10676,7 @@ def calculate_loop_scores(flattened_series, n_neighbors=20,
         n_neighbors (int): Number of neighbors for LOF/LoOP computation
         n_features_sample (int): Number of features to sample for approximation
         seed (int): Random seed for reproducible feature sampling
-        verbose (bool): Verbosity flag
+        verbose (bool): If True, print detailed progress and dimensions
 
     Returns:
         np.ndarray: 1D array of local outlier probabilities (length n_samples)
@@ -10686,39 +10686,63 @@ def calculate_loop_scores(flattened_series, n_neighbors=20,
     from sklearn.neighbors import NearestNeighbors
     from PyNomaly import loop
 
-    # Clean data
-    if verbose:
-        print("Sampling features and standardizing data...")
+    # -------------------------------
+    # Step 1: Input stats and cleanup
+    # -------------------------------
     X = np.nan_to_num(flattened_series, nan=0).astype(np.float32)
-
     n_samples, n_features = X.shape
+
+    if verbose:
+        print("\n[LoOP Approximation - Verbose Mode]")
+        print(f"- Original input shape: {X.shape} (samples x features)")
+        print(f"- Requested sampled features: {n_features_sample}")
+    
     if n_features_sample > n_features:
         n_features_sample = n_features
         if verbose:
-            print(f"Requested {n_features_sample} > total features ({n_features}), using all features.")
+            print(f"- Requested n_features_sample exceeds available features. Using all {n_features} features.")
 
-    # Feature sampling
+    # -------------------------------
+    # Step 2: Feature sampling
+    # -------------------------------
     rng = np.random.default_rng(seed)
     sampled_indices = rng.choice(n_features, n_features_sample, replace=False)
     X_sampled = X[:, sampled_indices]
 
-    # Standardize
+    if verbose:
+        print(f"- Sampled feature shape: {X_sampled.shape} (samples x sampled_features)")
+        print(f"- Random seed for reproducibility: {seed}")
+
+    # -------------------------------
+    # Step 3: Standardization
+    # -------------------------------
     scaler = StandardScaler(copy=False)
     X_sampled = scaler.fit_transform(X_sampled)
     X_sampled = np.nan_to_num(X_sampled, nan=0)
 
-    # Adjust n_neighbors if needed
+    # -------------------------------
+    # Step 4: KNN setup for LoOP
+    # -------------------------------
     if n_neighbors >= n_samples:
         n_neighbors = max(1, n_samples // 2)
         if verbose:
-            print(f"Adjusting n_neighbors to {n_neighbors} due to sample size.")
+            print(f"- Adjusted n_neighbors to {n_neighbors} (was too large for available samples).")
 
-    # Nearest neighbors and LoOP
     if verbose:
-        print("Computing nearest neighbors and LoOP scores...")
+        print(f"- Performing KNN using Minkowski distance (default p=2, Euclidean)")
+        print(f"- Each point will use its {n_neighbors} nearest neighbors for local density estimation")
+
     neigh = NearestNeighbors(n_neighbors=n_neighbors)
     neigh.fit(X_sampled)
     dists, indices = neigh.kneighbors(X_sampled, return_distance=True)
+
+    # -------------------------------
+    # Step 5: LoOP probability calculation
+    # -------------------------------
+    if verbose:
+        print(f"- Distance matrix shape: {dists.shape} (samples x n_neighbors)")
+        print(f"- Neighbor index matrix shape: {indices.shape}")
+        print("- Estimating Local Outlier Probabilities (LoOP)...")
 
     model = loop.LocalOutlierProbability(
         distance_matrix=dists,
@@ -10726,7 +10750,11 @@ def calculate_loop_scores(flattened_series, n_neighbors=20,
         n_neighbors=n_neighbors
     ).fit()
 
+    if verbose:
+        print("- LoOP scoring complete.\n")
+
     return model.local_outlier_probabilities[:]
+
 
 def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     """
