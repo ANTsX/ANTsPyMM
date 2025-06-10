@@ -10667,7 +10667,7 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
 
 
 def calculate_loop_scores(flattened_series, n_neighbors=20, 
-                                           n_features_sample=500, seed=42, verbose=True):
+                                           n_features_sample=5000, seed=42, verbose=True):
     """
     Approximate LoOP scores using a random subset of features to reduce memory usage.
 
@@ -10823,7 +10823,7 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=True):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=5000, verbose=True):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
@@ -10831,6 +10831,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=True):
     x (ANTsImage): A 4D time series image.
     threshold (float): Threshold for determining high leverage volumes based on LoOP scores.
     mask (antsImage): restricts to a ROI
+    n_features_sample (int): feature sample size default 5000
     verbose (bool)
 
     Returns:
@@ -10846,7 +10847,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=True):
         flattened_series = ants.timeseries_to_matrix( x, mask )
     if verbose:
         print("loop_timeseries_censoring: flattened")
-    loop_scores = calculate_loop_scores(flattened_series, verbose=verbose )
+    loop_scores = calculate_loop_scores(flattened_series, n_features_sample=n_features_sample, verbose=verbose )
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
         print("loop_timeseries_censoring: High Leverage Volumes:", high_leverage_volumes)
