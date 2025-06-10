@@ -10631,7 +10631,7 @@ def flatten_time_series(time_series):
     n_volumes = time_series.shape[3]
     return time_series.reshape(-1, n_volumes).T
 
-def calculate_loop_scores(flattened_series, n_neighbors=20, verbose=True ):
+def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
     """
     Calculate Local Outlier Probabilities for each volume.
     
@@ -10664,6 +10664,74 @@ def calculate_loop_scores(flattened_series, n_neighbors=20, verbose=True ):
         print("loop: probability")
     m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
     return m.local_outlier_probabilities[:]
+
+
+def calculate_loop_scores(flattened_series, n_neighbors=20, chunk_size=10000, verbose=True):
+    """
+    Calculate LoOP scores using a memory-efficient chunked approach.
+    Matches the output type and structure of `calculate_loop_scores`.
+
+    Parameters:
+        flattened_series (np.ndarray): 2D numpy array (samples x features).
+        n_neighbors (int): Number of neighbors for LoOP scoring.
+        chunk_size (int): Size of chunks for batch processing.
+        verbose (bool): Print status messages.
+
+    Returns:
+        np.ndarray: 1D array of local outlier probabilities (same as `calculate_loop_scores`).
+    """
+    import numpy as np
+    from PyNomaly import loop
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.preprocessing import StandardScaler
+
+    # Replace NaNs and standardize data
+    if verbose:
+        print("loop_chunked: preprocessing")
+    flattened_series = np.nan_to_num(flattened_series, nan=0).astype(np.float32)
+    scaler = StandardScaler(copy=False)
+    flattened_series = scaler.fit_transform(flattened_series)
+    flattened_series = np.nan_to_num(flattened_series, nan=0)
+
+    N = flattened_series.shape[0]
+    scores = np.zeros(N, dtype=np.float32)
+
+    if n_neighbors > N // 2:
+        n_neighbors = N // 2
+        if verbose:
+            print(f"loop_chunked: adjusting n_neighbors to {n_neighbors}")
+
+    if verbose:
+        print(f"loop_chunked: processing {N} samples in chunks of {chunk_size}")
+
+    for start in range(0, N, chunk_size):
+        end = min(start + chunk_size, N)
+        chunk = flattened_series[start:end]
+
+        # Neighbors are found within the chunk
+        k = min(n_neighbors, chunk.shape[0] - 1)  # Avoid n_neighbors >= samples
+        if k < 1:
+            if verbose:
+                print(f"loop_chunked: skipping chunk {start}:{end} (too few samples)")
+            continue
+
+        if verbose:
+            print(f"loop_chunked: fitting neighbors for chunk {start}:{end} with k={k}")
+        neigh = NearestNeighbors(n_neighbors=k)
+        neigh.fit(chunk)
+        d, idx = neigh.kneighbors(chunk, return_distance=True)
+
+        if verbose:
+            print(f"loop_chunked: computing LoOP for chunk {start}:{end}")
+        model = loop.LocalOutlierProbability(
+            distance_matrix=d,
+            neighbor_matrix=idx,
+            n_neighbors=k
+        ).fit()
+
+        scores[start:end] = model.local_outlier_probabilities[:]
+
+    return scores
 
 def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     """
