@@ -10666,7 +10666,7 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
     return m.local_outlier_probabilities[:]
 
 
-def calculate_loop_scores(flattened_series, n_neighbors=20, chunk_size=10000, verbose=True):
+def calculate_loop_scores(flattened_series, n_neighbors=20, chunk_size=1000, verbose=True):
     """
     Calculate LoOP scores using a memory-efficient chunked approach.
     Matches the output type and structure of `calculate_loop_scores`.
