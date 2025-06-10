@@ -34,7 +34,7 @@ RUN pip install --upgrade pip \
         jupyterlab \
         antspyx==0.5.4 \
         antspynet==0.2.9 \
-        antspymm==1.4.6 \
+        antspymm==1.4.9 \
         siq==0.3.4
 
 # for downloading example data from open neuro
@@ -43,7 +43,6 @@ RUN pip3 --no-cache-dir install --upgrade awscli
 #
 # Clone the ANTsPyMM repository
 RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
-# RUN cd ANTsPyMM && python3 -m pip install . 
 RUN git clone https://github.com/stnava/ANTPD_antspymm.git /workspace/ANTPD_antspymm
 #
 # Optional: Run reference test script
