@@ -10631,18 +10631,21 @@ def flatten_time_series(time_series):
     n_volumes = time_series.shape[3]
     return time_series.reshape(-1, n_volumes).T
 
-def calculate_loop_scores(flattened_series, n_neighbors=20):
+def calculate_loop_scores(flattened_series, n_neighbors=20, verbose=True ):
     """
     Calculate Local Outlier Probabilities for each volume.
     
     :param flattened_series: A 2D numpy array from flatten_time_series.
     :param n_neighbors: Number of neighbors to use for calculating LOF scores.
+    :param verbose: boolean
     :return: An array of LoOP scores.
     """
     from PyNomaly import loop
     from sklearn.neighbors import NearestNeighbors
     from sklearn.preprocessing import StandardScaler
     # replace nans with zero
+    if verbose:
+        print("loop: nan_to_num")
     flattened_series=np.nan_to_num(flattened_series, nan=0)
     scaler = StandardScaler()
     scaler.fit(flattened_series)
@@ -10650,9 +10653,15 @@ def calculate_loop_scores(flattened_series, n_neighbors=20):
     data=np.nan_to_num(data, nan=0)
     if n_neighbors > int(flattened_series.shape[0]/2.0):
         n_neighbors = int(flattened_series.shape[0]/2.0)
+    if verbose:
+        print("loop: nearest neighbors init")
     neigh = NearestNeighbors(n_neighbors=n_neighbors, metric='minkowski')
+    if verbose:
+        print("loop: nearest neighbors fit")
     neigh.fit(data)
     d, idx = neigh.kneighbors(data, return_distance=True)
+    if verbose:
+        print("loop: probability")
     m = loop.LocalOutlierProbability(distance_matrix=d, neighbor_matrix=idx, n_neighbors=n_neighbors).fit()
     return m.local_outlier_probabilities[:]
 
@@ -10744,10 +10753,12 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=True):
         flattened_series = flatten_time_series(x.numpy())
     else:
         flattened_series = ants.timeseries_to_matrix( x, mask )
-    loop_scores = calculate_loop_scores(flattened_series)
+    if verbose:
+        print("loop_timeseries_censoring: flattened")
+    loop_scores = calculate_loop_scores(flattened_series, verbose=verbose )
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
-        print("LOOP High Leverage Volumes:", high_leverage_volumes)
+        print("loop_timeseries_censoring: High Leverage Volumes:", high_leverage_volumes)
     new_asl = remove_volumes_from_timeseries(x, high_leverage_volumes)
     return new_asl, high_leverage_volumes
 
