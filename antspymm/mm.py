@@ -10667,7 +10667,7 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
 
 
 def calculate_loop_scores(flattened_series, n_neighbors=20, 
-                                           n_features_sample=5000, seed=42, verbose=True):
+                                           n_features_sample=10000, seed=42, verbose=True):
     """
     Approximate LoOP scores using a random subset of features to reduce memory usage.
 
@@ -10823,7 +10823,7 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=5000, verbose=True):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=10000, verbose=True):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
