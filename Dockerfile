@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:2.16.2
+FROM tensorflow/tensorflow:2.17.0
 
 
 # Set environment variables for optimal threading
@@ -31,14 +31,19 @@ RUN pip install --upgrade pip \
         matplotlib \
         scikit-learn \
         ipython \
-        jupyterlab
-#        # Optional:
-#        antspynet \
-#        antspymm \
-#        siq
+        jupyterlab \
+        antspyx==0.5.4 \
+        antspynet==0.2.9 \
+        antspymm==1.4.6 \
+        siq==0.3.4
+
+# for downloading example data from open neuro
+RUN pip3 --no-cache-dir install --upgrade awscli
+###########
 #
 # Clone the ANTsPyMM repository
-# RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
+RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
+RUN git clone https://github.com/stnava/ANTPD_antspymm.git /workspace/ANTPD_antspymm
 #
 # Optional: Run reference test script
 # RUN python /workspace/ANTsPyMM/tests/test_reference_run.py
