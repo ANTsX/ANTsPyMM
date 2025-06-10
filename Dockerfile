@@ -43,6 +43,7 @@ RUN pip3 --no-cache-dir install --upgrade awscli
 #
 # Clone the ANTsPyMM repository
 RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
+# RUN cd ANTsPyMM && python3 -m pip install . 
 RUN git clone https://github.com/stnava/ANTPD_antspymm.git /workspace/ANTPD_antspymm
 #
 # Optional: Run reference test script

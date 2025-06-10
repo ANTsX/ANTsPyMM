@@ -3882,9 +3882,13 @@ def joint_dti_recon(
         print("recon after distortion correction", flush=True)
 
     if impute:
+        print("impute begin", flush=True)
         img_LRdwp=impute_dwi( img_LRdwp, verbose=True )
+        print("impute done", flush=True)
     elif censor:
+        print("censor begin", flush=True)
         img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'] = censor_dwi( img_LRdwp, reg_LR['bvals'], reg_LR['bvecs'], verbose=True )
+        print("censor done", flush=True)
     if impute and img_RL is not None:
         img_RLdwp=impute_dwi( img_RLdwp, verbose=True )
     elif censor and img_RL is not None:
@@ -7282,8 +7286,8 @@ def mm(
                 img_RL=dw_image[1],
                 bval_RL=bvals[1],
                 bvec_RL=bvecs[1],
-                motion_correct='SyN', # set to False if using input from qsiprep
-                denoise=True,
+                motion_correct=dti_motion_correct, # set to False if using input from qsiprep
+                denoise=dti_denoise,
                 verbose = verbose)
         mydti = output_dict['DTI']
         # summarize dwi with T1 outputs
@@ -10602,9 +10606,9 @@ def censor_dwi( dwi, bval, bvec, threshold = 0.20, imputeb0=False, mask=None, ve
     list1 = segment_timeseries_by_meanvalue( dwi )['highermeans']
     if imputeb0:
         dwib = impute_timeseries( dwi, list1 ) # focus on the dwi - not the b0
-        looped, list2 = loop_timeseries_censoring( dwib, threshold, mask )
+        looped, list2 = loop_timeseries_censoring( dwib, threshold, mask, verbose=verbose)
     else:
-        looped, list2 = loop_timeseries_censoring( dwi, threshold, mask )
+        looped, list2 = loop_timeseries_censoring( dwi, threshold, mask, verbose=verbose )
     if verbose:
         print( list1 )
         print( list2 )
@@ -10719,7 +10723,7 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=False):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, verbose=True):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
