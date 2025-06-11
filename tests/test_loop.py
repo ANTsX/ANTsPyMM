@@ -16,4 +16,4 @@ testingClass = unittest.TestCase( )
 islocal = False
 idp = "LS2001_3T_rfMRI_REST1_LR_gdc"
 fmri = ants.image_read( antspymm.get_data( idp, target_extension=".nii.gz") )
-fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
+fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.2, n_features_sample=0.05 )

@@ -10667,14 +10667,17 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
 
 
 def calculate_loop_scores(flattened_series, n_neighbors=20, 
-                                           n_features_sample=10000, seed=42, verbose=True):
+                          n_features_sample=10000, seed=42, verbose=True):
     """
     Approximate LoOP scores using a random subset of features to reduce memory usage.
 
     Parameters:
         flattened_series (np.ndarray): 2D array of shape (n_samples, n_features)
         n_neighbors (int): Number of neighbors for LOF/LoOP computation
-        n_features_sample (int): Number of features to sample for approximation
+        n_features_sample (int or float): 
+            - If int >= 1: Number of features to sample for approximation.
+            - If float < 1 and > 0: Treated as a proportion of total features (e.g., 0.2 = 20%).
+            - If float == 1.0: Use all features.
         seed (int): Random seed for reproducible feature sampling
         verbose (bool): If True, print detailed progress and dimensions
 
@@ -10691,6 +10694,19 @@ def calculate_loop_scores(flattened_series, n_neighbors=20,
     # -------------------------------
     X = np.nan_to_num(flattened_series, nan=0).astype(np.float32)
     n_samples, n_features = X.shape
+
+    if isinstance(n_features_sample, float):
+        if n_features_sample == 1.0:
+            n_features_sample = n_features
+            if verbose:
+                print(f"- n_features_sample=1.0: using all {n_features} features")
+        elif 0 < n_features_sample < 1.0:
+            n_features_sample = int(n_features_sample * n_features)
+            n_features_sample = max(1, n_features_sample)  # ensure at least 1 feature
+            if verbose:
+                print(f"- Interpreting n_features_sample as percentage: sampling {n_features_sample} of {n_features} features")
+        else:
+            raise ValueError("If float, n_features_sample must be between 0 and 1 (exclusive of 0)")
 
     if verbose:
         print("\n[LoOP Approximation - Verbose Mode]")
@@ -10823,7 +10839,7 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=10000, verbose=True):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=0.02, verbose=True):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
@@ -10831,7 +10847,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=100
     x (ANTsImage): A 4D time series image.
     threshold (float): Threshold for determining high leverage volumes based on LoOP scores.
     mask (antsImage): restricts to a ROI
-    n_features_sample (int): feature sample size default 5000
+    n_features_sample (int/float): feature sample size default 0.01; if less than one then this is interpreted as a percentage of the total features otherwise it sets the number of features to be used
     verbose (bool)
 
     Returns:
