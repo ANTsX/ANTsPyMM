@@ -2195,7 +2195,7 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
     if verbose:
         print("reorient tensors locally: compose and get reo image")
     locrot = ants.deformation_gradient( ants.image_read(composite_transform), 
-        to_rotation = True, py_based=py_based )
+        to_rotation = True, py_based=py_based ).numpy()
     rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
     if verbose:
         print("convert UT to full tensor")
