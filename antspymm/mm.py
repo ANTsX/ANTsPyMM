@@ -289,13 +289,19 @@ def get_antsimage_keys(dictionary):
     """
     return [key for key, value in dictionary.items() if isinstance(value, ants.core.ants_image.ANTsImage)]
 
-def to_nibabel(img: "ants.core.ants_image.ANTsImage"):
-    with tempfile.TemporaryDirectory() as tmp:
-        temp_file_name = os.path.join(tmp, str(uuid.uuid1()) + '.nii.gz')
-        ants.image_write(img, temp_file_name)
-        nibabel_image = nib.load(temp_file_name)
-        return(nibabel_image)
+def to_nibabel(img: "ants.core.ants_image.ANTsImage") -> nib.Nifti1Image:
+    """
+    Convert an ANTsPy image to a Nibabel Nifti1Image in-memory, using correct spatial affine.
 
+    Parameters:
+        img (ants.ANTsImage): An image from ANTsPy.
+
+    Returns:
+        nib.Nifti1Image: The corresponding Nibabel image with spatial orientation in RAS.
+    """
+    array_data = img.numpy()  # get voxel data as NumPy array
+    affine = ants_to_nibabel_affine(img)
+    return nib.Nifti1Image(array_data, affine)
 
 def ants_to_nibabel_affine(ants_img):
     """
@@ -305,7 +311,7 @@ def ants_to_nibabel_affine(ants_img):
     Returns:
         4x4 np.ndarray affine matrix in RAS space.
     """
-    spatial_dim = len(ants_img.spacing)
+    spatial_dim = ants_img.dimension
     spacing = np.array(ants_img.spacing)
     origin = np.array(ants_img.origin)
     direction = np.array(ants_img.direction).reshape((spatial_dim, spatial_dim))
@@ -315,11 +321,11 @@ def ants_to_nibabel_affine(ants_img):
     affine = np.eye(4)
     affine[:spatial_dim, :spatial_dim] = affine_linear
     affine[:spatial_dim, 3] = origin
+    affine[3, 3]=1
     # Convert LPS -> RAS by flipping x and y
     lps_to_ras = np.diag([-1, -1, 1, 1])
     affine = lps_to_ras @ affine
     return affine
-
 
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
@@ -4249,7 +4255,7 @@ def dwi_deterministic_tracking(
     from dipy.tracking.stopping_criterion import ThresholdStoppingCriterion
     stopping_criterion = ThresholdStoppingCriterion(fa.numpy(), fa_thresh)
     from dipy.data import get_sphere
-    sphere = get_sphere('symmetric362')
+    sphere = get_sphere(name='symmetric362')
     from dipy.direction import peaks_from_model
     if peak_indices is None:
         # problems with multi-threading ...

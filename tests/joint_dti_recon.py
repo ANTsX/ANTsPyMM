@@ -32,6 +32,9 @@ img_RL_in = ants.image_read( rlid + '.nii.gz' ) # RL dwi image
 img_RL_bval = lrid + '.bval' # bval
 img_RL_bvec = lrid + '.bvec'
 
+
+deek
+
 print("brain extract the T1")
 t1wh = ants.iMath( ants.image_read( t1id ) , 'Normalize' )
 mybxt = antspyt1w.brain_extraction( t1wh )
@@ -73,6 +76,18 @@ if True:
     ants.image_write( myoutx['recon_md'], '/tmp/temp1md.nii.gz'  )
     ants.image_write( myoutx['dwi_LR_dewarped'], '/tmp/temp1moco.nii.gz'  )
     ants.image_write( myoutx['dtrecon_LR_dewarp']['RGB'], '/tmp/temp1rgb.nii.gz'  )
+
+derka
+
+temp = antspymm.dwi_deterministic_tracking(
+                mydti['dwi_LR_dewarped'],
+                mydti['recon_fa'],
+                mydti['bval_LR'],
+                mydti['bvec_LR'],
+                seed_density = 1,
+                mask=mask,
+                verbose = verbose )
+
 
 derka
 
