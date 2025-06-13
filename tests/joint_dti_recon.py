@@ -32,14 +32,10 @@ img_RL_in = ants.image_read( rlid + '.nii.gz' ) # RL dwi image
 img_RL_bval = lrid + '.bval' # bval
 img_RL_bvec = lrid + '.bvec'
 
-
-deek
-
 print("brain extract the T1")
 t1wh = ants.iMath( ants.image_read( t1id ) , 'Normalize' )
 mybxt = antspyt1w.brain_extraction( t1wh )
 t1w = t1wh * mybxt
-
 print("build the DTI templates")
 a1b,a1w=antspymm.get_average_dwi_b0(img_LR_in)
 a2b,a2w=antspymm.get_average_dwi_b0(img_RL_in)
