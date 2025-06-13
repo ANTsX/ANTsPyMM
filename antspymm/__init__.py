@@ -5,6 +5,7 @@ except:
     pass
 
 from .mm import get_data
+from .mm import ants_to_nibabel_affine
 from .mm import get_dti
 from .mm import triangular_to_tensor
 from .mm import dti_numpy_to_image

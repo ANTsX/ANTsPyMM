@@ -93,6 +93,7 @@ __all__ = ['version',
     'loop_timeseries_censoring',
     'clean_tmp_directory',
     'validate_nrg_file_format',
+    'ants_to_nibabel_affine',
     'dict_to_dataframe']
 
 from pathlib import Path
@@ -294,6 +295,32 @@ def to_nibabel(img: "ants.core.ants_image.ANTsImage"):
         ants.image_write(img, temp_file_name)
         nibabel_image = nib.load(temp_file_name)
         return(nibabel_image)
+
+
+def ants_to_nibabel_affine(ants_img):
+    """
+    Convert an ANTsPy image (in LPS space) to a Nibabel-compatible affine (in RAS space).
+    Handles 2D, 3D, 4D input (only spatial dimensions are encoded in the affine).
+    
+    Returns:
+        4x4 np.ndarray affine matrix in RAS space.
+    """
+    spatial_dim = len(ants_img.spacing)
+    spacing = np.array(ants_img.spacing)
+    origin = np.array(ants_img.origin)
+    direction = np.array(ants_img.direction).reshape((spatial_dim, spatial_dim))
+    # Compute rotation-scale matrix
+    affine_linear = direction @ np.diag(spacing)
+    # Build full 4x4 affine with identity in homogeneous bottom row
+    affine = np.eye(4)
+    affine[:spatial_dim, :spatial_dim] = affine_linear
+    affine[:spatial_dim, 3] = origin
+    # Convert LPS -> RAS by flipping x and y
+    lps_to_ras = np.diag([-1, -1, 1, 1])
+    affine = lps_to_ras @ affine
+    return affine
+
+
 
 def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, convert_images=True, verbose=False):
     """
@@ -3642,7 +3669,7 @@ def dipy_dti_recon(
         return tenfit, FA, MD1, RGB
 
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=2.0 )
+    gtab = gradient_table(bvals, bvecs=bvecs, atol=2.0 )
     if free_water:
         free_water=len( np.unique( bvals ) ) >= 3
     tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil, free_water=free_water )
@@ -4204,16 +4231,15 @@ def dwi_deterministic_tracking(
     if verbose:
         print("begin tracking",flush=True)
 
-    dwi_img = to_nibabel(dwi)
-    affine = dwi_img.affine
+    affine = ants_to_nibabel_affine(dwi)
 
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=2.0 )
+    gtab = gradient_table(bvals, bvecs=bvecs, atol=2.0 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
-    dwi_data = dwi_img.get_fdata()
+    dwi_data = dwi.numpy() # dwi_img.get_fdata()
     dwi_mask = mask.numpy() == 1
     dti_model = dti.TensorModel(gtab,fit_method=fit_method)
     if verbose:
@@ -4282,7 +4308,7 @@ def dwi_deterministic_tracking(
     streamlines = Streamlines(streamlines_generator)
     from dipy.io.stateful_tractogram import Space, StatefulTractogram
     from dipy.io.streamline import save_tractogram
-    sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
+    sft = None # StatefulTractogram(streamlines, dwi_img, Space.RASMM)
     if verbose:
         print("streamlines done", flush=True)
     return {
@@ -4384,15 +4410,14 @@ def dwi_closest_peak_tracking(
     if verbose:
         print("begin tracking",flush=True)
 
-    dwi_img = to_nibabel(dwi)
-    affine = dwi_img.affine
+    affine = ants_to_nibabel_affine(dwi)
     if isinstance( bvals, str ) or isinstance( bvecs, str ):
         bvals, bvecs = read_bvals_bvecs(bvals, bvecs)
     bvecs = repair_bvecs( bvecs )
-    gtab = gradient_table(bvals, bvecs, atol=2.0 )
+    gtab = gradient_table(bvals, bvecs=bvecs, atol=2.0 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
-    dwi_data = dwi_img.get_fdata()
+    dwi_data = dwi.numpy()
     dwi_mask = mask.numpy() == 1
 
 
@@ -4429,7 +4454,7 @@ def dwi_closest_peak_tracking(
     streamlines = Streamlines(streamlines_generator)
     from dipy.io.stateful_tractogram import Space, StatefulTractogram
     from dipy.io.streamline import save_tractogram
-    sft = StatefulTractogram(streamlines, dwi_img, Space.RASMM)
+    sft = None # StatefulTractogram(streamlines, dwi_img, Space.RASMM)
     if verbose:
         print("streamlines done", flush=True)
     return {
@@ -4465,8 +4490,7 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
     from dipy.tracking.streamline import Streamlines
     keep_streamlines = Streamlines()
 
-
-    affine = to_nibabel(label_image).affine
+    affine = ants_to_nibabel_affine(label_image) # to_nibabel(label_image).affine
 
     lin_T, offset = utils._mapping_to_voxel(affine)
     label_image_np = label_image.numpy()
@@ -4526,7 +4550,7 @@ def dwi_streamline_pairwise_connectivity_old(
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
 
-    affine = to_nibabel(label_image).affine
+    affine = ants_to_nibabel_affine(label_image) # to_nibabel(label_image).affine
 
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
@@ -4618,7 +4642,7 @@ def dwi_streamline_connectivity(
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
 
-    affine = to_nibabel(label_image).affine
+    affine = ants_to_nibabel_affine(label_image) # to_nibabel(label_image).affine
 
     import numpy as np
     from dipy.io.image import load_nifti_data, load_nifti, save_nifti
@@ -4708,7 +4732,7 @@ def dwi_streamline_connectivity_old(
     volUnit = np.prod( ants.get_spacing( label_image ) )
     labels = label_image.numpy()
 
-    affine = to_nibabel(label_image).affine
+    affine = ants_to_nibabel_affine(label_image) # to_nibabel(label_image).affine
 
     if verbose:
         print("path length begin ... volUnit = " + str( volUnit ) )
@@ -7480,7 +7504,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
     if 'tractography' in mm:
         if mm['tractography'] is not None:
             ofn = output_prefix + separator + 'tractogram.trk'
-            save_tractogram( mm['tractography']['tractogram'], ofn )
+            if mm['tractography']['tractogram'] is not None:
+                save_tractogram( mm['tractography']['tractogram'], ofn )
     cnxderk = None
     if 'tractography_connectivity' in mm:
         if mm['tractography_connectivity'] is not None:
