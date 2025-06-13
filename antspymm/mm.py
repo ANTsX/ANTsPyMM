@@ -10697,110 +10697,104 @@ def calculate_loop_scores_full(flattened_series, n_neighbors=20, verbose=True ):
     return m.local_outlier_probabilities[:]
 
 
-def calculate_loop_scores(flattened_series, n_neighbors=20, 
-                          n_features_sample=10000, seed=42, verbose=True):
+def calculate_loop_scores(
+    flattened_series,
+    n_neighbors=20,
+    n_features_sample=0.02,
+    n_feature_repeats=5,
+    seed=42,
+    use_approx_knn=True,
+    verbose=True,
+):
     """
-    Approximate LoOP scores using a random subset of features to reduce memory usage.
+    Memory-efficient and robust LoOP score estimation with optional approximate KNN
+    and averaging over multiple random feature subsets.
 
     Parameters:
-        flattened_series (np.ndarray): 2D array of shape (n_samples, n_features)
-        n_neighbors (int): Number of neighbors for LOF/LoOP computation
-        n_features_sample (int or float): 
-            - If int >= 1: Number of features to sample for approximation.
-            - If float < 1 and > 0: Treated as a proportion of total features (e.g., 0.2 = 20%).
-            - If float == 1.0: Use all features.
-        seed (int): Random seed for reproducible feature sampling
-        verbose (bool): If True, print detailed progress and dimensions
+        flattened_series (np.ndarray): 2D array (n_samples x n_features)
+        n_neighbors (int): Number of neighbors for LoOP
+        n_features_sample (int or float): Number or fraction of features to sample
+        n_feature_repeats (int): How many independent feature subsets to sample and average over
+        seed (int): Random seed
+        use_approx_knn (bool): Whether to use fast approximate KNN (via pynndescent)
+        verbose (bool): Verbose output
 
     Returns:
-        np.ndarray: 1D array of local outlier probabilities (length n_samples)
+        np.ndarray: Averaged local outlier probabilities (length n_samples)
     """
     import numpy as np
     from sklearn.preprocessing import StandardScaler
-    from sklearn.neighbors import NearestNeighbors
     from PyNomaly import loop
 
-    # -------------------------------
-    # Step 1: Input stats and cleanup
-    # -------------------------------
+    # Optional approximate nearest neighbors
+    try:
+        from pynndescent import NNDescent
+        has_nn_descent = True
+    except ImportError:
+        has_nn_descent = False
+
+    rng = np.random.default_rng(seed)
     X = np.nan_to_num(flattened_series, nan=0).astype(np.float32)
     n_samples, n_features = X.shape
 
+    # Handle feature sampling
     if isinstance(n_features_sample, float):
-        if n_features_sample == 1.0:
-            n_features_sample = n_features
-            if verbose:
-                print(f"- n_features_sample=1.0: using all {n_features} features")
-        elif 0 < n_features_sample < 1.0:
-            n_features_sample = int(n_features_sample * n_features)
-            n_features_sample = max(1, n_features_sample)  # ensure at least 1 feature
-            if verbose:
-                print(f"- Interpreting n_features_sample as percentage: sampling {n_features_sample} of {n_features} features")
+        if 0 < n_features_sample <= 1.0:
+            n_features_sample = max(1, int(n_features_sample * n_features))
         else:
-            raise ValueError("If float, n_features_sample must be between 0 and 1 (exclusive of 0)")
+            raise ValueError("If float, n_features_sample must be in (0, 1].")
 
-    if verbose:
-        print("\n[LoOP Approximation - Verbose Mode]")
-        print(f"- Original input shape: {X.shape} (samples x features)")
-        print(f"- Requested sampled features: {n_features_sample}")
-    
-    if n_features_sample > n_features:
-        n_features_sample = n_features
-        if verbose:
-            print(f"- Requested n_features_sample exceeds available features. Using all {n_features} features.")
+    n_features_sample = min(n_features, n_features_sample)
 
-    # -------------------------------
-    # Step 2: Feature sampling
-    # -------------------------------
-    rng = np.random.default_rng(seed)
-    sampled_indices = rng.choice(n_features, n_features_sample, replace=False)
-    X_sampled = X[:, sampled_indices]
-
-    if verbose:
-        print(f"- Sampled feature shape: {X_sampled.shape} (samples x sampled_features)")
-        print(f"- Random seed for reproducibility: {seed}")
-
-    # -------------------------------
-    # Step 3: Standardization
-    # -------------------------------
-    scaler = StandardScaler(copy=False)
-    X_sampled = scaler.fit_transform(X_sampled)
-    X_sampled = np.nan_to_num(X_sampled, nan=0)
-
-    # -------------------------------
-    # Step 4: KNN setup for LoOP
-    # -------------------------------
     if n_neighbors >= n_samples:
         n_neighbors = max(1, n_samples // 2)
-        if verbose:
-            print(f"- Adjusted n_neighbors to {n_neighbors} (was too large for available samples).")
 
     if verbose:
-        print(f"- Performing KNN using Minkowski distance (default p=2, Euclidean)")
-        print(f"- Each point will use its {n_neighbors} nearest neighbors for local density estimation")
+        print(f"[LoOP] Input shape: {X.shape}")
+        print(f"[LoOP] Sampling {n_features_sample} features per repeat, {n_feature_repeats} repeats")
+        print(f"[LoOP] Using {n_neighbors} neighbors")
 
-    neigh = NearestNeighbors(n_neighbors=n_neighbors)
-    neigh.fit(X_sampled)
-    dists, indices = neigh.kneighbors(X_sampled, return_distance=True)
+    loop_scores = []
 
-    # -------------------------------
-    # Step 5: LoOP probability calculation
-    # -------------------------------
+    for rep in range(n_feature_repeats):
+        feature_idx = rng.choice(n_features, n_features_sample, replace=False)
+        X_sub = X[:, feature_idx]
+
+        scaler = StandardScaler(copy=False)
+        X_sub = scaler.fit_transform(X_sub)
+        X_sub = np.nan_to_num(X_sub, nan=0)
+
+        # Approximate or exact KNN
+        if use_approx_knn and has_nn_descent and n_samples > 1000:
+            if verbose:
+                print(f"  [Rep {rep+1}] Using NNDescent (approximate KNN)")
+            ann = NNDescent(X_sub, n_neighbors=n_neighbors, random_state=seed + rep)
+            indices, dists = ann.neighbor_graph
+        else:
+            from sklearn.neighbors import NearestNeighbors
+            if verbose:
+                print(f"  [Rep {rep+1}] Using NearestNeighbors (exact KNN)")
+            nn = NearestNeighbors(n_neighbors=n_neighbors)
+            nn.fit(X_sub)
+            dists, indices = nn.kneighbors(X_sub)
+
+        # LoOP score for this repeat
+        model = loop.LocalOutlierProbability(
+            distance_matrix=dists,
+            neighbor_matrix=indices,
+            n_neighbors=n_neighbors
+        ).fit()
+        loop_scores.append(model.local_outlier_probabilities[:])
+
+    # Average over repeats
+    loop_scores = np.stack(loop_scores)
+    loop_scores_mean = loop_scores.mean(axis=0)
+
     if verbose:
-        print(f"- Distance matrix shape: {dists.shape} (samples x n_neighbors)")
-        print(f"- Neighbor index matrix shape: {indices.shape}")
-        print("- Estimating Local Outlier Probabilities (LoOP)...")
+        print(f"[LoOP] Averaged over {n_feature_repeats} feature subsets. Final shape: {loop_scores_mean.shape}")
 
-    model = loop.LocalOutlierProbability(
-        distance_matrix=dists,
-        neighbor_matrix=indices,
-        n_neighbors=n_neighbors
-    ).fit()
+    return loop_scores_mean
 
-    if verbose:
-        print("- LoOP scoring complete.\n")
-
-    return model.local_outlier_probabilities[:]
 
 
 def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
@@ -10870,7 +10864,7 @@ def score_fmri_censoring(cbfts, csf_seg, gm_seg, wm_seg ):
     cbfts_recon_ants = ants.copy_image_info(cbfts, cbfts_recon_ants)
     return cbfts_recon_ants, indx
 
-def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=0.02, verbose=True):
+def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=0.02, seed=42, verbose=True):
     """
     Censor high leverage volumes from a time series using Local Outlier Probabilities (LoOP).
 
@@ -10879,6 +10873,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=0.0
     threshold (float): Threshold for determining high leverage volumes based on LoOP scores.
     mask (antsImage): restricts to a ROI
     n_features_sample (int/float): feature sample size default 0.01; if less than one then this is interpreted as a percentage of the total features otherwise it sets the number of features to be used
+    seed (int): random seed
     verbose (bool)
 
     Returns:
@@ -10894,7 +10889,7 @@ def loop_timeseries_censoring(x, threshold=0.5, mask=None, n_features_sample=0.0
         flattened_series = ants.timeseries_to_matrix( x, mask )
     if verbose:
         print("loop_timeseries_censoring: flattened")
-    loop_scores = calculate_loop_scores(flattened_series, n_features_sample=n_features_sample, verbose=verbose )
+    loop_scores = calculate_loop_scores(flattened_series, n_features_sample=n_features_sample, seed=seed, verbose=verbose )
     high_leverage_volumes = np.where(loop_scores > threshold)[0]
     if verbose:
         print("loop_timeseries_censoring: High Leverage Volumes:", high_leverage_volumes)
