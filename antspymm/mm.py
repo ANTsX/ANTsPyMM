@@ -3718,7 +3718,7 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
         bvals_to_use = set(bvals_to_use)
         sel = np.isin(gtab.bvals, list(bvals_to_use))
         img_data = img_data[..., sel]
-        gtab = gradient_table(gtab.bvals[sel], gtab.bvecs[sel])
+        gtab = gradient_table(gtab.bvals[sel], bvecs=gtab.bvecs[sel])
         if verbose:
             print(f"[INFO] Selected b-values: {sorted(bvals_to_use)}")
             print(f"[INFO] Selected volumes: {sel.sum()} / {N}")
@@ -4455,7 +4455,7 @@ def dwi_deterministic_tracking(
     gtab = gradient_table(bvals, bvecs=bvecs, atol=2.0 )
     if mask is None:
         mask = ants.threshold_image( fa, fa_thresh, 2.0 ).iMath("GetLargestComponent")
-    dwi_data = dwi.numpy() # dwi_img.get_fdata()
+    dwi_data = dwi.numpy()
     dwi_mask = mask.numpy() == 1
     dti_model = dti.TensorModel(gtab,fit_method=fit_method)
     if verbose:
