@@ -3555,6 +3555,239 @@ def trim_dti_mask( fa, mask, param=4.0 ):
     trim_mask = ants.iMath(trim_mask,"MD",paramVox-1)
     return trim_mask
 
+
+
+def efficient_tensor_fit( gtab, fit_method, imagein, maskin, diffusion_model='DTI', 
+                         chunk_size=10, num_threads=1, verbose=True):
+    """
+    Efficient and optionally parallelized tensor reconstruction using DiPy.
+
+    Parameters
+    ----------
+    gtab : GradientTable
+        Dipy gradient table.
+    fit_method : str
+        Tensor fitting method (e.g. 'WLS', 'OLS', 'RESTORE').
+    imagein : ants.ANTsImage
+        4D diffusion-weighted image.
+    maskin : ants.ANTsImage
+        Binary brain mask image.
+    diffusion_model : string, optional
+        DTI, FreeWater, DKI.
+    chunk_size : int, optional
+        Number of slices (along z-axis) to process at once.
+    num_threads : int, optional
+        Number of threads to use (1 = single-threaded).
+    verbose : bool, optional
+        Print status updates.
+    
+    Returns
+    -------
+    tenfit : TensorFit or FreeWaterTensorFit
+        Fitted tensor model.
+    FA : ants.ANTsImage
+        Fractional anisotropy image.
+    MD : ants.ANTsImage
+        Mean diffusivity image.
+    RGB : ants.ANTsImage
+        RGB FA map.
+    """
+    assert imagein.dimension == 4, "Input image must be 4D"
+
+    import ants
+    import numpy as np
+    import dipy.reconst.dti as dti
+    import dipy.reconst.fwdti as fwdti
+    from dipy.reconst.dti import fractional_anisotropy
+    from dipy.reconst.dti import color_fa
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    img_data = imagein.numpy()
+    mask = maskin.numpy().astype(bool)
+    X, Y, Z, N = img_data.shape
+    if verbose:
+        print(f"Input shape: {img_data.shape}, Processing in chunks of {chunk_size} slices.")
+
+    model = fwdti.FreeWaterTensorModel(gtab) if diffusion_model == 'FreeWater' else dti.TensorModel(gtab, fit_method=fit_method)
+
+    def process_chunk(z_start):
+        z_end = min(Z, z_start + chunk_size)
+        local_data = img_data[:, :, z_start:z_end, :]
+        local_mask = mask[:, :, z_start:z_end]
+        masked_data = local_data * local_mask[..., None]
+        masked_data = np.nan_to_num(masked_data, nan=0)
+        fit = model.fit(masked_data)
+        FA_chunk = fractional_anisotropy(fit.evals)
+        FA_chunk[np.isnan(FA_chunk)] = 1
+        FA_chunk = np.clip(FA_chunk, 0, 1)
+        MD_chunk = dti.mean_diffusivity(fit.evals)
+        RGB_chunk = color_fa(FA_chunk, fit.evecs)
+        return z_start, z_end, FA_chunk, MD_chunk, RGB_chunk
+
+    FA_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    MD_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    RGB_vol = np.zeros((X, Y, Z, 3), dtype=np.float32)
+
+    chunks = range(0, Z, chunk_size)
+    if num_threads > 1:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {executor.submit(process_chunk, z): z for z in chunks}
+            for f in as_completed(futures):
+                z_start, z_end, FA_chunk, MD_chunk, RGB_chunk = f.result()
+                FA_vol[:, :, z_start:z_end] = FA_chunk
+                MD_vol[:, :, z_start:z_end] = MD_chunk
+                RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+    else:
+        for z in chunks:
+            z_start, z_end, FA_chunk, MD_chunk, RGB_chunk = process_chunk(z)
+            FA_vol[:, :, z_start:z_end] = FA_chunk
+            MD_vol[:, :, z_start:z_end] = MD_chunk
+            RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+
+    b0 = ants.slice_image(imagein, axis=3, idx=0)
+    FA = ants.copy_image_info(b0, ants.from_numpy(FA_vol))
+    MD = ants.copy_image_info(b0, ants.from_numpy(MD_vol))
+    RGB_channels = [ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)]
+    RGB = ants.merge_channels(RGB_channels)
+
+    return model.fit(img_data * mask[..., None]), FA, MD, RGB
+
+
+
+def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
+                  model_params=None, bvals_to_use=None,
+                  chunk_size=10, num_threads=1, verbose=True):
+    """
+    Efficient and optionally parallelized diffusion model reconstruction using DiPy.
+
+    Parameters
+    ----------
+    gtab : GradientTable
+        DiPy gradient table.
+    diffusion_model : str
+        One of ['DTI', 'FreeWater', 'DKI'].
+    imagein : ants.ANTsImage
+        4D diffusion-weighted image.
+    maskin : ants.ANTsImage
+        Binary brain mask image.
+    model_params : dict, optional
+        Additional parameters passed to model constructors.
+    bvals_to_use : list of int, optional
+        Subset of b-values to use for the fit (e.g., [0, 1000, 2000]).
+    chunk_size : int, optional
+        Z-axis slice chunk size.
+    num_threads : int, optional
+        Number of parallel threads.
+    verbose : bool, optional
+        Whether to print status messages.
+
+    Returns
+    -------
+    fit : dipy ModelFit
+        The fitted model object.
+    FA : ants.ANTsImage or None
+        Fractional anisotropy image (if applicable).
+    MD : ants.ANTsImage or None
+        Mean diffusivity image (if applicable).
+    RGB : ants.ANTsImage or None
+        Color FA image (if applicable).
+    """
+    import ants
+    import numpy as np
+    import dipy.reconst.dti as dti
+    import dipy.reconst.fwdti as fwdti
+    import dipy.reconst.dki as dki
+    from dipy.core.gradients import gradient_table
+    from dipy.reconst.dti import fractional_anisotropy, color_fa, mean_diffusivity
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    assert imagein.dimension == 4, "Input image must be 4D"
+    model_params = model_params or {}
+
+    img_data = imagein.numpy()
+    mask = maskin.numpy().astype(bool)
+    X, Y, Z, N = img_data.shape
+
+    if verbose:
+        print(f"[INFO] Image shape: {img_data.shape}")
+        print(f"[INFO] Using model: {diffusion_model}")
+        print(f"[INFO] Chunk size: {chunk_size} | Threads: {num_threads}")
+
+    # Filter shells if specified
+    if bvals_to_use is not None:
+        bvals_to_use = set(bvals_to_use)
+        sel = np.isin(gtab.bvals, list(bvals_to_use))
+        img_data = img_data[..., sel]
+        gtab = gradient_table(gtab.bvals[sel], gtab.bvecs[sel])
+        if verbose:
+            print(f"[INFO] Selected b-values: {sorted(bvals_to_use)}")
+            print(f"[INFO] Selected volumes: {sel.sum()} / {N}")
+
+    # Choose model
+    def get_model(name, gtab, **params):
+        if name == 'DTI':
+            return dti.TensorModel(gtab, **params)
+        elif name == 'FreeWater':
+            return fwdti.FreeWaterTensorModel(gtab)
+        elif name == 'DKI':
+            return dki.DiffusionKurtosisModel(gtab, **params)
+        else:
+            raise ValueError(f"Unsupported model: {name}")
+
+    model = get_model(diffusion_model, gtab, **model_params)
+
+    # Output volumes initialized to zero
+    FA_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    MD_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    RGB_vol = np.zeros((X, Y, Z, 3), dtype=np.float32)
+    has_tensor_metrics = diffusion_model in ['DTI', 'FreeWater']
+
+    def process_chunk(z_start):
+        z_end = min(Z, z_start + chunk_size)
+        local_data = img_data[:, :, z_start:z_end, :]
+        local_mask = mask[:, :, z_start:z_end]
+        masked_data = local_data * local_mask[..., None]
+        masked_data = np.nan_to_num(masked_data, nan=0)
+        fit = model.fit(masked_data)
+        if has_tensor_metrics and hasattr(fit, 'evals') and hasattr(fit, 'evecs'):
+            FA = fractional_anisotropy(fit.evals)
+            FA[np.isnan(FA)] = 1
+            FA = np.clip(FA, 0, 1)
+            MD = mean_diffusivity(fit.evals)
+            RGB = color_fa(FA, fit.evecs)
+            return z_start, z_end, FA, MD, RGB
+        return z_start, z_end, None, None, None
+
+    # Run processing
+    chunks = range(0, Z, chunk_size)
+    if num_threads > 1:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {executor.submit(process_chunk, z): z for z in chunks}
+            for f in as_completed(futures):
+                z_start, z_end, FA, MD, RGB = f.result()
+                if FA is not None:
+                    FA_vol[:, :, z_start:z_end] = FA
+                    MD_vol[:, :, z_start:z_end] = MD
+                    RGB_vol[:, :, z_start:z_end, :] = RGB
+    else:
+        for z in chunks:
+            z_start, z_end, FA, MD, RGB = process_chunk(z)
+            if FA is not None:
+                FA_vol[:, :, z_start:z_end] = FA
+                MD_vol[:, :, z_start:z_end] = MD
+                RGB_vol[:, :, z_start:z_end, :] = RGB
+
+    b0 = ants.slice_image(imagein, axis=3, idx=0)
+    FA_img = ants.copy_image_info(b0, ants.from_numpy(FA_vol)) if has_tensor_metrics else None
+    MD_img = ants.copy_image_info(b0, ants.from_numpy(MD_vol)) if has_tensor_metrics else None
+    RGB_img = (ants.merge_channels([
+        ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)
+    ]) if has_tensor_metrics else None)
+
+    full_fit = model.fit(img_data * mask[..., None])
+    return full_fit, FA_img, MD_img, RGB_img
+
+
 def dipy_dti_recon(
     image,
     bvalsfn,
@@ -3565,7 +3798,7 @@ def dipy_dti_recon(
     mask_closing = 5,
     fit_method='WLS',
     trim_the_mask=2.0,
-    free_water=False,
+    diffusion_model='DTI',
     verbose=False ):
     """
     DiPy DTI reconstruction - building on the DiPy basic DTI example
@@ -3592,7 +3825,8 @@ def dipy_dti_recon(
 
     trim_the_mask : float >=0 post-hoc method for trimming the mask
 
-    free_water : boolean
+    diffusion_model : string
+        DTI, FreeWater, DKI
 
     verbose : boolean
 
@@ -3645,47 +3879,22 @@ def dipy_dti_recon(
     if verbose:
         print("recon dti.TensorModel",flush=True)
 
-    def justthefit( gtab, fit_method, imagein, maskin, free_water=False ):
-        if fit_method is None:
-            return None, None, None, None
-        maskedimage=[]
-        for myidx in range(imagein.shape[3]):
-            b0 = ants.slice_image( imagein, axis=3, idx=myidx)
-            maskedimage.append( b0 * maskin )
-        maskedimage = ants.list_to_ndimage( imagein, maskedimage )
-        maskdata = maskedimage.numpy()
-        if free_water:
-            tenmodel = fwdti.FreeWaterTensorModel(gtab)
-        else:
-            tenmodel = dti.TensorModel(gtab,fit_method=fit_method)
-        tenfit = tenmodel.fit(maskdata)
-        FA = fractional_anisotropy(tenfit.evals)
-        FA[np.isnan(FA)] = 1
-        FA = np.clip(FA, 0, 1)
-        MD1 = dti.mean_diffusivity(tenfit.evals)
-        MD1 = ants.copy_image_info( b0, ants.from_numpy( MD1.astype(np.float32) ) )
-        FA = ants.copy_image_info(  b0, ants.from_numpy( FA.astype(np.float32) ) )
-        FA, MD1 = impute_fa( FA, MD1 )
-        RGB = color_fa(FA.numpy(), tenfit.evecs)
-        RGB = ants.from_numpy( RGB.astype(np.float32) )
-        RGB0 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=0 ) )
-        RGB1 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=1 ) )
-        RGB2 = ants.copy_image_info( b0, ants.slice_image( RGB, axis=3, idx=2 ) )
-        RGB = ants.merge_channels( [RGB0,RGB1,RGB2] )
-        return tenfit, FA, MD1, RGB
-
     bvecs = repair_bvecs( bvecs )
     gtab = gradient_table(bvals, bvecs=bvecs, atol=2.0 )
-    if free_water:
-        free_water=len( np.unique( bvals ) ) >= 3
-    tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, maskdil, free_water=free_water )
+    mynt=1
+    threads_env = os.environ.get("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")
+    if threads_env is not None:
+        mynt = int(threads_env)
+    tenfit, FA, MD1, RGB = efficient_dwi_fit( gtab, diffusion_model, image, maskdil,
+                                             num_threads=mynt )
     if verbose:
         print("recon dti.TensorModel done",flush=True)
 
     # change the brain mask based on high FA values
     if trim_the_mask > 0 and fit_method is not None:
         mask = trim_dti_mask( FA, mask, trim_the_mask )
-        tenfit, FA, MD1, RGB = justthefit( gtab, fit_method, image, mask, free_water=free_water  )
+        tenfit, FA, MD1, RGB = efficient_dwi_fit( gtab, diffusion_model, image, maskdil,
+                                             num_threads=mynt )
 
     return {
         'tensormodel' : tenfit,
@@ -3769,7 +3978,7 @@ def joint_dti_recon(
     fit_method='WLS',
     impute = False,
     censor = True,
-    free_water = False,
+    diffusion_model = 'DTI',
     verbose = False ):
     """
     1. pass in subject data and 1mm JHU atlas/labels
@@ -3824,7 +4033,8 @@ def joint_dti_recon(
 
     censor : boolean
 
-    free_water : boolean
+    diffusion_model : string
+        DTI, FreeWater, DKI
 
     verbose : boolean
 
@@ -3944,7 +4154,7 @@ def joint_dti_recon(
             img_LRdwp, bval_LR, bvec_LR,
             mask = brain_mask,
             fit_method=fit_method,
-            mask_dilation=0, free_water=free_water, verbose=True )
+            mask_dilation=0, diffusion_model=diffusion_model, verbose=True )
     if verbose:
         print("recon done", flush=True)
 

@@ -48,6 +48,8 @@ print("bxt the DTI template space")
 reg = ants.registration( btpDW, t1w, 'SyN', verbose=False)
 mask = ants.apply_transforms( btpDW, mybxt, reg['fwdtransforms'], interpolator='nearestNeighbor')
 
+zoo
+
 print("Begin joint DTI recon")
 myoutx = antspymm.joint_dti_recon(
         img_LR_in,
@@ -58,13 +60,13 @@ myoutx = antspymm.joint_dti_recon(
         reference_B0=btpB0,
         reference_DWI=btpDW,
         srmodel = None,
-        img_RL = img_RL_in,
-        bval_RL = img_RL_bval,
-        bvec_RL = img_RL_bvec,
+#        img_RL = img_RL_in,
+#        bval_RL = img_RL_bval,
+#        bvec_RL = img_RL_bvec,
         motion_correct = 'Rigid',
         brain_mask = mask,
         denoise = False,
-        free_water = True,
+        free_water = False,
         verbose = True )
 
 if True:
