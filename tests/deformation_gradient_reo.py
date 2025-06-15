@@ -22,19 +22,15 @@ ex_path_mm = os.path.expanduser( "~/.antspymm/" )
 JHU_atlas = ants.image_read( ex_path + 'JHU-ICBM-FA-1mm.nii.gz' ) # Read in JHU atlas
 JHU_labels = ants.image_read( ex_path + 'JHU-ICBM-labels-1mm.nii.gz' ) # Read in JHU labels
 #### Load in data ####
-template = ants.image_read( "OASIS/T_template0_BrainCerebellum_3mm.nii.gz")
-template = ants.resample_image(template,[2,2,2])
-tmask = ants.get_mask( template ).iMath("MD",5)
-template = ants.crop_image( template, tmask )
 print("Load in subject data ...")
 rotdir='yaw'
-lrid='nii/'+rotdir+'/'+rotdir
+lrid=os.path.expanduser('~/code/extern/antsDTOrientationTests/nii/'+rotdir+'/'+rotdir)
 img_LR_in = ants.image_read( lrid + '.nii.gz') # LR dwi image
 img_LR_bval = lrid + '.bval' # bval
 img_LR_bvec = lrid + '.bvec'
 #
 rotdir2='roll'
-rlid='nii/'+rotdir2+'/'+rotdir2
+rlid=os.path.expanduser('~/code/extern/antsDTOrientationTests/'+'nii/'+rotdir2+'/'+rotdir2)
 img_RL_in = ants.image_read( rlid + '.nii.gz') # LR dwi image
 img_RL_bval = rlid + '.bval' # bval
 img_RL_bvec = rlid + '.bvec'

@@ -3655,8 +3655,8 @@ def efficient_tensor_fit( gtab, fit_method, imagein, maskin, diffusion_model='DT
 
 
 def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
-                  model_params=None, bvals_to_use=None,
-                  chunk_size=10, num_threads=1, verbose=True):
+                      model_params=None, bvals_to_use=None,
+                      chunk_size=1024, num_threads=1, verbose=True):
     """
     Efficient and optionally parallelized diffusion model reconstruction using DiPy.
 
@@ -3675,7 +3675,7 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
     bvals_to_use : list of int, optional
         Subset of b-values to use for the fit (e.g., [0, 1000, 2000]).
     chunk_size : int, optional
-        Z-axis slice chunk size.
+        Maximum number of voxels per chunk (default 1024).
     num_threads : int, optional
         Number of parallel threads.
     verbose : bool, optional
@@ -3707,13 +3707,16 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
     img_data = imagein.numpy()
     mask = maskin.numpy().astype(bool)
     X, Y, Z, N = img_data.shape
+    inplane_size = X * Y
+
+    # Convert chunk_size from voxel count to number of slices
+    slices_per_chunk = max(1, chunk_size // inplane_size)
 
     if verbose:
         print(f"[INFO] Image shape: {img_data.shape}")
         print(f"[INFO] Using model: {diffusion_model}")
-        print(f"[INFO] Chunk size: {chunk_size} | Threads: {num_threads}")
+        print(f"[INFO] Max voxels per chunk: {chunk_size} (→ {slices_per_chunk} slices) | Threads: {num_threads}")
 
-    # Filter shells if specified
     if bvals_to_use is not None:
         bvals_to_use = set(bvals_to_use)
         sel = np.isin(gtab.bvals, list(bvals_to_use))
@@ -3723,7 +3726,6 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
             print(f"[INFO] Selected b-values: {sorted(bvals_to_use)}")
             print(f"[INFO] Selected volumes: {sel.sum()} / {N}")
 
-    # Choose model
     def get_model(name, gtab, **params):
         if name == 'DTI':
             return dti.TensorModel(gtab, **params)
@@ -3736,14 +3738,13 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
 
     model = get_model(diffusion_model, gtab, **model_params)
 
-    # Output volumes initialized to zero
     FA_vol = np.zeros((X, Y, Z), dtype=np.float32)
     MD_vol = np.zeros((X, Y, Z), dtype=np.float32)
     RGB_vol = np.zeros((X, Y, Z, 3), dtype=np.float32)
     has_tensor_metrics = diffusion_model in ['DTI', 'FreeWater']
 
     def process_chunk(z_start):
-        z_end = min(Z, z_start + chunk_size)
+        z_end = min(Z, z_start + slices_per_chunk)
         local_data = img_data[:, :, z_start:z_end, :]
         local_mask = mask[:, :, z_start:z_end]
         masked_data = local_data * local_mask[..., None]
@@ -3758,8 +3759,7 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
             return z_start, z_end, FA, MD, RGB
         return z_start, z_end, None, None, None
 
-    # Run processing
-    chunks = range(0, Z, chunk_size)
+    chunks = range(0, Z, slices_per_chunk)
     if num_threads > 1:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             futures = {executor.submit(process_chunk, z): z for z in chunks}
