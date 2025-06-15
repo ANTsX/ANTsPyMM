@@ -1,5 +1,7 @@
 FROM tensorflow/tensorflow:2.17.0
 
+ENV HOME=/workspace
+WORKDIR $HOME
 
 # Set environment variables for optimal threading
 ENV TF_NUM_INTEROP_THREADS=8 \
@@ -7,9 +9,6 @@ ENV TF_NUM_INTEROP_THREADS=8 \
     ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 \
     OPENBLAS_NUM_THREADS=8 \
     MKL_NUM_THREADS=8
-
-# Set working directory
-WORKDIR /workspace
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,28 +24,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip and install Python libraries
 RUN pip install --upgrade pip \
     && pip install \
-        numpy \
-        pandas \
-        scipy \
-        matplotlib \
-        scikit-learn \
-        ipython \
-        jupyterlab \
-        antspyx==0.5.4 \
-        antspynet==0.2.9 \
-        antspymm==1.4.9 \
-        siq==0.3.4
+    psrecord \
+    numpy \
+    pandas \
+    scipy \
+    matplotlib \
+    scikit-learn \
+    ipython \
+    jupyterlab \
+    antspyx==0.5.4 \
+    antspynet==0.2.9 \
+    antspymm==1.5.1 \
+    siq==0.3.4
 
 # for downloading example data from open neuro
 RUN pip3 --no-cache-dir install --upgrade awscli
 ###########
 #
-# Clone the ANTsPyMM repository
-RUN git clone https://github.com/ANTsX/ANTsPyMM.git /workspace/ANTsPyMM
-RUN git clone https://github.com/stnava/ANTPD_antspymm.git /workspace/ANTPD_antspymm
-#
-# Optional: Run reference test script
-# RUN python /workspace/ANTsPyMM/tests/test_reference_run.py
-
+RUN git clone https://github.com/stnava/ANTPD_antspymm.git ${HOME}/ANTPD_antspymm
+RUN python ${HOME}/ANTPD_antspymm/src/get_antsxnet_data.py ${HOME}/.keras
+# RUN cd ${HOME}/ANTPD_antspymm && bash src/download_docker.sh
+# data is in ${HOME}/.keras/, ~/.antspymm and bids folders
 # Default command
 CMD ["bash"]
+
