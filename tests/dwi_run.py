@@ -27,8 +27,24 @@ dd = antspymm.dipy_dti_recon( img1, bval, bvec, verbose=True )
 # scrub example
 bvalr, bvecr = read_bvals_bvecs( bval, bvec )
 img1_sc, bval_sc, bvec_sc = antspymm.scrub_dwi( img1, bvalr, bvecr, threshold=0.01, verbose=True )
-antspymm.write_bvals_bvecs( bvals=bval_sc, bvecs=bvec_sc, prefix='/tmp/temp' )
-ee = antspymm.dipy_dti_recon( img1_sc, '/tmp/temp.bval', '/tmp/temp.bvec', verbose=True )
-ants.image_write( dd['FA'], '/tmp/temp0.nii.gz' )
-ants.image_write( ee['FA'], '/tmp/temp1.nii.gz' )
-exit(0)
+
+# Create a temp directory using tempfile
+with tempfile.TemporaryDirectory() as tmpdir:
+    # Define file prefixes and paths
+    prefix = os.path.join(tmpdir, 'temp')
+    bval_path = prefix + '.bval'
+    bvec_path = prefix + '.bvec'
+    fa_path_0 = os.path.join(tmpdir, 'temp0.nii.gz')
+    fa_path_1 = os.path.join(tmpdir, 'temp1.nii.gz')
+
+    # Write bvals and bvecs
+    antspymm.write_bvals_bvecs(bvals=bval_sc, bvecs=bvec_sc, prefix=prefix)
+
+    # DTI reconstruction
+    ee = antspymm.dipy_dti_recon(img1_sc, bval_path, bvec_path, verbose=True)
+
+    # Write output images for comparison
+    # ants.image_write(dd['FA'], fa_path_0)
+    # ants.image_write(ee['FA'], fa_path_1)
+
+    # Temporary files will be cleaned up automatically when the block ends

@@ -9,6 +9,7 @@ import tempfile
 import shutil
 
 mdlfn = antspymm.get_data( "brainSR", target_extension=".h5")
+# will only work with old tf versions
 mdl = tf.keras.models.load_model( mdlfn )
 img = ants.image_read( antspymm.get_data( "I1499279_Anon_20210819142214_5", target_extension=".nii.gz") )
 lod = 16
