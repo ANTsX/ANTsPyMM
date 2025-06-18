@@ -2198,9 +2198,10 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
 def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, verbose=False, **kwargs):
     """
     apply a transform to DTI in the style of ants.apply_transforms. this function
-        expects a pre-computed composite transform which it will use to reorient 
-        the DTI using preservation of principle directions.
-    
+        expects a pre-computed composite transform which it will use to reorient
+        the DTI using preservation of principle directions.  BUG fix by cookpa 2025 
+        06 18.
+
     fixed : antsImage reference space
 
     moving_dti : antsImage DTI in upper triangular format
@@ -2224,33 +2225,35 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
     dtiw = []
     for k in range(len(dtsplit)):
         dtiw.append( ants.apply_transforms( fixed, dtsplit[k], composite_transform ) )
-    dtiw=ants.merge_channels(dtiw)
+    dtiw=ants.merge_channels(dtiw) # resampled into fixed space but still based in moving index space
     if verbose:
         print("reorient tensors locally: compose and get reo image")
-    locrot = ants.deformation_gradient( ants.image_read(composite_transform), 
+    locrot = ants.deformation_gradient( ants.image_read(composite_transform),
         to_rotation = True, py_based=py_based ).numpy()
-    rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
+    # rebases from moving index to fixed index space. Not quite what we need here
+    # rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
     if verbose:
         print("convert UT to full tensor")
     dtiw2tensor = triangular_to_tensor( dtiw )
     if verbose:
-        print("rebase tensors to new space via iterator")
+        print("rebase tensors to new space and apply reorientation via iterator")
     it = np.ndindex( fixed.shape )
     for i in it:
-        # direction * dt * direction.transpose();
         mmm = dtiw2tensor[i]
-        # transform rebase
+        # Rebase mmm to physical space
+        mmm = np.dot( mmm, np.transpose( moving_dti.direction ) )
+        mmm = np.dot( moving_dti.direction, mmm )
+        # Now apply local rotation
         locrotx = np.reshape( locrot[i], [3,3] )
         mmm = np.dot( mmm, np.transpose( locrotx ) )
         mmm = np.dot( locrotx, mmm )
-        # physical space rebase
-        mmm = np.dot( mmm, np.transpose( rebaser ) )
-        mmm = np.dot( rebaser, mmm )
+        # Now rebase to fixed index space
+        mmm = np.dot( mmm, np.transpose( fixed.direction ) )
+        mmm = np.dot( fixed.direction, mmm )
         dtiw2tensor[i] = mmm
     if verbose:
         print("done with rebasing")
     return dti_numpy_to_image( fixed, dtiw2tensor )
-
 
 def dti_reg(
     image,
