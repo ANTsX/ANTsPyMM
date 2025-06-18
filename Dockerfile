@@ -34,7 +34,7 @@ RUN pip install --upgrade pip \
     jupyterlab \
     antspyx==0.5.4 \
     antspynet==0.2.9 \
-    antspymm==1.5.2 \
+    antspymm==1.5.3 \
     siq==0.3.4
 
 # for downloading example data from open neuro
