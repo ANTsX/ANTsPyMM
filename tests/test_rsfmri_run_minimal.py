@@ -25,7 +25,7 @@ und = ants.get_average_of_timeseries( img1 )
 ################################################################
 t1fn = antspymm.get_data( 'LS2001_3T_T1w_MPR1_gdc' , target_extension='.nii.gz' )
 print("do t1")
-if not "t1" in globals():
+if True:
     t1 = ants.image_read( t1fn ).n3_bias_field_correction( 8 ).n3_bias_field_correction( 4 )
     t1bxt = antspynet.brain_extraction( t1, 't1' ).threshold_image( 0.3, 1.0 )
     t1seg = antspynet.deep_atropos( t1 )
@@ -41,8 +41,8 @@ rsf = antspymm.resting_state_fmri_networks(
 rsfscrub = antspymm.resting_state_fmri_networks(
   img1, und, t1 * t1bxt, t1segmentation, 
   nc=0.5,
-  scrub=True,
+  censor=True,
   verbose=True )
-ants.plot( und, rsf['DefaultMode'], crop=True, axis=2 )
-ants.plot( und, rsfscrub['DefaultMode'], crop=True, axis=2 )
+# ants.plot( und, rsf['DefaultMode'], crop=True, axis=2 )
+# ants.plot( und, rsfscrub['DefaultMode'], crop=True, axis=2 )
 ################################################################

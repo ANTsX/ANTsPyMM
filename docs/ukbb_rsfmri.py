@@ -22,5 +22,5 @@ bt = antspymm.get_average_rsf(rsf)
 rsfpro = antspymm.resting_state_fmri_networks(
   rsf,
   bt,
-  t1, 
+  t1,
   t1segmentation, f=[0.03, 0.08], spa=1.5, spt=0.5, nc=6, verbose=True)
