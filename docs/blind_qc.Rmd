@@ -58,6 +58,7 @@ print("Simulating baseline image...")
 eximg = siq.simulate_image()
 exfn_base = os.path.join(temp_dir, 'baseline.nii.gz')
 ants.image_write(eximg, exfn_base)
+ants.plot( eximg )
 generated_files.append(exfn_base)
 
 # --- Image 2: Additive Gaussian Noise ---
@@ -65,6 +66,7 @@ print("Simulating image with Gaussian noise...")
 img_gauss = siq.simulate_image().add_noise_to_image('additivegaussian', [0, 1])
 exfn_gauss = os.path.join(temp_dir, 'noise_gaussian.nii.gz')
 ants.image_write(img_gauss, exfn_gauss)
+ants.plot( img_gauss )
 generated_files.append(exfn_gauss)
 
 # --- Image 3: Salt & Pepper Noise ---
@@ -73,6 +75,7 @@ img_sp = siq.simulate_image()
 img_sp = ants.add_noise_to_image(img_sp, 'saltandpepper', [0.2, -1, 1])
 exfn_sp = os.path.join(temp_dir, 'noise_saltpepper.nii.gz')
 ants.image_write(img_sp, exfn_sp)
+ants.plot( img_sp )
 generated_files.append(exfn_sp)
 
 # --- Image 4: Smoothed Image ---
@@ -80,6 +83,7 @@ print("Simulating a smoothed image...")
 img_smooth = siq.simulate_image().smooth_image(3)
 exfn_smooth = os.path.join(temp_dir, 'smooth.nii.gz')
 ants.image_write(img_smooth, exfn_smooth)
+ants.plot( img_smooth )
 generated_files.append(exfn_smooth)
 
 # --- Image 5: Time Series Image ---
