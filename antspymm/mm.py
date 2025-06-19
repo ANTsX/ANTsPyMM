@@ -6513,7 +6513,37 @@ def bold_perfusion_minimal(
   return convert_np_in_dict( outdict )
 
 
-def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
+
+def warn_if_small_mask( mask: ants.ANTsImage, threshold_fraction: float = 0.05, label: str = ' ' ):
+    """
+    Warn the user if the number of non-zero voxels in the mask
+    is less than a given fraction of the total number of voxels in the mask.
+
+    Parameters
+    ----------
+    mask : ants.ANTsImage
+        The binary mask to evaluate.
+    threshold_fraction : float, optional
+        Fraction threshold below which a warning is triggered (default is 0.05).
+    
+    Returns
+    -------
+    None
+    """
+    import warnings
+    image_size = np.prod(mask.shape)
+    mask_size = np.count_nonzero(mask.numpy())
+    if mask_size / image_size < threshold_fraction:
+        percentage = 100.0 * mask_size / image_size
+        warnings.warn(
+            f"[ants] Warning: {label} contains only {mask_size} voxels "
+            f"({percentage:.2f}% of image volume). "
+            f"This is below the threshold of {threshold_fraction * 100:.2f}% and may lead to unreliable results.",
+            UserWarning
+        )
+
+def bold_perfusion( 
+    fmri, t1head, t1, t1segmentation, t1dktcit,
                    FD_threshold=0.5,
                    spa = (0., 0., 0., 0.),
                    nc = 3,
@@ -6714,11 +6744,18 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
       newspc = [minspc,minspc,minspc]
       fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 )
 
+  if verbose:
+      print( 'fmri_template')
+      print( fmri_template )
+
   rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
   bmask = ants.apply_transforms( fmri_template, 
     ants.threshold_image(t1segmentation,1,6), 
     rig['fwdtransforms'][0], 
     interpolator='genericLabel' )
+
+  warn_if_small_mask( bmask, label='bold_perfusion:bmask')
+  
   corrmo = timeseries_reg(
         fmri, fmri_template,
         type_of_transform=type_of_transform,
@@ -6742,6 +6779,7 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
   tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",3)
   bmask = bmask * ants.iMath( tsnrmask, "FillHoles" )
+  warn_if_small_mask( bmask, label='bold_perfusion:bmask*tsnrmask')
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1, "SyNBold" )
@@ -6754,13 +6792,16 @@ def bold_perfusion( fmri, t1head, t1, t1segmentation, t1dktcit,
   csfseg = ants.threshold_image( t1segmentation, 1, 1 )
   wmseg = ants.threshold_image( t1segmentation, 3, 3 )
   csfAndWM = ( csfseg + wmseg ).morphology("erode",1)
+  compcorquantile=0.50
   csfAndWM = ants.apply_transforms( und, csfAndWM,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   csfseg = ants.apply_transforms( und, csfseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  compcorquantile=0.50
+  warn_if_small_mask( wmseg, label='bold_perfusion:wmseg')
+  warn_if_small_mask( csfseg, label='bold_perfusion:csfseg')
+  warn_if_small_mask( csfAndWM, label='bold_perfusion:csfAndWM')
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,
     filter_type='polynomial', degree=2 )
