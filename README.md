@@ -171,6 +171,8 @@ NOTE: an example process for BIDS data on a cluster is [here](https://github.com
 
 # example processing
 
+see discussion [here](https://github.com/ANTsX/ANTsPyMM/issues/26) for the organization of tests and examples.
+
 see the latest help but this snippet gives an idea of how one might use the package:
 
 ```python

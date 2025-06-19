@@ -51,4 +51,4 @@ perf = antspymm.bold_perfusion(
   outlier_threshold=olthresh, add_FD_to_nuisance=False, verbose=True )
 # ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
 # ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
-ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
+# ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )

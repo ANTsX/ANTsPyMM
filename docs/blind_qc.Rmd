@@ -1,134 +1,208 @@
 ---
-title: antspymm blind QC summary
-output: html_document
+title: "ANTsPyMM: Blind Image Quality Control (QC) Summary"
+author: "Automated Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    df_print: kable
 ---
 
-```{r,echo=FALSE,include=FALSE}
-library(plyr)
-library(data.table)
-library(ztable)
-library(moonBook)
-library(kableExtra)
-library(flextable)
-library(plotly)
-library( ztable )
+```{r setup, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
+# --- R Environment Setup ---
+# Load only the necessary libraries for this report.
+# reticulate: The bridge between R and Python.
+# DT: For creating interactive HTML data tables.
+# pander: For creating clean, static markdown tables.
+library(reticulate)
+library(DT)
+library(pander)
+
+# Set global options for table formatting.
 options(digits=3)
-options( ztable.type="html" )
-tblcmd = ztable
+panderOptions('table.split.table', Inf) # Prevent pander from splitting wide tables
 ```
 
+### 1. Introduction
 
-example images and qc run
+This report demonstrates the `antspymm.blind_image_assessment` function for performing automated, no-reference Quality Control on medical images. We will first simulate a set of images with varying characteristics (noise, smoothness, etc.) and then run the QC analysis on them. The results are presented in interactive and static tables.
 
-```{python}
+This script is designed to be fully portable and self-contained. It creates temporary files in a system-appropriate location and cleans up after itself upon completion.
+
+### 2. Simulating Images for QC
+
+First, we set up a Python environment and generate several test images. A temporary directory is created to store these images, ensuring the script does not leave files on the system.
+
+```{python setup-and-simulate, message=FALSE, warning=FALSE}
+# --- Python Environment and Image Simulation ---
 import siq
 import ants
-import antspynet
 import antspymm
-eximg = siq.simulate_image( )
-ants.plot( eximg, nslices=8, ncol=4 )
-exfn0 = '/tmp/project-sid-date-T1w-uid.nii.gz'
-ants.image_write( eximg, exfn0 )
-qc = antspymm.blind_image_assessment( exfn0 )
-qc2 = antspymm.blind_image_assessment( eximg )
-print( qc.keys() )
-exfns = [ exfn0 ]
-```
-
-simulated images with high noise and high smoothing
-
-```{python}
-# gaussian noise
-exfnroot = '/tmp/project-sid-date-T1w-'
-nzimg = siq.simulate_image( ).add_noise_to_image( 'additivegaussian', [0,1] )
-exfn = exfnroot+'gaussiannoise.nii.gz'
-ants.image_write( nzimg, exfn )
-exfns.append( exfn )
-ants.plot( nzimg )
-# salt+pepper
-nzimg2 = siq.simulate_image( )
-nzimg2 = ants.add_noise_to_image( nzimg2, 'saltandpepper', [0.2,-1,1] )
-exfn = exfnroot+'saltpepper.nii.gz'
-ants.image_write( nzimg2, exfn )
-exfns.append( exfn )
-ants.plot( nzimg2 )
-# smooth
-smimg = siq.simulate_image( ).smooth_image( 3 )
-exfn = exfnroot+'smooth.nii.gz'
-ants.image_write( smimg, exfn )
-exfns.append( exfn )
-ants.plot( smimg )
-# time series
-tsimg = siq.simulate_image( [16,16,16,4] )
-exfn = exfnroot+'timeseries.nii.gz'
-ants.image_write( tsimg, exfn )
-exfns.append( exfn )
-```
-
-
-qc on all these
-
-```{python,warning=FALSE,message=FALSE}
+import os
+import tempfile
+import shutil
 import pandas as pd
-qcdf = pd.DataFrame()
-for k in range(len(exfns)):
-    myqc = antspymm.blind_image_assessment( exfns[k] )
-    qcdf = pd.concat(  [ qcdf, myqc ], axis=0 )
 
-qcdf.to_csv("/tmp/qc.csv")    
+# Create a single, system-agnostic temporary directory for all output files.
+# This makes the script portable (works on Linux, macOS, Windows).
+temp_dir = tempfile.mkdtemp()
+print(f"Using temporary directory: {temp_dir}")
 
+# List to hold the paths of all generated files for processing.
+generated_files = []
+
+# --- Image 1: Baseline Simulated Image ---
+print("Simulating baseline image...")
+eximg = siq.simulate_image()
+exfn_base = os.path.join(temp_dir, 'baseline.nii.gz')
+ants.image_write(eximg, exfn_base)
+generated_files.append(exfn_base)
+
+# --- Image 2: Additive Gaussian Noise ---
+print("Simulating image with Gaussian noise...")
+img_gauss = siq.simulate_image().add_noise_to_image('additivegaussian', [0, 1])
+exfn_gauss = os.path.join(temp_dir, 'noise_gaussian.nii.gz')
+ants.image_write(img_gauss, exfn_gauss)
+generated_files.append(exfn_gauss)
+
+# --- Image 3: Salt & Pepper Noise ---
+print("Simulating image with Salt & Pepper noise...")
+img_sp = siq.simulate_image()
+img_sp = ants.add_noise_to_image(img_sp, 'saltandpepper', [0.2, -1, 1])
+exfn_sp = os.path.join(temp_dir, 'noise_saltpepper.nii.gz')
+ants.image_write(img_sp, exfn_sp)
+generated_files.append(exfn_sp)
+
+# --- Image 4: Smoothed Image ---
+print("Simulating a smoothed image...")
+img_smooth = siq.simulate_image().smooth_image(3)
+exfn_smooth = os.path.join(temp_dir, 'smooth.nii.gz')
+ants.image_write(img_smooth, exfn_smooth)
+generated_files.append(exfn_smooth)
+
+# --- Image 5: Time Series Image ---
+print("Simulating a 4D time-series image...")
+img_ts = siq.simulate_image([16, 16, 16, 4])
+exfn_ts = os.path.join(temp_dir, 'timeseries.nii.gz')
+ants.image_write(img_ts, exfn_ts)
+generated_files.append(exfn_ts)
+
+print(f"\nGenerated {len(generated_files)} files for analysis.")
 ```
 
+### 3. Running Batch QC Analysis
 
-## dynamic sortable table (if rendering available)
-```{r}
-qc = read.csv( "/tmp/qc.csv" )[,-1]
-DT::datatable( qc )
-# knitr::kable( qc, caption='qc data frame')
+Now we loop through the generated images and run `blind_image_assessment` on each. The results are collected into a single Pandas DataFrame.
+
+```{python run-qc, message=FALSE, warning=FALSE}
+# --- Batch QC Processing ---
+# A more efficient way to build a DataFrame is to append dictionaries to a
+# list and then call the DataFrame constructor once.
+qc_results = []
+for f in generated_files:
+    print(f"Running QC on: {os.path.basename(f)}...")
+    myqc = antspymm.blind_image_assessment(f)
+    qc_results.append(myqc)
+
+# Concatenate all results into a single DataFrame.
+qcdf = pd.concat(qc_results, axis=0)
+
+# The 'qcdf' DataFrame is now automatically available to R via reticulate as py$qcdf
+# No need to write to a temporary CSV file.
 ```
 
+### 4. QC Results
 
+The following tables display the QC metrics for all simulated images.
 
-## regular table view
-```{r,results='asis',echo=FALSE}
-pander::pander( qc )
+#### 4.1. Interactive QC Data Table
+
+This table is sortable and searchable, which is useful for exploring the results dynamically.
+
+```{r interactive-table, echo=FALSE}
+# Access the Python DataFrame 'qcdf' directly using the reticulate 'py' object.
+# This avoids the need for intermediate files and is much more efficient.
+qc_data <- py$qcdf
+
+# Use DT::datatable for a rich, interactive HTML table.
+DT::datatable(
+  qc_data,
+  caption = 'Interactive table of blind QC metrics for simulated images.',
+  options = list(pageLength = 10, scrollX = TRUE)
+)
 ```
 
+#### 4.2. Static QC Data Table
 
-## list of entries and their meaning
+This is a clean, static view of the same data, suitable for printing or including in a non-interactive document.
 
-* `fn` - filename
+```{r static-table, echo=FALSE, results='asis'}
+# Use pander for a well-formatted, static markdown table.
+pander(qc_data, caption = 'Static table of blind QC metrics.')
+```
 
-* `noise` - estimated noise level; just the mean absolute error between the original image and a smoothed version of that image
+### 5. QC Metric Definitions
 
-* `snr` - signal to noise ratio;  defined from an automatically generated background and foreground mask `fgmean / bgstd`
+The metrics reported in the tables above are defined as follows:
 
-* `cnr` - contrast to noise ratio;  defined from an automatically generated background and foreground mask `( fgmean - bgmean ) / bgstd`
+`fn`
+: The filename of the processed image.
 
-* `psnr` - peak signal to noise ratio between original and smoothed image
+`noise`
+: Estimated noise level, calculated as the mean absolute difference between the original image and a smoothed version of it.
 
-* `ssim` - structural similarity between original and smoothed image
+`snr`
+: **Signal-to-Noise Ratio**. Defined from automatically generated foreground (fg) and background (bg) masks as: `mean(fg) / std(bg)`.
 
-* `mi` - mutual information between original and smoothed image
+`cnr`
+: **Contrast-to-Noise Ratio**. Defined as: `(mean(fg) - mean(bg)) / std(bg)`.
 
-* `reflection_error` - mean absolute error between original and reflected image
+`psnr`
+: **Peak Signal-to-Noise Ratio**. Calculated between the original and a smoothed version of the image.
 
-* `EVR` - eigenvalue ratio - towards zero for smooth images; toward 1 for pure noise; most reasonable medical images around 0.6 to 0.7
+`ssim`
+: **Structural Similarity**. Measures the similarity between the original and a smoothed version of the image. Higher values indicate greater similarity.
 
-* `msk_vol` - volume of the foreground mask
+`mi`
+: **Mutual Information**. Measures the statistical dependency between the original and smoothed image.
 
-* spc\* - image spacing
+`reflection_error`
+: Mean absolute error between the original image and a version reflected across the mid-sagittal plane. Useful for detecting severe spatial artifacts or asymmetries.
 
-* org\* - image origin
+`EVR`
+: **Eigenvalue Ratio**. A measure of image texture and complexity. Values near 0 suggest very smooth images, while values near 1 suggest pure noise. Typical medical images fall in the 0.6-0.7 range.
 
-* dim\* - image dimensions
+`msk_vol`
+: The volume of the automatically detected foreground mask, in cubic millimeters.
 
-* slice - image slice index (useful for time series)
+`spc*`
+: The voxel spacing (e.g., `spcx`, `spcy`, `spcz`).
 
-* modality - inferred image modality - based on filename (could change in future)
+`org*`
+: The image origin coordinates.
 
-* mriseries - series description read from json if available
+`dim*`
+: The image dimensions (number of voxels along each axis).
 
-* mrimfg - manufacturer read from json if available
+`slice`
+: The slice index, primarily used for 4D time-series data.
 
-* mrimodel - read from json if available
+`modality`
+: Inferred image modality, typically based on the filename.
+
+`mriseries`, `mrimfg`, `mrimodel`
+: Metadata fields (series description, manufacturer, model) read from a sidecar JSON file, if available.
+
+```{python cleanup, include=FALSE, echo=FALSE}
+# --- Cleanup ---
+# This final chunk runs invisibly to remove the temporary directory and all
+# its contents, ensuring the script leaves the system clean.
+try:
+    print(f"Cleaning up temporary directory: {temp_dir}")
+    shutil.rmtree(temp_dir)
+    print("Cleanup successful.")
+except NameError:
+    print("No temporary directory to clean up.")
+```
