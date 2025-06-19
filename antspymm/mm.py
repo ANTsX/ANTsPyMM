@@ -6755,7 +6755,7 @@ def bold_perfusion(
     interpolator='genericLabel' )
 
   warn_if_small_mask( bmask, label='bold_perfusion:bmask')
-  
+
   corrmo = timeseries_reg(
         fmri, fmri_template,
         type_of_transform=type_of_transform,
@@ -6800,7 +6800,7 @@ def bold_perfusion(
   wmseg = ants.apply_transforms( und, wmseg,
     t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
   warn_if_small_mask( wmseg, label='bold_perfusion:wmseg')
-  warn_if_small_mask( csfseg, label='bold_perfusion:csfseg')
+  # warn_if_small_mask( csfseg, threshold_fraction=0.01, label='bold_perfusion:csfseg')
   warn_if_small_mask( csfAndWM, label='bold_perfusion:csfAndWM')
   mycompcor = ants.compcor( fmrimotcorr,
     ncompcor=nc, quantile=compcorquantile, mask = csfAndWM,

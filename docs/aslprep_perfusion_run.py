@@ -39,10 +39,16 @@ fmri_template, hlinds = antspymm.loop_timeseries_censoring( fmri, 0.1 )
 fmri_template = ants.get_average_of_timeseries( fmri_template )
 print("do perf")
 olthresh=0.2
-perf = antspymm.bold_perfusion( fmri, fmri_template, t1head, t1, 
-  t1segmentation, dkt, nc=4, type_of_transform=type_of_transform,
+perf = antspymm.bold_perfusion( 
+  fmri, 
+  t1head, 
+  t1, 
+  t1segmentation, 
+  dkt,
+  nc=4, 
+  type_of_transform=type_of_transform,
   spa=(0.,0.,0.,0.),
   outlier_threshold=olthresh, add_FD_to_nuisance=False, verbose=True )
-ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
-ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
+# ants.image_write( ants.iMath( perf['perfusion'], "Normalize" ), '/tmp/temp.nii.gz' )
+# ants.image_write( perf['motion_corrected'], '/tmp/temp2.nii.gz' )
 ants.plot( ants.iMath( perf['perfusion'], "Normalize" ), axis=2, crop=True )
