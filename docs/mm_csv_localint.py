@@ -49,4 +49,4 @@ if len(t1fn) > 0:
     print( studycsv2 )
     mmrun = antspymm.mm_csv( studycsv2  )
 else:
-    print("T1w data is missing")
+    print("T1w data is missing: see github.com:stnava/ANTPD_antspymm for a full integration study and container with more easily accessible data")
