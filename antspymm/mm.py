@@ -2215,11 +2215,18 @@ def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rot
     # The original loop was equivalent to (tdir @ J.T).T
     # Since our `dg` is J.T, we need to compute (tdir @ dg).T
     # 1. Compute temp = tdir @ dg
-    temp = np.einsum('ij,...jk->...ik', tdir, dg)
+#    temp = np.einsum('ij,...jk->...ik', tdir, dg)
     # 2. Transpose the result
-    axes = (*range(temp.ndim - 2), temp.ndim - 1, temp.ndim - 2)
-    dg = np.transpose(temp, axes=axes)
-    
+#    axes = (*range(temp.ndim - 2), temp.ndim - 1, temp.ndim - 2)
+#    dg = np.transpose(temp, axes=axes)
+#    axes = (*range(dg.ndim - 2), dg.ndim - 1, dg.ndim - 2)
+#    dg = np.transpose(dg, axes=axes)
+#    temp = np.einsum('ij,...jk->...ik', tdir, dg)
+#    axes = (*range(temp.ndim - 2), temp.ndim - 1, temp.ndim - 2)
+#    dg = np.transpose(temp, axes=axes)
+    dg = (tdir @ dg.swapaxes(-1, -2)).swapaxes(-1, -2)
+
+
     dg += np.eye(dim)
     if to_rotation or to_inverse_rotation:
         U, s, Vh = np.linalg.svd(dg)
@@ -2272,11 +2279,8 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
     if verbose:
         print("reorient tensors locally: compose and get reo image")
     locrot = deformation_gradient_optimized( 
-        ants.image_read(composite_transform),  to_rotation=False, to_inverse_rotation=True ).numpy()
-    #ants.deformation_gradient( ants.image_read(composite_transform),
-    #    to_rotation = True, py_based=py_based ).numpy()
-    # rebases from moving index to fixed index space. Not quite what we need here
-    # rebaser = np.dot( np.transpose( fixed.direction  ), moving_dti.direction )
+        ants.image_read(composite_transform),  
+        to_rotation=True, to_inverse_rotation=False ).numpy()
     if verbose:
         print("convert UT to full tensor")
     dtiw2tensor = triangular_to_tensor( dtiw )
