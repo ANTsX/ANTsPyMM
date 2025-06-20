@@ -2210,23 +2210,7 @@ def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rot
     gradient_list = [np.gradient(warpnp[..., k], *spc, axis=range(dim)) for k in range(dim)]
     # This correctly calculates J.T, where dg[..., i, j] = d(u_j)/d(x_i)
     dg = np.stack([np.stack(grad_k, axis=-1) for grad_k in gradient_list], axis=-1)
-    
-    # *** THE FIX IS HERE ***
-    # The original loop was equivalent to (tdir @ J.T).T
-    # Since our `dg` is J.T, we need to compute (tdir @ dg).T
-    # 1. Compute temp = tdir @ dg
-#    temp = np.einsum('ij,...jk->...ik', tdir, dg)
-    # 2. Transpose the result
-#    axes = (*range(temp.ndim - 2), temp.ndim - 1, temp.ndim - 2)
-#    dg = np.transpose(temp, axes=axes)
-#    axes = (*range(dg.ndim - 2), dg.ndim - 1, dg.ndim - 2)
-#    dg = np.transpose(dg, axes=axes)
-#    temp = np.einsum('ij,...jk->...ik', tdir, dg)
-#    axes = (*range(temp.ndim - 2), temp.ndim - 1, temp.ndim - 2)
-#    dg = np.transpose(temp, axes=axes)
     dg = (tdir @ dg.swapaxes(-1, -2)).swapaxes(-1, -2)
-
-
     dg += np.eye(dim)
     if to_rotation or to_inverse_rotation:
         U, s, Vh = np.linalg.svd(dg)
