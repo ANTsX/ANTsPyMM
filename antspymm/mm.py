@@ -2195,7 +2195,7 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
     ants.copy_image_info( reference_image, dtiAnts )
     return dtiAnts
 
-def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, verbose=False, **kwargs):
+def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=False, verbose=False, **kwargs):
     """
     apply a transform to DTI in the style of ants.apply_transforms. this function
         expects a pre-computed composite transform which it will use to reorient
@@ -7650,7 +7650,7 @@ def mm(
                 if srmodel is not None:
                     tspc=[1.,1.,1.]
                 group_template2mm = ants.resample_image( group_template, tspc  )
-                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, py_based=True, verbose=True )
+                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=True )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
