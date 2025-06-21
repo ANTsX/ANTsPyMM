@@ -2223,10 +2223,7 @@ def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rot
         if to_inverse_rotation:
             dg = np.transpose(dg, axes=(*range(dg.ndim - 2), dg.ndim - 1, dg.ndim - 2))
     new_shape = tshp + (dim * dim,)
-    dg_reshaped = np.reshape(dg, new_shape)
-    return ants.from_numpy(dg_reshaped, origin=warp_image.origin,
-                           spacing=warp_image.spacing, direction=warp_image.direction,
-                           has_components=True)
+    return np.reshape(dg, new_shape)
 
 
 def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, verbose=False, **kwargs):
@@ -2264,7 +2261,7 @@ def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based
         print("reorient tensors locally: compose and get reo image")
     locrot = deformation_gradient_optimized( 
         ants.image_read(composite_transform),  
-        to_rotation=True, to_inverse_rotation=False ).numpy()
+        to_rotation=True, to_inverse_rotation=False )
     if verbose:
         print("convert UT to full tensor")
     dtiw2tensor = triangular_to_tensor( dtiw )
