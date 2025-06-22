@@ -135,5 +135,6 @@ from .mm import fix_LR_RL_stuff
 from .mm import segment_timeseries_by_bvalue
 from .mm import shorten_pymm_names
 from .mm import pet3d_summary
+from .mm import deformation_gradient_optimized
 
 

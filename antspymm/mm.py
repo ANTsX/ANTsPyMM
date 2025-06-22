@@ -2198,7 +2198,7 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
 
 def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rotation=False):
     """
-    The NEW, fast, vectorized pure Python/NumPy implementation.
+    vectorized pure Python/NumPy implementation.
     """
     if not ants.is_image(warp_image):
         raise RuntimeError("antsimage is required")
@@ -2210,7 +2210,7 @@ def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rot
     gradient_list = [np.gradient(warpnp[..., k], *spc, axis=range(dim)) for k in range(dim)]
     # This correctly calculates J.T, where dg[..., i, j] = d(u_j)/d(x_i)
     dg = np.stack([np.stack(grad_k, axis=-1) for grad_k in gradient_list], axis=-1)
-    dg = (tdir @ dg.swapaxes(-1, -2)).swapaxes(-1, -2)
+    dg = (tdir @ dg).swapaxes(-1, -2)
     dg += np.eye(dim)
     if to_rotation or to_inverse_rotation:
         U, s, Vh = np.linalg.svd(dg)
@@ -2222,68 +2222,129 @@ def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rot
         dg = Z
         if to_inverse_rotation:
             dg = np.transpose(dg, axes=(*range(dg.ndim - 2), dg.ndim - 1, dg.ndim - 2))
-    new_shape = tshp + (dim * dim,)
+    new_shape = tshp + (dim,dim)
     return np.reshape(dg, new_shape)
 
 
-def transform_and_reorient_dti( fixed, moving_dti, composite_transform, py_based=True, verbose=False, **kwargs):
+def transform_and_reorient_dti( fixed, moving_dti, composite_transform, verbose=False, **kwargs):
     """
-    apply a transform to DTI in the style of ants.apply_transforms. this function
-        expects a pre-computed composite transform which it will use to reorient
-        the DTI using preservation of principle directions.  BUG fix by cookpa 2025 
-        06 18.
+    Applies a transformation to a DTI image using an ANTs composite transform,
+    including local tensor reorientation via the Finite Strain method.
 
-    fixed : antsImage reference space
+    This function expects:
+    - Input `moving_dti` to be a 6-component ANTsImage (upper triangular format).
+    - `composite_transform` to point to an ANTs-readable transform file,
+      which maps points from `fixed` space to `moving` space.
 
-    moving_dti : antsImage DTI in upper triangular format
+    Args:
+        fixed (ants.ANTsImage): The reference space image (defines the output grid).
+        moving_dti (ants.ANTsImage): The input DTI (6-component), to be transformed.
+        composite_transform (str): File path to an ANTs transform
+                                   (e.g., from `ants.read_transform` or a written composite transform).
+        verbose (bool): Whether to print verbose output during execution.
+        **kwargs: Additional keyword arguments passed to `ants.apply_transforms`.
 
-    composite_transform : should be a composition of all transforms to be applied stored on disk ( a filename ) ... might change this in the future.
-
-    py_based : boolean
-
-    verbose : boolean
-
-    **kwargs : passed to ants.apply_transforms
-
+    Returns:
+        ants.ANTsImage: The transformed and reoriented DTI image in the `fixed` space,
+                        in 6-component upper triangular format.
     """
     if moving_dti.dimension != 3:
-        raise ValueError('moving image should have 3 dimensions')
+        raise ValueError('moving_dti must be 3-dimensional.')
     if moving_dti.components != 6:
-        raise ValueError('moving image should have 6 components')
-    # now apply the transform to the template
-    # 1. transform the tensor components
+        raise ValueError('moving_dti must have 6 components (upper triangular format).')
+
+    if verbose:
+        print("1. Spatially transforming DTI scalar components from moving to fixed space...")
+
+    # ants.apply_transforms resamples the *values* of each DTI component from 'moving_dti'
+    # onto the grid of 'fixed'.
+    # The output 'dtiw' will have the same spatial metadata (spacing, origin, direction) as 'fixed'.
+    # However, the tensor values contained within it are still oriented as they were in
+    # 'moving_dti's original image space, not 'fixed' image space, and certainly not yet reoriented
+    # by the local deformation.
     dtsplit = moving_dti.split_channels()
-    dtiw = []
+    dtiw_channels = []
     for k in range(len(dtsplit)):
-        dtiw.append( ants.apply_transforms( fixed, dtsplit[k], composite_transform ) )
-    dtiw=ants.merge_channels(dtiw) # resampled into fixed space but still based in moving index space
+        dtiw_channels.append( ants.apply_transforms( fixed, dtsplit[k], composite_transform, **kwargs ) )
+    dtiw = ants.merge_channels(dtiw_channels)
+    
     if verbose:
-        print("reorient tensors locally: compose and get reo image")
-    locrot = deformation_gradient_optimized( 
-        ants.image_read(composite_transform),  
-        to_rotation=True, to_inverse_rotation=False )
+        print(f"   DTI scalar components resampled to fixed grid. Result shape: {dtiw.shape}")
+        print("2. Computing local rotation field from composite transform...")
+    
+    # Read the composite transform as an image (assumed to be a displacement field).
+    # The 'deformation_gradient_optimized' function is assumed to be 100% correct,
+    # meaning it returns the appropriate local rotation matrix field (R_moving_to_fixed)
+    # in (spatial_dims..., 3, 3 ) format when called with these flags.
+    wtx = ants.image_read(composite_transform)
+    R_moving_to_fixed_forward = deformation_gradient_optimized(
+        wtx,
+        to_rotation=False,      # This means the *deformation gradient* F=I+J is computed first.
+        to_inverse_rotation=True # This requests the inverse of the rotation part of F.
+    )
+
     if verbose:
-        print("convert UT to full tensor")
-    dtiw2tensor = triangular_to_tensor( dtiw )
+        print(f"   Local reorientation matrices (R_moving_to_fixed_forward) computed. Shape: {R_moving_to_fixed_forward.shape}")
+        print("3. Converting 6-component DTI to full 3x3 tensors for vectorized reorientation...")
+    
+    # Convert `dtiw` (resampled, but still in moving-image-space orientation)
+    # from 6-components to full 3x3 tensor representation.
+    # dtiw2tensor_np will have shape (spatial_dims..., 3, 3).
+    dtiw2tensor_np = triangular_to_tensor(dtiw)
+    
     if verbose:
-        print("rebase tensors to new space and apply reorientation via iterator")
-    it = np.ndindex( fixed.shape )
-    for i in it:
-        mmm = dtiw2tensor[i]
-        # Rebase mmm to physical space
-        mmm = np.dot( mmm, np.transpose( moving_dti.direction ) )
-        mmm = np.dot( moving_dti.direction, mmm )
-        # Now apply local rotation
-        locrotx = np.reshape( locrot[i], [3,3] )
-        mmm = np.dot( mmm, np.transpose( locrotx ) )
-        mmm = np.dot( locrotx, mmm )
-        # Now rebase to fixed index space
-        mmm = np.dot( mmm, np.transpose( fixed.direction ) )
-        mmm = np.dot( fixed.direction, mmm )
-        dtiw2tensor[i] = mmm
+        print("4. Applying vectorized tensor reorientation (Finite Strain Method)...")
+    
+    # --- Vectorized Tensor Reorientation ---
+    # This replaces the entire `for i in it:` loop and its contents with efficient NumPy operations.
+
+    # Step 4.1: Rebase tensors from `moving_dti.direction` coordinate system to World Coordinates.
+    # D_world_moving_orient = moving_dti.direction @ D_moving_image_frame @ moving_dti.direction.T
+    # This transforms the tensor's components from being relative to `moving_dti`'s image axes
+    # (where they are currently defined) into absolute World (physical) coordinates.
+    D_world_moving_orient = np.einsum(
+        'ab, ...bc, cd -> ...ad',
+        moving_dti.direction,            # 3x3 matrix (moving_image_axes -> world_axes)
+        dtiw2tensor_np,                  # (spatial_dims..., 3, 3)
+        moving_dti.direction.T           # 3x3 matrix (world_axes -> moving_image_axes) - inverse of moving_dti.direction
+    )
+
+    # Step 4.2: Apply local rotation in World Coordinates (Finite Strain Reorientation).
+    # D_reoriented_world = R_moving_to_fixed_forward @ D_world_moving_orient @ (R_moving_to_fixed_forward).T
+    # This is the core reorientation step, transforming the tensor's orientation from
+    # the original `moving` space to the new `fixed` space, all within world coordinates.
+    D_world_fixed_orient = np.einsum(
+        '...ab, ...bc, ...cd -> ...ad',
+        R_moving_to_fixed_forward,      # (spatial_dims..., 3, 3) - local rotation
+        D_world_moving_orient,          # (spatial_dims..., 3, 3) - tensor in world space, moving_orient
+        np.swapaxes(R_moving_to_fixed_forward, -1, -2) # (spatial_dims..., 3, 3) - transpose of local rotation
+    )
+
+    # Step 4.3: Rebase reoriented tensors from World Coordinates to `fixed.direction` coordinate system.
+    # D_final_fixed_image_frame = (fixed.direction).T @ D_world_fixed_orient @ fixed.direction
+    # This transforms the tensor's components from absolute World (physical) coordinates
+    # back into `fixed.direction`'s image coordinate system.
+    final_dti_tensors_numpy = np.einsum(
+        'ba, ...bc, cd -> ...ad',
+        fixed.direction,                # Using `fixed.direction` here, but 'ba' indices specify to use its transpose.
+        D_world_fixed_orient,           # (spatial_dims..., 3, 3)
+        fixed.direction                 # 3x3 matrix (world_axes -> fixed_image_axes)
+    )
+
     if verbose:
-        print("done with rebasing")
-    return dti_numpy_to_image( fixed, dtiw2tensor )
+        print("   Vectorized tensor reorientation complete.")
+
+    if verbose:
+        print("5. Converting reoriented full tensors back to 6-component ANTsImage...")
+    
+    # Convert the final (spatial_dims..., 3, 3) NumPy array of tensors back into a
+    # 6-component ANTsImage with the correct spatial metadata from `fixed`.
+    final_dti_image = dti_numpy_to_image(fixed, final_dti_tensors_numpy)
+    
+    if verbose:
+        print(f"Done. Final reoriented DTI image in fixed space generated. Shape: {final_dti_image.shape}")
+
+    return final_dti_image
 
 def dti_reg(
     image,
@@ -7680,7 +7741,7 @@ def mm(
                 if srmodel is not None:
                     tspc=[1.,1.,1.]
                 group_template2mm = ants.resample_image( group_template, tspc  )
-                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=True )
+                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=False )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
