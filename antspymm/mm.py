@@ -7434,7 +7434,7 @@ def mm(
     if do_kk:
         if verbose:
             print('kk')
-        output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( hier['brain_n4_dnz'],
+        output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( t1atropos,
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
     if perfusion_image is not None:
         if perfusion_image.shape[3] > 1: # FIXME - better heuristic?
