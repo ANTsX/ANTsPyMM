@@ -186,4 +186,5 @@ if len(t1fn) > 0:
     print( studycsv2 )
     mmrun = antspymm.mm_csv( studycsv2  )
 else:
+    print("We searched "+mydir+"101018/20210412/T1w/1496225/*.nii.gz")
     print("T1w data is missing: see github.com:stnava/ANTPD_antspymm for a full integration study and container with more easily accessible data")
