@@ -2,85 +2,144 @@
 # for easier to access data with a full mm_csv example, see:
 # github.com:stnava/ANTPD_antspymm
 ##################################################################
-import os
 from os.path import exists
+import os
 import signal
+import urllib.request
+import zipfile
+import tempfile
+from pathlib import Path
+from tqdm import tqdm
 
-def find_data_dir(candidate_paths, max_tries=5, timeout=8):
+REQUIRED_FILES = [
+    "PPMI/101018/20210412/T1w/1496225/PPMI-101018-20210412-T1w-1496225.nii.gz",
+    "PPMI/101018/20210412/DTI_LR/1496234/PPMI-101018-20210412-DTI_LR-1496234.nii.gz"
+]
+
+def _validate_required_files(base_dir, required_files):
+    for rel_path in required_files:
+        full_path = os.path.join(base_dir, rel_path)
+        if not os.path.isfile(full_path):
+            print(f"❌ Missing required file: {rel_path}")
+            return False
+    return True
+
+def _download_with_progress(url, destination):
+    with urllib.request.urlopen(url) as response, open(destination, 'wb') as out_file:
+        total = int(response.getheader('Content-Length', 0))
+        with tqdm(total=total, unit='B', unit_scale=True, desc="Downloading", ncols=80) as pbar:
+            while True:
+                chunk = response.read(8192)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+                pbar.update(len(chunk))
+
+def find_data_dir(candidate_paths=None, max_tries=5, timeout=22, allow_download=None, required_files=REQUIRED_FILES):
     """
-    Search for the first existing directory in a list. If none are found,
-    prompt the user to enter a path (with timeout) up to `max_tries` times.
+    Attempts to locate or download the ANTsPyMM testing dataset.
 
     Parameters
     ----------
-    candidate_paths : list of str
-        Paths to try in order.
+    candidate_paths : list of str or None
+        Directories to search for the data. If None, uses sensible defaults.
     max_tries : int
-        Maximum number of manual attempts.
+        Number of chances to enter a valid path manually.
     timeout : int
-        Time (in seconds) to wait for user input before exiting.
+        Seconds to wait for user input before timing out.
+    allow_download : None | str
+        If not None, will download to {allow_download}/nrgdata_test if needed.
+    required_files : list of str
+        Relative paths that must exist inside the data directory.
 
     Returns
     -------
     str
-        A valid existing directory path.
-
-    Raises
-    ------
-    RuntimeError
-        If no path is found or selected within the allowed attempts.
+        Path to a valid data directory.
     """
-    # Try provided paths first
-    for path in candidate_paths:
-        expanded = os.path.expanduser(path)
-        if os.path.isdir(expanded):
-            print(f"✅ Found data directory: {expanded}")
-            return expanded
+    if candidate_paths is None:
+        candidate_paths = [
+            "~/Downloads/temp/shortrun/nrgdata_test",
+            "~/Downloads/ANTsPyMM_testing_data/nrgdata_test",
+            "~/data/ppmi/nrgdata_test",
+            "/mnt/data/nrgdata_test"
+        ]
 
-    # Setup timeout handler (POSIX only)
+    # First, search known paths
+    for path in candidate_paths:
+        full_path = os.path.expanduser(path)
+        if os.path.isdir(full_path) and _validate_required_files(full_path, required_files):
+            print(f"✅ Found valid data directory: {full_path}")
+            return full_path
+
+    # Handle automatic download
+    if isinstance(allow_download, str):
+        base_dir = os.path.expanduser(allow_download)
+        target_dir = os.path.join(base_dir, "nrgdata_test")
+        if not os.path.isdir(target_dir) or not _validate_required_files(target_dir, required_files):
+            print(f"📥 Will download data to: {target_dir}")
+            url = "https://figshare.com/ndownloader/articles/29391236/versions/1"
+            os.makedirs(base_dir, exist_ok=True)
+            zip_path = os.path.join(tempfile.gettempdir(), "antspymm_testdata.zip")
+
+            try:
+                _download_with_progress(url, zip_path)
+                print("📦 Extracting...")
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(base_dir)
+                print(f"✅ Extracted to {target_dir}")
+            except Exception as e:
+                raise RuntimeError(f"❌ Download or extraction failed: {e}")
+
+        if not _validate_required_files(target_dir, required_files):
+            raise RuntimeError(f"❌ Downloaded data is missing required files in {target_dir}")
+        return target_dir
+
+    # Timeout handler for POSIX
     def timeout_handler(signum, frame):
-        raise TimeoutError("⏳ No input received in time. Exiting.")
+        raise TimeoutError("⏳ No input received in time.")
 
     if os.name == 'posix':
         signal.signal(signal.SIGALRM, timeout_handler)
 
-    print("📦 None of the default data directories were found.")
-    print("🔗 Official dataset (if needed): https://figshare.com/articles/dataset/ANTsPyMM_testing_data/29391236")
+    # Manual user prompt
+    print("🔍 Could not find valid data. You may enter a directory manually.")
+    print("🔗 Dataset info: https://figshare.com/articles/dataset/ANTsPyMM_testing_data/29391236")
 
-    tries = 0
-    while tries < max_tries:
-        tries += 1
+    for attempt in range(1, max_tries + 1):
         try:
             if os.name == 'posix':
                 signal.alarm(timeout)
-            user_input = input(f"⏱️ Attempt {tries}/{max_tries} — Enter valid directory (or 'q' to quit): ").strip()
+            user_input = input(f"⏱️ Attempt {attempt}/{max_tries} — Enter data directory (or 'q' to quit): ").strip()
             if os.name == 'posix':
                 signal.alarm(0)
 
             if user_input.lower() == 'q':
-                raise RuntimeError("User aborted directory selection.")
+                break
 
-            expanded_input = os.path.expanduser(user_input)
-            if os.path.isdir(expanded_input):
-                print(f"✅ Using user-provided directory: {expanded_input}")
-                return expanded_input
+            path = os.path.expanduser(user_input)
+            if os.path.isdir(path) and _validate_required_files(path, required_files):
+                print(f"✅ Using user-provided directory: {path}")
+                return path
             else:
-                print(f"❌ '{expanded_input}' is not a valid directory.")
+                print("❌ Invalid or incomplete directory.")
 
         except TimeoutError as e:
             raise RuntimeError(str(e))
         except KeyboardInterrupt:
             raise RuntimeError("User interrupted execution. Exiting.")
 
-    raise RuntimeError("❗ No valid directory found after maximum attempts.")
+    raise RuntimeError("❗ No valid data directory found and download not permitted.")
 
-rdir = find_data_dir([
+candidate_rdirs = [
     "~/Downloads/nrgdata_test/",
-    "~/Downloads/temp/shortrun/nrgdata_test/",
+    "~/Downloads/temp/nrgdata_test/",
     "~/nrgdata_test/",
     "~/data/ppmi/nrgdata_test/",
-    "/mnt/data/ppmi_testing/nrgdata_test/"
-])
+    "/mnt/data/ppmi_testing/nrgdata_test/"]
+
+
+rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 
 nthreads = str(8)
