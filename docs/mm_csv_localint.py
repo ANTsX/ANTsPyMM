@@ -184,6 +184,22 @@ if len(t1fn) > 0:
     )
     studycsv2 = studycsv.dropna(axis=1)
     print( studycsv2 )
-    mmrun = antspymm.mm_csv( studycsv2  )
+    template = ants.image_read("~/.antspymm/PPMI_template0.nii.gz").reorient_image2("LPI")
+    bxt = ants.image_read("~/.antspymm/PPMI_template0_brainmask.nii.gz").reorient_image2("LPI")
+    template = template * bxt
+    template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
+    mmrun = antspymm.mm_csv( studycsv2,
+        normalization_template=template,
+        normalization_template_output='ppmi',
+        normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
+        normalization_template_spacing=[1,1,1]  )
+    pdir = str(studycsv2['outputdir'][0])
+    merged=antspymm.aggregate_antspymm_results_sdf( studycsv2,
+        subject_col='subjectID', date_col='date', image_col='imageID',  base_path=pdir,
+        splitsep='-', idsep='-', wild_card_modality_id=True, second_split=False, verbose=True )
+    print(merged.shape)
+    index=0
+    outfn = pdir + studycsv2['projectID'][index]+'-'+ studycsv2['subjectID'][index]+'-'+ studycsv2['date'][index]+'-'+studycsv2['imageID'][index]+'-mmwide.csv'
+    merged.to_csv( outfn )
 else:
     print("T1w data is missing: see github.com:stnava/ANTPD_antspymm for a full integration study and container with more easily accessible data")
