@@ -2198,7 +2198,57 @@ def dti_numpy_to_image( reference_image, tensorarray, upper_triangular=True):
 
 def deformation_gradient_optimized(warp_image, to_rotation=False, to_inverse_rotation=False):
     """
-    vectorized pure Python/NumPy implementation.
+    Compute the deformation gradient tensor from a displacement (warp) field image.
+
+    This function computes the **deformation gradient** `F = ∂φ/∂x` where `φ(x) = x + u(x)` is the mapping
+    induced by the displacement field `u(x)` stored in `warp_image`.
+
+    The returned tensor field has shape `(x, y, z, dim, dim)` (for 3D), where each matrix represents 
+    the **Jacobian** of the transformation at that voxel. The gradient is computed in the physical space 
+    of the image using spacing and direction metadata.
+
+    Optionally, the deformation gradient can be projected onto the space of pure rotations using the polar
+    decomposition (via SVD). This is useful for applications like reorientation of tensors (e.g., DTI).
+
+    Parameters
+    ----------
+    warp_image : ants.ANTsImage
+        A vector-valued ANTsImage encoding the warp/displacement field. It must have `dim` components
+        (e.g., shape `(x, y, z, 3)` for 3D) representing the displacements in each spatial direction.
+        
+    to_rotation : bool, optional
+        If True, the deformation gradient will be replaced with its **nearest rotation matrix**
+        using the polar decomposition (`F → R`, where `F = R U`).
+        
+    to_inverse_rotation : bool, optional
+        If True, the deformation gradient will be replaced with the **inverse of the rotation**
+        (`F → R.T`), which is often needed for transforming tensors **back** to their original frame.
+
+    Returns
+    -------
+    F : np.ndarray
+        A NumPy array of shape `(x, y, z, dim, dim)` (or `(dim1, dim2, ..., dim, dim)` in general),
+        representing the deformation gradient tensor field at each voxel.
+
+    Raises
+    ------
+    RuntimeError
+        If `warp_image` is not an `ants.ANTsImage`.
+
+    Notes
+    -----
+    - The function computes gradients in physical space using the spacing of the image and applies 
+      the image direction matrix (`tdir`) to properly orient gradients.
+    - The gradient is added to the identity matrix to yield the deformation gradient `F = I + ∂u/∂x`.
+    - The polar decomposition ensures `F` is replaced with the closest rotation matrix (orthogonal, det=1).
+    - This is a **vectorized pure NumPy implementation**, intended for performance and simplicity.
+
+    Examples
+    --------
+    >>> warp = ants.create_warp_image(reference_image, displacement_field)
+    >>> F = deformation_gradient_optimized(warp)
+    >>> R = deformation_gradient_optimized(warp, to_rotation=True)
+    >>> Rinv = deformation_gradient_optimized(warp, to_inverse_rotation=True)
     """
     if not ants.is_image(warp_image):
         raise RuntimeError("antsimage is required")
