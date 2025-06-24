@@ -32,9 +32,9 @@ RUN pip install --upgrade pip \
     scikit-learn \
     ipython \
     jupyterlab \
-    antspyx==0.5.4 \
+    antspyx==0.5.5 \
     antspynet==0.2.9 \
-    antspymm==1.5.4 \
+    antspymm==1.5.5 \
     siq==0.3.4
 
 # for downloading example data from open neuro
