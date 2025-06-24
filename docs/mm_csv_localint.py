@@ -4,6 +4,85 @@
 ##################################################################
 import os
 from os.path import exists
+import signal
+
+def find_data_dir(candidate_paths, max_tries=5, timeout=8):
+    """
+    Search for the first existing directory in a list. If none are found,
+    prompt the user to enter a path (with timeout) up to `max_tries` times.
+
+    Parameters
+    ----------
+    candidate_paths : list of str
+        Paths to try in order.
+    max_tries : int
+        Maximum number of manual attempts.
+    timeout : int
+        Time (in seconds) to wait for user input before exiting.
+
+    Returns
+    -------
+    str
+        A valid existing directory path.
+
+    Raises
+    ------
+    RuntimeError
+        If no path is found or selected within the allowed attempts.
+    """
+    # Try provided paths first
+    for path in candidate_paths:
+        expanded = os.path.expanduser(path)
+        if os.path.isdir(expanded):
+            print(f"✅ Found data directory: {expanded}")
+            return expanded
+
+    # Setup timeout handler (POSIX only)
+    def timeout_handler(signum, frame):
+        raise TimeoutError("⏳ No input received in time. Exiting.")
+
+    if os.name == 'posix':
+        signal.signal(signal.SIGALRM, timeout_handler)
+
+    print("📦 None of the default data directories were found.")
+    print("🔗 Official dataset (if needed): https://figshare.com/articles/dataset/ANTsPyMM_testing_data/29391236")
+
+    tries = 0
+    while tries < max_tries:
+        tries += 1
+        try:
+            if os.name == 'posix':
+                signal.alarm(timeout)
+            user_input = input(f"⏱️ Attempt {tries}/{max_tries} — Enter valid directory (or 'q' to quit): ").strip()
+            if os.name == 'posix':
+                signal.alarm(0)
+
+            if user_input.lower() == 'q':
+                raise RuntimeError("User aborted directory selection.")
+
+            expanded_input = os.path.expanduser(user_input)
+            if os.path.isdir(expanded_input):
+                print(f"✅ Using user-provided directory: {expanded_input}")
+                return expanded_input
+            else:
+                print(f"❌ '{expanded_input}' is not a valid directory.")
+
+        except TimeoutError as e:
+            raise RuntimeError(str(e))
+        except KeyboardInterrupt:
+            raise RuntimeError("User interrupted execution. Exiting.")
+
+    raise RuntimeError("❗ No valid directory found after maximum attempts.")
+
+rdir = find_data_dir([
+    "~/Downloads/nrgdata_test/",
+    "~/Downloads/temp/shortrun/nrgdata_test/",
+    "~/nrgdata_test/",
+    "~/data/ppmi/nrgdata_test/",
+    "/mnt/data/ppmi_testing/nrgdata_test/"
+])
+print(f"Using data directory: {rdir}")
+
 nthreads = str(8)
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
@@ -16,9 +95,8 @@ import antspymm
 import ants
 import random
 import re
-rdir = os.path.expanduser( "~/Downloads/temp/shortrun/nrgdata/" )
 mydir = rdir + "PPMI/"
-outdir = re.sub( 'nrgdata', 'antspymmoutput', rdir )
+outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
 ################
 import antspymm
 import pandas as pd
