@@ -4,7 +4,7 @@ import os
 from dipy.io.gradients import read_bvals_bvecs
 from scipy.stats import pearsonr
 import antspymm
-nt = 24
+nt = 2
 def read_bvecs_rotated(bvec_file, rotmat):
     bvecs = np.loadtxt(bvec_file)
     if bvecs.shape[0] != 3:
