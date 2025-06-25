@@ -1794,6 +1794,89 @@ def merge_timeseries_data( img_LR, img_RL, allow_resample=True ):
         mimg.append( temp )
     return ants.list_to_ndimage( img_LR, mimg )
 
+def copy_spatial_metadata_from_3d_to_4d(spatial_img, timeseries_img):
+    """
+    Copy spatial metadata (origin, spacing, direction) from a 3D image to the
+    spatial dimensions (first 3) of a 4D image, preserving the 4th dimension's metadata.
+
+    Parameters
+    ----------
+    spatial_img : ants.ANTsImage
+        A 3D ANTsImage with the desired spatial metadata.
+    timeseries_img : ants.ANTsImage
+        A 4D ANTsImage to update.
+
+    Returns
+    -------
+    ants.ANTsImage
+        A 4D ANTsImage with updated spatial metadata.
+    """
+    if spatial_img.dimension != 3:
+        raise ValueError("spatial_img must be a 3D ANTsImage.")
+    if timeseries_img.dimension != 4:
+        raise ValueError("timeseries_img must be a 4D ANTsImage.")
+    # Get 3D metadata
+    spatial_origin = list(spatial_img.origin)
+    spatial_spacing = list(spatial_img.spacing)
+    spatial_direction = spatial_img.direction  # 3x3
+    # Get original 4D metadata
+    ts_spacing = list(timeseries_img.spacing)
+    ts_origin = list(timeseries_img.origin)
+    ts_direction = timeseries_img.direction  # 4x4
+    # Replace only the first 3 entries for origin and spacing
+    new_origin = spatial_origin + [ts_origin[3]]
+    new_spacing = spatial_spacing + [ts_spacing[3]]
+    # Replace top-left 3x3 block of direction matrix, preserve last row/column
+    new_direction = ts_direction.copy()
+    new_direction[:3, :3] = spatial_direction
+    # Create updated image
+    updated_img = ants.from_numpy(
+        timeseries_img.numpy(),
+        origin=new_origin,
+        spacing=new_spacing,
+        direction=new_direction
+    )
+    return updated_img
+
+def timeseries_transform(transform, image, reference, interpolation='linear'):
+    """
+    Apply a spatial transform to each 3D volume in a 4D time series image.
+
+    Parameters
+    ----------
+    transform : ants transform object
+        Path(s) to ANTs-compatible transform(s) to apply.
+    image : ants.ANTsImage
+        4D input image with shape (X, Y, Z, T).
+    reference : ants.ANTsImage
+        Reference image to match in space.
+    interpolation : str
+        Interpolation method: 'linear', 'nearestNeighbor', etc.
+
+    Returns
+    -------
+    ants.ANTsImage
+        4D transformed image.
+    """
+    if image.dimension != 4:
+        raise ValueError("Input image must be 4D (X, Y, Z, T).")
+    n_volumes = image.shape[3]
+    transformed_volumes = []
+    for t in range(n_volumes):
+        vol = ants.slice_image( image, 3, t )
+        transformed = ants.apply_ants_transform_to_image(
+            transform=transform,
+            image=vol,
+            reference=reference,
+            interpolation=interpolation
+        )
+        transformed_volumes.append(transformed.numpy())
+    # Stack along time axis and convert to ANTsImage
+    transformed_array = np.stack(transformed_volumes, axis=-1)
+    out_image = ants.from_numpy(transformed_array)
+    out_image = ants.copy_image_info(image, out_image)
+    out_image = copy_spatial_metadata_from_3d_to_4d(reference, out_image)
+    return out_image
 
 def timeseries_reg(
     image,
@@ -3931,6 +4014,130 @@ def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
     full_fit = model.fit(img_data * mask[..., None])
     return full_fit, FA_img, MD_img, RGB_img
 
+
+def efficient_dwi_fit_voxelwise(imagein, maskin, bvals, bvecs_5d, model_params=None,
+                                bvals_to_use=None, num_threads=1, verbose=True):
+    """
+    Voxel-wise diffusion model fitting with individual b-vectors per voxel.
+
+    Parameters
+    ----------
+    imagein : ants.ANTsImage
+        4D DWI image (X, Y, Z, N).
+    maskin : ants.ANTsImage
+        3D binary mask.
+    bvals : (N,) array-like
+        Common b-values across volumes.
+    bvecs_5d : (X, Y, Z, N, 3) ndarray
+        Voxel-specific b-vectors.
+    model_params : dict
+        Extra arguments for model.
+    bvals_to_use : list[int]
+        Subset of b-values to include.
+    num_threads : int
+        Number of threads to use.
+    verbose : bool
+        Whether to print status.
+
+    Returns
+    -------
+    FA_img : ants.ANTsImage
+        Fractional anisotropy.
+    MD_img : ants.ANTsImage
+        Mean diffusivity.
+    RGB_img : ants.ANTsImage
+        RGB FA image.
+    """
+    import numpy as np
+    import ants
+    import dipy.reconst.dti as dti
+    from dipy.core.gradients import gradient_table
+    from dipy.reconst.dti import fractional_anisotropy, color_fa, mean_diffusivity
+    from concurrent.futures import ThreadPoolExecutor
+    from tqdm import tqdm
+
+    model_params = model_params or {}
+    img = imagein.numpy()
+    mask = maskin.numpy().astype(bool)
+    X, Y, Z, N = img.shape
+
+    if bvals_to_use is not None:
+        sel = np.isin(bvals, bvals_to_use)
+        img = img[..., sel]
+        bvals = bvals[sel]
+        bvecs_5d = bvecs_5d[..., sel, :]
+
+    FA = np.zeros((X, Y, Z), dtype=np.float32)
+    MD = np.zeros((X, Y, Z), dtype=np.float32)
+    RGB = np.zeros((X, Y, Z, 3), dtype=np.float32)
+
+    def fit_voxel(ix, iy, iz):
+        if not mask[ix, iy, iz]:
+            return
+        sig = img[ix, iy, iz, :]
+        if np.all(sig == 0):
+            return
+        bv = bvecs_5d[ix, iy, iz, :, :]
+        gtab = gradient_table(bvals, bv)
+        try:
+            model = dti.TensorModel(gtab, **model_params)
+            fit = model.fit(sig)
+            evals = fit.evals
+            evecs = fit.evecs
+            FA[ix, iy, iz] = fractional_anisotropy(evals)
+            MD[ix, iy, iz] = mean_diffusivity(evals)
+            RGB[ix, iy, iz, :] = color_fa(FA[ix, iy, iz], evecs)
+        except Exception as e:
+            if verbose:
+                print(f"Voxel ({ix},{iy},{iz}) fit failed: {e}")
+
+    coords = np.argwhere(mask)
+    if verbose:
+        print(f"[INFO] Fitting {len(coords)} voxels using {num_threads} threads...")
+
+    if num_threads > 1:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            list(tqdm(executor.map(lambda c: fit_voxel(*c), coords), total=len(coords)))
+    else:
+        for c in tqdm(coords):
+            fit_voxel(*c)
+
+    ref = ants.slice_image(imagein, axis=3, idx=0)
+    return (
+        ants.copy_image_info(ref, ants.from_numpy(FA)),
+        ants.copy_image_info(ref, ants.from_numpy(MD)),
+        ants.merge_channels([ants.copy_image_info(ref, ants.from_numpy(RGB[..., i])) for i in range(3)])
+    )
+
+
+def generate_voxelwise_bvecs(global_bvecs, voxel_rotations):
+    """
+    Generate voxel-wise b-vectors from a global bvec and voxel-wise rotation field.
+
+    Parameters
+    ----------
+    global_bvecs : ndarray of shape (N, 3)
+        Global diffusion gradient directions.
+    voxel_rotations : ndarray of shape (X, Y, Z, 3, 3)
+        3x3 rotation matrix for each voxel (can come from Jacobian of deformation field).
+
+    Returns
+    -------
+    bvecs_5d : ndarray of shape (X, Y, Z, N, 3)
+        Voxel-specific b-vectors.
+    """
+    X, Y, Z, _, _ = voxel_rotations.shape
+    N = global_bvecs.shape[0]
+    bvecs_5d = np.zeros((X, Y, Z, N, 3), dtype=np.float32)
+
+    for n in range(N):
+        bvec = global_bvecs[n]
+        for i in range(X):
+            for j in range(Y):
+                for k in range(Z):
+                    R = voxel_rotations[i, j, k]
+                    bvecs_5d[i, j, k, n, :] = R @ bvec
+    return bvecs_5d
 
 def dipy_dti_recon(
     image,

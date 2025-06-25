@@ -65,6 +65,8 @@ from .mm import mc_denoise
 from .mm import mc_reg
 from .mm import dti_reg
 from .mm import timeseries_reg
+from .mm import timeseries_transform
+from .mm import copy_spatial_metadata_from_3d_to_4d
 from .mm import concat_dewarp
 from .mm import mc_resample_image_to_target
 from .mm import trim_dti_mask
@@ -136,5 +138,7 @@ from .mm import segment_timeseries_by_bvalue
 from .mm import shorten_pymm_names
 from .mm import pet3d_summary
 from .mm import deformation_gradient_optimized
+from .mm import efficient_dwi_fit_voxelwise
+from .mm import generate_voxelwise_bvecs
 
 
