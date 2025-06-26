@@ -4110,7 +4110,7 @@ def efficient_dwi_fit_voxelwise(imagein, maskin, bvals, bvecs_5d, model_params=N
     )
 
 
-def generate_voxelwise_bvecs(global_bvecs, voxel_rotations):
+def generate_voxelwise_bvecs(global_bvecs, voxel_rotations, transpose=False):
     """
     Generate voxel-wise b-vectors from a global bvec and voxel-wise rotation field.
 
@@ -4120,6 +4120,9 @@ def generate_voxelwise_bvecs(global_bvecs, voxel_rotations):
         Global diffusion gradient directions.
     voxel_rotations : ndarray of shape (X, Y, Z, 3, 3)
         3x3 rotation matrix for each voxel (can come from Jacobian of deformation field).
+    transpose : bool, optional
+        If True, transpose the rotation matrices before applying them to the b-vectors.
+
 
     Returns
     -------
@@ -4136,6 +4139,8 @@ def generate_voxelwise_bvecs(global_bvecs, voxel_rotations):
             for j in range(Y):
                 for k in range(Z):
                     R = voxel_rotations[i, j, k]
+                    if transpose:
+                        R = R.T  # Use transpose if needed
                     bvecs_5d[i, j, k, n, :] = R @ bvec
     return bvecs_5d
 

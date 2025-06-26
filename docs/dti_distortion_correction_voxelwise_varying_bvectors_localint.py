@@ -9,6 +9,13 @@ nt = 2
 import numpy as np
 from scipy.stats import pearsonr
 
+def read_bvecs_rotated(bvec_file, rotmat):
+    bvecs = np.loadtxt(bvec_file)
+    if bvecs.shape[0] != 3:
+        bvecs = bvecs.T
+    rotated_bvecs = (rotmat @ bvecs).T
+    return rotated_bvecs
+
 def mean_rgb_correlation(img1, img2, mask):
     """
     Compute the mean correlation between two RGB images.
@@ -39,6 +46,42 @@ def mean_rgb_correlation(img1, img2, mask):
             corr, _ = pearsonr(x, y)
         correlations.append(corr)
     return np.mean(correlations)
+
+import numpy as np
+import ants
+
+def mean_rgb_mae(img1, img2, mask):
+    """
+    Compute the mean absolute error (MAE) between two RGB images.
+
+    Parameters
+    ----------
+    img1 : np.ndarray
+        First RGB image as a (H, W, 3) NumPy array.
+    img2 : np.ndarray
+        Second RGB image as a (H, W, 3) NumPy array.
+    mask : ants.ANTsImage
+        Binary mask defining valid pixels for error calculation.
+
+    Returns
+    -------
+    float
+        Mean absolute error across the three RGB channels.
+    """
+    if img1.shape != img2.shape:
+        raise ValueError("Input images must have the same shape.")
+    
+    mae_values = []
+    img1c = ants.split_channels(img1)
+    img2c = ants.split_channels(img2)   
+    
+    for c in range(3):  # R, G, B
+        x = extract_masked_values(img1c[c], mask)
+        y = extract_masked_values(img2c[c], mask)
+        mae = np.mean(np.abs(x - y))
+        mae_values.append(mae)
+    
+    return np.mean(mae_values)
 
 def extract_masked_values(image, mask):
     return image.numpy()[mask.numpy() > 0]
@@ -90,9 +133,20 @@ if True:
     print("📁 Loading subject RL data...")
     rlid = os.path.join(ex_path_mm, rlid )
     img_RL_in = ants.image_read(rlid + '.nii.gz')
+    bvalsRL, bvecsRL = read_bvals_bvecs(rlid + '.bval', rlid + '.bvec')
+
+
+    simulate=True
+    if simulate:
+        rotator=ants.contrib.Rotate3D(rotation=(0,0,34), reference=img_LR_in_avg )
+        rotation = rotator.transform()
+        img_RL_in = antspymm.timeseries_transform(rotation, img_LR_in, reference=img_LR_in_avg)
+        rotmat = ants.get_ants_transform_parameters(rotation.invert()).reshape((4, 3))[:3, :3]
+        bvecsRL = read_bvecs_rotated(lrid + '.bvec', rotmat )
+        bvalsRL = bvals.copy()
+
     img_RL_in_avg = ants.get_average_of_timeseries( img_RL_in )
     maskRL = img_RL_in_avg.get_mask()
-    bvalsRL, bvecsRL = read_bvals_bvecs(rlid + '.bval', rlid + '.bvec')
 
     print("🧠 Running baseline LR fit...")
     bvecs_5d_orig = np.broadcast_to(bvecs, shape + bvecs.shape).copy()
@@ -123,8 +177,12 @@ if True:
 
     print("dist corr")
     if not "mytx" in globals():
-        mytx = ants.registration( FA_orig, FA_origRL, 'SyNBold' )
-        mytx2 = ants.apply_transforms(FA_orig, FA_origRL, mytx['fwdtransforms'], interpolator='linear', imagetype=0, compose='/tmp/comptx' )
+        if simulate:
+            mytx = ants.registration( FA_orig, FA_origRL, 'Rigid' )
+        else:
+            mytx = ants.registration( FA_orig, FA_origRL, 'SyNBold' )
+        mytx2 = ants.apply_transforms(FA_orig, FA_origRL, mytx['fwdtransforms'],
+            interpolator='linear', imagetype=0, compose='/tmp/comptx' )
         print( mytx2 )
 
     print("🔄 now with distortion correction...")
@@ -134,11 +192,10 @@ if True:
     mask_w = ants.apply_ants_transform_to_image(mywarp, maskRL, reference=img_LR_in_avg, interpolation='nearestNeighbor')
     print("🧠 Running warped fit...")
     if not "FA_w" in globals():
-        bvalsRL, bvecsRL = read_bvals_bvecs(rlid + '.bval', rlid + '.bvec')
         bvecsRL = np.asarray(bvecsRL)
         mydefgrad = antspymm.deformation_gradient_optimized( mydef, 
             to_rotation=True, to_inverse_rotation=False )
-        bvecsRLw = antspymm.generate_voxelwise_bvecs( bvecsRL, mydefgrad )
+        bvecsRLw = antspymm.generate_voxelwise_bvecs( bvecsRL, mydefgrad, transpose=False )
         FA_w, MD_w, RGB_w = antspymm.efficient_dwi_fit_voxelwise(
             imagein=img_w,
             maskin=mask_w,
@@ -151,7 +208,6 @@ if True:
         )
 
     if not "FA_w2" in globals():
-        bvalsRL, bvecsRL = read_bvals_bvecs(rlid + '.bval', rlid + '.bvec')
         bvecsRL = np.asarray(bvecsRL)
         FA_w2, MD_w2, RGB_w2 = antspymm.efficient_dwi_fit_voxelwise(
             imagein=img_w,
@@ -164,13 +220,14 @@ if True:
             verbose=False
         )
 
+    fff = mean_rgb_correlation
     print("📊 Comparing results...")
     maskJoined = ants.threshold_image( mask + mask_w, 1.05, 2.0 )
     maske=ants.iMath(maskJoined,'ME',3)
-    fa_corr = mean_rgb_correlation( RGB_orig, RGB_w, maske )
+    fa_corr = fff( RGB_orig, RGB_w, maske )
     print(f"✅ FA correlation (original vs distortion corrected): {fa_corr:.4f}")
 
-    fa_corrX = mean_rgb_correlation( RGB_orig, RGB_w2, maske )
+    fa_corrX = fff( RGB_orig, RGB_w2, maske )
     print(f"✅ FA correlation (original vs distortion corrected global recon): {fa_corrX:.4f}")
 
     RGB_origRLc = ants.split_channels(RGB_origRL)
@@ -180,7 +237,7 @@ if True:
             reference=img_LR_in_avg, interpolation='linear'
         )
 
-    fa_corrY = mean_rgb_correlation( RGB_orig, ants.merge_channels(RGB_origRLc), maske )
+    fa_corrY = fff( RGB_orig, ants.merge_channels(RGB_origRLc), maske )
     print(f"✅ FA correlation (original vs warped RGB global recon): {fa_corrY:.4f}")
 
     assert fa_corr > 0.80, "FA correlation too low"
