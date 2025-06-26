@@ -234,9 +234,10 @@ if True:
         mydef=ants.image_read(comptx)
         mydefgrad = antspymm.deformation_gradient_optimized( mydef, 
                 to_rotation=False, to_inverse_rotation=True )
-        bvecsRLw = antspymm.generate_voxelwise_bvecs( bvecs_rotated, mydefgrad, transpose=False )
-        mywarp = ants.transform_from_displacement_field( mydef )
+#        bvecsRLw = antspymm.generate_voxelwise_bvecs( bvecs_rotated, mydefgrad, transpose=False )
         img_rotated_avg = ants.get_average_of_timeseries(  img_rotated )
+        bvecsRLw = antspymm.distortion_correct_bvecs( bvecs_rotated, mydefgrad, img_LR_in_avg.direction, img_rotated_avg.direction )
+        mywarp = ants.transform_from_displacement_field( mydef )
         img_w = antspymm.timeseries_transform(mywarp, img_rotated, reference=img_rotated_avg )
 
         correlations = []

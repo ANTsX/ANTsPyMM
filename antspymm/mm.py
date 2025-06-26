@@ -2138,6 +2138,40 @@ def bvec_reorientation( motion_parameters, bvecs, rebase=None ):
                     bvecs[myidx,:] = np.dot( rebase, bvecs[myidx,:] )
     return bvecs
 
+
+def distortion_correct_bvecs(bvecs, def_grad, A_img, A_ref):
+    """
+    Vectorized computation of voxel-wise distortion corrected b-vectors.
+
+    Parameters
+    ----------
+    bvecs : ndarray (N, 3)
+    def_grad : ndarray (X, Y, Z, 3, 3) containing rotations derived from the deformation gradient
+    A_img : ndarray (3, 3) direction matrix of the fixed image (target undistorted space)
+    A_ref : ndarray (3, 3) direction matrix of the moving image (being corrected)
+
+    Returns
+    -------
+    bvecs_5d : ndarray (X, Y, Z, N, 3)
+    """
+    X, Y, Z = def_grad.shape[:3]
+    N = bvecs.shape[0]
+    # Combined rotation: R_voxel = A_ref.T @ A_img @ def_grad
+    A = A_ref.T @ A_img
+    R_voxel = np.einsum('ij,xyzjk->xyzik', A, def_grad)  # (X, Y, Z, 3, 3)
+    # Apply R_voxel.T @ bvecs
+    # First, reshape R_voxel: (X*Y*Z, 3, 3)
+    R_voxel_reshaped = R_voxel.reshape(-1, 3, 3)
+    # Rotate all bvecs for each voxel
+    # Output: (X*Y*Z, N, 3)
+    rotated = np.einsum('vij,nj->vni', R_voxel_reshaped, bvecs)
+    # Normalize
+    norms = np.linalg.norm(rotated, axis=2, keepdims=True)
+    rotated /= np.clip(norms, 1e-8, None)
+    # Reshape back to (X, Y, Z, N, 3)
+    bvecs_5d = rotated.reshape(X, Y, Z, N, 3)
+    return bvecs_5d    
+
 def get_dti( reference_image, tensormodel, upper_triangular=True, return_image=False ):
     """
     extract DTI data from a dipy tensormodel

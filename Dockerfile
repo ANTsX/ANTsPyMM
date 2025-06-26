@@ -35,7 +35,7 @@ RUN pip install --upgrade pip \
     antspyx==0.6.1 \
     antspynet==0.2.9 \
     antspyt1w==0.9.9 \
-    antspymm==1.5.5 \
+    antspymm==1.5.7 \
     siq==0.3.4
 
 # for downloading example data from open neuro
