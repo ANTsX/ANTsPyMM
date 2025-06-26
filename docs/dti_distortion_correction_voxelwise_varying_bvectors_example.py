@@ -305,7 +305,8 @@ if len(dtfn) > 0:
     bxt = antspynet.brain_extraction(t1w, modality='t1', verbose=False).threshold_image(0.5, 1.5)
 
     if not "mytx" in globals():
-        mytx = ants.registration( t1w*bxt, img_LR_in_avg, 'SyNCC', syn_metric='CC', syn_sampling=2 )
+        dwianat = ants.slice_image( img_LR_in, idx=0, axis=3)
+        mytx = ants.registration( t1w, dwianat, 'SyNCC', syn_metric='CC', syn_sampling=2, total_sigma=0.5 )
         mytx2 = ants.apply_transforms(t1w, img_LR_in_avg, mytx['fwdtransforms'],
             interpolator='linear', imagetype=0, compose='/tmp/comptxDT2T1' )
         print( mytx2 )
@@ -346,7 +347,7 @@ if len(dtfn) > 0:
     print("📊 Comparing results...")
     maske=ants.iMath(bxt,'ME',3)
     fa_corr = mean_rgb_correlation( RGB_w, RGB_w2, maske )
-    print(f"✅ FA correlation (original vs distortion corrected): {fa_corr:.4f}")
+    print(f"✅ Direction-weighted FA correlation (original vs distortion corrected): {fa_corr:.4f}")
 
 ants.image_write( t1w, '/tmp/t1w.nii.gz' )
 ants.image_write( RGB_w, '/tmp/rgbw.nii.gz' )
