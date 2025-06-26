@@ -333,8 +333,11 @@ if len(dtfn) > 0:
         )
 
     if not "FA_w2" in globals():
+        myrig = ants.registration( t1w, dwianat, 'Rigid')
+        rigtx = ants.read_transform( myrig['fwdtransforms'][0] )
+        img_w2 = antspymm.timeseries_transform( rigtx, img_LR_in, reference=t1w)
         FA_w2, MD_w2, RGB_w2 = antspymm.efficient_dwi_fit_voxelwise(
-            imagein=img_w,
+            imagein=img_w2,
             maskin=bxt,
             bvals=bvals,
             bvecs_5d=broadcast_bvecs_voxelwise(bvecs, t1w.shape),
@@ -351,3 +354,4 @@ if len(dtfn) > 0:
 
 ants.image_write( t1w, '/tmp/t1w.nii.gz' )
 ants.image_write( RGB_w, '/tmp/rgbw.nii.gz' )
+ants.image_write( RGB_w2, '/tmp/rgbw2.nii.gz' )
