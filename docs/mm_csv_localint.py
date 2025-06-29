@@ -142,7 +142,7 @@ candidate_rdirs = [
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 
-nthreads = str(8)
+nthreads = str(1)
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
 os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
@@ -155,11 +155,12 @@ import ants
 import random
 import re
 mydir = rdir + "PPMI/"
-outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
-################
-import antspymm
-import pandas as pd
-import glob as glob
+outdir = re.sub( 'nrgdata_test', 'antspymmoutput_repro', rdir )
+# outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
+#####################
+import antspymm #####
+import pandas as pd #
+import glob as glob #
 t1fn=glob.glob(mydir+"101018/20210412/T1w/1496225/*.nii.gz")
 if len(t1fn) > 0:
     t1fn=t1fn[0]

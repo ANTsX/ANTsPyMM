@@ -135,6 +135,10 @@ import tensorflow as tf
 from multiprocessing import Pool
 import glob as glob
 
+antspyt1w.set_global_scientific_computing_random_seed(
+    antspyt1w.get_global_scientific_computing_random_seed( )
+)
+
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
 def version( ):
@@ -1881,7 +1885,7 @@ def timeseries_transform(transform, image, reference, interpolation='linear'):
 def timeseries_reg(
     image,
     avg_b0,
-    type_of_transform="Rigid",
+    type_of_transform='antsRegistrationSyNRepro[r]',
     total_sigma=1.0,
     fdOffset=2.0,
     trim = 0,
@@ -1993,7 +1997,7 @@ def timeseries_reg(
         if temp.numpy().var() > 0:
             myrig = ants.registration(
                     avg_b0, temp,
-                    type_of_transform='BOLDRigid',
+                    type_of_transform='antsRegistrationSyNRepro[r]',
                     outprefix=txprefix
                 )
             if type_of_transform == 'SyN':
@@ -2520,7 +2524,7 @@ def dti_reg(
     bvals=None,
     bvecs=None,
     b0_idx=None,
-    type_of_transform="Rigid",
+    type_of_transform="antsRegistrationSyNRepro[r]",
     total_sigma=3.0,
     fdOffset=2.0,
     mask_csf=False,
@@ -2651,7 +2655,7 @@ def dti_reg(
     else:
         bcsf = ab0 * 0 + 1
 
-    initrig = ants.registration( avg_b0, ab0,'BOLDRigid',outprefix=ofnG)
+    initrig = ants.registration( avg_b0, ab0,'antsRegistrationSyNRepro[r]',outprefix=ofnG)
     deftx = ants.registration( avg_dwi, adw, 'SyNOnly',
         syn_metric='CC', syn_sampling=2,
         reg_iterations=[50,50,20],
@@ -2680,7 +2684,7 @@ def dti_reg(
         if temp.numpy().var() > 0:
             myrig = ants.registration(
                     fixed, temp,
-                    type_of_transform='BOLDRigid',
+                    type_of_transform='antsRegistrationSyNRepro[r]',
                     outprefix=txprefix,
                     **kwargs
                 )
@@ -2759,7 +2763,7 @@ def dti_reg(
 def mc_reg(
     image,
     fixed=None,
-    type_of_transform="Rigid",
+    type_of_transform="antsRegistrationSyNRepro[r]",
     mask=None,
     total_sigma=3.0,
     fdOffset=2.0,
@@ -2862,7 +2866,7 @@ def mc_reg(
         if temp.numpy().var() > 0:
             myrig = ants.registration(
                     fixed, temp,
-                    type_of_transform='Rigid',
+                    type_of_transform='antsRegistrationSyNRepro[r]',
                     outprefix=ofnL+str(k).zfill(4)+"_",
                     **kwargs
                 )
@@ -3227,7 +3231,7 @@ def dewarp_imageset( image_list, initial_template=None,
         initial_template=initial_template,
         image_list=avglist,
         gradient_step=0.5, blending_weight=0.8,
-        iterations=iterations, **kwargs )
+        iterations=iterations, verbose=False, **kwargs )
 
     # last - warp all images to this frame
     mocoplist = []
@@ -3235,7 +3239,7 @@ def dewarp_imageset( image_list, initial_template=None,
     reglist = []
     for k in range(len(image_list)):
         if imagetype == 3:
-            moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='BOLDRigid' )
+            moco0 = ants.motion_correction( image=image_list[k], fixed=btp, type_of_transform='antsRegistrationSyNRepro[r]' )
             mocoplist.append( moco0['motion_parameters'] )
             mocofdlist.append( moco0['FD'] )
             locavg = ants.slice_image( moco0['motion_corrected'], axis=3, idx=0 ) * 0.0
@@ -3452,13 +3456,13 @@ def get_average_rsf( x, min_t=10, max_t=35 ):
         max_t=x.shape[3]
     for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
-        bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+        bavg = bavg + ants.registration(oavg,b0,'antsRegistrationSyNRepro[r]',outprefix=ofn)['warpedmovout']
     bavg = ants.iMath( bavg, 'Normalize' )
     oavg = ants.image_clone( bavg )
     bavg = oavg * 0.0
     for myidx in range(min_t,max_t):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
-        bavg = bavg + ants.registration(oavg,b0,'Rigid',outprefix=ofn)['warpedmovout']
+        bavg = bavg + ants.registration(oavg,b0,'antsRegistrationSyNRepro[r]',outprefix=ofn)['warpedmovout']
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True )
     bavg = ants.iMath( bavg, 'Normalize' )
@@ -3497,16 +3501,16 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
         temp_dwi = ants.slice_image( x, axis=3, idx=non_b0_idx[0] )
         xavg = fixed_b0 * 0.0
         bavg = fixed_b0 * 0.0
-        tempreg = ants.registration( fixed_b0, temp_b0,'BOLDRigid')
+        tempreg = ants.registration( fixed_b0, temp_b0,'antsRegistrationSyNRepro[r]')
         fixed_b0_use = tempreg['warpedmovout']
         fixed_dwi_use = ants.apply_transforms( fixed_b0, temp_dwi, tempreg['fwdtransforms'] )
     for myidx in range(x.shape[3]):
         b0 = ants.slice_image( x, axis=3, idx=myidx)
         if not fast:
             if not myidx in b0_idx:
-                xavg = xavg + ants.registration(fixed_dwi_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
+                xavg = xavg + ants.registration(fixed_dwi_use,b0,'antsRegistrationSyNRepro[r]',outprefix=ofn)['warpedmovout']
             else:
-                bavg = bavg + ants.registration(fixed_b0_use,b0,'Rigid',outprefix=ofn)['warpedmovout']
+                bavg = bavg + ants.registration(fixed_b0_use,b0,'antsRegistrationSyNRepro[r]',outprefix=ofn)['warpedmovout']
         else:
             if not myidx in b0_idx:
                 xavg = xavg + b0
@@ -3518,7 +3522,7 @@ def get_average_dwi_b0( x, fixed_b0=None, fixed_dwi=None, fast=False ):
     shutil.rmtree(output_directory, ignore_errors=True )
     avgb0=ants.n4_bias_field_correction(bavg)
     avgdwi=ants.n4_bias_field_correction(xavg)
-    avgdwi=ants.registration( avgb0, avgdwi, 'Rigid' )['warpedmovout']
+    avgdwi=ants.registration( avgb0, avgdwi, 'antsRegistrationSyNRepro[r]' )['warpedmovout']
     return avgb0, avgdwi
 
 def dti_template(
@@ -3564,8 +3568,8 @@ def dti_template(
             fimg2=bavg
             mimg2=b_image_list[k] * bcsf[k]
             w1 = ants.registration(
-                fimg, mimg, type_of_transform='antsRegistrationSyNQuick[s]',
-                    multivariate_extras= [ [ "mattes", fimg2, mimg2, 1, 32 ]],
+                fimg, mimg, type_of_transform='antsRegistrationSyNQuickRepro[s]',
+                    multivariate_extras= [ [ "CC", fimg2, mimg2, 1, 2 ]],
                     outprefix=mydeftx,
                     verbose=0 )
             txname = ants.apply_transforms(wavg, wavg,
@@ -3621,7 +3625,7 @@ def t1_based_dwi_brain_extraction(
     t1w,
     dwi,
     b0_idx = None,
-    transform='Rigid',
+    transform='antsRegistrationSyNRepro[r]',
     deform=None,
     verbose=False
 ):
@@ -3659,7 +3663,7 @@ def t1_based_dwi_brain_extraction(
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] ).iMath("Normalize")
         for n in range(1,len(b0_idx)):
             temp = ants.slice_image( dwi, axis=3, idx=b0_idx[n] )
-            reg = ants.registration( b0_avg, temp, 'Rigid' )
+            reg = ants.registration( b0_avg, temp, 'antsRegistrationSyNRepro[r]' )
             b0_avg = b0_avg + ants.iMath( reg['warpedmovout'], "Normalize")
     else:
         b0_avg = ants.slice_image( dwi, axis=3, idx=b0_idx[0] )
@@ -4563,7 +4567,7 @@ def joint_dti_recon(
         print("JHU reg",flush=True)
 
     OR_FA2JHUreg = ants.registration( reconFA, jhu_atlas,
-        type_of_transform = 'SyN', syn_metric='CC', syn_sampling=2,
+        type_of_transform = 'antsRegistrationSyNQuickRepro[s]', 
         reg_iterations=reg_its, verbose=False )
     OR_FA_jhulabels = ants.apply_transforms( reconFA, jhu_labels,
         OR_FA2JHUreg['fwdtransforms'], interpolator='genericLabel')
@@ -5555,7 +5559,7 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
             bestreg=compreg
             initx = ants.read_transform( bestreg['fwdtransforms'][0] )
         for mytx in transform:
-            regtx = 'Rigid'
+            regtx = 'antsRegistrationSyNRepro[r]'
             with tempfile.NamedTemporaryFile(suffix='.h5') as tp:
                 if mytx == 'translation':
                     regtx = 'Translation'
@@ -5660,7 +5664,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   templateNM = ants.iMath( mm_read( fntNM ), "Normalize" )
   templatebstem = mm_read( fntbst ).threshold_image( 1, 1000 )
   # reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
-  reg = ants.registration( t1, template, 'SyN' )
+  reg = ants.registration( t1, template, 'antsRegistrationSyNQuickRepro[s]' )
   # map NM avg to t1 for neuromelanin processing
   nmavg2t1 = ants.apply_transforms( t1, templateNM,
     reg['fwdtransforms'], interpolator='linear' )
@@ -5696,7 +5700,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     if verbose:
         print(str(k) + " of " + str(len( list_nm_images ) ) )
     current_image = ants.registration( list_nm_images[k], nm_avg,
-        type_of_transform = 'Rigid' )
+        type_of_transform = 'antsRegistrationSyNRepro[r]' )
     txlist.append( current_image['fwdtransforms'][0] )
     current_image = current_image['warpedfixout']
     nm_avg_new = nm_avg_new + current_image / len( list_nm_images )
@@ -5706,7 +5710,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
       print("do slab registration to map anatomy to NM space")
   t1c = ants.crop_image( t1_head, slab2t1 ).iMath("Normalize") # old way
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
-  # slabreg = ants.registration( nm_avg, nmavg2t1c, 'Rigid' )
+  # slabreg = ants.registration( nm_avg, nmavg2t1c, 'antsRegistrationSyNRepro[r]' )
   slabreg = tra_initializer( nm_avg, t1c, verbose=verbose )
   if False:
       slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
@@ -5766,7 +5770,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
             myreg = ants.registration(
                 ants.iMath(nm_avg_cropped,"Normalize"),
                 ants.iMath(crop_nm_list[k],"Normalize"),
-                'BOLDRigid' )
+                'antsRegistrationSyNRepro[r]' )
             warpednext = ants.apply_transforms(
                 nm_avg_cropped_new,
                 crop_nm_list[k],
@@ -6080,7 +6084,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   else:
     nc=float(nc)
 
-  type_of_transform='Rigid' # , # should probably not change this
+  type_of_transform="antsRegistrationSyNQuickRepro[r]" # , # should probably not change this
   remove_it=True
   output_directory = tempfile.mkdtemp()
   output_directory_w = output_directory + "/ts_t1_reg/"
@@ -6189,13 +6193,14 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     trim = 8,
     output_directory=None,
     verbose=verbose,
-    syn_metric='cc',
+    syn_metric='CC',
     syn_sampling=2,
     reg_iterations=[40,20,5],
     return_numpy_motion_parameters=True )
   
   if verbose:
       print("End rsfmri motion correction")
+      print("--maximum motion : " + str(corrmo['FD'].max()) )
       print("=== next anatomically based mapping ===")
 
   despiking_count = np.zeros( corrmo['motion_corrected'].shape[3] )
@@ -6215,7 +6220,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # anatomical mapping
   und = fmri_template * bmask
   t1reg = ants.registration( und, t1,
-    "SyNBold", outprefix=ofnt1tx )
+     "antsRegistrationSyNQuickRepro[s]", outprefix=ofnt1tx )
   if verbose:
     print("t1 2 bold done")
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
@@ -6750,17 +6755,18 @@ def bold_perfusion_minimal(
   perf_total_sigma = 1.5
   corrmo = timeseries_reg(
     fmri, fmri_template,
-    type_of_transform='Rigid',
+    type_of_transform='antsRegistrationSyNRepro[r]',
     total_sigma=perf_total_sigma,
     fdOffset=2.0,
     trim = mytrim,
     output_directory=None,
     verbose=verbose,
-    syn_metric='cc',
+    syn_metric='CC',
     syn_sampling=2,
     reg_iterations=[40,20,5] )
   if verbose:
       print("End rsfmri motion correction")
+      print("--maximum motion : " + str(corrmo['FD'].max()) )
 
   if m0_image is not None:
       m0 = m0_image
@@ -6789,17 +6795,18 @@ def bold_perfusion_minimal(
   fmri_template = ants.iMath( ants.get_average_of_timeseries( fmrimotcorr ), "Normalize" )
   corrmo = timeseries_reg(
         fmri, fmri_template,
-        type_of_transform='Rigid',
+        type_of_transform='antsRegistrationSyNRepro[r]',
         total_sigma=perf_total_sigma,
         fdOffset=2.0,
         trim = mytrim,
         output_directory=None,
         verbose=verbose,
-        syn_metric='cc',
+        syn_metric='CC',
         syn_sampling=2,
         reg_iterations=[40,20,5] )
   if verbose:
         print("End 2nd rsfmri motion correction")
+        print("--maximum motion : " + str(corrmo['FD'].max()) )
 
   if outlier_threshold < 1.0 and outlier_threshold > 0.0:
     corrmo['motion_corrected'] = remove_volumes_from_timeseries( corrmo['motion_corrected'], hlinds )
@@ -6853,7 +6860,7 @@ def bold_perfusion_minimal(
     m0 = ants.get_average_of_timeseries( fmrimotcorr )
   else:
     # register m0 to current template
-    m0reg = ants.registration( fmri_template, m0, 'Rigid', verbose=False )
+    m0reg = ants.registration( fmri_template, m0, 'antsRegistrationSyNRepro[r]', verbose=False )
     m0 = m0reg['warpedmovout']
 
   if ntp == 2 :
@@ -6934,7 +6941,7 @@ def bold_perfusion(
                    FD_threshold=0.5,
                    spa = (0., 0., 0., 0.),
                    nc = 3,
-                   type_of_transform='Rigid',
+                   type_of_transform='antsRegistrationSyNRepro[r]',
                    tc='alternating',
                    n_to_trim=0,
                    m0_image = None,
@@ -7069,7 +7076,7 @@ def bold_perfusion(
   fmri_template, hlinds = loop_timeseries_censoring( fmri, 0.10 )
   fmri_template = ants.get_average_of_timeseries( fmri_template )
   del hlinds
-  rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
+  rig = ants.registration( fmri_template, t1head, 'antsRegistrationSyNRepro[r]' )
   bmask = ants.apply_transforms( fmri_template, ants.threshold_image(t1segmentation,1,6), rig['fwdtransforms'][0], interpolator='genericLabel' )
   if m0_indices is None:
     if n_to_trim is None:
@@ -7086,7 +7093,7 @@ def bold_perfusion(
     trim = mytrim,
     output_directory=None,
     verbose=verbose,
-    syn_metric='cc',
+    syn_metric='CC',
     syn_sampling=2,
     reg_iterations=[40,20,5] )
   if verbose:
@@ -7135,7 +7142,7 @@ def bold_perfusion(
       print( 'fmri_template')
       print( fmri_template )
 
-  rig = ants.registration( fmri_template, t1head, 'BOLDRigid' )
+  rig = ants.registration( fmri_template, t1head, 'antsRegistrationSyNRepro[r]' )
   bmask = ants.apply_transforms( fmri_template, 
     ants.threshold_image(t1segmentation,1,6), 
     rig['fwdtransforms'][0], 
@@ -7151,7 +7158,7 @@ def bold_perfusion(
         trim = mytrim,
         output_directory=None,
         verbose=verbose,
-        syn_metric='cc',
+        syn_metric='CC',
         syn_sampling=2,
         reg_iterations=[40,20,5] )
   if verbose:
@@ -7264,7 +7271,7 @@ Where:
     m0 = ants.get_average_of_timeseries( fmrimotcorr )
   else:
     # register m0 to current template
-    m0reg = ants.registration( fmri_template, m0, 'Rigid', verbose=False )
+    m0reg = ants.registration( fmri_template, m0, 'antsRegistrationSyNRepro[r]', verbose=False )
     m0 = m0reg['warpedmovout']
 
   if ntp == 2 :
@@ -7351,7 +7358,7 @@ Where:
 
 def pet3d_summary( pet3d, t1head, t1, t1segmentation, t1dktcit,
                    spa = (0., 0., 0.),
-                   type_of_transform='Rigid',
+                   type_of_transform='antsRegistrationSyNRepro[r]',
                    upsample=True,
                    verbose=False ):
   """
@@ -7401,7 +7408,7 @@ def pet3d_summary( pet3d, t1head, t1, t1segmentation, t1dktcit,
       newspc = [minspc,minspc,minspc]
       pet3dr = ants.resample_image( pet3d, newspc, interp_type=0 )
 
-  rig = ants.registration( pet3dr, t1head, 'BOLDRigid' )
+  rig = ants.registration( pet3dr, t1head, 'antsRegistrationSyNRepro[r]' )
   bmask = ants.apply_transforms( pet3dr, 
     ants.threshold_image(t1segmentation,1,6), 
     rig['fwdtransforms'][0], 
@@ -7536,7 +7543,7 @@ def mm(
     group_template = None,
     group_transform = None,
     target_range = [0,1],
-    dti_motion_correct = 'Rigid',
+    dti_motion_correct = 'antsRegistrationSyNQuickRepro[r]',
     dti_denoise = False,
     perfusion_trim=10,
     perfusion_m0_image=None,
@@ -7679,9 +7686,10 @@ def mm(
 
     if do_kk:
         if verbose:
-            print('kk')
-        output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( t1atropos,
+            print('kk in mm')
+        output_dict['kk'] = antspyt1w.kelly_kapowski_thickness( t1_image,
             labels=hier['dkt_parc']['dkt_cortex'], iterations=45 )
+
     if perfusion_image is not None:
         if perfusion_image.shape[3] > 1: # FIXME - better heuristic?
             output_dict['perf'] = bold_perfusion(
@@ -7706,7 +7714,7 @@ def mm(
                 verbose=verbose )
     ################################## do the rsf .....
     if len(rsf_image) > 0:
-        my_motion_tx = 'Rigid'
+        my_motion_tx = 'antsRegistrationSyNRepro[r]'
         rsf_image = [i for i in rsf_image if i is not None]
         if verbose:
             print('rsf length ' + str( len( rsf_image ) ) )
@@ -7728,6 +7736,7 @@ def mm(
             boldTemplate = ants.build_template(
                 initial_template = init_temp,
                 image_list=[rsfavg1,rsfavg2],
+                type_of_transform="antsRegistrationSyNQuickRepro[s]",
                 iterations=5, verbose=False )
             if verbose:
                 print("join the 2 rsf")
@@ -7799,89 +7808,7 @@ def mm(
                                             verbose=verbose ) # default
                 rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
-            if False:  # this is the old parameter search stuff
-                # Initialize the parameters DataFrame
-                # first - no censoring - just explore compcor
-                df = pd.DataFrame()
-                cens=False
-                HM=1.0 # best by PTBP
-                hmsearch = [0.5, 1.0, 5.0 ]
-                loopsearch = [ 0.25, 0.5, 0.75, 1.0 ]
-                loop = 1.0
-                CCsearch = [ 5, 0.80 ]
-                defaultf = [ 0.008, 0.15 ]
-                freqsearch = ['broad','mid','tight'] # 
-                # for debuggin
-                # rsf_image = remove_volumes_from_timeseries( rsf_image, list(range(80,2000))) 
-                docens=True                     # explore censoring
-                for ff in freqsearch:
-                    for CC in CCsearch:
-                        local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
-                        if verbose:
-                            print( local_df )
-                        if df.shape[0] == 0:
-                            df = local_df
-                        else:
-                            df = pd.concat([df, local_df], ignore_index=True)
-                        f = defaultf
-                        if ff == 'mid':
-                            f = [0.01,0.1]
-                        elif ff == 'tight':
-                            f = [0.03,0.08]
-                        rsf0 = resting_state_fmri_networks(
-                            rsf_image, boldTemplate, hier['brain_n4_dnz'], t1atropos,
-                            f=f,
-                            FD_threshold=HM,
-                            spa = None, spt = None, 
-                            nc = CC, 
-                            outlier_threshold=loop,
-                            ica_components = 0,
-                            impute = False,
-                            censor = cens,
-                            despike = 2.5,
-                            motion_as_nuisance = True,
-                            upsample=False,
-                            clean_tmp=0.66,
-                            verbose=verbose ) # default
-                        rsfprolist.append( rsf0 )
-
-                # test impact of censoring
-                if docens:
-                    cens = True
-                    for loop in loopsearch:
-                        for HM in hmsearch:
-                            for ff in freqsearch:
-                                for CC in CCsearch:
-                                    local_df = pd.DataFrame({"loop": [loop], "cens": [cens], "HM": [HM], "ff": [ff], "CC": [CC]})
-                                    if verbose:
-                                        print( local_df )
-                                    df = pd.concat([df, local_df], ignore_index=True)
-                                    f = defaultf
-                                    if ff == 'mid':
-                                        f = [0.01,0.1]
-                                    elif ff == 'tight':
-                                        f = [0.03,0.08]
-                                    rsf0 = resting_state_fmri_networks(
-                                            rsf_image,
-                                            boldTemplate,
-                                            hier['brain_n4_dnz'],
-                                            t1atropos,
-                                            f=f,
-                                            FD_threshold=HM, 
-                                            spa = None, 
-                                            spt = None, 
-                                            nc = CC,
-                                            outlier_threshold=loop,
-                                            ica_components = 0,
-                                            impute = False,
-                                            censor = cens,
-                                            despike = 2.5,
-                                            motion_as_nuisance = True,
-                                            upsample=False,
-                                            clean_tmp=0.66,
-                                            verbose=verbose ) # default
-                                    rsfprolist.append( rsf0 )
-                output_dict['rsf'] = rsfprolist
+            
     if nm_image_list is not None:
         if verbose:
             print('nm')
@@ -7898,11 +7825,11 @@ def mm(
                 print("We have only one DTI: " + str(len(dw_image)))
             dw_image = dw_image[0]
             btpB0, btpDW = get_average_dwi_b0(dw_image)
-            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
+            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'antsRegistrationSyNRepro[r]' )['fwdtransforms'][0]
             tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly',
-                syn_metric='mattes', syn_sampling=32,
+                syn_metric='CC', syn_sampling=2,
                 reg_iterations=[50,50,20],
-                multivariate_extras=[ [ "mattes", btpB0, hier['brain_n4_dnz'], 1, 32 ]],
+                multivariate_extras=[ [ "CC", btpB0, hier['brain_n4_dnz'], 1, 2 ]],
                 initial_transform=initrig
                 )
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
@@ -7935,11 +7862,11 @@ def mm(
                 b_image_list=[a1b,a2b],
                 w_image_list=[a1w,a2w],
                 iterations=7, verbose=verbose )
-            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'BOLDRigid' )['fwdtransforms'][0]
+            initrig = ants.registration( btpDW, hier['brain_n4_dnz'], 'antsRegistrationSyNRepro[r]' )['fwdtransforms'][0]
             tempreg = ants.registration( btpDW, hier['brain_n4_dnz'], 'SyNOnly',
-                syn_metric='mattes', syn_sampling=32,
+                syn_metric='CC', syn_sampling=2,
                 reg_iterations=[50,50,20],
-                multivariate_extras=[ [ "mattes", btpB0, hier['brain_n4_dnz'], 1, 32 ]],
+                multivariate_extras=[ [ "CC", btpB0, hier['brain_n4_dnz'], 1, 2 ]],
                 initial_transform=initrig
                 )
             mybxt = ants.threshold_image( ants.iMath(hier['brain_n4_dnz'], "Normalize" ), 0.001, 1 )
@@ -8026,7 +7953,7 @@ def mm(
             normalization_dict['kk_norm'] = ants.apply_transforms( group_template, output_dict['kk']['thickness_image'], group_transform )
         if output_dict['DTI'] is not None:
             mydti = output_dict['DTI']
-            dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'Rigid' )
+            dtirig = ants.registration( hier['brain_n4_dnz'], mydti['recon_fa'], 'antsRegistrationSyNRepro[r]' )
             normalization_dict['MD_norm'] = ants.apply_transforms( group_template, mydti['recon_md'],group_transform+dtirig['fwdtransforms'] )
             normalization_dict['FA_norm'] = ants.apply_transforms( group_template, mydti['recon_fa'],group_transform+dtirig['fwdtransforms'] )
             output_directory = tempfile.mkdtemp()
@@ -8043,7 +7970,7 @@ def mm(
         if output_dict['rsf'] is not None:
             if False:
                 rsfpro = output_dict['rsf'] # FIXME
-                rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'Rigid' )
+                rsfrig = ants.registration( hier['brain_n4_dnz'], rsfpro['meanBold'], 'antsRegistrationSyNRepro[r]' )
                 for netid in get_antsimage_keys( rsfpro ):
                     rsfkey = netid + "_norm"
                     normalization_dict[rsfkey] = ants.apply_transforms(
@@ -8797,7 +8724,7 @@ def mm_csv(
     srmodel_T1 = False, # optional - will add a great deal of time
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
-    dti_motion_correct = 'SyN',
+    dti_motion_correct = 'antsRegistrationSyNQuickRepro[r]',
     dti_denoise = True,
     nrg_modality_list = None,
     normalization_template = None,
@@ -11005,7 +10932,7 @@ def wmh( flair, t1, t1seg,
     """
     import numpy as np
     import math
-    t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'Rigid') # Register T1 to Flair
+    t1_2_flair_reg = ants.registration(flair, t1, type_of_transform = 'antsRegistrationSyNRepro[r]') # Register T1 to Flair
     if probability_mask is None and model == 'sysu':
         if verbose:
             print('sysu')
@@ -12656,7 +12583,7 @@ def enantiomorphic_filling_without_mask( image, axis=0, intensity='low' ):
     imagen = ants.iMath( imagen, "TruncateIntensity", 1e-6, 0.98 )
     imagen = ants.iMath( imagen, 'Normalize' )
     # Create a mirror image (flipping left and right)
-    mirror_image = ants.reflect_image(imagen, axis=0, tx='SyN' )['warpedmovout']
+    mirror_image = ants.reflect_image(imagen, axis=0, tx='antsRegistrationSyNQuickRepro[s]' )['warpedmovout']
 
     # Create a symmetric version of the image by averaging the original and the mirror image
     symmetric_image = imagen * 0.5 + mirror_image * 0.5

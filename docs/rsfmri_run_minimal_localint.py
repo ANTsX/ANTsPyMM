@@ -32,17 +32,19 @@ if True:
     t1segmentation = t1seg['segmentation_image']
 ################################################################
 print("do rsf")
+img1b=img1[:,:,:,0:60]
 rsf = antspymm.resting_state_fmri_networks(
-  img1, und, t1 * t1bxt, t1segmentation, 
+  img1b, und, t1 * t1bxt, t1segmentation, 
   nc=5,
   censor=False,
   verbose=True )
 ################################################################
-rsfscrub = antspymm.resting_state_fmri_networks(
-  img1, und, t1 * t1bxt, t1segmentation, 
-  nc=0.5,
-  censor=True,
-  verbose=True )
+if False:
+  rsfscrub = antspymm.resting_state_fmri_networks(
+    img1, und, t1 * t1bxt, t1segmentation, 
+    nc=0.5,
+    censor=True,
+    verbose=True )
 # ants.plot( und, rsf['DefaultMode'], crop=True, axis=2 )
 # ants.plot( und, rsfscrub['DefaultMode'], crop=True, axis=2 )
 ################################################################
