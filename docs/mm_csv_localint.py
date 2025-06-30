@@ -155,9 +155,16 @@ import ants
 import random
 import re
 mydir = rdir + "PPMI/"
-outdir = re.sub( 'nrgdata_test', 'antspymmoutput_repro', rdir )
-outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
-#####################
+if not exists(repro):
+    repro = False
+if not repro:
+    outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
+else:
+    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_repro', rdir )
+
+################################
+print( " outdir = " + outdir ) #
+################################
 import antspymm #####
 import pandas as pd #
 import glob as glob #
