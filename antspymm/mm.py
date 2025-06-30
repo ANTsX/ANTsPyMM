@@ -284,6 +284,85 @@ def validate_nrg_file_format(path, separator):
     # If all checks pass
     return True, "The path conforms to the NRG format."
 
+
+
+def apply_transforms_mixed_interpolation(
+    fixed,
+    moving,
+    transformlist,
+    interpolator="linear",
+    imagetype=0,
+    whichtoinvert=None,
+    mask=None,
+    **kwargs
+):
+    """
+    Apply ANTs transforms with mixed interpolation:
+    - Linear interpolation inside `mask`
+    - Nearest neighbor outside `mask`
+
+    Parameters
+    ----------
+    fixed : ANTsImage
+        Fixed/reference image to define spatial domain.
+
+    moving : ANTsImage
+        Moving image to be transformed.
+
+    transformlist : list of str
+        List of filenames for transforms.
+
+    interpolator : str, optional
+        Interpolator used inside the mask. Default is "linear".
+
+    imagetype : int
+        Image type used by ANTs (0 = scalar, 1 = vector, etc.)
+
+    whichtoinvert : list of bool, optional
+        List of booleans indicating which transforms to invert.
+
+    mask : ANTsImage
+        Binary mask image indicating where to apply `interpolator` (e.g., "linear").
+        Outside the mask, nearest neighbor is used.
+
+    kwargs : dict
+        Additional arguments passed to `ants.apply_transforms`.
+
+    Returns
+    -------
+    ANTsImage
+        Interpolated image using mixed interpolation, added across masked regions.
+    """
+    if mask is None:
+        raise ValueError("A binary `mask` image must be provided.")
+
+    # Apply linear interpolation inside the mask
+    interp_linear = ants.apply_transforms(
+        fixed=fixed,
+        moving=moving,
+        transformlist=transformlist,
+        interpolator=interpolator,
+        imagetype=imagetype,
+        whichtoinvert=whichtoinvert,
+        **kwargs
+    )
+
+    # Apply nearest-neighbor interpolation everywhere
+    interp_nn = ants.apply_transforms(
+        fixed=fixed,
+        moving=moving,
+        transformlist=transformlist,
+        interpolator="nearestNeighbor",
+        imagetype=imagetype,
+        whichtoinvert=whichtoinvert,
+        **kwargs
+    )
+
+    # Combine: linear * mask + nn * (1 - mask)
+    mixed_result = (interp_linear * mask) + (interp_nn * (1 - mask))
+
+    return mixed_result
+
 def get_antsimage_keys(dictionary):
     """
     Return the keys of the dictionary where the values are ANTsImages.
@@ -2528,6 +2607,7 @@ def dti_reg(
     total_sigma=3.0,
     fdOffset=2.0,
     mask_csf=False,
+    brain_mask_eroded=None,
     output_directory=None,
     verbose=False, **kwargs
 ):
@@ -2556,6 +2636,8 @@ def dti_reg(
 
         mask_csf: boolean
 
+        brain_mask_eroded: optional mask that will trigger mixed interpolation
+
         output_directory : string
             output will be placed in this directory plus a numeric extension.
 
@@ -2579,6 +2661,7 @@ def dti_reg(
     -------
     >>> import ants
     """
+
     idim = image.dimension
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
@@ -2624,6 +2707,8 @@ def dti_reg(
     ab0, adw = get_average_dwi_b0( image )
     # mask is used to roughly locate middle of brain
     mask = ants.threshold_image( ants.iMath(adw,'Normalize'), 0.1, 1.0 )
+    if brain_mask_eroded is None:
+        brain_mask_eroded = mask * 0 + 1
     motion_parameters = list()
     motion_corrected = list()
     centerOfMass = mask.get_center_of_mass()
@@ -2721,9 +2806,9 @@ def dti_reg(
             fixed=ants.image_clone( adw )
         if temp.numpy().var() > 0:
             motion_parameters[k]=deftx+motion_parameters[k]
-            img1w = ants.apply_transforms( avg_dwi,
+            img1w = apply_transforms_mixed_interpolation( avg_dwi,
                 ants.slice_image(image, axis=idim - 1, idx=k),
-                motion_parameters[k] )
+                motion_parameters[k], mask=brain_mask_eroded )
             motion_corrected.append(img1w)
         else:
             motion_corrected.append(fixed)
@@ -4467,10 +4552,12 @@ def joint_dti_recon(
         if denoise :
             img_RL = mc_denoise( img_RL )
 
+    brainmaske = None
     if brain_mask is not None:
         maskInRightSpace = ants.image_physical_space_consistency( brain_mask, reference_B0 )
         if not maskInRightSpace :
             raise ValueError('not maskInRightSpace ... provided brain mask should be in reference_B0 space')
+        brainmaske = ants.iMath( maskInRightSpace, "ME", 2 )
 
     if img_RL is not None :
         if verbose:
@@ -4482,6 +4569,7 @@ def joint_dti_recon(
             bvals=bval_RL,
             bvecs=bvec_RL,
             type_of_transform=motion_correct,
+            brain_mask_eroded=brainmaske,
             verbose=True )
     else:
         reg_RL=None
@@ -4496,6 +4584,7 @@ def joint_dti_recon(
             bvals=bval_LR,
             bvecs=bvec_LR,
             type_of_transform=motion_correct,
+            brain_mask_eroded=brainmaske,
             verbose=True )
 
     ts_LR_avg = None
@@ -5520,7 +5609,7 @@ def get_rsf_outputs( coords ):
         return list( yeo['SystemName'].unique() )
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
-    transform=['rigid'], compreg=None, verbose=False ):
+    transform=['rigid'], compreg=None, random_seed=42, verbose=False ):
     """
     multi-start multi-transform registration solution - based on ants.registration
 
@@ -5536,9 +5625,14 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
 
     compreg : registration results against which to compare
 
+    random_seed : random seed for reproducibility
+
     verbose : boolean
 
     """
+    import random
+    if random_seed is not None:
+        random.seed(random_seed)
     if True:
         output_directory = tempfile.mkdtemp()
         output_directory_w = output_directory + "/tra_reg/"
@@ -7176,7 +7270,7 @@ def bold_perfusion(
   warn_if_small_mask( bmask, label='bold_perfusion:bmask*tsnrmask')
   fmrimotcorr=corrmo['motion_corrected']
   und = fmri_template * bmask
-  t1reg = ants.registration( und, t1, "SyNBold" )
+  t1reg = ants.registration( und, t1, "antsRegistrationSyNRepro[s]" )
   gmseg = ants.threshold_image( t1segmentation, 2, 2 )
   gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
   gmseg = ants.threshold_image( gmseg, 1, 4 )
@@ -7808,7 +7902,7 @@ def mm(
                                             verbose=verbose ) # default
                 rsfprolist.append( rsf0 )
             output_dict['rsf'] = rsfprolist
-            
+
     if nm_image_list is not None:
         if verbose:
             print('nm')
@@ -7890,7 +7984,7 @@ def mm(
         mydti = output_dict['DTI']
         # summarize dwi with T1 outputs
         # first - register ....
-        reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'SyNBold', total_sigma=1.0 )
+        reg = ants.registration( mydti['recon_fa'], hier['brain_n4_dnz'], 'antsRegistrationSyNRepro[s]', total_sigma=1.0 )
         ##################################################
         output_dict['FA_summ'] = hierarchical_modality_summary(
             mydti['recon_fa'],
@@ -9993,7 +10087,10 @@ def augment_image( x,  max_rot=10, nzsd=1 ):
 
 def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
         probability_mask=None, prior_probability=None, n_simulations=16,
+        random_seed = 42,
         verbose=False ) :
+    import random
+    random.seed( random_seed )
     if verbose and prior_probability is None:
         print("augmented flair")
     if verbose and prior_probability is not None:

@@ -141,6 +141,4 @@ from .mm import deformation_gradient_optimized
 from .mm import efficient_dwi_fit_voxelwise
 from .mm import generate_voxelwise_bvecs
 from .mm import distortion_correct_bvecs
-
-
-
+from .mm import apply_transforms_mixed_interpolation
