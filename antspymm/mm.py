@@ -4557,7 +4557,7 @@ def joint_dti_recon(
         maskInRightSpace = ants.image_physical_space_consistency( brain_mask, reference_B0 )
         if not maskInRightSpace :
             raise ValueError('not maskInRightSpace ... provided brain mask should be in reference_B0 space')
-        brainmaske = ants.iMath( maskInRightSpace, "ME", 2 )
+        brainmaske = ants.iMath( brain_mask, "ME", 2 )
 
     if img_RL is not None :
         if verbose:

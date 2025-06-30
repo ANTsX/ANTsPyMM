@@ -142,7 +142,7 @@ candidate_rdirs = [
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 
-nthreads = str(1)
+nthreads = str(8)
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
 os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
@@ -156,7 +156,7 @@ import random
 import re
 mydir = rdir + "PPMI/"
 outdir = re.sub( 'nrgdata_test', 'antspymmoutput_repro', rdir )
-# outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
+outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
 #####################
 import antspymm #####
 import pandas as pd #
