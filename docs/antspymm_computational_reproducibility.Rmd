@@ -1,0 +1,652 @@
+---
+title: "Computational Reproducibility Report for ANTsPyMM and PPMI M3RI"
+author: "B. Avants"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    code_folding: hide
+params:
+  dd_file: "PPMI-101018-20210412-1496225-mmwide2.csv"
+  ee_file: "PPMI-101018-20210412-1496225-mmwide.csv"
+---
+
+
+# **1. Methodology: A Rigorous Framework for Assessing Computational Reproducibility**
+
+The core purpose of this document is to provide a comprehensive and quantitative assessment of the computational reproducibility of the `docs/mm_csv_localint.py` script for an `ANTsPyMM` run on `PPMI` multiple modality MRI (M3RI). The analysis is based on a direct comparison of the tabular outputs generated from two independent executions of this script on the same computer and the same M3RI collection.
+
+To ensure a robust and meaningful comparison, both runs were conducted within a **standardized and controlled computational environment**, defined by a single, version-pinned `Dockerfile`. This approach is critical as it minimizes variability stemming from the underlying operating system, software libraries, and their respective versions.
+
+### **1.1 The Controlled Environment: Docker**
+
+The `Dockerfile`, detailed below, defines the precise environment for this experiment. Its key features contributing to reproducibility are:
+
+*   **Base Image:** The environment is built `FROM tensorflow/tensorflow:2.17.0`. This pins the base operating system, Python version, core TensorFlow libraries, and underlying CUDA/cuDNN versions, providing a stable foundation.
+*   **Pinned Dependencies:** All core `antspy*` libraries are pinned to specific versions (e.g., `antspyx==0.6.1`, `antspymm==1.6.1`), preventing unexpected changes from library updates. While fundamental packages like `numpy` and `scipy` are not explicitly version-pinned in the `pip install` command, the use of the **same built Docker image for both runs** ensures that identical versions were used for this specific comparison.
+*   **Localized Data:** All external resources, such as model weights from `antsxnet`, are downloaded and "baked" into the environment at build time using `git clone` and `get_antsxnet_data.py`. This prevents variability that could arise from downloading data at runtime.
+
+```Dockerfile
+FROM tensorflow/tensorflow:2.17.0
+
+ENV HOME=/workspace
+WORKDIR $HOME
+
+# Set environment variables for optimal threading
+ENV TF_NUM_INTEROP_THREADS=8 \
+    TF_NUM_INTRAOP_THREADS=8 \
+    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 \
+    OPENBLAS_NUM_THREADS=8 \
+    MKL_NUM_THREADS=8
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install Python libraries
+RUN pip install --upgrade pip \
+    && pip install \
+    psrecord \
+    numpy \
+    pandas \
+    scipy \
+    matplotlib \
+    scikit-learn \
+    ipython \
+    jupyterlab \
+    antspyx==0.6.1 \
+    antspynet==0.3.0 \
+    antspyt1w==1.1.0 \
+    antspymm==1.6.1 \
+    siq==0.3.4
+
+# for downloading example data from open neuro
+RUN pip3 --no-cache-dir install --upgrade awscli
+###########
+#
+RUN git clone https://github.com/stnava/ANTPD_antspymm.git ${HOME}/ANTPD_antspymm
+RUN python ${HOME}/ANTPD_antspymm/src/get_antsxnet_data.py ${HOME}/.keras
+```
+
+### **1.2 Controlled Parallelism and the Goal of This Analysis**
+
+A critical feature of the `Dockerfile` is the explicit setting of threading variables (e.g., `ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8`). This setup deliberately prioritizes performance by enabling multi-threading for computationally intensive libraries like ITK (used by ANTsR/ANTsPy) and TensorFlow.
+
+However, enabling parallelism has a direct and understood consequence for reproducibility: the order of floating-point operations in parallelized calculations is not guaranteed to be identical across runs. This can introduce minute, non-deterministic numerical variations.  As such, the run for the experiments reported below is done with a single-thread to maximize reproducibility.
+
+The primary objective of this report is **not to achieve bit-wise identical outputs**, but to verify that the results are **statistically stable and reproducible within a predefined numerical tolerance**.
+
+### **1.3 The Comparison Framework**
+
+Our analysis will proceed as follows:
+
+1.  **Variable Classification:** Each variable (column) in the output is systematically classified into a `MeasurementType_Atlas` group using a custom, rule-based engine. This allows us to assess whether specific parts of the processing pipeline are more or less stable.
+2.  **Difference Calculation:** For each variable, we calculate the **Symmetric Percentage Difference (SPD)**: `2 * |RunA - RunB| / (|RunA| + |RunB|)`. This metric is robust for comparing values across different scales and serves as our primary measure of numerical discrepancy.
+3.  **Categorization of Discrepancies:** Each comparison is categorized as:
+    *   **Identical:** Bit-wise identical values.
+    *   **Numerically Identical:** SPD is less than our defined tolerance (`1e-6`).
+    *   **Minor to Significant Numerical Difference:** SPD exceeds the tolerance, categorized by magnitude.
+    *   **Structural Mismatch:** A critical failure where a variable's data type changes, or a value becomes `NA`/`Inf` in one run but not the other.
+
+This multi-faceted approach allows us to confidently assess the stability of the pipeline, pinpointing both critical errors and areas of minor numerical variability for targeted review.
+
+
+## Glossary of Variable Classifications
+
+The variable classification names used throughout this report (e.g., `dti.fa.cortex`, `t1.thk.mtl`) are a composite of a **Measurement Type** and an **Anatomical/Methodological Context**. This glossary defines the abbreviations and terms used to construct these classes, providing a clear reference for interpreting the results.
+
+| Term/Abbreviation | Description                                                                                                   | Appears In                                  |
+| :---------------- | :------------------------------------------------------------------------------------------------------------ | :------------------------------------------ |
+| **vol**           | **Volume:** A measure of the size of a structure, typically in mm³.                                                | Measurement Type                            |
+| **thk**           | **Thickness:** A measure of geometric thickness, typically in mm.                                                 | Measurement Type                            |
+| **area**          | **Area:** A measure of surface area, typically in mm².                                                         | Measurement Type                            |
+| **dti**           | **Diffusion Tensor Imaging:** A general prefix for metrics derived from DTI data.                                  | Measurement Type                            |
+| **fa**            | **Fractional Anisotropy:** A primary DTI measure of white matter integrity, reflecting the directionality of water diffusion. | Measurement Type |
+| **md**            | **Mean Diffusivity:** A primary DTI measure reflecting the average magnitude of water diffusion.                       | Measurement Type                            |
+| **t1**            | **T1w Hierarchical:** Indicates a value derived from the main `antspyt1w` hierarchical segmentation and labeling process. | Measurement Type |
+| **t1.vth**        | **Direct Cortical Thickness:** A specific T1-based cortical thickness measurement (`t1vth`).                               | Measurement Type                            |
+| **mne**           | **Neuromelanin:** Indicates a measure derived from neuromelanin-sensitive imaging pipelines.                             | Measurement Type                            |
+| **rsf**           | **Resting-State fMRI:** A general prefix for metrics derived from resting-state functional MRI data.               | Measurement Type                            |
+| **falff**         | **Fractional Amplitude of Low-Frequency Fluctuations:** An rs-fMRI measure of the relative aplitude of brain activity. | Measurement Type|
+| **peraf**      | **Percent Absolute Fluctuation:** An rs-fMRI measure derived from the original ALFF, defined as a percentage. | Measurement Type |
+| **p[1,2,3]**        | **Parameter Set [1,2,3]:** Refers to one of three different rs-fMRI processing parameter sets used.                 | Measurement Type                            |
+| **dfn.corr**      | **Default Mode Network Correlation:** A correlation value specifically related to the Default Mode Network.           | Measurement Type                            |
+| **oth.corr**      | **Other Network Correlation:** A correlation value related to functional networks other than the DMN.                  | Measurement Type                            |
+| **cortex**        | **Cortex:** Indicates that the measurement pertains to regions within the cerebral cortex.                          | Anatomical/Method                           |
+| **cerebell**      | **Cerebellum:** Indicates that the measurement pertains to regions within the cerebellum.                            | Anatomical/Method                           |
+| **wm**            | **White Matter:** Indicates measurements within white matter tracts.                                               | Anatomical/Method                           |
+| **bst**           | **Brain Stem:** Indicates measurements within the brain stem.                                                      | Anatomical/Method                           |
+| **midbrain**      | **Midbrain:** Indicates measurements specifically within the midbrain.                                             | Anatomical/Method                           |
+| **ch13 / nbm**    | **Basal Forebrain:** Indicates measurements within the basal forebrain, specifically from the CH13 or NBM atlases. | Anatomical/Method                           |
+| **mtl**           | **Medial Temporal Lobe:** Indicates measurements within the medial temporal lobe.                                      | Anatomical/Method                           |
+| **snseg**         | **Substantia Nigra Segmentation:** Indicates a model or measurement focused on the substantia nigra.                 | Anatomical/Method                           |
+| **deep**          | **Deep Brain Regions:** Indicates measurements within deep gray matter structures.                                | Anatomical/Method                           |
+| **deepcit**       | **Deep Brain Regions (CIT):** A specific atlas for deep brain regions, likely derived from CIT168.                   | Anatomical/Method                           |
+
+```{r setup, include=FALSE, echo=FALSE}
+# Preamble: Setting the Stage and Loading the Tools
+# This chunk contains all necessary libraries and function definitions.
+
+# -- Core Libraries --
+# We load packages once at the top for clarity and efficiency.
+library(knitr)
+library(tidyverse)
+library(waldo)
+library(patchwork)
+library(DT)
+library(ANTsR)
+library(subtyper) # For shorten_pymm_names, replaceName, grepl_multi
+library(stringr)
+
+grepl_multi <- function(x, desc, intersect = FALSE) {
+  match_idx <- rep(intersect, length(desc))  # TRUE if intersect, FALSE otherwise
+
+  for (pattern in x) {
+    current_match <- grepl(pattern, desc)
+
+    if (!intersect) {
+      match_idx <- match_idx | current_match  # union
+    } else {
+      match_idx <- match_idx & current_match  # intersection
+    }
+  }
+
+  return(match_idx)
+}
+
+# -- Analysis Parameters --
+# This global tolerance is used to categorize numerical differences.
+NUMERIC_TOLERANCE <- 1e-6
+# Number of top differing variables to display in tables and plots
+TOP_N_VARS <- 50
+
+# -- User-Provided Classification Engine: cluster_variable_names --
+# This function uses a series of explicit, rule-based grepl_multi calls
+# to classify variables based on your domain knowledge.
+cluster_variable_names <- function(varnames) {
+
+  # 2. Rule-Based Classification with grepl_multi
+  thetype = rep( "notassigned", length(varnames) )
+  thetype[ grepl_multi( c("rsf","falff"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.falff'
+  thetype[ grepl_multi( c("rsf","peraf"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.peraf'
+  thetype[ grepl_multi( c("rsf","alff"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.alff'
+  thetype[ grepl_multi( c("rsf.p1",".2.",'default'), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p1.dfn.corr'
+  thetype[ grepl_multi( c("rsf.p3",".2.",'default'), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p3.dfn.corr'
+  thetype[ grepl_multi( c("rsf.p2",".2.",'default'), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p2.dfn.corr'
+  thetype[ grepl_multi( c("rsf.p1",".2."), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p1.oth.corr'
+  thetype[ grepl_multi( c("rsf.p2",".2."), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p2.oth.corr'
+  thetype[ grepl_multi( c("rsf.p3",".2."), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='rsf.p3.oth.corr'
+
+  thetype[ grepl_multi( c("dti",'eth',"fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.deep'
+  thetype[ grepl_multi( c("dti",'bn',"fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.deep'
+  thetype[ grepl_multi( c("dti",'mtg',"fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.deep'
+  thetype[ grepl_multi( c("dti",'die',"fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.deep'
+  thetype[ grepl_multi( c("dti","jhu","fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.wm'
+  thetype[ grepl_multi( c("dti.mean.fa","sn"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.midbrain'
+  thetype[ grepl_multi( c("dti.mean.fa","exa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.midbrain'
+  thetype[ grepl_multi( c("dti.mean.fa","referenceregion"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.midbrain'
+  thetype[ grepl_multi( c("dti","fa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.fa.cortex'
+
+  thetype[ grepl_multi( c("dti",'eth',"md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.deep'
+  thetype[ grepl_multi( c("dti",'bn',"md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.deep'
+  thetype[ grepl_multi( c("dti",'mtg',"md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.deep'
+  thetype[ grepl_multi( c("dti",'die',"md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.deep'
+  thetype[ grepl_multi( c("dti","jhu","md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.wm'
+  thetype[ grepl_multi( c("dti.mean.md","sn"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.midbrain'
+  thetype[ grepl_multi( c("dti.mean.md","exa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.midbrain'
+  thetype[ grepl_multi( c("dti.mean.md","referenceregion"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.midbrain'
+  thetype[ grepl_multi( c("dti","md"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='dti.md.cortex'
+
+
+  thetype[ grepl_multi( c("t1","mtl","thk"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.mtl'
+  thetype[ grepl_multi( c("t1","mtl","vol"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.mtl'
+  thetype[ grepl_multi( c("t1","mtl","area"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.area.mtl'
+  thetype[ grepl_multi( c("t1","cerebell","thk"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.cerebell'
+  thetype[ grepl_multi( c("t1","cerebell","vol"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.cerebell'
+  thetype[ grepl_multi( c("t1","cerebell","area"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.area.cerebell'
+  thetype[ grepl_multi( c("t1","snseg","thk"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.snseg'
+  thetype[ grepl_multi( c("t1","snseg","vol"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.snseg'
+  thetype[ grepl_multi( c("t1vth"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vth.cortex'
+  thetype[ grepl_multi( c("t1.thk",".bst"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.bst'
+  thetype[ grepl_multi( c("t1.vol",".bst"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.bst'
+  thetype[ grepl_multi( c("t1.thk",".nbm"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.nbm'
+  thetype[ grepl_multi( c("t1.vol",".nbm"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.nbm'
+  thetype[ grepl_multi( c("t1.thk","ch13"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.ch13'
+  thetype[ grepl_multi( c("t1.vol","ch13"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.ch13'
+  thetype[ grepl_multi( c("t1.thk","ctx"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.cortex'
+  thetype[ grepl_multi( c("t1.vol","ctx"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.cortex'
+  thetype[ grepl_multi( c("t1.thk","dp"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.thk.deepcit'
+  thetype[ grepl_multi( c("t1.vol","dp"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.deepcit'
+  thetype[ grepl_multi( c("t1.vol","bn"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.deepcit'
+  thetype[ grepl_multi( c("t1.vol","die"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.deepcit'
+  thetype[ grepl_multi( c("t1.vol","die"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.deepcit'
+  thetype[ grepl_multi( c("t1.vol","mtg"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.deepcit'
+  thetype[ grepl_multi( c("t1.vol","exa"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.midbrain'
+  thetype[ grepl_multi( c("t1.vol","snc"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.midbrain'
+  thetype[ grepl_multi( c("t1.vol","snr"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.midbrain'
+  thetype[ grepl_multi( c("t1.vol","reference"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='t1.vol.midbrain'
+  
+  # other modalities
+  thetype[ grepl_multi( c("t2fla"), varnames, intersect=TRUE ) & thetype=="notassigned"  ]='wmh'
+  thetype[ grepl_multi( c("nm2dmt"), varnames, intersect=TRUE ) & thetype=="notassigned"   ]='melanin'
+  thetype[ grepl_multi( c("nm."), varnames, intersect=TRUE ) & thetype=="notassigned"   ]='melanin'
+  thetype[  varnames %in% c("nm.min","nm.iavg.signaltonoise","t1.mhdist") ]='notassigned'
+
+  outdf = data.frame( varname = varnames, type = thetype )
+  return(outdf)
+}
+
+
+# -- Comparison Engine: perform_detailed_comparison --
+# This function calculates the differences between the two runs for each variable.
+# Includes a bug fix for the symmetric percentage difference calculation.
+perform_detailed_comparison <- function(df_a, df_b, var_info_df, tolerance = 1e-6) {
+  var_info_df = var_info_df[ var_info_df$type != "notassigned", ]
+  num_vars <- nrow(var_info_df)
+  comparison_results <- tibble(
+    varname = var_info_df$varname,
+    var_class = var_info_df$type,
+    type_A = vector("character", num_vars),
+    type_B = vector("character", num_vars),
+    value_A = vector("list", num_vars),
+    value_B = vector("list", num_vars),
+    is_identical_strict = vector("logical", num_vars),
+    is_numeric_diff = vector("logical", num_vars),
+    abs_diff = vector("numeric", num_vars),
+    sym_percent_diff = vector("numeric", num_vars),
+    category = vector("character", num_vars),
+    sub_category = vector("character", num_vars)
+  )
+
+  for (i in seq_len(num_vars)) {
+    col_name <- var_info_df$varname[i]
+    val_A <- df_a[[col_name]]
+    val_B <- df_b[[col_name]]
+    type_A <- class(val_A)
+    type_B <- class(val_B)
+    identical_strict <- identical(val_A, val_B)
+    col_category <- "Uncategorized"
+    sub_category <- "N/A"
+    numeric_diff_flag <- FALSE
+    abs_d <- NA_real_
+    sym_percent_d <- NA_real_
+
+    if (type_A != type_B) {
+      col_category <- "Type Mismatch"
+      sub_category <- paste0(type_A, " -> ", type_B)
+    } else {
+      is_A_special <- is.na(val_A) || is.nan(val_A) || is.infinite(val_A)
+      is_B_special <- is.na(val_B) || is.nan(val_B) || is.infinite(val_B)
+
+      if (is_A_special || is_B_special) {
+        if (identical_strict) {
+          col_category <- "Identical"
+          sub_category <- paste("Both", val_A)
+        } else {
+          col_category <- "Special-Value Mismatch"
+          sub_category <- paste0(val_A, " -> ", val_B)
+        }
+      } else if (is.numeric(val_A)) {
+        numeric_diff_flag <- TRUE
+        abs_d <- abs(val_A - val_B)
+        # BUG FIX: Use abs() on individual terms to prevent denominator becoming zero.
+        denominator_symmetric <- abs(val_A) + abs(val_B)
+        if (denominator_symmetric < .Machine$double.eps^2) { # Effectively zero
+          sym_percent_d <- 0
+        } else {
+          sym_percent_d <- (2 * abs_d) / denominator_symmetric
+        }
+        
+        if (sym_percent_d < tolerance) {
+          col_category <- "Numerically Identical"
+        } else if (sym_percent_d < 1e-4) {
+          col_category <- "Tiny Numeric Difference"
+        } else if (sym_percent_d < 1e-2) {
+          col_category <- "Small Numeric Difference"
+        } else {
+          col_category <- "Significant Numeric Difference"
+        }
+        sub_category <- paste0("spd: ", scales::scientific(sym_percent_d))
+      } else { # Non-numeric, non-special
+        if (identical_strict) {
+          col_category <- "Identical"
+        } else {
+          col_category <- "Value Mismatch"
+        }
+        sub_category <- paste0("'", val_A, "' -> '", val_B, "'")
+      }
+    }
+    
+    if (identical_strict) col_category <- "Identical"
+
+    comparison_results$type_A[i] <- type_A
+    comparison_results$type_B[i] <- type_B
+    comparison_results$value_A[[i]] <- val_A
+    comparison_results$value_B[[i]] <- val_B
+    comparison_results$is_identical_strict[i] <- identical_strict
+    comparison_results$is_numeric_diff[i] <- numeric_diff_flag
+    comparison_results$abs_diff[i] <- abs_d
+    comparison_results$sym_percent_diff[i] <- sym_percent_d
+    comparison_results$category[i] <- col_category
+    comparison_results$sub_category[i] <- sub_category
+  }
+  return(comparison_results)
+}
+```
+
+# **Executive Summary**
+
+This report presents a comprehensive analysis of the computational reproducibility between two program runs (`Run A` vs. `Run B`). Our methodology involves a detailed, variable-by-variable comparison, prioritizing a robust **Symmetric Percentage Difference** to assess numerical discrepancies. Variables are systematically grouped into classes using a custom, rule-based engine to identify systemic patterns of irreproducibility.
+
+```{r exec_summary_data, include=FALSE}
+# This chunk runs silently to generate numbers for the executive summary.
+
+# --- Load and Prepare Data ---
+dd_raw <- read.csv(params$dd_file, check.names = FALSE)
+ee_raw <- read.csv(params$ee_file, check.names = FALSE)
+dd <- ANTsR::antspymm_predictors(dd_raw, FALSE)
+ee <- ANTsR::antspymm_predictors(ee_raw, FALSE)
+pymm_cols = intersect(colnames(dd), colnames(ee))
+canonical_antspymm_predictors <- c( 
+  pymm_cols[ grepl("NM2DMT", pymm_cols) ],
+  pymm_cols[ grepl("T2F", pymm_cols) ],
+  ANTsR::antspymm_predictors(dd, TRUE, TRUE)
+)
+common_varnames_og <- intersect(canonical_antspymm_predictors, pymm_cols )
+common_varnames <- ANTsR::shorten_pymm_names(common_varnames_og)
+for (n in 1:length(common_varnames)) {
+  if ( common_varnames_og[n] %in% names(dd) & common_varnames_og[n] %in% names(ee) ) {
+    dd <- subtyper::replaceName(dd, common_varnames_og[n], common_varnames[n])
+    ee <- subtyper::replaceName(ee, common_varnames_og[n], common_varnames[n])
+  }
+}
+common_varnames <- common_varnames[ common_varnames %in% names(dd) ]
+
+# --- Classify and Filter Data ---
+# We first classify ALL common variables.
+all_vars_classified <- cluster_variable_names(varnames = common_varnames)
+# Then we explicitly report on and filter out variables as per the user's original Rmd logic.
+# vars_to_keep <- all_vars_classified$type != "other" & !grepl("cerebell|rsf", all_vars_classified$varname)
+# vars_to_keep <- all_vars_classified$type != "other" & !grepl("rsf", all_vars_classified$varname)
+vars_to_keep <- all_vars_classified$type != "other"
+var_info_initial <- all_vars_classified[vars_to_keep, ]
+vars_filtered_out <- all_vars_classified[!vars_to_keep, ]
+
+# Now, we select the correct columns from the data frames
+dd_filtered_ordered <- dd %>% select(any_of(var_info_initial$varname))
+ee_filtered_ordered <- ee %>% select(any_of(var_info_initial$varname))
+# Final check to ensure we only have variables present in both
+final_common_vars <- intersect(names(dd_filtered_ordered), names(ee_filtered_ordered))
+var_info_initial <- var_info_initial %>% filter(varname %in% final_common_vars)
+dd_filtered_ordered <- dd_filtered_ordered %>% select(all_of(final_common_vars))
+ee_filtered_ordered <- ee_filtered_ordered %>% select(all_of(final_common_vars))
+
+
+# --- Perform Comparison ---
+repro_results <- perform_detailed_comparison(dd_filtered_ordered, ee_filtered_ordered, var_info_initial, tolerance = NUMERIC_TOLERANCE)
+repro_stats <- repro_results %>%
+  group_by(category) %>%
+  summarise(Count = n()) %>%
+  arrange(desc(Count))
+
+total_vars_analyzed <- nrow(repro_results)
+identical_count <- repro_stats$Count[repro_stats$category == "Identical"]
+if (length(identical_count) == 0) identical_count <- 0
+numerically_identical_count <- repro_stats$Count[repro_stats$category == "Numerically Identical"]
+if (length(numerically_identical_count) == 0) numerically_identical_count <- 0
+
+total_good_repro <- identical_count + numerically_identical_count
+percent_good_repro <- round((total_good_repro / total_vars_analyzed) * 100, 1)
+
+critical_issues <- repro_results %>% 
+  filter(category %in% c("Type Mismatch", "Special-Value Mismatch", "Value Mismatch")) %>%
+  nrow()
+
+significant_diffs <- repro_results %>% 
+  filter(category == "Significant Numeric Difference")
+
+top_bad_class <- repro_results %>%
+  filter(category == "Significant Numeric Difference") %>%
+  count(var_class, sort = TRUE) %>%
+  slice(1)
+```
+
+**Overall Finding:** The reproducibility between the two runs is **`r ifelse(percent_good_repro > 95, "excellent", ifelse(percent_good_repro > 80, "good", "concerning"))`**. A total of **`r scales::percent(percent_good_repro / 100)`** of the **`r total_vars_analyzed`** analyzed variables were found to be either perfectly identical or within the acceptable numerical tolerance of `r NUMERIC_TOLERANCE`.
+
+**Key Issues Identified:**
+
+*   **Structural Discrepancies:** We identified **`r critical_issues`** critical structural issue(s) (Type Mismatches or NA/Special-Value differences), which require immediate investigation as they indicate fundamental processing differences.
+*   **Significant Numerical Differences:** A total of **`r nrow(significant_diffs)`** variables exhibited significant numerical differences. The majority of these are concentrated in the **`r ifelse(nrow(top_bad_class) > 0, top_bad_class$var_class[1], "N/A")`** variable class, suggesting a potential instability in the algorithms related to this group of measurements.
+*   **Data Filtering:** A total of **`r nrow(vars_filtered_out)`** variables ( `r scales::percent(nrow(vars_filtered_out) / length(common_varnames))` of all common variables) were excluded from this analysis based on the script's filtering rules (unclassified "other" types). These should be reviewed separately to ensure no important discrepancies are being missed.
+
+This report will now provide a detailed breakdown of these findings for the **`r total_vars_analyzed`** variables included in the analysis.
+
+
+# 1. Reproducibility Health Dashboard
+
+This section provides a high-level overview of the comparison results.
+
+### 1.1. Overall Status by Category
+
+The summary table and chart below categorize every variable comparison. A healthy process will show the vast majority falling into the "Identical" and "Numerically Identical" categories.
+
+```{r grand_summary_table, echo=FALSE}
+category_levels <- c("Identical", "Numerically Identical", "Tiny Numeric Difference", "Small Numeric Difference", "Significant Numeric Difference", "Special-Value Mismatch", "Value Mismatch", "Type Mismatch")
+
+repro_results_summary <- repro_results %>%
+  mutate(category = factor(category, levels = category_levels)) %>%
+  group_by(category) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Percentage = scales::percent(Count / sum(Count), accuracy = 0.1)) %>%
+  arrange(category)
+
+knitr::kable(repro_results_summary, caption = "Summary of Reproducibility Status by Category")
+```
+
+```{r grand_summary_plot, echo=FALSE, fig.width=10, fig.height=6, warning=FALSE}
+ggplot(repro_results_summary, aes(x = Count, y = fct_reorder(category, Count), fill = category)) +
+  geom_col(color = "black") +
+  geom_text(aes(label = paste0(Count, " (", Percentage, ")")), hjust = -0.1, size = 3.5) +
+  labs(
+    title = "Distribution of Reproducibility Outcomes",
+    subtitle = paste("Based on", total_vars_analyzed, "analyzed variables"),
+    x = "Number of Variables",
+    y = "Outcome Category"
+  ) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none", plot.title.position = "plot") +
+  scale_fill_brewer(palette = "RdYlBu", direction = -1)
+```
+
+### 1.2. Distribution of Numerical Differences
+
+For variables that were not identical, this histogram shows the magnitude of the Symmetric Percentage Difference (SPD). A healthy comparison will show differences clustered at the very low end of the scale. A long tail to the right indicates significant relative errors.
+
+```{r diff_distributions_revisited, echo=FALSE, fig.width=12, fig.height=5, warning=FALSE}
+numeric_diff_data <- repro_results %>%
+  filter(is_numeric_diff == TRUE, is.finite(sym_percent_diff))
+
+plot_spd <- ggplot(numeric_diff_data, aes(x = sym_percent_diff, fill = category)) +
+  geom_histogram(bins = 50, color = "white", na.rm = TRUE) +
+  scale_x_log10(labels = scales::percent, breaks = scales::log_breaks(n = 8)) +
+  labs(title = "Distribution of Symmetric Percentage Differences (SPD)",
+       subtitle = "SPD = 2*|A-B|/(|A|+|B|). Highlights relative errors.",
+       x = "Symmetric Percentage Difference (Log Scale)",
+       y = "Count") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom", plot.title.position = "plot") +
+  guides(fill = guide_legend(title = "Difference Category:"))
+
+print(plot_spd)
+```
+
+---
+
+# 2. Deep Dive: Problematic Variables
+
+This section isolates the most critical discrepancies for debugging. We prioritize **structural issues** first, followed by the largest **numerical differences**.
+
+### 2.1. Structural Mismatches (Highest Priority)
+
+These are non-negotiable failures in reproducibility and must be addressed first. They include changes in data type, or a value becoming `NA`/`Inf` between runs.
+
+```{r structural_mismatches_table, echo=FALSE}
+structural_issues <- repro_results %>%
+  filter(category %in% c("Type Mismatch", "Special-Value Mismatch", "Value Mismatch")) %>%
+  select(Variable = varname, Classification = var_class, Category = category, Details = sub_category)
+
+if(nrow(structural_issues) > 0) {
+  datatable(structural_issues,
+            caption = "Critical Structural and Value Mismatches",
+            options = list(pageLength = 10, dom = 'tip', scrollX = TRUE),
+            rownames = FALSE,
+            class = 'cell-border stripe')
+} else {
+  cat("✅ **Excellent News:** No structural mismatches were found among the analyzed variables.")
+}
+```
+
+### 2.2. Top Numerically Discrepant Variables
+
+The following variables exceeded our tolerance for reproducibility. They are ranked by the **Symmetric Percentage Difference** to highlight the largest *relative* errors.
+
+```{r significant_diffs_plot, echo=FALSE, fig.width=10, fig.height=12, warning=FALSE}
+significant_numeric_diffs <- repro_results %>%
+  filter(category == "Significant Numeric Difference") %>%
+  arrange(desc(sym_percent_diff))
+
+if(nrow(significant_numeric_diffs) > 0) {
+  top_plot_data <- head(significant_numeric_diffs, TOP_N_VARS)
+  
+  plot_top_diffs <- ggplot(top_plot_data, aes(x = sym_percent_diff, y = fct_reorder(varname, sym_percent_diff), color = var_class)) +
+    geom_point(size = 3) +
+    geom_segment(aes(x = 0, xend = sym_percent_diff, y = fct_reorder(varname, sym_percent_diff), yend = fct_reorder(varname, sym_percent_diff))) +
+    scale_x_continuous(labels = scales::percent) +
+    labs(
+      title = paste("Top", min(TOP_N_VARS, nrow(top_plot_data)), "Most Discrepant Variables"),
+      subtitle = "Ranked by Symmetric Percentage Difference (SPD). Color indicates variable class.",
+      x = "Symmetric Percentage Difference",
+      y = "Variable Name",
+      color = "Variable Class"
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(legend.position = "bottom", plot.title.position = "plot") +
+    guides(color = guide_legend(nrow = 3))
+  
+  print(plot_top_diffs)
+} else {
+  cat("✅ **Excellent News:** No significant numerical differences were found.")
+}
+```
+
+```{r significant_diffs_table, echo=FALSE}
+if (nrow(significant_numeric_diffs) > 0) {
+  # The `datatable` call was previously buggy, this is the corrected version.
+  datatable(
+    significant_numeric_diffs %>% 
+      head(TOP_N_VARS) %>%
+      select(Variable = varname, Classification = var_class, `Run A` = value_A, `Run B` = value_B, `SPD` = sym_percent_diff) %>%
+      mutate(
+        `Run A` = map_dbl(`Run A`, ~ .), # Unlist
+        `Run B` = map_dbl(`Run B`, ~ .), # Unlist
+        SPD = scales::percent(SPD, accuracy = 0.01)
+      ),
+    caption = paste("Data for Top", TOP_N_VARS, "Significant Differences (Ranked by SPD)"),
+    options = list(pageLength = 20, dom = 'Bfrtip'),
+    rownames = FALSE,
+    class = 'cell-border stripe'
+  )
+}
+```
+
+**Interpretation:** The "lollipop" plot provides a rapid visual assessment of where the largest relative errors lie. The table below provides the exact values for detailed inspection. Pay close attention to the `Classification` column to see if errors cluster within a specific measurement type.
+
+
+# 3. Analysis by Variable Classification
+
+By grouping variables according to your `grepl_multi` rules, we can determine if specific measurement types or anatomical atlases are systematically less reproducible.
+
+### 3.1. Reproducibility Status per Class
+
+The chart below shows the proportional breakdown of reproducibility outcomes for each classified group. A "good" class is dominated by blue ("Identical") and green ("Negligible Differences"). A "bad" class shows a significant slice of red ("Significant Difference").
+
+```{r status_by_class_plot, echo=FALSE, fig.width=12, fig.height=12, warning=FALSE}
+repro_results_for_plot <- repro_results %>%
+  mutate(
+    plot_category = fct_collapse(category,
+      "Identical/Negligible" = c("Identical", "Numerically Identical"),
+      "Minor Difference" = c("Tiny Numeric Difference", "Small Numeric Difference"),
+      "Significant Difference" = "Significant Numeric Difference",
+      "Structural Mismatch" = c("Special-Value Mismatch", "Value Mismatch", "Type Mismatch")
+    ) %>% fct_relevel("Identical/Negligible", "Minor Difference", "Significant Difference", "Structural Mismatch")
+  )
+
+ggplot(repro_results_for_plot, aes(y = fct_reorder(var_class, var_class, .fun = function(x) -length(x)), fill = plot_category)) +
+  geom_bar(position = "fill", color = "black", width = 0.8) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(
+    title = "Reproducibility Breakdown by Variable Class",
+    subtitle = "Each bar shows the proportion of outcomes for that class. Ordered by size.",
+    x = "Percentage of Variables",
+    y = "Variable Class",
+    fill = "Outcome"
+  ) +
+  scale_fill_manual(values = c(
+    "Identical/Negligible" = "#2c7bb6",
+    "Minor Difference" = "#abd9e9",
+    "Significant Difference" = "#d7191c",
+    "Structural Mismatch" = "#fdae61"
+  )) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title.position = "plot",
+    axis.text.y = element_text(size = 16)  # <- this line increases y-axis text size
+  )
+```
+
+### 3.2. Distribution of Differences per Class
+
+This plot directly visualizes the stability of each class. We are looking for classes whose distributions are tight and centered near zero. Classes with wide distributions (long boxes/whiskers) or high medians are less reproducible.
+
+```{r spd_by_class_plot, echo=FALSE, fig.width=12, fig.height=8, warning=FALSE}
+if (nrow(numeric_diff_data) > 0) {
+  ggplot(numeric_diff_data, aes(x = fct_reorder(var_class, sym_percent_diff, .fun=median, .na_rm=TRUE), y = sym_percent_diff, fill = var_class)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_jitter(width = 0.2, alpha = 0.3, size = 0.5, height = 0) +
+    scale_y_log10(labels = scales::percent_format(accuracy=0.01)) +
+    coord_flip() +
+    labs(
+      title = "Distribution of Symmetric Percentage Difference by Variable Class",
+      subtitle = "Shows the spread of numerical differences for each group. Ordered by median SPD.",
+      x = "Variable Class",
+      y = "Symmetric Percentage Difference (Log Scale)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "none", plot.title.position = "plot")
+}
+```
+
+**Interpretation:** A class with a high median SPD (the line in the middle of the box) indicates a systematic, non-trivial difference between the two runs for that entire group of variables.
+
+# 4. Conclusion & Actionable Recommendations
+
+*   **Overall Health:** As stated, the overall reproducibility is **`r ifelse(percent_good_repro > 95, "excellent", ifelse(percent_good_repro > 80, "good", "concerning"))`**. This provides a high-level confidence score in the stability of the pipeline.
+
+*   **Critical Faults:** The **`r critical_issues`** identified structural issue(s) are the most severe category of error and represent the top priority for debugging. These are not numerical precision issues but fundamental logical or data-handling divergences.
+
+*   **Systemic Weaknesses:** The analysis of reproducibility by variable class points directly to the **`r ifelse(nrow(top_bad_class) > 0, top_bad_class$var_class[1], "N/A")`** class as the primary source of significant numerical discrepancies. The algorithms used in both white matter hyperintensities and melanin classestake advantage of randomization to bootstrap estimates.  As such, the results are by definition non-deterministic.  It is possible to implement bootstrapped estimates that are deterministically random but this will require extra development effort and a new release for ANTsPy.
+
+* Voxel-wise cortical thickness was run with a multi-threaded environment ( `*vth` results ) and as such the numerical differences shown in this category are exepected and attributable to the multi-threaded nature of the algorithm.  The results are not expected to be identical across runs, but rather within a small tolerance.
+
+*   **Data Filtration:** A separate review of these `"other"` variables may be warranted to ensure no significant issues are being overlooked.
+
