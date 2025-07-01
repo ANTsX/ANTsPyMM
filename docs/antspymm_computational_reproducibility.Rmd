@@ -114,7 +114,7 @@ The variable classification names used throughout this report (e.g., `dti.fa.cor
 | **md**            | **Mean Diffusivity:** A primary DTI measure reflecting the average magnitude of water diffusion.                       | Measurement Type                            |
 | **t1**            | **T1w Hierarchical:** Indicates a value derived from the main `antspyt1w` hierarchical segmentation and labeling process. | Measurement Type |
 | **t1.vth**        | **Direct Cortical Thickness:** A specific T1-based cortical thickness measurement (`t1vth`).                               | Measurement Type                            |
-| **mne**           | **Neuromelanin:** Indicates a measure derived from neuromelanin-sensitive imaging pipelines.                             | Measurement Type                            |
+| **neuromelanin**           | **Neuromelanin:** Indicates a measure derived from neuromelanin-sensitive imaging pipelines.                             | Measurement Type                            |
 | **rsf**           | **Resting-State fMRI:** A general prefix for metrics derived from resting-state functional MRI data.               | Measurement Type                            |
 | **falff**         | **Fractional Amplitude of Low-Frequency Fluctuations:** An rs-fMRI measure of the relative aplitude of brain activity. | Measurement Type|
 | **peraf**      | **Percent Absolute Fluctuation:** An rs-fMRI measure derived from the original ALFF, defined as a percentage. | Measurement Type |
