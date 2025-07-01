@@ -2,8 +2,14 @@
 # for easier to access data with a full mm_csv example, see:
 # github.com:stnava/ANTPD_antspymm
 ##################################################################
-from os.path import exists
+import random
+import numpy as np
+seed = 42  #
+random.seed(seed)
+np.random.seed(seed)
 import os
+os.environ["PYTHONHASHSEED"] = str(seed)
+from os.path import exists
 import signal
 import urllib.request
 import zipfile
