@@ -141,8 +141,14 @@ candidate_rdirs = [
 
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
-
-nthreads = str(8)
+########################################################################
+nthreads = str(8) # for much faster performance and good reproducibility
+####### NOTE: DTI is not exactly reproducible with nthreads > 1 ########
+####### we may look into these details in the future ##############
+nthreads = str(1) # for "perfect reproducibility" 
+# NOTE: WMH and melanin intentionally use randomization, so they are not 
+# exactly reproducible across runs; me may implement a seeding procedure 
+# in the future to make them reproducible as well
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
 os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
