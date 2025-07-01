@@ -81,6 +81,8 @@ will all modalities will take around 2 hours on an average laptop.
 
 * notes on QC [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/blind_qc.html)
 
+* notes on ANTsPyMM computational reproducibility [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/antspymm_computational_reproducibility.html)
+
 
 achieved through four steps (recommended approach):
 
