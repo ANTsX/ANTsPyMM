@@ -148,10 +148,10 @@ candidate_rdirs = [
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 ########################################################################
-nthreads = str(8) # for much faster performance and good reproducibility
+nthreads = str(4) # for much faster performance and good reproducibility
 ####### NOTE: DTI is not exactly reproducible with nthreads > 1 ########
 ####### we may look into these details in the future ##############
-nthreads = str(1) # for "perfect reproducibility" 
+# nthreads = str(1) # for "perfect reproducibility" 
 # NOTE: WMH and melanin intentionally use randomization, so they are not 
 # exactly reproducible across runs; me may implement a seeding procedure 
 # in the future to make them reproducible as well
@@ -170,10 +170,9 @@ mydir = rdir + "PPMI/"
 if not exists(repro):
     repro = False
 if not repro:
-    outdir = re.sub( 'nrgdata_test', 'antspymmoutput', rdir )
+    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads, rdir )
 else:
-    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_repro', rdir )
-
+    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads+'_repro', rdir )
 ################################
 print( " outdir = " + outdir ) #
 ################################
