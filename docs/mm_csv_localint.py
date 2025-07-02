@@ -218,7 +218,7 @@ if len(t1fn) > 0:
         splitsep='-', idsep='-', wild_card_modality_id=True, second_split=False, verbose=True )
     print(merged.shape)
     index=0
-    outfn = pdir + studycsv2['projectID'][index]+'-'+ studycsv2['subjectID'][index]+'-'+ studycsv2['date'][index]+'-'+studycsv2['imageID'][index]+'-mmwide.csv'
+    outfn = pdir + studycsv2['projectID'][index]+'-'+ studycsv2['subjectID'][index]+'-'+ studycsv2['date'][index]+'-'+studycsv2['imageID'][index]+'-th'+str(nthreads)+'-mmwide.csv'
     merged.to_csv( outfn )
 else:
     print("We searched "+mydir+"101018/20210412/T1w/1496225/*.nii.gz")
