@@ -13,6 +13,8 @@ import tensorflow as tf
 from tempfile import mktemp
 import numpy as np
 import antspymm
+import time
+start_time = time.time()
 print(" Load in JHU atlas and labels ")
 ex_path = os.path.expanduser( "~/.antspyt1w/" )
 ex_path_mm = os.path.expanduser( "~/.antspymm/" )
@@ -83,3 +85,10 @@ if False:
                         seed_density = 1,
                         mask=mask,
                         verbose = verbose )
+
+
+end_time = time.time()
+elapsed = end_time - start_time
+
+print(f"Execution time: {elapsed:.2f} seconds")
+print("Done with joint DTI recon")
