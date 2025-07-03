@@ -5,7 +5,7 @@ from dipy.io.gradients import read_bvals_bvecs
 from scipy.stats import pearsonr
 import antspymm
 import matplotlib.pyplot as plt
-nt = 2
+nt = 8
 # amount or rotation around x, y, z-axis
 degrotx = 15
 degroty = 15
@@ -131,7 +131,7 @@ if True:
         FA_orig, MD_orig, RGB_orig = antspymm.efficient_dwi_fit_voxelwise(
             imagein=img_LR_in,
             maskin=mask,
-            bvals=bvals,
+            gtab_bvals=bvals,
             bvecs_5d=bvecs_5d_orig,
             model_params={},
             bvals_to_use=None,
@@ -158,7 +158,7 @@ if True:
         FA_rot, MD_rot, RGB_rot = antspymm.efficient_dwi_fit_voxelwise(
             imagein=img_rotated,
             maskin=mask_rotated,
-            bvals=bvals,
+            gtab_bvals=bvals,
             bvecs_5d=bvecs_5d_rot,
             model_params={},
             bvals_to_use=None,
@@ -249,7 +249,7 @@ if True:
             FA_w, MD_w, RGB_w = antspymm.efficient_dwi_fit_voxelwise(
                 imagein=img_w,
                 maskin=ants.get_mask(ants.get_average_of_timeseries(img_w)),
-                bvals=bvals,
+                gtab_bvals=bvals,
                 bvecs_5d=bv,
                 model_params={},
                 bvals_to_use=None,
