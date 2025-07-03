@@ -166,60 +166,62 @@ import antspymm
 import ants
 import random
 import re
-mydir = rdir + "PPMI/"
-if not exists(repro):
-    repro = False
-if not repro:
-    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads, rdir )
-else:
-    outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads+'_repro', rdir )
-################################
-print( " outdir = " + outdir ) #
-################################
-import antspymm #####
-import pandas as pd #
-import glob as glob #
-t1fn=glob.glob(mydir+"101018/20210412/T1w/1496225/*.nii.gz")
-if len(t1fn) > 0:
-    t1fn=t1fn[0]
-    print("Begin " + t1fn)
-    flfn=glob.glob(mydir+"101018/20210412/T2Flair/*/*.nii.gz")[0]
-    dtfn=glob.glob(mydir+"101018/20210412/DTI*/*/*.nii.gz")
-    rsfn=glob.glob(mydir+"101018/20210412/rsfMRI*/*/*.nii.gz")
-    nmfn=glob.glob(mydir+"101018/20210412/NM2DMT/*/*.nii.gz")
-    studycsv = antspymm.generate_mm_dataframe( 
-        projectID='PPMI',
-        subjectID='101018', 
-        date='20210412', 
-        imageUniqueID='1496225', 
-        modality='T1w', 
-        source_image_directory=rdir, 
-        output_image_directory=outdir, 
-        t1_filename = t1fn,
-        flair_filename=flfn,
-        rsf_filenames=rsfn,
-        dti_filenames=dtfn,
-        nm_filenames=nmfn
-    )
-    studycsv2 = studycsv.dropna(axis=1)
-    print( studycsv2 )
-    template = ants.image_read("~/.antspymm/PPMI_template0.nii.gz").reorient_image2("LPI")
-    bxt = ants.image_read("~/.antspymm/PPMI_template0_brainmask.nii.gz").reorient_image2("LPI")
-    template = template * bxt
-    template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
-    mmrun = antspymm.mm_csv( studycsv2,
-        normalization_template=template,
-        normalization_template_output='ppmi',
-        normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
-        normalization_template_spacing=[1,1,1]  )
-    pdir = str(studycsv2['outputdir'][0])
-    merged=antspymm.aggregate_antspymm_results_sdf( studycsv2,
-        subject_col='subjectID', date_col='date', image_col='imageID',  base_path=pdir,
-        splitsep='-', idsep='-', wild_card_modality_id=True, second_split=False, verbose=True )
-    print(merged.shape)
-    index=0
-    outfn = pdir + studycsv2['projectID'][index]+'-'+ studycsv2['subjectID'][index]+'-'+ studycsv2['date'][index]+'-'+studycsv2['imageID'][index]+'-th'+str(nthreads)+'-mmwide.csv'
-    merged.to_csv( outfn )
-else:
-    print("We searched "+mydir+"101018/20210412/T1w/1496225/*.nii.gz")
-    print("T1w data is missing: see github.com:stnava/ANTPD_antspymm for a full integration study and container with more easily accessible data")
+
+if __name__ == '__main__':
+    mydir = rdir + "PPMI/"
+    if not exists(repro):
+        repro = False
+    if not repro:
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads, rdir )
+    else:
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads+'_repro', rdir )
+    ################################
+    print( " outdir = " + outdir ) #
+    ################################
+    import antspymm #####
+    import pandas as pd #
+    import glob as glob #
+    t1fn=glob.glob(mydir+"101018/20210412/T1w/1496225/*.nii.gz")
+    if len(t1fn) > 0:
+        t1fn=t1fn[0]
+        print("Begin " + t1fn)
+        flfn=glob.glob(mydir+"101018/20210412/T2Flair/*/*.nii.gz")[0]
+        dtfn=glob.glob(mydir+"101018/20210412/DTI*/*/*.nii.gz")
+        rsfn=glob.glob(mydir+"101018/20210412/rsfMRI*/*/*.nii.gz")
+        nmfn=glob.glob(mydir+"101018/20210412/NM2DMT/*/*.nii.gz")
+        studycsv = antspymm.generate_mm_dataframe( 
+            projectID='PPMI',
+            subjectID='101018', 
+            date='20210412', 
+            imageUniqueID='1496225', 
+            modality='T1w', 
+            source_image_directory=rdir, 
+            output_image_directory=outdir, 
+            t1_filename = t1fn,
+            flair_filename=flfn,
+            rsf_filenames=rsfn,
+            dti_filenames=dtfn,
+            nm_filenames=nmfn
+        )
+        studycsv2 = studycsv.dropna(axis=1)
+        print( studycsv2 )
+        template = ants.image_read("~/.antspymm/PPMI_template0.nii.gz").reorient_image2("LPI")
+        bxt = ants.image_read("~/.antspymm/PPMI_template0_brainmask.nii.gz").reorient_image2("LPI")
+        template = template * bxt
+        template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
+        mmrun = antspymm.mm_csv( studycsv2,
+            normalization_template=template,
+            normalization_template_output='ppmi',
+            normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
+            normalization_template_spacing=[1,1,1]  )
+        pdir = str(studycsv2['outputdir'][0])
+        merged=antspymm.aggregate_antspymm_results_sdf( studycsv2,
+            subject_col='subjectID', date_col='date', image_col='imageID',  base_path=pdir,
+            splitsep='-', idsep='-', wild_card_modality_id=True, second_split=False, verbose=True )
+        print(merged.shape)
+        index=0
+        outfn = pdir + studycsv2['projectID'][index]+'-'+ studycsv2['subjectID'][index]+'-'+ studycsv2['date'][index]+'-'+studycsv2['imageID'][index]+'-th'+str(nthreads)+'-mmwide.csv'
+        merged.to_csv( outfn )
+    else:
+        print("We searched "+mydir+"101018/20210412/T1w/1496225/*.nii.gz")
+        print("T1w data is missing: see github.com:stnava/ANTPD_antspymm for a full integration study and container with more easily accessible data")
