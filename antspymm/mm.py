@@ -6895,7 +6895,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['FD_max'] = corrmo['FD'].max().astype(np.float32) ## REPRODUCIBILITY CHANGE
   outdict['FD_mean'] = corrmo['FD'].mean().astype(np.float32) ## REPRODUCIBILITY CHANGE
   outdict['FD_sd'] = corrmo['FD'].std().astype(np.float32) ## REPRODUCIBILITY CHANGE
-  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [np.float32(16),np.float32(16),np.float32(16)], evdepth = np.float32(0.9), mask = bmask ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [np.float32(16),np.float32(16),np.float32(16)], evdepth = np.float32(0.9), mask = bmask ) ## REPRODUCIBILITY CHANGE
   outdict['n_outliers'] = len(hlinds)
   outdict['nc_wm'] = int(nc_wm)
   outdict['nc_csf'] = int(nc_csf)
