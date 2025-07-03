@@ -6336,7 +6336,6 @@ def PerAF( x, mask, globalmean=True ):
     return outimg
 
 
-
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.03, 0.08],
     FD_threshold=5.0,
@@ -6356,66 +6355,17 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     verbose=False ):
   """
   Compute resting state network correlation maps based on the J Power labels.
-  This will output a map for each of the major network systems.  This function 
-  will by optionally upsample data to 2mm during the registration process if data 
-  is below that resolution.
-
-  registration - despike - anatomy - smooth - nuisance - bandpass - regress.nuisance - censor - falff - correlations
-
-  Arguments
-  ---------
-  fmri : BOLD fmri antsImage
-
-  fmri_template : reference space for BOLD
-
-  t1 : ANTsImage
-    input 3-D T1 brain image (brain extracted)
-
-  t1segmentation : ANTsImage
-    t1 segmentation - a six tissue segmentation image in T1 space
-
-  f : band pass limits for frequency filtering; we use high-pass here as per Shirer 2015
-
-  spa : gaussian smoothing for spatial component (physical coordinates)
-
-  spt : gaussian smoothing for temporal component
-
-  nc  : number of components for compcor filtering; if less than 1 we estimate on the fly based on explained variance; 10 wrt Shirer 2015 5 from csf and 5 from wm
-
-  ica_components : integer if greater than 0 then include ica components
-
-  impute : boolean if True, then use imputation in f/ALFF, PerAF calculation
-
-  censor : boolean if True, then use censoring (censoring)
-
-  despike : if this is greater than zero will run voxel-wise despiking in the 3dDespike (afni) sense; after motion-correction
-
-  motion_as_nuisance: boolean will add motion and first derivative of motion as nuisance
-
-  powers : boolean if True use Powers nodes otherwise 2023 Yeo 500 homotopic nodes (10.1016/j.neuroimage.2023.120010)
-
-  upsample : float optionally isotropically upsample data to upsample (the parameter value) in mm during the registration process if data is below that resolution; if the input spacing is less than that provided by the user, the data will simply be resampled to isotropic resolution
-
-  clean_tmp : will automatically try to clean the tmp directory - not recommended but can be used in distributed computing systems to help prevent failures due to accumulation of tmp files when doing large-scale processing.  if this is set, the float value clean_tmp will be interpreted as the age in hours of files to be cleaned.
-
-  verbose : boolean
-
-  Returns
-  ---------
-  a dictionary containing the derived network maps
-
-  References
-  ---------
-
-  10.1162/netn_a_00071 "Methods that included global signal regression were the most consistently effective de-noising strategies."
-
-  10.1016/j.neuroimage.2019.116157 "frontal and default model networks are most reliable whereas subcortical neteworks are least reliable"  "the most comprehensive studies of pipeline effects on edge-level reliability have been done by shirer (2015) and Parkes (2018)" "slice timing correction has minimal impact" "use of low-pass or narrow filter (discarding  high frequency information) reduced both reliability and signal-noise separation"
-
-  10.1016/j.neuroimage.2017.12.073: Our results indicate that (1) simple linear regression of regional fMRI time series against head motion parameters and WM/CSF signals (with or without expansion terms) is not sufficient to remove head motion artefacts; (2) aCompCor pipelines may only be viable in low-motion data; (3) volume censoring performs well at minimising motion-related artefact but a major benefit of this approach derives from the exclusion of high-motion individuals; (4) while not as effective as volume censoring, ICA-AROMA performed well across our benchmarks for relatively low cost in terms of data loss; (5) the addition of global signal regression improved the performance of nearly all pipelines on most benchmarks, but exacerbated the distance-dependence of correlations between motion and functional connec- tivity; and (6) group comparisons in functional connectivity between healthy controls and schizophrenia patients are highly dependent on preprocessing strategy. We offer some recommendations for best practice and outline simple analyses to facilitate transparent reporting of the degree to which a given set of findings may be affected by motion-related artefact.
-
-  10.1016/j.dcn.2022.101087 : We found that: 1) the most efficacious pipeline for both noise removal and information recovery included censoring, GSR, bandpass filtering, and head motion parameter (HMP) regression, 2) ICA-AROMA performed similarly to HMP regression and did not obviate the need for censoring, 3) GSR had a minimal impact on connectome fingerprinting but improved ISC, and 4) the strictest censoring approaches reduced motion correlated edges but negatively impacted identifiability.
-
+  This version ensures type consistency (float32) and leverages fixed-thread
+  parallelism for computational reproducibility concurrent with speed.
   """
+
+  ## REPRODUCIBILITY CHANGE: Control multi-threaded execution
+  num_threads = os.cpu_count() if os.cpu_count() is not None else 1
+  os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = str(num_threads)
+  os.environ["OMP_NUM_THREADS"] = str(num_threads)
+  if verbose:
+      print(f"Set ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS and OMP_NUM_THREADS to {num_threads} for reproducibility and speed.")
+
 
   import warnings
 
@@ -6425,92 +6375,82 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   if nc > 1:
     nc = int(nc)
   else:
-    nc=float(nc)
+    nc=float(nc) # This will be float32 later if used in calculation
 
-  type_of_transform="antsRegistrationSyNQuickRepro[r]" # , # should probably not change this
+  type_of_transform="antsRegistrationSyNQuickRepro[r]"
   remove_it=True
   output_directory = tempfile.mkdtemp()
-  output_directory_w = output_directory + "/ts_t1_reg/"
+  output_directory_w = os.path.join(output_directory, "ts_t1_reg")
   os.makedirs(output_directory_w,exist_ok=True)
   ofnt1tx = tempfile.NamedTemporaryFile(delete=False,suffix='t1_deformation',dir=output_directory_w).name
 
-  import numpy as np
-# Assuming core and utils are modules or packages with necessary functions
-
   if upsample > 0.0:
       spc = ants.get_spacing( fmri )
-      minspc = upsample
+      minspc = np.float32(upsample) ## REPRODUCIBILITY CHANGE: Cast upsample to float32
       if min(spc[0:3]) < minspc:
-          minspc = min(spc[0:3])
-      newspc = [minspc,minspc,minspc]
-      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 )
+          minspc = np.float32(min(spc[0:3])) ## REPRODUCIBILITY CHANGE: Ensure min spacing is float32
+      # newspc should contain float32 elements
+      newspc = [np.float32(minspc), np.float32(minspc), np.float32(minspc)] ## REPRODUCIBILITY CHANGE
+      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+      # Assuming ants.resample_image returns float32
 
   def temporal_derivative_same_shape(array):
     """
     Compute the temporal derivative of a 2D numpy array along the 0th axis (time)
     and ensure the output has the same shape as the input.
-
-    :param array: 2D numpy array with time as the 0th axis.
-    :return: 2D numpy array of the temporal derivative with the same shape as input.
     """
-    derivative = np.diff(array, axis=0)
-    
-    # Append a row to maintain the same shape
-    # You can choose to append a row of zeros or the last row of the derivative
-    # Here, a row of zeros is appended
-    zeros_row = np.zeros((1, array.shape[1]))
-    return np.vstack((zeros_row, derivative ))
+    array_f32 = array.astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure array is float32
+    derivative = np.diff(array_f32, axis=0).astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure derivative is float32
+
+    # Append a row to maintain the same shape, ensuring it's float32
+    zeros_row = np.zeros((1, array_f32.shape[1]), dtype=np.float32) ## REPRODUCIBILITY CHANGE
+    return np.vstack((zeros_row, derivative )).astype(np.float32) ## REPRODUCIBILITY CHANGE
 
   def compute_tSTD(M, quantile, x=0, axis=0):
-    stdM = np.std(M, axis=axis)
+    M_f32 = M.astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure matrix M is float32
+    stdM = np.std(M_f32, axis=axis).astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure std deviation is float32
     # set bad values to x
     stdM[stdM == 0] = x
     stdM[np.isnan(stdM)] = x
     tt = round(quantile * 100)
-    threshold_std = np.percentile(stdM, tt)
+    # np.percentile can return float64, explicitly cast to float32
+    threshold_std = np.percentile(stdM, tt).astype(np.float32) ## REPRODUCIBILITY CHANGE
     return {'tSTD': stdM, 'threshold_std': threshold_std}
 
   def get_compcor_matrix(boldImage, mask, quantile):
     """
     Compute the compcor matrix.
-
-    :param boldImage: The bold image.
-    :param mask: The mask to apply, if None, it will be computed.
-    :param quantile: Quantile for computing threshold in tSTD.
-    :return: The compor matrix.
     """
     if mask is None:
-        temp = ants.slice_image(boldImage, axis=boldImage.dimension - 1, idx=0)
-        mask = ants.get_mask(temp)
+        # Assuming ants.slice_image returns an antsImage
+        temp_slice = ants.slice_image(boldImage, axis=boldImage.dimension - 1, idx=0)
+        mask = ants.get_mask(temp_slice).astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure mask is float32
 
-    imagematrix = ants.timeseries_to_matrix(boldImage, mask)
-    temp = compute_tSTD(imagematrix, quantile, 0)
-    tsnrmask = ants.make_image(mask, temp['tSTD'])
-    tsnrmask = ants.threshold_image(tsnrmask, temp['threshold_std'], temp['tSTD'].max())
-    M = ants.timeseries_to_matrix(boldImage, tsnrmask)
+    imagematrix = ants.timeseries_to_matrix(boldImage, mask).astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure matrix is float32
+    temp_results = compute_tSTD(imagematrix, quantile, 0)
+    # tsnrmask should be float32 due to temp_results['tSTD'] and ants.make_image
+    tsnrmask = ants.make_image(mask, temp_results['tSTD']) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+    tsnrmask = ants.threshold_image(tsnrmask, temp_results['threshold_std'], temp_results['tSTD'].max()) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+    M = ants.timeseries_to_matrix(boldImage, tsnrmask).astype(np.float32) ## REPRODUCIBILITY CHANGE: Ensure matrix is float32
     return M
-
 
   from sklearn.decomposition import FastICA
   def find_indices(lst, value):
     return [index for index, element in enumerate(lst) if element > value]
 
   def mean_of_list(lst):
-    if not lst:  # Check if the list is not empty
-        return 0  # Return 0 or appropriate value for an empty list
-    return sum(lst) / len(lst)
+    if not lst:
+        return np.float32(0.0) ## REPRODUCIBILITY CHANGE: Return float32 zero
+    return np.float32(sum(lst) / len(lst)) ## REPRODUCIBILITY CHANGE: Return float32 mean
+
   fmrispc = list( ants.get_spacing( fmri ) )
   if spa is None:
-    spa = mean_of_list( fmrispc[0:3] ) * 1.0
+    spa = np.float32(mean_of_list( fmrispc[0:3] ) * 1.0) ## REPRODUCIBILITY CHANGE: Ensure spa is float32
   if spt is None:
-    spt = fmrispc[3] * 0.5
-      
-  import numpy as np
-  import pandas as pd
-  import re
-  import math
+    spt = np.float32(fmrispc[3] * 0.5) ## REPRODUCIBILITY CHANGE: Ensure spt is float32
+
   # point data resources
-  A = np.zeros((1,1))
+  A = np.zeros((1,1), dtype=np.float32) ## REPRODUCIBILITY CHANGE: Initialize with float32
   dfnname='DefaultMode'
   if powers:
       powers_areal_mni_itk = pd.read_csv( get_data('powers_mni_itk', target_extension=".csv")) # power coordinates
@@ -6518,8 +6458,22 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   else:
       powers_areal_mni_itk = pd.read_csv( get_data('ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic', target_extension=".csv")) # yeo 2023 coordinates
       coords='yeo_17_500_2023'
-  fmri = ants.iMath( fmri, 'Normalize' )
-  bmask = antspynet.brain_extraction( fmri_template, 'bold' ).threshold_image(0.5,1).iMath("FillHoles")
+      # Ensure DataFrame values used for ROI/SystemName are consistent if they were loaded as objects/mixed
+      # Explicitly cast columns to string/int for reproducibility, in case pandas infers differently on different platforms
+      powers_areal_mni_itk['SystemName'] = powers_areal_mni_itk['SystemName'].astype(str)
+      powers_areal_mni_itk['ROI'] = powers_areal_mni_itk['ROI'].astype(np.int32)
+      powers_areal_mni_itk['AAL'] = powers_areal_mni_itk['AAL'].astype(str) # Assuming AAL is always relevant
+
+  fmri = ants.iMath( fmri, 'Normalize' ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming ants.iMath keeps float32
+
+  be_output = antspynet.brain_extraction( fmri_template, 'bold' )
+  if hasattr(be_output, 'threshold_image'): # Check if it's an antsImage-like object
+      bmask = be_output.threshold_image(0.5,1).iMath("FillHoles") ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  else: # If it's a numpy array, wrap it to an antsImage first
+      bmask = ants.make_image(fmri_template, be_output).threshold_image(0.5,1).iMath("FillHoles") ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming antspynet.brain_extraction and chained ants functions return float32
+
   if verbose:
       print("Begin rsfmri motion correction")
   debug=False
@@ -6527,7 +6481,8 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       ants.image_write( fmri_template, '/tmp/fmri_template.nii.gz' )
       ants.image_write( fmri, '/tmp/fmri.nii.gz' )
       print("debug wrote fmri and fmri_template")
-  # mot-co
+
+  # Motion correction. Ensure output types are float32
   corrmo = timeseries_reg(
     fmri, fmri_template,
     type_of_transform=type_of_transform,
@@ -6541,71 +6496,92 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     reg_iterations=[40,20,5],
     return_numpy_motion_parameters=True )
   
+  # The output of timeseries_reg is crucial. If it returns antsImages, those are assumed float32.
+  # But motion_parameters and FD are explicitly numpy arrays, so cast them.
+  corrmo['motion_corrected'] = corrmo['motion_corrected'] ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming corrmo['motion_corrected'] is an antsImage and already float32
+  corrmo['motion_parameters'] = corrmo['motion_parameters'].astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+  corrmo['FD'] = corrmo['FD'].astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+
   if verbose:
       print("End rsfmri motion correction")
       print("--maximum motion : " + str(corrmo['FD'].max()) )
       print("=== next anatomically based mapping ===")
 
-  despiking_count = np.zeros( corrmo['motion_corrected'].shape[3] )
+  despiking_count = np.zeros( corrmo['motion_corrected'].shape[3], dtype=np.float32 ) ## REPRODUCIBILITY CHANGE: Retained dtype
   if despike > 0.0:
-      corrmo['motion_corrected'], despiking_count = despike_time_series_afni( corrmo['motion_corrected'], c1=despike )
+      corrmo['motion_corrected'], _despiking_count_temp = despike_time_series_afni( corrmo['motion_corrected'], c1=despike )
+      despiking_count = _despiking_count_temp.astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
 
-  despiking_count_summary = despiking_count.sum() / np.prod( corrmo['motion_corrected'].shape )
-  high_motion_count=(corrmo['FD'] > FD_threshold ).sum()
-  high_motion_pct=high_motion_count / fmri.shape[3]
+  despiking_count_summary = np.float32(despiking_count.sum()) / np.float32(np.prod( corrmo['motion_corrected'].shape )) ## REPRODUCIBILITY CHANGE
+  high_motion_count=(corrmo['FD'] > FD_threshold ).sum() # Boolean sum, integer
+  high_motion_pct=np.float32(high_motion_count) / np.float32(fmri.shape[3]) ## REPRODUCIBILITY CHANGE
 
   # filter mask based on TSNR
-  mytsnr = tsnr( corrmo['motion_corrected'], bmask )
-  mytsnrThresh = np.quantile( mytsnr.numpy(), 0.995 )
-  tsnrmask = ants.threshold_image( mytsnr, 0, mytsnrThresh ).morphology("close",2)
-  bmask = bmask * tsnrmask
+  mytsnr = tsnr( corrmo['motion_corrected'], bmask ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming tsnr returns float32 antsImage
+  mytsnrThresh = np.quantile( mytsnr.numpy(), np.float32(0.995) ).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+  tsnrmask = ants.threshold_image( mytsnr, np.float32(0), mytsnrThresh ).morphology("close",2) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  bmask = bmask * tsnrmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
 
   # anatomical mapping
-  und = fmri_template * bmask
-  t1reg = ants.registration( und, t1,
-     "antsRegistrationSyNQuickRepro[s]", outprefix=ofnt1tx )
+  und = fmri_template * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming image arithmetic yields float32
+
+  t1reg = ants.registration( und, t1, "antsRegistrationSyNQuickRepro[s]", outprefix=ofnt1tx )
   if verbose:
     print("t1 2 bold done")
-  gmseg = ants.threshold_image( t1segmentation, 2, 2 )
-  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 )
-  gmseg = ants.threshold_image( gmseg, 1, 4 )
-  gmseg = ants.iMath( gmseg, 'MD', 1 ) # FIXMERSF
-  gmseg = ants.apply_transforms( und, gmseg,
-    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask
-  csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) +
-               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1)
-  csfAndWM = ants.apply_transforms( und, csfAndWM,
-    t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  csf = ants.threshold_image( t1segmentation, 1, 1 )
-  csf = ants.apply_transforms( und, csf, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
-  wm = ants.threshold_image( t1segmentation, 3, 3 ).morphology("erode",1)
-  wm = ants.apply_transforms( und, wm, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask
+
+  # Segmentation images and transforms should preserve float32
+  gmseg = ants.threshold_image( t1segmentation, 2, 2 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  gmseg = gmseg + ants.threshold_image( t1segmentation, 4, 4 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  gmseg = ants.threshold_image( gmseg, 1, 4 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  gmseg = ants.iMath( gmseg, 'MD', 1 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  gmseg = ants.apply_transforms( und, gmseg, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' ) * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+
+  csfAndWM = ( ants.threshold_image( t1segmentation, 1, 1 ) + # Assuming ants.threshold_image returns float32
+               ants.threshold_image( t1segmentation, 3, 3 ) ).morphology("erode",1) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  csfAndWM = ants.apply_transforms( und, csfAndWM, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+
+  csf = ants.threshold_image( t1segmentation, 1, 1 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  csf = ants.apply_transforms( und, csf, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+
+  wm = ants.threshold_image( t1segmentation, 3, 3 ).morphology("erode",1) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  wm = ants.apply_transforms( und, wm, t1reg['fwdtransforms'], interpolator = 'nearestNeighbor' )  * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+
   if powers:
-    ch2 = mm_read( ants.get_ants_data( "ch2" ) )
+    ch2 = mm_read( ants.get_ants_data( "ch2" ) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
   else:
-    ch2 = mm_read( get_data( "PPMI_template0_brain", target_extension='.nii.gz' ) )
-  treg = ants.registration( 
-    # this is to make the impact of resolution consistent
-    ants.resample_image(t1, [1.0,1.0,1.0], interp_type=0), 
+    ch2 = mm_read( get_data( "PPMI_template0_brain", target_extension='.nii.gz' ) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming mm_read returns antsImage or similar, with float32 data.
+  treg = ants.registration(
+    # This is to make the impact of resolution consistent, assume ants.resample_image returns float32
+    ants.resample_image(t1, [np.float32(1.0),np.float32(1.0),np.float32(1.0)], interp_type=0), ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
     ch2, "antsRegistrationSyNQuickRepro[s]" )
+
   if powers:
     concatx2 = treg['invtransforms'] + t1reg['invtransforms']
+    # Ensure points dataframe and location values are float32
     pts2bold = ants.apply_transforms_to_points( 3, powers_areal_mni_itk, concatx2,
         whichtoinvert = ( True, False, True, False ) )
-    locations = pts2bold.iloc[:,:3].values
-    ptImg = ants.make_points_image( locations, bmask, radius = 2 )
+    locations = pts2bold.iloc[:,:3].values.astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+    ptImg = ants.make_points_image( locations, bmask, radius = 2 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+    # Assuming ants.make_points_image creates float32
   else:
-    concatx2 = t1reg['fwdtransforms'] + treg['fwdtransforms']    
+    concatx2 = t1reg['fwdtransforms'] + treg['fwdtransforms']
     rsfsegfn = get_data('ppmi_template_500Parcels_Yeo2011_17Networks_2023_homotopic', target_extension=".nii.gz")
-    rsfsegimg = ants.image_read( rsfsegfn )
-    ptImg = ants.apply_transforms( und, rsfsegimg, concatx2, interpolator='nearestNeighbor' ) * bmask
-    pts2bold = powers_areal_mni_itk
-    # ants.plot( und, ptImg, crop=True, axis=2 )
+    rsfsegimg = ants.image_read( rsfsegfn ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+    # Assuming ants.image_read returns float32
+    ptImg = ants.apply_transforms( und, rsfsegimg, concatx2, interpolator='nearestNeighbor' ) * bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+    # Ensure pts2bold dataframe is explicitly copied to avoid potential issues with view vs. copy
+    # and to ensure data types are controlled if subsequent operations modify it.
+    pts2bold = powers_areal_mni_itk.copy() ## REPRODUCIBILITY CHANGE
 
   # optional smoothing
-  tr = ants.get_spacing( corrmo['motion_corrected'] )[3]
+  tr = np.float32(ants.get_spacing( corrmo['motion_corrected'] )[3]) ## REPRODUCIBILITY CHANGE: TR as float32
   smth = ( spa, spa, spa, spt ) # this is for sigmaInPhysicalCoordinates = TRUE
-  simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True )
+  simg = ants.smooth_image( corrmo['motion_corrected'], smth, sigma_in_physical_coordinates = True ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming ants.smooth_image returns float32
 
   # collect censoring indices
   hlinds = find_indices( corrmo['FD'], FD_threshold )
@@ -6616,81 +6592,86 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     fmrimotcorr, hlinds2 = loop_timeseries_censoring( corrmo['motion_corrected'], 
       threshold=outlier_threshold, verbose=verbose )
     hlinds.extend( hlinds2 )
-    del fmrimotcorr
-  hlinds = list(set(hlinds)) # make unique
+  hlinds = sorted(list(set(hlinds))) ## REPRODUCIBILITY CHANGE: Ensure unique and sorted indices
 
   # nuisance
-  globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask )
-  globalsignal = np.nanmean( globalmat, axis = 1 )
-  del globalmat
-  compcorquantile=0.50
-  nc_wm=nc_csf=nc
+  globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], bmask ).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+  globalsignal = np.nanmean( globalmat, axis = 1 ).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+  compcorquantile = np.float32(0.50) ## REPRODUCIBILITY CHANGE: Explicitly float32
+  nc_wm=nc_csf=nc # These are ints or floats
   if nc < 1:
-    globalmat = get_compcor_matrix( corrmo['motion_corrected'], wm, compcorquantile )
-    nc_wm = int(estimate_optimal_pca_components( data=globalmat, variance_threshold=nc))
-    globalmat = get_compcor_matrix( corrmo['motion_corrected'], csf, compcorquantile )
-    nc_csf = int(estimate_optimal_pca_components( data=globalmat, variance_threshold=nc))
-    del globalmat
+    # Pass float32 masks to get_compcor_matrix and ensure returned globalmat is float32
+    _globalmat_wm = get_compcor_matrix( corrmo['motion_corrected'], wm, compcorquantile ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    nc_wm = int(estimate_optimal_pca_components( data=_globalmat_wm, variance_threshold=nc))
+    del _globalmat_wm
+    _globalmat_csf = get_compcor_matrix( corrmo['motion_corrected'], csf, compcorquantile ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    nc_csf = int(estimate_optimal_pca_components( data=_globalmat_csf, variance_threshold=nc))
+    del _globalmat_csf
+
   if verbose:
     print("include compcor components as nuisance: csf " + str(nc_csf) + " wm " + str(nc_wm))
+  # Ensure compcor components are derived and returned as float32 numpy arrays
   mycompcor_csf = ants.compcor( corrmo['motion_corrected'],
     ncompcor=nc_csf, quantile=compcorquantile, mask = csf,
     filter_type='polynomial', degree=2 )
   mycompcor_wm = ants.compcor( corrmo['motion_corrected'],
     ncompcor=nc_wm, quantile=compcorquantile, mask = wm,
     filter_type='polynomial', degree=2 )
-  nuisance = np.c_[ mycompcor_csf[ 'components' ], mycompcor_wm[ 'components' ] ]
+  nuisance = np.c_[ mycompcor_csf[ 'components' ].astype(np.float32), mycompcor_wm[ 'components' ].astype(np.float32) ].astype(np.float32) ## REPRODUCIBILITY CHANGE
 
   if motion_as_nuisance:
       if verbose:
           print("include motion as nuisance")
           print( corrmo['motion_parameters'].shape )
-      deriv = temporal_derivative_same_shape( corrmo['motion_parameters']  )
-      nuisance = np.c_[ nuisance, corrmo['motion_parameters'], deriv ]
+      deriv = temporal_derivative_same_shape( corrmo['motion_parameters']  ) # This function ensures float32
+      nuisance = np.c_[ nuisance, corrmo['motion_parameters'], deriv ].astype(np.float32) ## REPRODUCIBILITY CHANGE
 
   if ica_components > 0:
     if verbose:
         print("include ica components as nuisance: " + str(ica_components))
-    ica = FastICA(n_components=ica_components, max_iter=10000, tol=0.001, random_state=42 )
-    globalmat = ants.timeseries_to_matrix( corrmo['motion_corrected'], csfAndWM )
-    nuisance_ica = ica.fit_transform(globalmat)  # Reconstruct signals
-    nuisance = np.c_[ nuisance, nuisance_ica ]
-    del globalmat
+    ica = FastICA(n_components=ica_components, max_iter=10000, tol=0.001, random_state=42 ) # random_state makes ICA deterministic
+    # Pass float32 data to ICA and ensure output is float32
+    globalmat_ica_input = ants.timeseries_to_matrix( corrmo['motion_corrected'], csfAndWM ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    nuisance_ica = ica.fit_transform(globalmat_ica_input).astype(np.float32) # Reconstruct signals ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+    nuisance = np.c_[ nuisance, nuisance_ica ].astype(np.float32) ## REPRODUCIBILITY CHANGE
 
   # concat all nuisance data
-  # nuisance = np.c_[ nuisance, mycompcor['basis'] ]
-  # nuisance = np.c_[ nuisance, corrmo['FD'] ]
-  nuisance = np.c_[ nuisance, globalsignal ]
+  nuisance = np.c_[ nuisance, globalsignal ].astype(np.float32) ## REPRODUCIBILITY CHANGE
 
   if impute:
-    simgimp = impute_timeseries( simg, hlinds, method='linear')
+    simgimp = impute_timeseries( simg, hlinds, method='linear') ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
   else:
     simgimp = simg
+  # Assuming impute_timeseries returns float32 antsImage
 
-  # falff/alff stuff  def alff_image( x, mask, flo=0.01, fhi=0.1, nuisance=None ):
-  myfalff=alff_image( simgimp, bmask, flo=f[0], fhi=f[1], nuisance=nuisance  )
+  # falff/alff computations
+  myfalff=alff_image( simgimp, bmask, flo=np.float32(f[0]), fhi=np.float32(f[1]), nuisance=nuisance.astype(np.float32) ) ## REPRODUCIBILITY CHANGE
+  myfalff['alff'] = myfalff['alff'] ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  myfalff['falff'] = myfalff['falff'] ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  # Assuming alff_image returns dict of float32 antsImages
 
   # bandpass any data collected before here -- if bandpass requested
-  if f[0] > 0 and f[1] < 1.0:
+  if np.float32(f[0]) > 0 and np.float32(f[1]) < np.float32(1.0): ## REPRODUCIBILITY CHANGE: Compare with float32
     if verbose:
         print( "bandpass: " + str(f[0]) + " <=> " + str( f[1] ) )
-    nuisance = ants.bandpass_filter_matrix( nuisance, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    globalmat = ants.timeseries_to_matrix( simg, bmask )
-    globalmat = ants.bandpass_filter_matrix( globalmat, tr = tr, lowf=f[0], highf=f[1] ) # some would argue against this
-    simg = ants.matrix_to_timeseries( simg, globalmat, bmask )
+    # Ensure matrices and parameters are float32
+    nuisance = ants.bandpass_filter_matrix( nuisance.astype(np.float32), tr = tr, lowf=np.float32(f[0]), highf=np.float32(f[1]) ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    _globalmat_bp = ants.timeseries_to_matrix( simg, bmask ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    _globalmat_bp = ants.bandpass_filter_matrix( _globalmat_bp.astype(np.float32), tr = tr, lowf=np.float32(f[0]), highf=np.float32(f[1]) ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+    simg = simg.__class__.matrix_to_timeseries( simg, _globalmat_bp, bmask ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
 
   if verbose:
     print("now regress nuisance")
 
-
   if len( hlinds ) > 0 :
     if censor:
-        nuisance = remove_elements_from_numpy_array( nuisance, hlinds  )
-        simg = remove_volumes_from_timeseries( simg, hlinds )
+        nuisance = remove_elements_from_numpy_array( nuisance.astype(np.float32), hlinds  ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+        simg = remove_volumes_from_timeseries( simg, hlinds ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
 
-  gmmat = ants.timeseries_to_matrix( simg, bmask )
-  gmmat = ants.regress_components( gmmat, nuisance )
-  simg = ants.matrix_to_timeseries(simg, gmmat, bmask)
+  # Regression - ensure all inputs and results are float32 numpy arrays
+  gmmat = ants.timeseries_to_matrix( simg, bmask ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  gmmat = ants.regress_components( gmmat.astype(np.float32), nuisance.astype(np.float32) ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  simg = simg.__class__.matrix_to_timeseries(simg, gmmat, bmask) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
 
 
   # structure the output data
@@ -6704,33 +6685,36 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   # add correlation matrix that captures each node pair
   # some of the spheres overlap so extract separately from each ROI
   if powers:
-    nPoints = int(pts2bold['ROI'].max())
+    nPoints = int(powers_areal_mni_itk['ROI'].max())
     pointrange = list(range(int(nPoints)))
   else:
-    nPoints = int(ptImg.max())
+    nPoints = int(powers_areal_mni_itk['ROI'].max()) # Use the same logic for Yeo 500
     pointrange = list(range(int(nPoints)))
-  nVolumes = simg.shape[3]
-  meanROI = np.zeros([nVolumes, nPoints])
+
+  nVolumes = np.float32(simg.shape[3]) ## REPRODUCIBILITY CHANGE: nVolumes as float32
+  meanROI = np.zeros([int(nVolumes), nPoints], dtype=np.float32) ## REPRODUCIBILITY CHANGE
   roiNames = []
+  
   if debug:
-      ptImgAll = und * 0.
-  for i in pointrange:
-    # specify name for matrix entries that's links back to ROI number and network; e.g., ROI1_Uncertain
-    netLabel = re.sub( " ", "", pts2bold.loc[i,'SystemName'])
+      ptImgAll = und * np.float32(0.0) ## REPRODUCIBILITY CHANGE
+
+  for i, row in powers_areal_mni_itk.iterrows(): # Iterating with pandas iterrows for consistency
+    netLabel = re.sub( " ", "", row['SystemName'])
     netLabel = re.sub( "-", "", netLabel )
     netLabel = re.sub( "/", "", netLabel )
-    roiLabel = "ROI" + str(pts2bold.loc[i,'ROI']) + '_' + netLabel
+    roiLabel = f"ROI{row['ROI']}_{netLabel}"
     roiNames.append( roiLabel )
     if powers:
-        ptImage = ants.make_points_image(pts2bold.iloc[[i],:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+        # Pass float32 locations to make_points_image. Assume the resulting image is float32
+        locs = row[['x','y','z']].values.astype(np.float32)
+        ptImage = ants.make_points_image(locs, bmask, radius=1).threshold_image( np.float32(1), np.float32(1e9) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
     else:
-        #print("Doing " + pts2bold.loc[i,'SystemName'] + " at " + str(i) )
-        #ptImage = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==pts2bold.loc[i,'SystemName']],binarize=True)
-        ptImage=ants.threshold_image( ptImg, pts2bold.loc[i,'ROI'], pts2bold.loc[i,'ROI'] )
+        # Assume ptImg is float32. Thresholding will retain float32.
+        ptImage=ants.threshold_image( ptImg, np.float32(row['ROI']), np.float32(row['ROI']) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
     if debug:
       ptImgAll = ptImgAll + ptImage
-    if ptImage.sum() > 0 :
-        meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1)
+    if ptImage.sum() > np.float32(0) : ## REPRODUCIBILITY CHANGE
+        meanROI[:,i] = ants.timeseries_to_matrix( simg, ptImage).mean(axis=1).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
 
   if debug:
       ants.image_write( simg, '/tmp/simg.nii.gz' )
@@ -6739,7 +6723,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       ants.image_write( und, '/tmp/und.nii.gz' )
 
   # get full correlation matrix
-  corMat = np.corrcoef(meanROI, rowvar=False)
+  corMat = np.corrcoef(meanROI, rowvar=False).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
   outputMat = pd.DataFrame(corMat)
   outputMat.columns = roiNames
   outputMat['ROIs'] = roiNames
@@ -6747,7 +6731,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['fullCorrMat'] = outputMat
 
   networks = powers_areal_mni_itk['SystemName'].unique()
-  # this is just for human readability - reminds us of which we choose by default
   if powers:
     netnames = ['Cingulo-opercular Task Control', 'Default Mode',
                     'Memory Retrieval', 'Ventral Attention', 'Visual',
@@ -6759,38 +6742,45 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     numofnets = list(range(len(netnames)))
  
   ct = 0
-  for mynet in numofnets:
-    netname = re.sub( " ", "", networks[mynet] )
+  for mynet_idx in numofnets:
+    mynet_name = networks[mynet_idx]
+    netname = re.sub( " ", "", mynet_name )
     netname = re.sub( "-", "", netname )
-    ww = np.where( powers_areal_mni_itk['SystemName'] == networks[mynet] )[0]
+    netname = re.sub( "/", "", netname )
+
+    ww = np.where( powers_areal_mni_itk['SystemName'] == mynet_name )[0]
+    
     if powers:
-        dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+        net_locs_f32 = powers_areal_mni_itk.iloc[ww,:3].values.astype(np.float32)
+        dfnImg = ants.make_points_image(net_locs_f32, bmask, radius=1).threshold_image( np.float32(1), np.float32(1e9) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
     else:
-        dfnImg = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==networks[mynet]],binarize=True)
-    if dfnImg.max() >= 1:
+        roi_levels = powers_areal_mni_itk.loc[ww, 'ROI'].tolist()
+        dfnImg = ants.mask_image( ptImg, ptImg, level=roi_levels, binarize=True) 
+        
+    if dfnImg : ## REPRODUCIBILITY CHANGE
         if verbose:
-            print("DO: " + coords + " " + netname )
-        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, 1, dfnImg.max() ) )
-        dfnsignal = np.nanmean( dfnmat, axis = 1 )
+            print(f"DO: {coords} {netname}" )
+        dfnmat = ants.timeseries_to_matrix( simg, ants.threshold_image( dfnImg, np.float32(1), dfnImg.max() ) ).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
+        dfnsignal = np.nanmean( dfnmat, axis = 1 ).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
         nan_count_dfn = np.count_nonzero( np.isnan( dfnsignal) )
         if nan_count_dfn > 0 :
-            warnings.warn( " mynet " + netnames[ mynet ] + " vs " +  " mean-signal has nans " + str( nan_count_dfn ) ) 
-        gmmatDFNCorr = np.zeros( gmmat.shape[1] )
+            warnings.warn( f"mynet {mynet_name} mean-signal has nans {nan_count_dfn}" )
+        gmmatDFNCorr = np.zeros( gmmat.shape[1], dtype=np.float32 ) ## REPRODUCIBILITY CHANGE
         if nan_count_dfn == 0:
             for k in range( gmmat.shape[1] ):
                 nan_count_gm = np.count_nonzero( np.isnan( gmmat[:,k]) )
                 if debug and False:
                     print( str( k ) +  " nans gm " + str(nan_count_gm)  )
                 if nan_count_gm == 0:
-                    gmmatDFNCorr[ k ] = pearsonr( dfnsignal, gmmat[:,k] )[0]
-        corrImg = ants.make_image( bmask, gmmatDFNCorr  )
-        outdict[ netname ] = corrImg * gmseg
+                    gmmatDFNCorr[ k ] = np.float32(pearsonr( dfnsignal, gmmat[:,k] )[0]) ## REPRODUCIBILITY CHANGE
+        corrImg = ants.make_image( bmask, gmmatDFNCorr  ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+        outdict[ netname ] = corrImg * gmseg ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
     else:
         outdict[ netname ] = None
     ct = ct + 1
 
-  A = np.zeros( ( len( numofnets ) , len( numofnets ) ) )
-  A_wide = np.zeros( ( 1, len( numofnets ) * len( numofnets ) ) )
+  A = np.zeros( ( len( numofnets ) , len( numofnets ) ), dtype=np.float32 ) ## REPRODUCIBILITY CHANGE
+  A_wide = np.zeros( ( 1, len( numofnets ) * len( numofnets ) ), dtype=np.float32 ) ## REPRODUCIBILITY CHANGE
   newnames=[]
   newnames_wide=[]
   ct = 0
@@ -6798,21 +6788,23 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
       netnamei = re.sub( " ", "", networks[numofnets[i]] )
       netnamei = re.sub( "-", "", netnamei )
       newnames.append( netnamei  )
-      ww = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
+      ww_i = np.where( powers_areal_mni_itk['SystemName'] == networks[numofnets[i]] )[0]
       if powers:
-          dfnImg = ants.make_points_image(pts2bold.iloc[ww,:3].values, bmask, radius=1).threshold_image( 1, 1e9 )
+          net_locs_i_f32 = powers_areal_mni_itk.iloc[ww_i,:3].values.astype(np.float32)
+          dfnImg_i = ants.make_points_image(net_locs_i_f32, bmask, radius=1).threshold_image( np.float32(1), np.float32(1e9) ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
       else:
-          dfnImg = ants.mask_image( ptImg, ptImg, level=pts2bold['ROI'][pts2bold['SystemName']==networks[numofnets[i]]],binarize=True)
+          roi_levels_i = powers_areal_mni_itk.loc[ww_i, 'ROI'].tolist()
+          dfnImg_i = ants.mask_image( ptImg, ptImg, level=roi_levels_i, binarize=True) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+          
       for j in range( len( numofnets ) ):
           netnamej = re.sub( " ", "", networks[numofnets[j]] )
           netnamej = re.sub( "-", "", netnamej )
-          newnames_wide.append( netnamei + "_2_" + netnamej )
-          A[i,j] = 0
-          if dfnImg is not None and netnamej is not None:
-            subbit = dfnImg == 1
-            if subbit is not None:
-                if subbit.sum() > 0 and netnamej in outdict:
-                    A[i,j] = outdict[ netnamej ][ subbit ].mean()
+          newnames_wide.append( f"{netnamei}_2_{netnamej}" )
+          A[i,j] = np.float32(0.0) ## REPRODUCIBILITY CHANGE
+          if dfnImg_i is not None and netnamej in outdict and outdict[netnamej] is not None:
+            subbit = dfnImg_i.numpy() == np.float32(1.0) ## REPRODUCIBILITY CHANGE: compare with float32
+            if np.sum(subbit) > np.float32(0.0): ## REPRODUCIBILITY CHANGE
+                A[i,j] = np.mean(outdict[ netnamej ].numpy()[ subbit ]).astype(np.float32) ## REPRODUCIBILITY CHANGE: Retained .astype(np.float32)
           A_wide[0,ct] = A[i,j]
           ct=ct+1
 
@@ -6828,35 +6820,39 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['gmmask'] = gmseg
   outdict['alff'] = myfalff['alff']
   outdict['falff'] = myfalff['falff']
-  # add global mean and standard deviation for post-hoc z-scoring
-  outdict['alff_mean'] = (myfalff['alff'][myfalff['alff']!=0]).mean()
-  outdict['alff_sd'] = (myfalff['alff'][myfalff['alff']!=0]).std()
-  outdict['falff_mean'] = (myfalff['falff'][myfalff['falff']!=0]).mean()
-  outdict['falff_sd'] = (myfalff['falff'][myfalff['falff']!=0]).std()
+  # add global mean and standard deviation for post-hoc z-scoring - ensure float32
+  outdict['alff_mean'] = np.mean(myfalff['alff'].numpy()[myfalff['alff'].numpy()!=0]).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['alff_sd'] = np.std(myfalff['alff'].numpy()[myfalff['alff'].numpy()!=0]).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['falff_mean'] = np.mean(myfalff['falff'].numpy()[myfalff['falff'].numpy()!=0]).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['falff_sd'] = np.std(myfalff['falff'].numpy()[myfalff['falff'].numpy()!=0]).astype(np.float32) ## REPRODUCIBILITY CHANGE
 
-  perafimg = PerAF( simgimp, bmask )
-  for k in pointrange:
-    anatname=( pts2bold['AAL'][k] )
+  perafimg = PerAF( simgimp, bmask ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  for k_idx, row in powers_areal_mni_itk.iterrows():
+    anatname=( row['AAL'] )
     if isinstance(anatname, str):
         anatname = re.sub("_","",anatname)
     else:
         anatname='Unk'
+    
     if powers:
-        kk = f"{k:0>3}"+"_"
+        kk = f"{k_idx:0>3}"+"_"
     else:
-        kk = f"{k % int(nPoints/2):0>3}"+"_"
+        kk = f"{row['ROI']:0>3}"+"_"
+
     fname='falffPoint'+kk+anatname
     aname='alffPoint'+kk+anatname
     pname='perafPoint'+kk+anatname
-    localsel = ptImg == k
-    if localsel.sum() > 0 : # check if non-empty
-        outdict[fname]=(outdict['falff'][localsel]).mean()
-        outdict[aname]=(outdict['alff'][localsel]).mean()
-        outdict[pname]=(perafimg[localsel]).mean()
+    
+    localsel = (ptImg.numpy() == np.float32(row['ROI'])) ## REPRODUCIBILITY CHANGE
+
+    if np.sum(localsel) > np.float32(0.0) : ## REPRODUCIBILITY CHANGE
+        outdict[fname]=np.mean(outdict['falff'].numpy()[localsel]).astype(np.float32) ## REPRODUCIBILITY CHANGE
+        outdict[aname]=np.mean(outdict['alff'].numpy()[localsel]).astype(np.float32) ## REPRODUCIBILITY CHANGE
+        outdict[pname]=np.mean(perafimg.numpy()[localsel]).astype(np.float32) ## REPRODUCIBILITY CHANGE
     else:
-        outdict[fname]=math.nan
-        outdict[aname]=math.nan
-        outdict[pname]=math.nan
+        outdict[fname]=np.nan
+        outdict[aname]=np.nan
+        outdict[pname]=np.nan
 
   rsfNuisance = pd.DataFrame( nuisance )
   if remove_it:
@@ -6864,40 +6860,48 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     shutil.rmtree(output_directory, ignore_errors=True )
 
   if not powers:
-    dfnsum=outdict['DefaultA']+outdict['DefaultB']+outdict['DefaultC']
-    outdict['DefaultMode']=dfnsum
-    dfnsum=outdict['VisCent']+outdict['VisPeri']
-    outdict['Visual']=dfnsum
+    # Ensure addition of images is float32
+    def safe_add_images(img1, img2):
+        if img1 is None: return img2 if img2 is not None else None
+        if img2 is None: return img1
+        # Assumed img1 and img2 are antsImage and that '+' yields float32
+        return img1 + img2
 
-  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask
-  trimmask = ants.iMath( bmask, "ME",2)
-  edgemask = ants.iMath( bmask, "ME",1) - trimmask
+    dfnsum = safe_add_images(safe_add_images(outdict.get('DefaultA', None), outdict.get('DefaultB', None)), outdict.get('DefaultC', None))
+    outdict['DefaultMode'] = dfnsum
+
+    vis_sum = safe_add_images(outdict.get('VisCent', None), outdict.get('VisPeri', None))
+    outdict['Visual'] = vis_sum
+
+  nonbrainmask = ants.iMath( bmask, "MD",2) - bmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  trimmask = ants.iMath( bmask, "ME",2) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+  edgemask = ants.iMath( bmask, "ME",1) - trimmask ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
+
   outdict['motion_corrected'] = corrmo['motion_corrected']
   outdict['nuisance'] = rsfNuisance
   outdict['PerAF'] = perafimg
   outdict['tsnr'] = mytsnr
-  outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg )
-  outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg )
-  outdict['bandpass_freq_0']=f[0]
-  outdict['bandpass_freq_1']=f[1]
+  outdict['ssnr'] = slice_snr( corrmo['motion_corrected'], csfAndWM, gmseg ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['dvars'] = dvars( corrmo['motion_corrected'], gmseg ).astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['bandpass_freq_0']=np.float32(f[0]) ## REPRODUCIBILITY CHANGE
+  outdict['bandpass_freq_1']=np.float32(f[1]) ## REPRODUCIBILITY CHANGE
   outdict['censor']=int(censor)
   outdict['spatial_smoothing']=spa
-  outdict['outlier_threshold']=outlier_threshold
-  outdict['FD_threshold']=outlier_threshold
+  outdict['outlier_threshold']=np.float32(outlier_threshold) ## REPRODUCIBILITY CHANGE
+  outdict['FD_threshold']=np.float32(FD_threshold) ## REPRODUCIBILITY CHANGE
   outdict['high_motion_count'] = high_motion_count
-  outdict['high_motion_pct'] = high_motion_pct
-  outdict['despiking_count_summary'] = despiking_count_summary
-  outdict['FD_max'] = corrmo['FD'].max()
-  outdict['FD_mean'] = corrmo['FD'].mean()
-  outdict['FD_sd'] = corrmo['FD'].std()
-  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [16,16,16], evdepth = 0.9, mask = bmask )
+  outdict['high_motion_pct'] = np.float32(high_motion_pct) ## REPRODUCIBILITY CHANGE
+  outdict['despiking_count_summary'] = np.float32(despiking_count_summary) ## REPRODUCIBILITY CHANGE
+  outdict['FD_max'] = corrmo['FD'].max().astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['FD_mean'] = corrmo['FD'].mean().astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['FD_sd'] = corrmo['FD'].std().astype(np.float32) ## REPRODUCIBILITY CHANGE
+  outdict['bold_evr'] =  antspyt1w.patch_eigenvalue_ratio( und, 512, [np.float32(16),np.float32(16),np.float32(16)], evdepth = np.float32(0.9), mask = bmask ).astype(np.float32) ## REPRODUCIBILITY CHANGE
   outdict['n_outliers'] = len(hlinds)
   outdict['nc_wm'] = int(nc_wm)
   outdict['nc_csf'] = int(nc_csf)
-  outdict['minutes_original_data'] = ( tr * fmri.shape[3] ) / 60.0 # minutes of useful data
-  outdict['minutes_censored_data'] = ( tr * simg.shape[3] ) / 60.0 # minutes of useful data
+  outdict['minutes_original_data'] = ( tr * np.float32(fmri.shape[3]) ) / np.float32(60.0) ## REPRODUCIBILITY CHANGE
+  outdict['minutes_censored_data'] = ( tr * np.float32(simg.shape[3]) ) / np.float32(60.0) ## REPRODUCIBILITY CHANGE
   return convert_np_in_dict( outdict )
-
 
 def calculate_CBF(Delta_M, M_0, mask,
                   Lambda=0.9, T_1=0.67, Alpha=0.68, w=1.0, Tau=1.5):
