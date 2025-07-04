@@ -4038,7 +4038,7 @@ def _fit_and_extract_chunk_data_efficient_dwi_fit(
     local_rng = default_rng(rng_seed) # Initialize local RNG with unique seed for reproducibility
 
     # Reconstruct gtab for this worker process/thread, for robustness
-    local_gtab = gradient_table(gtab_bvals, gtab_bvecs)
+    local_gtab = gradient_table(gtab_bvals, bvecs=gtab_bvecs)
 
     # Re-create model instance within the worker process/thread
     model = None
@@ -4217,17 +4217,19 @@ def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
         print("[INFO] Performing final overall fit for return object.")
     
     # Needs to rebuild gtab (potentially filtered by bvals_to_use)
-    final_gtab = gradient_table(current_gtab_bvals, current_gtab_bvecs)
+    final_gtab = gradient_table(current_gtab_bvals, bvecs=current_gtab_bvecs)
     
     final_model = None
-    if diffusion_model_name == 'DTI':
-        final_model = dti.TensorModel(final_gtab, **model_params)
-    elif diffusion_model_name == 'FreeWater':
-        final_model = fwdti.FreeWaterTensorModel(final_gtab)
-    elif diffusion_model_name == 'DKI':
-        final_model = dki.DiffusionKurtosisModel(final_gtab, **model_params)
-    
-    full_fit = final_model.fit(img_data * mask[..., None]) # Apply mask to full data
+    full_fit = None
+    if False:
+        if diffusion_model_name == 'DTI':
+            final_model = dti.TensorModel(final_gtab, **model_params)
+        elif diffusion_model_name == 'FreeWater':
+            final_model = fwdti.FreeWaterTensorModel(final_gtab)
+        elif diffusion_model_name == 'DKI':
+            final_model = dki.DiffusionKurtosisModel(final_gtab, **model_params)
+        
+        full_fit = final_model.fit(img_data * mask[..., None]) # Apply mask to full data
 
     return full_fit, FA_img, MD_img, RGB_img
 
@@ -4250,7 +4252,7 @@ def _fit_single_voxel(
     local_rng = default_rng(rng_seed) # Initialize local RNG with unique seed for reproducibility
 
     # Reconstruct gtab for this voxel
-    local_gtab = gradient_table(bvals, bv)
+    local_gtab = gradient_table(bvals, bvecs=bv)
     
     # Re-create model instance within the worker process/thread
     model = None
@@ -4937,7 +4939,8 @@ def joint_dti_recon(
     fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
     fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
-    dti_itself = get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
+    # We dont compute this now to avoid memory issues
+    dti_itself = None # get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
     return convert_np_in_dict( {
         'dti': dti_itself,
         'recon_fa':reconFA,
@@ -8311,7 +8314,8 @@ def mm(
                 if srmodel is not None:
                     tspc=[1.,1.,1.]
                 group_template2mm = ants.resample_image( group_template, tspc  )
-                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=False )
+                if mydti['dti'] is not None:
+                    normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=False )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
@@ -8409,7 +8413,8 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         if mm['DTI'] is not None:
             mydti = mm['DTI']
             myop = output_prefix + separator
-            ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
+            if mydti['dti'] is not None:
+                ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
             write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
             image_write_with_thumbnail( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
             image_write_with_thumbnail( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
