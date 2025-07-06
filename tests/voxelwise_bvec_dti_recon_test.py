@@ -98,7 +98,7 @@ def test_efficient_dwi_fit_voxelwise():
     FA_img, MD_img, RGB_img = antspymm.efficient_dwi_fit_voxelwise(
         imagein=ants_dwi,
         maskin=ants_mask,
-        gtab_bvals=bvals,
+        bvals=bvals,
         bvecs_5d=bvecs_5d,
         model_params={},
         bvals_to_use=None,
