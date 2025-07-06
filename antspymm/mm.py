@@ -4286,6 +4286,204 @@ def _fit_single_voxel(
         return ix, iy, iz, 0.0, 0.0, np.zeros(3), str(e)
 
 
+import ants
+import numpy as np
+import dipy.reconst.dti as dti
+import dipy.reconst.fwdti as fwdti
+import dipy.reconst.dki as dki
+from dipy.core.gradients import gradient_table
+from concurrent.futures import ThreadPoolExecutor
+import os
+from tqdm import tqdm
+
+# --- Helper function for efficient_dwi_fit (must be at top-level for pickling) ---
+# It now takes the necessary parameters explicitly.
+def _fit_and_extract_chunk_data_optimized_threading(
+    img_data_chunk: np.ndarray,
+    mask_chunk: np.ndarray,
+    z_start_idx: int,
+    z_end_idx: int,
+    # --- Passed explicitly via tasks_args ---
+    gtab_bvals_param: np.ndarray, # Renamed to avoid shadowing outer gtab_bvals
+    gtab_bvecs_param: np.ndarray, # Renamed to avoid shadowing outer gtab_bvecs
+    diffusion_model_name_param: str, # Renamed to avoid shadowing outer param
+    model_params_dict_param: dict, # Renamed to avoid shadowing outer param
+):
+    """
+    Worker function to fit DIPY model for a Z-chunk, optimized for ThreadPoolExecutor.
+    It now re-instantiates DiPy objects per worker to ensure strict isolation and reproducibility.
+    """
+    # Instantiate the DiPy Model and local Gtab *within this worker function*.
+    # This ensures strict isolation for maximal reproducibility (no shared mutable state).
+    # This also means the original 'model' instance from the main function is NOT used by workers.
+
+    local_gtab = gradient_table(gtab_bvals_param, gtab_bvecs_param)
+    
+    model = None
+    if diffusion_model_name_param == 'DTI':
+        model = dti.TensorModel(local_gtab, **model_params_dict_param)
+    elif diffusion_model_name_param == 'FreeWater':
+        model = fwdti.FreeWaterTensorModel(local_gtab)
+    elif diffusion_model_name_param == 'DKI':
+        model = dki.DiffusionKurtosisModel(local_gtab, **model_params_dict_param)
+    else:
+        # This error should be caught before calling this function in real app
+        return z_start_idx, z_end_idx, None, None, None, f"Unsupported model: {diffusion_model_name_param}"
+
+    masked_data = img_data_chunk * mask_chunk[..., None]
+    masked_data = np.nan_to_num(masked_data, nan=0.0)
+    
+    try:
+        fit = model.fit(masked_data) 
+        
+        FA_chunk, MD_chunk, RGB_chunk = None, None, None
+        
+        has_tensor_metrics_local = diffusion_model_name_param in ['DTI', 'FreeWater']
+
+        if has_tensor_metrics_local and hasattr(fit, 'evals') and hasattr(fit, 'evecs'):
+            # These imports are here to ensure minimal global scope dependency for pickling
+            from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity, color_fa 
+            FA_chunk = fractional_anisotropy(fit.evals)
+            MD_chunk = mean_diffusivity(fit.evals)
+            RGB_chunk = color_fa(FA_chunk, fit.evecs)
+            
+            FA_chunk = np.nan_to_num(FA_chunk, nan=0.0)
+            FA_chunk = np.clip(FA_chunk, 0.0, 1.0)
+            MD_chunk = np.nan_to_num(MD_chunk, nan=0.0)
+            MD_chunk[np.isinf(MD_chunk)] = 0.0
+            
+        return z_start_idx, z_end_idx, FA_chunk, MD_chunk, RGB_chunk, None
+    except Exception as e:
+        fa_shape = img_data_chunk.shape[:-1]
+        dummy_fa_chunk = np.zeros(fa_shape, dtype=np.float32)
+        dummy_md_chunk = np.zeros(fa_shape, dtype=np.float32)
+        dummy_rgb_chunk = np.zeros(fa_shape + (3,), dtype=np.float32)
+        return z_start_idx, z_end_idx, dummy_fa_chunk, dummy_md_chunk, dummy_rgb_chunk, str(e)
+
+
+def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
+                      model_params=None, bvals_to_use=None,
+                      chunk_size=1024, num_threads=None, verbose=True):
+    """
+    Efficient and optionally parallelized diffusion model reconstruction using DiPy.
+    This implementation maximizes scientific reproducibility and computational repeatability
+    in a multi-threaded context (ThreadPoolExecutor) by optimizing shared resources.
+
+    Parameters are described in the function signature.
+    """
+    assert imagein.dimension == 4, "Input image must be 4D"
+    model_params = {} if model_params is None else model_params
+
+    img_data = imagein.numpy().astype(np.float32)
+    mask = maskin.numpy().astype(bool)
+    X, Y, Z_dim, N_bvecs = img_data.shape
+
+    inplane_size = X * Y
+    slices_per_chunk = max(1, chunk_size // inplane_size)
+
+    if verbose:
+        print(f"[INFO] Image shape: {img_data.shape}")
+        print(f"[INFO] Using model: {diffusion_model_name}")
+        print(f"[INFO] Max voxels per chunk: {chunk_size} (→ {slices_per_chunk} slices)")
+    
+    # Adjust gtab and img_data based on bvals_to_use 
+    current_gtab_bvals = gtab.bvals
+    current_gtab_bvecs = gtab.bvecs
+    if bvals_to_use is not None:
+        bvals_to_use_set = set(bvals_to_use)
+        sel = np.isin(current_gtab_bvals, list(bvals_to_use_set))
+        img_data = img_data[..., sel]
+        current_gtab_bvals = current_gtab_bvals[sel]
+        current_gtab_bvecs = current_gtab_bvecs[sel]
+        N_bvecs = img_data.shape[-1] 
+
+        if verbose:
+            print(f"[INFO] Selected b-values: {sorted(bvals_to_use_set)}")
+            print(f"[INFO] Selected volumes: {sel.sum()} / {N_bvecs}")
+
+    # Initialize full output volumes
+    FA_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
+    MD_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
+    RGB_vol = np.zeros((X, Y, Z_dim, 3), dtype=np.float32)
+
+    has_tensor_metrics = diffusion_model_name in ['DTI', 'FreeWater']
+
+    # Prepare arguments for worker function
+    tasks_args = []
+    for z_start_idx in range(0, Z_dim, slices_per_chunk):
+        z_end_idx = min(Z_dim, z_start_idx + slices_per_chunk)
+        
+        img_chunk = img_data[:, :, z_start_idx:z_end_idx, :]
+        mask_chunk = mask[:, :, z_start_idx:z_end_idx]
+        
+        # --- FIX: Pass all necessary parameters explicitly to the helper ---
+        tasks_args.append((
+            img_chunk, mask_chunk, z_start_idx, z_end_idx,
+            current_gtab_bvals, current_gtab_bvecs, # Gtab components
+            diffusion_model_name, model_params # Model details
+        ))
+
+    # Determine number of threads
+    if num_threads is None:
+        num_threads = os.cpu_count() or 1
+    if verbose:
+        print(f"[INFO] Using {num_threads} threads for chunk processing.")
+
+    if num_threads > 1:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            # Use executor.map() to guarantee results are returned in submission order.
+            results_iterator = executor.map(_fit_and_extract_chunk_data_optimized_threading, *zip(*tasks_args))
+            
+            for result_tuple in tqdm(results_iterator, total=len(tasks_args), desc="Fitting DWI chunks"):
+                z_start, z_end, FA_chunk, MD_chunk, RGB_chunk, error_msg = result_tuple
+                if error_msg: 
+                    if verbose: print(f"Chunk starting at Z={z_start} fit failed: {error_msg}")
+                if FA_chunk is not None:
+                    FA_vol[:, :, z_start:z_end] = FA_chunk
+                    MD_vol[:, :, z_start:z_end] = MD_chunk
+                    RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+    else:
+        for args in tqdm(tasks_args, desc="Fitting DWI chunks (single-thread)"):
+            z_start, z_end, FA_chunk, MD_chunk, RGB_chunk, error_msg = _fit_and_extract_chunk_data_optimized_threading(*args)
+            if error_msg:
+                if verbose: print(f"Chunk starting at Z={z_start} fit failed: {error_msg}")
+            if FA_chunk is not None:
+                FA_vol[:, :, z_start:z_end] = FA_chunk
+                MD_vol[:, :, z_start:z_end] = MD_chunk
+                RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+
+    if verbose:
+        print("[INFO] Chunk processing complete.")
+
+    # Prepare ANTsImage outputs
+    b0 = ants.slice_image(imagein, axis=3, idx=0)
+
+    FA_img = ants.copy_image_info(b0, ants.from_numpy(FA_vol)) if has_tensor_metrics else None
+    MD_img = ants.copy_image_info(b0, ants.from_numpy(MD_vol)) if has_tensor_metrics else None
+    
+    RGB_img = None
+    if has_tensor_metrics:
+        rgb_channel_images = [ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)]
+        RGB_img = ants.merge_channels(rgb_channel_images)
+
+    if verbose:
+        print("[INFO] Performing final overall fit for return object.")
+    
+    # Final model for the full fit still uses components from current_gtab.
+    full_fit = None
+    if False:
+        final_model_for_full_fit = None 
+        if diffusion_model_name == 'DTI': # Use the parameter here
+            final_model_for_full_fit = dti.TensorModel(local_gtab, **model_params)
+        elif diffusion_model_name == 'FreeWater':
+            final_model_for_full_fit = fwdti.FreeWaterTensorModel(local_gtab)
+        elif diffusion_model_name == 'DKI':
+            final_model_for_full_fit = dki.DiffusionKurtosisModel(local_gtab, **model_params)
+        full_fit = final_model_for_full_fit.fit(img_data * mask[..., None])
+
+    return full_fit, FA_img, MD_img, RGB_img
+
+
 def efficient_dwi_fit_voxelwise(imagein, maskin, gtab_bvals, bvecs_5d, diffusion_model_name='DTI', model_params=None,
                                 bvals_to_use=None, num_threads=None, verbose=True):
     """
