@@ -6560,14 +6560,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   parallelism for computational reproducibility concurrent with speed.
   """
 
-  ## REPRODUCIBILITY CHANGE: Control multi-threaded execution
-  num_threads = os.cpu_count() if os.cpu_count() is not None else 1
-  os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = str(num_threads)
-  os.environ["OMP_NUM_THREADS"] = str(num_threads)
-  if verbose:
-      print(f"Set ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS and OMP_NUM_THREADS to {num_threads} for reproducibility and speed.")
-
-
   import warnings
 
   if clean_tmp is not None:
@@ -6592,8 +6584,7 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
           minspc = np.float32(min(spc[0:3])) ## REPRODUCIBILITY CHANGE: Ensure min spacing is float32
       # newspc should contain float32 elements
       newspc = [np.float32(minspc), np.float32(minspc), np.float32(minspc)] ## REPRODUCIBILITY CHANGE
-      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 ) ## REPRODUCIBILITY CHANGE: Removed .astype(np.float32)
-      # Assuming ants.resample_image returns float32
+      fmri_template = ants.resample_image( fmri_template, newspc, interp_type=0 )
 
   def temporal_derivative_same_shape(array):
     """
