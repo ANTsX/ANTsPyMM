@@ -1,17 +1,23 @@
-##################################################################
-# for easier to access data with a full mm_csv example, see:
-# github.com:stnava/ANTPD_antspymm
-##################################################################
-import random
-import numpy as np
-seed = 42  #
-random.seed(seed)
-np.random.seed(seed)
+################################################################
+#  for easier to access data with a full mm_csv example, see:  #
+#  github.com:stnava/ANTPD_antspymm                            #
+################################################################
 import os
+seed = 42  #
 os.environ["PYTHONHASHSEED"] = str(seed)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # this is important for reading models via siq.read_srmodel
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
+nthreads = str(8) # for much faster performance and good reproducibility
+os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
+os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
+os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
+os.environ["OPENBLAS_NUM_THREADS"] = nthreads
+os.environ["MKL_NUM_THREADS"] = nthreads
+import random
+import numpy as np
+random.seed(seed)
+np.random.seed(seed)
 from os.path import exists
 import signal
 import urllib.request
@@ -19,16 +25,20 @@ import zipfile
 import tempfile
 from pathlib import Path
 from tqdm import tqdm
-
+import siq
+import antspynet
+#####################
 REQUIRED_FILES = [
     "PPMI/101018/20210412/T1w/1496225/PPMI-101018-20210412-T1w-1496225.nii.gz",
     "PPMI/101018/20210412/DTI_LR/1496234/PPMI-101018-20210412-DTI_LR-1496234.nii.gz"
 ]
-
+#####################
 # make sure we can read the disc
-mfn='/home/ubuntu/.antspymm/siq_smallshort_train_2x2x2_2chan_featgraderL6_postseg_best_mdl.h5'
+print("read the SR model ")
+mfn=os.path.expanduser('~/.antspymm/siq_smallshort_train_2x2x2_2chan_featgraderL6_postseg_best_mdl.h5')
 mdl, mdlshape = siq.read_srmodel(mfn)
-
+print("read the SR model done")
+#####################
 def _validate_required_files(base_dir, required_files):
     for rel_path in required_files:
         full_path = os.path.join(base_dir, rel_path)
@@ -150,29 +160,25 @@ candidate_rdirs = [
     "~/nrgdata_test/",
     "~/data/ppmi/nrgdata_test/",
     "/mnt/data/ppmi_testing/nrgdata_test/"]
-
-
+########################################################################
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 ########################################################################
-nthreads = str(8) # for much faster performance and good reproducibility
-####### NOTE: DTI is not exactly reproducible with nthreads > 1 ########
-####### we may look into these details in the future ##############
-# nthreads = str(1) # for "perfect reproducibility" 
-# NOTE: WMH and melanin intentionally use randomization, so they are not 
-# exactly reproducible across runs; me may implement a seeding procedure 
-# in the future to make them reproducible as well
-os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
-os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
-os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
-os.environ["OPENBLAS_NUM_THREADS"] = nthreads
-os.environ["MKL_NUM_THREADS"] = nthreads
 import numpy as np
 import glob as glob
 import antspymm
 import ants
+import antspyt1w
 import random
 import re
+print("Begin template loading")
+tlrfn = antspyt1w.get_data('T_template0_LR', target_extension='.nii.gz' )
+tfn = antspyt1w.get_data('T_template0', target_extension='.nii.gz' )
+templatea = ants.image_read( tfn )
+templatea = ( templatea * antspynet.brain_extraction( templatea, 't1' ) ).iMath( "Normalize" )
+templatealr = ants.image_read( tlrfn )
+print("done template loading")
+
 if __name__ == '__main__':
     repro=True
     repro=False
@@ -180,9 +186,9 @@ if __name__ == '__main__':
     if not exists(repro):
         repro = False
     if not repro:
-        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads, rdir )
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr_th'+nthreads, rdir )
     else:
-        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_th'+nthreads+'_repro', rdir )
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr_th'+nthreads+'_repro', rdir )
     ################################
     print( " outdir = " + outdir ) #
     ################################
@@ -192,7 +198,17 @@ if __name__ == '__main__':
     t1fn=glob.glob(mydir+"101018/20210412/T1w/1496225/*.nii.gz")
     if len(t1fn) > 0:
         t1fn=t1fn[0]
-        print("Begin " + t1fn)
+        testimg = ants.image_read( t1fn )
+        if np.min( ants.get_spacing(testimg) ) >= 0.8:
+            bxt  = antspyt1w.brain_extraction( testimg )
+            imgb = testimg*bxt
+            print("label hemispheres")
+            mylr = antspyt1w.label_hemispheres( imgb, templatea, templatealr )
+            print("start SR")
+            mysr = siq.inference( testimg, mdl, segmentation=mylr*bxt, truncation=[0.001,0.999], poly_order=1, verbose=True )
+            print("done SR -- overwrite the T1w image " + t1fn + " with super_resolution")
+            ants.image_write( ants.iMath( mysr['super_resolution'], "Normalize"),  t1fn )
+        print("Begin SR " + t1fn)
         flfn=glob.glob(mydir+"101018/20210412/T2Flair/*/*.nii.gz")[0]
         dtfn=glob.glob(mydir+"101018/20210412/DTI*/*/*.nii.gz")
         rsfn=glob.glob(mydir+"101018/20210412/rsfMRI*/*/*.nii.gz")
@@ -218,6 +234,8 @@ if __name__ == '__main__':
         template = template * bxt
         template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
         mmrun = antspymm.mm_csv( studycsv2,
+            srmodel_NM = "siq_smallshort_train_bestup_1chan_featgraderL6_best_mdl.h5",
+            srmodel_DTI = "siq_smallshort_train_bestup_1chan_featgraderL6_best_mdl.h5",
             normalization_template=template,
             normalization_template_output='ppmi',
             normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
