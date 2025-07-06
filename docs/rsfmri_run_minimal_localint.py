@@ -2,9 +2,10 @@
 import sys, os
 import unittest
 ################################################################
-os.environ["TF_NUM_INTEROP_THREADS"] = "6"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "6"
-os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "6"
+mynt = "2"
+os.environ["TF_NUM_INTEROP_THREADS"] = mynt
+os.environ["TF_NUM_INTRAOP_THREADS"] = mynt
+os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = mynt
 ################################################################
 import tempfile
 import shutil
@@ -32,7 +33,7 @@ if True:
     t1segmentation = t1seg['segmentation_image']
 ################################################################
 print("do rsf")
-img1b=img1[:,:,:,0:60]
+img1b=img1[:,:,:,0:50]
 rsf = antspymm.resting_state_fmri_networks(
   img1b, und, t1 * t1bxt, t1segmentation, 
   nc=5,
