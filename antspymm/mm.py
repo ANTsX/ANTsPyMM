@@ -4003,89 +4003,18 @@ def efficient_tensor_fit( gtab, fit_method, imagein, maskin, diffusion_model='DT
     return model.fit(img_data * mask[..., None]), FA, MD, RGB
 
 
-import ants
-import numpy as np
-import dipy.reconst.dti as dti
-import dipy.reconst.fwdti as fwdti
-import dipy.reconst.dki as dki
-from dipy.core.gradients import gradient_table
-from dipy.reconst.dti import fractional_anisotropy, color_fa, mean_diffusivity
 
-# Core multiprocessing imports and context fixing
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing # <-- Essential for get_context('spawn')
-import os # For os.cpu_count()
-from numpy.random import default_rng # For deterministic RNG in parallel
-from tqdm import tqdm # For progress bars
-
-
-# --- Helper function for efficient_dwi_fit (must be at top-level for pickling) ---
-def _fit_and_extract_chunk_data_efficient_dwi_fit(
-    img_data_chunk: np.ndarray,
-    mask_chunk: np.ndarray,
-    z_start: int,
-    z_end: int,
-    gtab_bvals: np.ndarray,
-    gtab_bvecs: np.ndarray,
-    diffusion_model_name: str,
-    model_params_dict: dict,
-    rng_seed: int
-):
-    """
-    Worker function to fit DIPY model for a Z-chunk.
-    Designed to be picklable for multiprocessing.
-    """
-    local_rng = default_rng(rng_seed) # Initialize local RNG with unique seed for reproducibility
-
-    # Reconstruct gtab for this worker process/thread, for robustness
-    local_gtab = gradient_table(gtab_bvals, bvecs=gtab_bvecs)
-
-    # Re-create model instance within the worker process/thread
-    model = None
-    if diffusion_model_name == 'DTI':
-        model = dti.TensorModel(local_gtab, **model_params_dict)
-    elif diffusion_model_name == 'FreeWater':
-        model = fwdti.FreeWaterTensorModel(local_gtab)
-    elif diffusion_model_name == 'DKI':
-        model = dki.DiffusionKurtosisModel(local_gtab, **model_params_dict)
-    else:
-        # This error should ideally be caught before multiprocessing starts
-        raise ValueError(f"Unsupported model in worker: {diffusion_model_name}")
-
-    masked_data = img_data_chunk * mask_chunk[..., None]
-    # np.nan_to_num is important for stable fitting on masked or zero data
-    masked_data = np.nan_to_num(masked_data, nan=0.0) 
-    
-    fit = model.fit(masked_data)
-    
-    FA_chunk, MD_chunk, RGB_chunk = None, None, None
-    has_tensor_metrics = diffusion_model_name in ['DTI', 'FreeWater']
-
-    if has_tensor_metrics and hasattr(fit, 'evals') and hasattr(fit, 'evecs'):
-        FA_chunk = fractional_anisotropy(fit.evals)
-        MD_chunk = mean_diffusivity(fit.evals)
-        RGB_chunk = color_fa(FA_chunk, fit.evecs)
-        
-        # Post-processing and clipping for robustness
-        FA_chunk[np.isnan(FA_chunk)] = 0.0 # Set NaN FA to 0
-        FA_chunk = np.clip(FA_chunk, 0.0, 1.0) # Clip FA to valid range
-        MD_chunk[np.isnan(MD_chunk) | np.isinf(MD_chunk)] = 0.0 # Handle NaN/inf for MD if any arise
-
-    return z_start, z_end, FA_chunk, MD_chunk, RGB_chunk
-
-
-def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
+def efficient_dwi_fit(gtab, diffusion_model, imagein, maskin,
                       model_params=None, bvals_to_use=None,
-                      chunk_size=1024, num_threads=None, verbose=True):
+                      chunk_size=1024, num_threads=1, verbose=True):
     """
-    Efficient and optionally parallelized diffusion model reconstruction using DiPy,
-    with robust multi-processing and reproducibility.
+    Efficient and optionally parallelized diffusion model reconstruction using DiPy.
 
     Parameters
     ----------
     gtab : GradientTable
         DiPy gradient table.
-    diffusion_model_name : str
+    diffusion_model : str
         One of ['DTI', 'FreeWater', 'DKI'].
     imagein : ants.ANTsImage
         4D diffusion-weighted image.
@@ -4096,16 +4025,16 @@ def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
     bvals_to_use : list of int, optional
         Subset of b-values to use for the fit (e.g., [0, 1000, 2000]).
     chunk_size : int, optional
-        Maximum number of voxels per chunk.
+        Maximum number of voxels per chunk (default 1024).
     num_threads : int, optional
-        Number of parallel processes/threads. If None, defaults to CPU count.
+        Number of parallel threads.
     verbose : bool, optional
         Whether to print status messages.
 
     Returns
     -------
     fit : dipy ModelFit
-        The fitted model object for the entire volume.
+        The fitted model object.
     FA : ants.ANTsImage or None
         Fractional anisotropy image (if applicable).
     MD : ants.ANTsImage or None
@@ -4113,382 +4042,106 @@ def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
     RGB : ants.ANTsImage or None
         Color FA image (if applicable).
     """
+    import ants
+    import numpy as np
+    import dipy.reconst.dti as dti
+    import dipy.reconst.fwdti as fwdti
+    import dipy.reconst.dki as dki
+    from dipy.core.gradients import gradient_table
+    from dipy.reconst.dti import fractional_anisotropy, color_fa, mean_diffusivity
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     assert imagein.dimension == 4, "Input image must be 4D"
     model_params = model_params or {}
 
-    img_data = imagein.numpy().astype(np.float32)
+    img_data = imagein.numpy()
     mask = maskin.numpy().astype(bool)
-    X, Y, Z_dim, N_bvecs = img_data.shape
-
+    X, Y, Z, N = img_data.shape
     inplane_size = X * Y
-    slices_per_chunk = max(1, chunk_size // inplane_size) # Ensure at least 1 slice per chunk
 
-    if verbose:
-        print(f"[INFO] Image shape: {img_data.shape}")
-        print(f"[INFO] Using model: {diffusion_model_name}")
-        print(f"[INFO] Max voxels per chunk: {chunk_size} (→ {slices_per_chunk} slices)")
-    
-    # Adjust gtab and img_data based on bvals_to_use
-    current_gtab_bvals = gtab.bvals
-    current_gtab_bvecs = gtab.bvecs
-    if bvals_to_use is not None:
-        bvals_to_use_set = set(bvals_to_use)
-        sel = np.isin(current_gtab_bvals, list(bvals_to_use_set))
-        img_data = img_data[..., sel]
-        current_gtab_bvals = current_gtab_bvals[sel]
-        current_gtab_bvecs = current_gtab_bvecs[sel]
-        N_bvecs = img_data.shape[-1] # Update N_bvecs after selection
-
-        if verbose:
-            print(f"[INFO] Selected b-values: {sorted(bvals_to_use_set)}")
-            print(f"[INFO] Selected volumes: {sel.sum()} / {N_bvecs}")
-
-    # Initialize full output volumes
-    FA_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    MD_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    RGB_vol = np.zeros((X, Y, Z_dim, 3), dtype=np.float32)
-    has_tensor_metrics = diffusion_model_name in ['DTI', 'FreeWater']
-
-    # Master RNG for generating seeds for worker processes
-    master_rng = default_rng(seed=12345) # Fixed seed for overall reproducibility
-
-    # Prepare arguments for worker function
-    tasks_args = []
-    for z_start_idx in range(0, Z_dim, slices_per_chunk):
-        z_end_idx = min(Z_dim, z_start_idx + slices_per_chunk)
-        
-        # Slice data and mask once in main process per chunk
-        img_chunk = img_data[:, :, z_start_idx:z_end_idx, :]
-        mask_chunk = mask[:, :, z_start_idx:z_end_idx]
-        
-        # Generate a unique and deterministic RNG seed for this chunk
-        chunk_rng_seed = master_rng.integers(low=0, high=2**32 - 1)
-        
-        tasks_args.append((
-            img_chunk, mask_chunk, z_start_idx, z_end_idx,
-            current_gtab_bvals, current_gtab_bvecs, # Pass bvals and bvecs
-            diffusion_model_name, model_params, chunk_rng_seed
-        ))
-
-    # Determine number of processes/threads
-    if num_threads is None:
-        num_threads = os.cpu_count() or 1
-    if verbose:
-        print(f"[INFO] Using {num_threads} processes for chunk processing.")
-
-    # Execute tasks
-    if num_threads > 1:
-        # --- FIX APPLIED HERE ---
-        with ProcessPoolExecutor(max_workers=num_threads, mp_context=multiprocessing.get_context('spawn')) as executor:
-            # Submit all chunks
-            futures = {executor.submit(_fit_and_extract_chunk_data_efficient_dwi_fit, *args): args for args in tasks_args}
-            
-            # As chunks complete, place their results into the main volumes
-            for future in tqdm(as_completed(futures), total=len(tasks_args), desc="Fitting DWI chunks"):
-                z_start, z_end, FA_chunk, MD_chunk, RGB_chunk = future.result()
-                if FA_chunk is not None: # Check if metrics were calculated (e.g., for non-tensor models)
-                    FA_vol[:, :, z_start:z_end] = FA_chunk
-                    MD_vol[:, :, z_start:z_end] = MD_chunk
-                    RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
-    else: # Single-threaded execution
-        for args in tqdm(tasks_args, desc="Fitting DWI chunks (single-thread)"):
-            z_start, z_end, FA_chunk, MD_chunk, RGB_chunk = _fit_and_extract_chunk_data_efficient_dwi_fit(*args)
-            if FA_chunk is not None:
-                FA_vol[:, :, z_start:z_end] = FA_chunk
-                MD_vol[:, :, z_start:z_end] = MD_chunk
-                RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
-
-    if verbose:
-        print("[INFO] Chunk processing complete.")
-
-    # Prepare ANTsImage outputs
-    b0 = ants.slice_image(imagein, axis=3, idx=0) # Use a slice of the input image for metadata
-
-    FA_img = ants.copy_image_info(b0, ants.from_numpy(FA_vol)) if has_tensor_metrics else None
-    MD_img = ants.copy_image_info(b0, ants.from_numpy(MD_vol)) if has_tensor_metrics else None
-    
-    RGB_img = None
-    if has_tensor_metrics:
-        rgb_channel_images = [ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)]
-        RGB_img = ants.merge_channels(rgb_channel_images)
-
-    # Perform final fit for the entire volume (if needed in return object `fit`)
-    if verbose:
-        print("[INFO] Performing final overall fit for return object.")
-    
-    # Needs to rebuild gtab (potentially filtered by bvals_to_use)
-    final_gtab = gradient_table(current_gtab_bvals, bvecs=current_gtab_bvecs)
-    
-    final_model = None
-    full_fit = None
-    if False:
-        if diffusion_model_name == 'DTI':
-            final_model = dti.TensorModel(final_gtab, **model_params)
-        elif diffusion_model_name == 'FreeWater':
-            final_model = fwdti.FreeWaterTensorModel(final_gtab)
-        elif diffusion_model_name == 'DKI':
-            final_model = dki.DiffusionKurtosisModel(final_gtab, **model_params)
-        
-        full_fit = final_model.fit(img_data * mask[..., None]) # Apply mask to full data
-
-    return full_fit, FA_img, MD_img, RGB_img
-
-
-
-# --- Helper function for efficient_dwi_fit_voxelwise (must be at top-level) ---
-def _fit_single_voxel(
-    ix: int, iy: int, iz: int, 
-    sig: np.ndarray, # (N,)
-    bvals: np.ndarray, # (N,)
-    bv: np.ndarray, # (N, 3)
-    diffusion_model_name: str,
-    model_params_dict: dict,
-    rng_seed: int
-):
-    """
-    Worker function to fit a single voxel.
-    Designed to be picklable for multiprocessing.
-    """
-    local_rng = default_rng(rng_seed) # Initialize local RNG with unique seed for reproducibility
-
-    # Reconstruct gtab for this voxel
-    local_gtab = gradient_table(bvals, bvecs=bv)
-    
-    # Re-create model instance within the worker process/thread
-    model = None
-    if diffusion_model_name == 'DTI':
-        model = dti.TensorModel(local_gtab, **model_params_dict)
-    elif diffusion_model_name == 'DKI':
-        model = dki.DiffusionKurtosisModel(local_gtab, **model_params_dict)
-    else:
-        # This error should be caught higher up
-        raise ValueError(f"Unsupported model in worker for voxelwise fit: {diffusion_model_name}")
-
-    try:
-        fit = model.fit(sig)
-        evals = fit.evals
-        evecs = fit.evecs
-        
-        # Calculate metrics (DiPy functions expect array-like inputs, even for single voxel)
-        FA_val = fractional_anisotropy(evals[np.newaxis, :]) # Add new axis for batch dim
-        MD_val = mean_diffusivity(evals[np.newaxis, :])
-        RGB_val = color_fa(FA_val, evecs[np.newaxis, :, :]) # Add new axis for batch dim
-
-        # Post-processing and clipping
-        FA_val = np.nan_to_num(FA_val, nan=0.0).item() # .item() to convert 0D array to scalar
-        FA_val = np.clip(FA_val, 0.0, 1.0)
-        MD_val = np.nan_to_num(MD_val, nan=0.0).item()
-        RGB_val = RGB_val.squeeze() # Remove batch dim, ensure (3,) shape
-
-        return ix, iy, iz, FA_val, MD_val, RGB_val, None # None for potential error message
-    except Exception as e:
-        # Return zeros and error message if fit fails
-        return ix, iy, iz, 0.0, 0.0, np.zeros(3), str(e)
-
-
-import ants
-import numpy as np
-import dipy.reconst.dti as dti
-import dipy.reconst.fwdti as fwdti
-import dipy.reconst.dki as dki
-from dipy.core.gradients import gradient_table
-from concurrent.futures import ThreadPoolExecutor
-import os
-from tqdm import tqdm
-
-# --- Helper function for efficient_dwi_fit (must be at top-level for pickling) ---
-# It now takes the necessary parameters explicitly.
-def _fit_and_extract_chunk_data_optimized_threading(
-    img_data_chunk: np.ndarray,
-    mask_chunk: np.ndarray,
-    z_start_idx: int,
-    z_end_idx: int,
-    # --- Passed explicitly via tasks_args ---
-    gtab_bvals_param: np.ndarray, # Renamed to avoid shadowing outer gtab_bvals
-    gtab_bvecs_param: np.ndarray, # Renamed to avoid shadowing outer gtab_bvecs
-    diffusion_model_name_param: str, # Renamed to avoid shadowing outer param
-    model_params_dict_param: dict, # Renamed to avoid shadowing outer param
-):
-    """
-    Worker function to fit DIPY model for a Z-chunk, optimized for ThreadPoolExecutor.
-    It now re-instantiates DiPy objects per worker to ensure strict isolation and reproducibility.
-    """
-    # Instantiate the DiPy Model and local Gtab *within this worker function*.
-    # This ensures strict isolation for maximal reproducibility (no shared mutable state).
-    # This also means the original 'model' instance from the main function is NOT used by workers.
-
-    local_gtab = gradient_table(gtab_bvals_param, gtab_bvecs_param)
-    
-    model = None
-    if diffusion_model_name_param == 'DTI':
-        model = dti.TensorModel(local_gtab, **model_params_dict_param)
-    elif diffusion_model_name_param == 'FreeWater':
-        model = fwdti.FreeWaterTensorModel(local_gtab)
-    elif diffusion_model_name_param == 'DKI':
-        model = dki.DiffusionKurtosisModel(local_gtab, **model_params_dict_param)
-    else:
-        # This error should be caught before calling this function in real app
-        return z_start_idx, z_end_idx, None, None, None, f"Unsupported model: {diffusion_model_name_param}"
-
-    masked_data = img_data_chunk * mask_chunk[..., None]
-    masked_data = np.nan_to_num(masked_data, nan=0.0)
-    
-    try:
-        fit = model.fit(masked_data) 
-        
-        FA_chunk, MD_chunk, RGB_chunk = None, None, None
-        
-        has_tensor_metrics_local = diffusion_model_name_param in ['DTI', 'FreeWater']
-
-        if has_tensor_metrics_local and hasattr(fit, 'evals') and hasattr(fit, 'evecs'):
-            # These imports are here to ensure minimal global scope dependency for pickling
-            from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity, color_fa 
-            FA_chunk = fractional_anisotropy(fit.evals)
-            MD_chunk = mean_diffusivity(fit.evals)
-            RGB_chunk = color_fa(FA_chunk, fit.evecs)
-            
-            FA_chunk = np.nan_to_num(FA_chunk, nan=0.0)
-            FA_chunk = np.clip(FA_chunk, 0.0, 1.0)
-            MD_chunk = np.nan_to_num(MD_chunk, nan=0.0)
-            MD_chunk[np.isinf(MD_chunk)] = 0.0
-            
-        return z_start_idx, z_end_idx, FA_chunk, MD_chunk, RGB_chunk, None
-    except Exception as e:
-        fa_shape = img_data_chunk.shape[:-1]
-        dummy_fa_chunk = np.zeros(fa_shape, dtype=np.float32)
-        dummy_md_chunk = np.zeros(fa_shape, dtype=np.float32)
-        dummy_rgb_chunk = np.zeros(fa_shape + (3,), dtype=np.float32)
-        return z_start_idx, z_end_idx, dummy_fa_chunk, dummy_md_chunk, dummy_rgb_chunk, str(e)
-
-
-def efficient_dwi_fit(gtab, diffusion_model_name, imagein, maskin,
-                      model_params=None, bvals_to_use=None,
-                      chunk_size=1024, num_threads=None, verbose=True):
-    """
-    Efficient and optionally parallelized diffusion model reconstruction using DiPy.
-    This implementation maximizes scientific reproducibility and computational repeatability
-    in a multi-threaded context (ThreadPoolExecutor) by optimizing shared resources.
-
-    Parameters are described in the function signature.
-    """
-    assert imagein.dimension == 4, "Input image must be 4D"
-    model_params = {} if model_params is None else model_params
-
-    img_data = imagein.numpy().astype(np.float32)
-    mask = maskin.numpy().astype(bool)
-    X, Y, Z_dim, N_bvecs = img_data.shape
-
-    inplane_size = X * Y
+    # Convert chunk_size from voxel count to number of slices
     slices_per_chunk = max(1, chunk_size // inplane_size)
 
     if verbose:
         print(f"[INFO] Image shape: {img_data.shape}")
-        print(f"[INFO] Using model: {diffusion_model_name}")
-        print(f"[INFO] Max voxels per chunk: {chunk_size} (→ {slices_per_chunk} slices)")
-    
-    # Adjust gtab and img_data based on bvals_to_use 
-    current_gtab_bvals = gtab.bvals
-    current_gtab_bvecs = gtab.bvecs
+        print(f"[INFO] Using model: {diffusion_model}")
+        print(f"[INFO] Max voxels per chunk: {chunk_size} (→ {slices_per_chunk} slices) | Threads: {num_threads}")
+
     if bvals_to_use is not None:
-        bvals_to_use_set = set(bvals_to_use)
-        sel = np.isin(current_gtab_bvals, list(bvals_to_use_set))
+        bvals_to_use = set(bvals_to_use)
+        sel = np.isin(gtab.bvals, list(bvals_to_use))
         img_data = img_data[..., sel]
-        current_gtab_bvals = current_gtab_bvals[sel]
-        current_gtab_bvecs = current_gtab_bvecs[sel]
-        N_bvecs = img_data.shape[-1] 
-
+        gtab = gradient_table(gtab.bvals[sel], bvecs=gtab.bvecs[sel])
         if verbose:
-            print(f"[INFO] Selected b-values: {sorted(bvals_to_use_set)}")
-            print(f"[INFO] Selected volumes: {sel.sum()} / {N_bvecs}")
+            print(f"[INFO] Selected b-values: {sorted(bvals_to_use)}")
+            print(f"[INFO] Selected volumes: {sel.sum()} / {N}")
 
-    # Initialize full output volumes
-    FA_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    MD_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    RGB_vol = np.zeros((X, Y, Z_dim, 3), dtype=np.float32)
+    def get_model(name, gtab, **params):
+        if name == 'DTI':
+            return dti.TensorModel(gtab, **params)
+        elif name == 'FreeWater':
+            return fwdti.FreeWaterTensorModel(gtab)
+        elif name == 'DKI':
+            return dki.DiffusionKurtosisModel(gtab, **params)
+        else:
+            raise ValueError(f"Unsupported model: {name}")
 
-    has_tensor_metrics = diffusion_model_name in ['DTI', 'FreeWater']
+    model = get_model(diffusion_model, gtab, **model_params)
 
-    # Prepare arguments for worker function
-    tasks_args = []
-    for z_start_idx in range(0, Z_dim, slices_per_chunk):
-        z_end_idx = min(Z_dim, z_start_idx + slices_per_chunk)
-        
-        img_chunk = img_data[:, :, z_start_idx:z_end_idx, :]
-        mask_chunk = mask[:, :, z_start_idx:z_end_idx]
-        
-        # --- FIX: Pass all necessary parameters explicitly to the helper ---
-        tasks_args.append((
-            img_chunk, mask_chunk, z_start_idx, z_end_idx,
-            current_gtab_bvals, current_gtab_bvecs, # Gtab components
-            diffusion_model_name, model_params # Model details
-        ))
+    FA_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    MD_vol = np.zeros((X, Y, Z), dtype=np.float32)
+    RGB_vol = np.zeros((X, Y, Z, 3), dtype=np.float32)
+    has_tensor_metrics = diffusion_model in ['DTI', 'FreeWater']
 
-    # Determine number of threads
-    if num_threads is None:
-        num_threads = os.cpu_count() or 1
-    if verbose:
-        print(f"[INFO] Using {num_threads} threads for chunk processing.")
+    def process_chunk(z_start):
+        z_end = min(Z, z_start + slices_per_chunk)
+        local_data = img_data[:, :, z_start:z_end, :]
+        local_mask = mask[:, :, z_start:z_end]
+        masked_data = local_data * local_mask[..., None]
+        masked_data = np.nan_to_num(masked_data, nan=0)
+        fit = model.fit(masked_data)
+        if has_tensor_metrics and hasattr(fit, 'evals') and hasattr(fit, 'evecs'):
+            FA = fractional_anisotropy(fit.evals)
+            FA[np.isnan(FA)] = 1
+            FA = np.clip(FA, 0, 1)
+            MD = mean_diffusivity(fit.evals)
+            RGB = color_fa(FA, fit.evecs)
+            return z_start, z_end, FA, MD, RGB
+        return z_start, z_end, None, None, None
 
+    chunks = range(0, Z, slices_per_chunk)
     if num_threads > 1:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            # Use executor.map() to guarantee results are returned in submission order.
-            results_iterator = executor.map(_fit_and_extract_chunk_data_optimized_threading, *zip(*tasks_args))
-            
-            for result_tuple in tqdm(results_iterator, total=len(tasks_args), desc="Fitting DWI chunks"):
-                z_start, z_end, FA_chunk, MD_chunk, RGB_chunk, error_msg = result_tuple
-                if error_msg: 
-                    if verbose: print(f"Chunk starting at Z={z_start} fit failed: {error_msg}")
-                if FA_chunk is not None:
-                    FA_vol[:, :, z_start:z_end] = FA_chunk
-                    MD_vol[:, :, z_start:z_end] = MD_chunk
-                    RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+            futures = {executor.submit(process_chunk, z): z for z in chunks}
+            for f in as_completed(futures):
+                z_start, z_end, FA, MD, RGB = f.result()
+                if FA is not None:
+                    FA_vol[:, :, z_start:z_end] = FA
+                    MD_vol[:, :, z_start:z_end] = MD
+                    RGB_vol[:, :, z_start:z_end, :] = RGB
     else:
-        for args in tqdm(tasks_args, desc="Fitting DWI chunks (single-thread)"):
-            z_start, z_end, FA_chunk, MD_chunk, RGB_chunk, error_msg = _fit_and_extract_chunk_data_optimized_threading(*args)
-            if error_msg:
-                if verbose: print(f"Chunk starting at Z={z_start} fit failed: {error_msg}")
-            if FA_chunk is not None:
-                FA_vol[:, :, z_start:z_end] = FA_chunk
-                MD_vol[:, :, z_start:z_end] = MD_chunk
-                RGB_vol[:, :, z_start:z_end, :] = RGB_chunk
+        for z in chunks:
+            z_start, z_end, FA, MD, RGB = process_chunk(z)
+            if FA is not None:
+                FA_vol[:, :, z_start:z_end] = FA
+                MD_vol[:, :, z_start:z_end] = MD
+                RGB_vol[:, :, z_start:z_end, :] = RGB
 
-    if verbose:
-        print("[INFO] Chunk processing complete.")
-
-    # Prepare ANTsImage outputs
     b0 = ants.slice_image(imagein, axis=3, idx=0)
-
     FA_img = ants.copy_image_info(b0, ants.from_numpy(FA_vol)) if has_tensor_metrics else None
     MD_img = ants.copy_image_info(b0, ants.from_numpy(MD_vol)) if has_tensor_metrics else None
-    
-    RGB_img = None
-    if has_tensor_metrics:
-        rgb_channel_images = [ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)]
-        RGB_img = ants.merge_channels(rgb_channel_images)
+    RGB_img = (ants.merge_channels([
+        ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)
+    ]) if has_tensor_metrics else None)
 
-    if verbose:
-        print("[INFO] Performing final overall fit for return object.")
-    
-    # Final model for the full fit still uses components from current_gtab.
-    full_fit = None
-    if False:
-        final_model_for_full_fit = None 
-        if diffusion_model_name == 'DTI': # Use the parameter here
-            final_model_for_full_fit = dti.TensorModel(local_gtab, **model_params)
-        elif diffusion_model_name == 'FreeWater':
-            final_model_for_full_fit = fwdti.FreeWaterTensorModel(local_gtab)
-        elif diffusion_model_name == 'DKI':
-            final_model_for_full_fit = dki.DiffusionKurtosisModel(local_gtab, **model_params)
-        full_fit = final_model_for_full_fit.fit(img_data * mask[..., None])
-
+    full_fit = model.fit(img_data * mask[..., None])
     return full_fit, FA_img, MD_img, RGB_img
 
 
-def efficient_dwi_fit_voxelwise(imagein, maskin, gtab_bvals, bvecs_5d, diffusion_model_name='DTI', model_params=None,
-                                bvals_to_use=None, num_threads=None, verbose=True):
+def efficient_dwi_fit_voxelwise(imagein, maskin, bvals, bvecs_5d, model_params=None,
+                                bvals_to_use=None, num_threads=1, verbose=True):
     """
-    Voxel-wise diffusion model fitting with individual b-vectors per voxel,
-    with robust multi-processing and reproducibility.
+    Voxel-wise diffusion model fitting with individual b-vectors per voxel.
 
     Parameters
     ----------
@@ -4496,20 +4149,18 @@ def efficient_dwi_fit_voxelwise(imagein, maskin, gtab_bvals, bvecs_5d, diffusion
         4D DWI image (X, Y, Z, N).
     maskin : ants.ANTsImage
         3D binary mask.
-    gtab_bvals : (N,) array-like
-        Common b-values across volumes (from gtab).
+    bvals : (N,) array-like
+        Common b-values across volumes.
     bvecs_5d : (X, Y, Z, N, 3) ndarray
         Voxel-specific b-vectors.
-    diffusion_model_name : str, optional
-        Model to fit (e.g., 'DTI', 'DKI'). FreeWater not typically voxel-wise with unique bvecs.
     model_params : dict
         Extra arguments for model.
     bvals_to_use : list[int]
         Subset of b-values to include.
     num_threads : int
-        Number of processes/threads to use. If None, defaults to CPU count.
+        Number of threads to use.
     verbose : bool
-        Whether to print status messages.
+        Whether to print status.
 
     Returns
     -------
@@ -4520,201 +4171,101 @@ def efficient_dwi_fit_voxelwise(imagein, maskin, gtab_bvals, bvecs_5d, diffusion
     RGB_img : ants.ANTsImage
         RGB FA image.
     """
+    import numpy as np
+    import ants
+    import dipy.reconst.dti as dti
+    from dipy.core.gradients import gradient_table
+    from dipy.reconst.dti import fractional_anisotropy, color_fa, mean_diffusivity
+    from concurrent.futures import ThreadPoolExecutor
+    from tqdm import tqdm
+
     model_params = model_params or {}
-    img_data = imagein.numpy().astype(np.float32)
+    img = imagein.numpy()
     mask = maskin.numpy().astype(bool)
-    X, Y, Z_dim, N_bvecs = img_data.shape
+    X, Y, Z, N = img.shape
 
-    # Select relevant b-values/bvecs if bvals_to_use is provided
-    current_bvals = np.array(gtab_bvals) # Ensure mutable copy
-    current_bvecs_5d = np.array(bvecs_5d) # Ensure mutable copy
     if bvals_to_use is not None:
-        bvals_to_use_set = set(bvals_to_use)
-        sel = np.isin(current_bvals, list(bvals_to_use_set))
-        
-        current_bvals = current_bvals[sel]
-        img_data = img_data[..., sel]
-        current_bvecs_5d = current_bvecs_5d[..., sel, :]
-        N_bvecs = img_data.shape[-1] # Update N_bvecs after selection
-        if verbose:
-            print(f"[INFO] Selected b-values: {sorted(bvals_to_use_set)}")
-            print(f"[INFO] Selected volumes: {sel.sum()} / {N_bvecs}")
+        sel = np.isin(bvals, bvals_to_use)
+        img = img[..., sel]
+        bvals = bvals[sel]
+        bvecs_5d = bvecs_5d[..., sel, :]
 
-    # Initialize full output volumes
-    FA_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    MD_vol = np.zeros((X, Y, Z_dim), dtype=np.float32)
-    RGB_vol = np.zeros((X, Y, Z_dim, 3), dtype=np.float32)
+    FA = np.zeros((X, Y, Z), dtype=np.float32)
+    MD = np.zeros((X, Y, Z), dtype=np.float32)
+    RGB = np.zeros((X, Y, Z, 3), dtype=np.float32)
 
-    # Find coordinates of masked voxels
-    coords_to_process = np.argwhere(mask)
+    def fit_voxel(ix, iy, iz):
+        if not mask[ix, iy, iz]:
+            return
+        sig = img[ix, iy, iz, :]
+        if np.all(sig == 0):
+            return
+        bv = bvecs_5d[ix, iy, iz, :, :]
+        gtab = gradient_table(bvals, bv)
+        try:
+            model = dti.TensorModel(gtab, **model_params)
+            fit = model.fit(sig)
+            evals = fit.evals
+            evecs = fit.evecs
+            FA[ix, iy, iz] = fractional_anisotropy(evals)
+            MD[ix, iy, iz] = mean_diffusivity(evals)
+            RGB[ix, iy, iz, :] = color_fa(FA[ix, iy, iz], evecs)
+        except Exception as e:
+            if verbose:
+                print(f"Voxel ({ix},{iy},{iz}) fit failed: {e}")
+
+    coords = np.argwhere(mask)
     if verbose:
-        print(f"[INFO] Fitting {len(coords_to_process)} voxels.")
+        print(f"[INFO] Fitting {len(coords)} voxels using {num_threads} threads...")
 
-    # Master RNG for generating seeds for worker processes
-    master_rng = default_rng(seed=12345)
-
-    # Prepare tasks arguments for each voxel
-    tasks_args = []
-    for ix, iy, iz in coords_to_process:
-        sig_voxel = img_data[ix, iy, iz, :].copy() # Copy data for the voxel
-        bv_voxel = current_bvecs_5d[ix, iy, iz, :, :].copy() # Copy bvecs for the voxel
-        
-        if np.all(sig_voxel == 0): # Skip all-zero signals early
-            continue
-
-        voxel_rng_seed = master_rng.integers(low=0, high=2**32 - 1)
-        tasks_args.append((
-            ix, iy, iz, sig_voxel, current_bvals, bv_voxel,
-            diffusion_model_name, model_params, voxel_rng_seed
-        ))
-
-    # Determine number of processes/threads
-    if num_threads is None:
-        num_threads = os.cpu_count() or 1
-    if verbose:
-        print(f"[INFO] Using {num_threads} processes for voxel processing.")
-
-    # Execute tasks
     if num_threads > 1:
-        # --- FIX APPLIED HERE ---
-        with ProcessPoolExecutor(max_workers=num_threads, mp_context=multiprocessing.get_context('spawn')) as executor:
-            futures = {executor.submit(_fit_single_voxel, *args): args for args in tasks_args}
-            
-            for future in tqdm(as_completed(futures), total=len(tasks_args), desc="Fitting DWI voxels"):
-                ix, iy, iz, FA_val, MD_val, RGB_val, error_msg = future.result()
-                if error_msg:
-                    if verbose: print(f"Voxel ({ix},{iy},{iz}) fit failed: {error_msg}")
-                FA_vol[ix, iy, iz] = FA_val
-                MD_vol[ix, iy, iz] = MD_val
-                RGB_vol[ix, iy, iz, :] = RGB_val
-    else: # Single-threaded
-        for args in tqdm(tasks_args, desc="Fitting DWI voxels (single-thread)"):
-            ix, iy, iz, FA_val, MD_val, RGB_val, error_msg = _fit_single_voxel(*args)
-            if error_msg:
-                if verbose: print(f"Voxel ({ix},{iy},{iz}) fit failed: {error_msg}")
-            FA_vol[ix, iy, iz] = FA_val
-            MD_vol[ix, iy, iz] = MD_val
-            RGB_vol[ix, iy, iz, :] = RGB_val
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            list(tqdm(executor.map(lambda c: fit_voxel(*c), coords), total=len(coords)))
+    else:
+        for c in tqdm(coords):
+            fit_voxel(*c)
 
-    if verbose:
-        print("[INFO] Voxel-wise processing complete.")
-
-    # Prepare ANTsImage outputs
-    b0 = ants.slice_image(imagein, axis=3, idx=0) # Use a slice of input for metadata
-    
-    FA_img = ants.copy_image_info(b0, ants.from_numpy(FA_vol))
-    MD_img = ants.copy_image_info(b0, ants.from_numpy(MD_vol))
-    
-    rgb_channel_images = [ants.copy_image_info(b0, ants.from_numpy(RGB_vol[..., i])) for i in range(3)]
-    RGB_img = ants.merge_channels(rgb_channel_images)
-
-    return FA_img, MD_img, RGB_img
+    ref = ants.slice_image(imagein, axis=3, idx=0)
+    return (
+        ants.copy_image_info(ref, ants.from_numpy(FA)),
+        ants.copy_image_info(ref, ants.from_numpy(MD)),
+        ants.merge_channels([ants.copy_image_info(ref, ants.from_numpy(RGB[..., i])) for i in range(3)])
+    )
 
 
-
-# --- Helper function for generate_voxelwise_bvecs (must be at top-level) ---
-def _process_bvec_for_slice(
-    n_bvec: int, # Index of the bvec to process
-    global_bvecs: np.ndarray, # Entire (N,3) global bvecs
-    voxel_rotations: np.ndarray, # (X, Y, Z, 3, 3) chunk of rotations (full volume passed, efficient for pickling)
-    transpose_R: bool,
-    rng_seed: int
-):
+def generate_voxelwise_bvecs(global_bvecs, voxel_rotations, transpose=False):
     """
-    Worker function to compute b-vectors for a single global b-vector.
-    Designed to be picklable for multiprocessing.
-    """
-    local_rng = default_rng(rng_seed) # Initialize local RNG with unique seed for reproducibility
-    
-    # Get the specific bvec for this 'n'
-    bvec = global_bvecs[n_bvec]
-    
-    R_matrices = voxel_rotations
-    if transpose_R:
-        R_matrices = np.swapaxes(R_matrices, -1, -2) # Apply transpose to all matrices in the field
-
-    # Apply rotation R @ bvec to all voxels efficiently using einsum
-    # '...ij, j -> ...i' meaning (spatial_dims..., 3, 3) @ (3,) -> (spatial_dims..., 3)
-    rotated_bvecs_spatial = np.einsum('...ij, j -> ...i', R_matrices, bvec)
-    
-    # The output needs to match the slice we are writing back to the 5D volume.
-    # It will have shape (X, Y, Z, 3). No N axis here, as we are computing for *one* N.
-    return n_bvec, rotated_bvecs_spatial
-
-
-def generate_voxelwise_bvecs(global_bvecs, voxel_rotations, transpose=False, num_threads=None, verbose=True):
-    """
-    Generate voxel-wise b-vectors from a global bvec and voxel-wise rotation field,
-    with robust multi-processing and reproducibility.
+    Generate voxel-wise b-vectors from a global bvec and voxel-wise rotation field.
 
     Parameters
     ----------
     global_bvecs : ndarray of shape (N, 3)
-        Global diffusion gradient directions (already normalized).
+        Global diffusion gradient directions.
     voxel_rotations : ndarray of shape (X, Y, Z, 3, 3)
-        3x3 rotation matrix for each voxel (can come from Jacobian of deformation field,
-        e.g., local R from deformation_gradient_optimized).
+        3x3 rotation matrix for each voxel (can come from Jacobian of deformation field).
     transpose : bool, optional
-        If True, use R.T for rotations (e.g., if rotation_matrices are R_fixed_to_moving
-        but you need R_moving_to_fixed for bvecs).
-    num_threads : int, optional
-        Number of processes/threads to use. If None, defaults to CPU count.
-    verbose : bool, optional
-        Whether to print status messages.
+        If True, transpose the rotation matrices before applying them to the b-vectors.
+
 
     Returns
     -------
     bvecs_5d : ndarray of shape (X, Y, Z, N, 3)
         Voxel-specific b-vectors.
     """
-    X, Y, Z_dim, _, _ = voxel_rotations.shape
+    X, Y, Z, _, _ = voxel_rotations.shape
     N = global_bvecs.shape[0]
+    bvecs_5d = np.zeros((X, Y, Z, N, 3), dtype=np.float32)
 
-    bvecs_5d_vol = np.zeros((X, Y, Z_dim, N, 3), dtype=np.float32)
-
-    if verbose:
-        print(f"[INFO] Generating {N} voxel-specific b-vectors over {X}x{Y}x{Z_dim} grid.")
-
-    # Master RNG for generating seeds for worker processes
-    master_rng = default_rng(seed=12345)
-
-    # Prepare tasks; each task will process one global b-vector across all voxels
-    tasks_args = []
-    for n_idx in range(N):
-        # Pass the full voxel_rotations array as it's needed for every bvec.
-        # This is safe because it's a read-only NumPy array.
-        chunk_rng_seed = master_rng.integers(low=0, high=2**32 - 1)
-        tasks_args.append((
-            n_idx, global_bvecs, voxel_rotations,
-            transpose, chunk_rng_seed
-        ))
-
-    # Determine number of processes/threads
-    if num_threads is None:
-        num_threads = os.cpu_count() or 1
-    if verbose:
-        print(f"[INFO] Using {num_threads} processes for bvec generation.")
-
-    # Execute tasks
-    if num_threads > 1:
-        # --- FIX APPLIED HERE ---
-        with ProcessPoolExecutor(max_workers=num_threads, mp_context=multiprocessing.get_context('spawn')) as executor:
-            futures = {executor.submit(_process_bvec_for_slice, *args): args for args in tasks_args}
-            
-            for future in tqdm(as_completed(futures), total=len(tasks_args), desc="Generating b-vectors"):
-                n_bvec, bvecs_n_slice = future.result()
-                # bvecs_n_slice has shape (X, Y, Z, 3) corresponding to the rotated bvec for this 'N'
-                bvecs_5d_vol[:, :, :, n_bvec, :] = bvecs_n_slice
-    else: # Single-threaded
-        for args in tqdm(tasks_args, desc="Generating b-vectors (single-thread)"):
-            n_bvec, bvecs_n_slice = _process_bvec_for_slice(*args)
-            bvecs_5d_vol[:, :, :, n_bvec, :] = bvecs_n_slice
-
-    if verbose:
-        print("[INFO] Voxel-wise b-vector generation complete.")
-
-    return bvecs_5d_vol
-
+    for n in range(N):
+        bvec = global_bvecs[n]
+        for i in range(X):
+            for j in range(Y):
+                for k in range(Z):
+                    R = voxel_rotations[i, j, k]
+                    if transpose:
+                        R = R.T  # Use transpose if needed
+                    bvecs_5d[i, j, k, n, :] = R @ bvec
+    return bvecs_5d
 
 def dipy_dti_recon(
     image,
@@ -5137,8 +4688,7 @@ def joint_dti_recon(
     fa_SNR = mask_snr( reconFA, bgmask, fgmask, bias_correct=False )
     fa_evr = antspyt1w.patch_eigenvalue_ratio( reconFA, 512, [16,16,16], evdepth = 0.9, mask=recon_LR_dewarp['dwi_mask'] )
 
-    # We dont compute this now to avoid memory issues
-    dti_itself = None # get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
+    dti_itself = get_dti( reconFA, recon_LR_dewarp['tensormodel'], return_image=True )
     return convert_np_in_dict( {
         'dti': dti_itself,
         'recon_fa':reconFA,
@@ -6536,6 +6086,8 @@ def PerAF( x, mask, globalmean=True ):
         outimg = outimg / calculate_trimmed_mean( vec, 0.01 )
     return outimg
 
+
+
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
     f=[0.03, 0.08],
     FD_threshold=5.0,
@@ -7096,7 +6648,6 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   outdict['minutes_original_data'] = ( tr * fmri.shape[3] ) / 60.0 # minutes of useful data
   outdict['minutes_censored_data'] = ( tr * simg.shape[3] ) / 60.0 # minutes of useful data
   return convert_np_in_dict( outdict )
-
 
 
 def calculate_CBF(Delta_M, M_0, mask,
@@ -8507,8 +8058,7 @@ def mm(
                 if srmodel is not None:
                     tspc=[1.,1.,1.]
                 group_template2mm = ants.resample_image( group_template, tspc  )
-                if mydti['dti'] is not None:
-                    normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=False )
+                normalization_dict['DTI_norm'] = transform_and_reorient_dti( group_template2mm, mydti['dti'], comptx, verbose=False )
             import shutil
             shutil.rmtree(output_directory, ignore_errors=True )
         if output_dict['rsf'] is not None:
@@ -8606,8 +8156,7 @@ def write_mm( output_prefix, mm, mm_norm=None, t1wide=None, separator='_', verbo
         if mm['DTI'] is not None:
             mydti = mm['DTI']
             myop = output_prefix + separator
-            if mydti['dti'] is not None:
-                ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
+            ants.image_write( mydti['dti'],  myop + 'dti.nii.gz' )
             write_bvals_bvecs( mydti['bval_LR'], mydti['bvec_LR'], myop + 'reoriented' )
             image_write_with_thumbnail( mydti['dwi_LR_dewarped'],  myop + 'dwi.nii.gz' )
             image_write_with_thumbnail( mydti['dtrecon_LR_dewarp']['RGB'] ,  myop + 'DTIRGB.nii.gz' )
