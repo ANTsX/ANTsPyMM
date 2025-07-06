@@ -2,9 +2,9 @@
 import sys, os
 import unittest
 ################################################################
-os.environ["TF_NUM_INTEROP_THREADS"] = "8"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "8"
-os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "8"
+os.environ["TF_NUM_INTEROP_THREADS"] = "6"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "6"
+os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "6"
 ################################################################
 import tempfile
 import shutil
