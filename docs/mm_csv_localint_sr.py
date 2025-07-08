@@ -35,6 +35,7 @@ REQUIRED_FILES = [
 # make sure we can read the disc
 print("read the SR model ")
 mfn=os.path.expanduser('~/.antspymm/siq_default_sisr_2x2x2_2chan_featgraderL6_best.keras')
+mfn=os.path.expanduser('~/.antspymm/siq_smallshort_train_2x2x2_1chan_featgraderL6_best.keras')
 mdl, mdlshape = siq.read_srmodel(mfn)
 print("read the SR model done")
 #####################
@@ -204,9 +205,9 @@ if __name__ == '__main__':
             print("label hemispheres")
             mylr = antspyt1w.label_hemispheres( imgb, templatea, templatealr )
             print("start SR")
-            mysr = siq.inference( testimg, mdl, segmentation=mylr*bxt, truncation=[0.001,0.999], poly_order=1, verbose=True )
+            mysr = siq.inference( testimg, mdl, segmentation=mylr*bxt, truncation=[0.001,0.999], poly_order='hist', verbose=True )
             print("done SR -- overwrite the T1w image " + t1fn + " with super_resolution")
-            ants.image_write( ants.iMath( mysr['super_resolution'], "Normalize"),  t1fn )
+            ants.image_write( ants.iMath( mysr, "Normalize"),  t1fn )
         print("Begin SR " + t1fn)
         flfn=glob.glob(mydir+"101018/20210412/T2Flair/*/*.nii.gz")[0]
         dtfn=glob.glob(mydir+"101018/20210412/DTI*/*/*.nii.gz")
