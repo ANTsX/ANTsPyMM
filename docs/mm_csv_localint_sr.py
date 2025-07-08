@@ -35,7 +35,7 @@ REQUIRED_FILES = [
 #####################
 # make sure we can read the disc
 print("read the SR model ")
-mfn=os.path.expanduser('~/.antspymm/siq_smallshort_train_2x2x2_2chan_featgraderL6_postseg_best.keras')
+mfn=os.path.expanduser('~/.antspymm/siq_default_sisr_2x2x2_2chan_featgraderL6_best.keras')
 mdl, mdlshape = siq.read_srmodel(mfn)
 print("read the SR model done")
 #####################
