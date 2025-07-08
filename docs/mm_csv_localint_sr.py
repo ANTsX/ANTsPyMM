@@ -7,7 +7,6 @@ seed = 42  #
 os.environ["PYTHONHASHSEED"] = str(seed)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # this is important for reading models via siq.read_srmodel
-os.environ['TF_USE_LEGACY_KERAS'] = '0'
 nthreads = str(48) # for much faster performance and good reproducibility
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
@@ -36,6 +35,7 @@ REQUIRED_FILES = [
 # make sure we can read the disc
 print("read the SR model ")
 mfn=os.path.expanduser('~/.antspymm/siq_default_sisr_2x2x2_2chan_featgraderL6_best.keras')
+# mfn=os.path.expanduser('~/.antspymm/siq_smallshort_train_2x2x2_2chan_featgraderL6_postseg_best.keras')
 mdl, mdlshape = siq.read_srmodel(mfn)
 print("read the SR model done")
 #####################
@@ -181,7 +181,7 @@ print("done template loading")
 
 if __name__ == '__main__':
     repro=True
-    # repro=False
+    repro=False
     mydir = rdir + "PPMI/"
     if not exists(repro):
         repro = False
@@ -234,8 +234,8 @@ if __name__ == '__main__':
         template = template * bxt
         template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
         mmrun = antspymm.mm_csv( studycsv2,
-            srmodel_NM = "siq_smallshort_train_bestup_1chan_featgraderL6_best_mdl.h5",
-            srmodel_DTI = "siq_smallshort_train_bestup_1chan_featgraderL6_best_mdl.h5",
+            srmodel_NM = "siq_smallshort_train_bestup_1chan_featgraderL6_best.keras",
+            srmodel_DTI = "siq_smallshort_train_bestup_1chan_featgraderL6_best.keras",
             normalization_template=template,
             normalization_template_output='ppmi',
             normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
