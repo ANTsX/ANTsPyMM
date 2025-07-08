@@ -506,3 +506,9 @@ python3 -m pip install --upgrade twine
 python3 -m twine upload --repository antspymm dist/*
 ```
 
+
+## record operational memory for SR
+
+```bash
+nohup psrecord --interval 5 --log mem_log.txt --plot mem_plot.png -- docs/mm_csv_localint_sr.py > /tmp/sr_mem_record.txt
+```
