@@ -7,8 +7,7 @@ seed = 42  #
 os.environ["PYTHONHASHSEED"] = str(seed)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # this is important for reading models via siq.read_srmodel
-os.environ['TF_USE_LEGACY_KERAS'] = '0'
-nthreads = str(8) # for much faster performance and good reproducibility
+nthreads = str(48) # for much faster performance and good reproducibility
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
 os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
