@@ -148,7 +148,7 @@ candidate_rdirs = [
 rdir = find_data_dir( candidate_rdirs, allow_download="~/Downloads" )
 print(f"Using data directory: {rdir}")
 ########################################################################
-nthreads = str(4) # for much faster performance and good reproducibility
+nthreads = str(8) # for much faster performance and good reproducibility
 ####### NOTE: DTI is not exactly reproducible with nthreads > 1 ########
 ####### we may look into these details in the future ##############
 # nthreads = str(1) # for "perfect reproducibility" 
@@ -166,8 +166,9 @@ import antspymm
 import ants
 import random
 import re
-
 if __name__ == '__main__':
+    repro=True
+    repro=False
     mydir = rdir + "PPMI/"
     if not exists(repro):
         repro = False

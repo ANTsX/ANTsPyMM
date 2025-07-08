@@ -7,8 +7,8 @@ seed = 42  #
 os.environ["PYTHONHASHSEED"] = str(seed)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # this is important for reading models via siq.read_srmodel
-os.environ['TF_USE_LEGACY_KERAS'] = '1'
-nthreads = str(8) # for much faster performance and good reproducibility
+os.environ['TF_USE_LEGACY_KERAS'] = '0'
+nthreads = str(48) # for much faster performance and good reproducibility
 os.environ["TF_NUM_INTEROP_THREADS"] = nthreads
 os.environ["TF_NUM_INTRAOP_THREADS"] = nthreads
 os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nthreads
@@ -35,7 +35,7 @@ REQUIRED_FILES = [
 #####################
 # make sure we can read the disc
 print("read the SR model ")
-mfn=os.path.expanduser('~/.antspymm/siq_smallshort_train_2x2x2_2chan_featgraderL6_postseg_best_mdl.h5')
+mfn=os.path.expanduser('~/.antspymm/siq_default_sisr_2x2x2_2chan_featgraderL6_best.keras')
 mdl, mdlshape = siq.read_srmodel(mfn)
 print("read the SR model done")
 #####################
@@ -181,7 +181,7 @@ print("done template loading")
 
 if __name__ == '__main__':
     repro=True
-    repro=False
+    # repro=False
     mydir = rdir + "PPMI/"
     if not exists(repro):
         repro = False

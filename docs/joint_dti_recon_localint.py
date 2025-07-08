@@ -1,7 +1,15 @@
+import random
+import numpy as np
+seed = 42  #
+random.seed(seed)
+np.random.seed(seed)
 import os
-os.environ["TF_NUM_INTEROP_THREADS"] = "8"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "8"
-os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "8"
+os.environ["PYTHONHASHSEED"] = str(seed)
+import os
+nth="24"
+os.environ["TF_NUM_INTEROP_THREADS"] = nth
+os.environ["TF_NUM_INTRAOP_THREADS"] = nth
+os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = nth
 from os.path import exists
 from dipy.io.image import save_nifti, load_nifti
 import antspymm
