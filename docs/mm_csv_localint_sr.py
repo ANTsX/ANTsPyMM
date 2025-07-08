@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ################################################################
 #  for easier to access data with a full mm_csv example, see:  #
 #  github.com:stnava/ANTPD_antspymm                            #
