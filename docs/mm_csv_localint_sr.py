@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ################################################################
 #  for easier to access data with a full mm_csv example, see:  #
 #  github.com:stnava/ANTPD_antspymm                            #
@@ -186,9 +187,9 @@ if __name__ == '__main__':
     if not exists(repro):
         repro = False
     if not repro:
-        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr_th'+nthreads, rdir )
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr1c_th'+nthreads, rdir )
     else:
-        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr_th'+nthreads+'_repro', rdir )
+        outdir = re.sub( 'nrgdata_test', 'antspymmoutput_sr1c_th'+nthreads+'_repro', rdir )
     ################################
     print( " outdir = " + outdir ) #
     ################################
