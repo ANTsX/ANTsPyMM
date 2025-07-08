@@ -3414,7 +3414,7 @@ def super_res_mcimage( image,
             if poly_order == 'hist':
                 mysr = ants.histogram_match_image( mysr, bilin )
             else:
-                mysr = antspynet.regression_match_image( mysr, bilin, poly_order = poly_order )
+                mysr = ants.regression_match_image( mysr, bilin, poly_order = poly_order )
         if isotropic:
             mysr = down2iso( mysr )
         if k == 0:
@@ -13042,3 +13042,4 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=
         temp1="nmfn"+str(x)
         renameit( mmdf, temp0, temp1 )
     return mmdf
+
