@@ -9011,12 +9011,12 @@ def mm_csv(
         if verbose:
             print("Convert T1w to SR via model ", srmodel_T1 )
         t1 = t1w_super_resolution_with_hemispheres( t1, srmodel_T1_mdl )
-        ants.image_write( t1, hierfn + 'sr.nii.gz' )
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
         if verbose:
             print( subjectpropath )
         os.makedirs( subjectpropath, exist_ok=True  )
+        ants.image_write( t1, hierfn + 'head.nii.gz' )
         hier = antspyt1w.hierarchical( t1, hierfn, labels_to_register=None )
         antspyt1w.write_hierarchical( hier, hierfn )
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
