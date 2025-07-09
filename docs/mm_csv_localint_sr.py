@@ -206,6 +206,7 @@ if __name__ == '__main__':
             print("label hemispheres")
             mylr = antspyt1w.label_hemispheres( imgb, templatea, templatealr )
             print("start SR")
+            mylr = mylr + 2.0 * bxt # labels 1 2 3 4 # 
             mysr = siq.inference( testimg, mdl, segmentation=mylr, truncation=[0.001,0.999], poly_order='hist', verbose=True )
             print("done SR -- overwrite the T1w image " + t1fn + " with super_resolution")
             ants.image_write( ants.iMath( mysr, "Normalize"),  t1fn )
