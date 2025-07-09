@@ -200,21 +200,6 @@ if __name__ == '__main__':
     if len(t1fn) > 0:
         t1fn=t1fn[0]
         testimg = ants.image_read( t1fn )
-        if np.min( ants.get_spacing(testimg) ) >= 0.8:
-            bxt  = antspyt1w.brain_extraction( testimg )
-            imgb = testimg*bxt
-            print("label hemispheres")
-            mylr = antspyt1w.label_hemispheres( imgb, templatea, templatealr )
-            print("start SR")
-            mylr = mylr + 2.0 * bxt # labels 1 2 3 4 # 
-            mysr = siq.inference( testimg, mdl, segmentation=mylr, 
-                truncation=[0.001,0.999],
-                target_range=[0, 1],
-                dilation_amount=8,
-                poly_order='hist', verbose=True )
-            print("done SR -- overwrite the T1w image " + t1fn + " with super_resolution")
-            ants.image_write( ants.iMath( mysr, "Normalize"),  t1fn )
-        print("Begin SR " + t1fn)
         flfn=glob.glob(mydir+"101018/20210412/T2Flair/*/*.nii.gz")[0]
         dtfn=glob.glob(mydir+"101018/20210412/DTI*/*/*.nii.gz")
         rsfn=glob.glob(mydir+"101018/20210412/rsfMRI*/*/*.nii.gz")
@@ -239,9 +224,11 @@ if __name__ == '__main__':
         bxt = ants.image_read("~/.antspymm/PPMI_template0_brainmask.nii.gz").reorient_image2("LPI")
         template = template * bxt
         template = ants.crop_image( template, ants.iMath( bxt, "MD", 12 ) )
+        mfnmm = re.sub( "2x2x2", "bestup", mfn )
         mmrun = antspymm.mm_csv( studycsv2,
-            srmodel_NM = "siq_smallshort_train_bestup_1chan_featgraderL6_best.keras",
-            srmodel_DTI = "siq_smallshort_train_bestup_1chan_featgraderL6_best.keras",
+            srmodel_T1 = mfn,
+            srmodel_NM = mfnmm,
+            srmodel_DTI = mfnmm,
             normalization_template=template,
             normalization_template_output='ppmi',
             normalization_template_transform_type='antsRegistrationSyNQuickRepro[s]',
