@@ -9011,6 +9011,7 @@ def mm_csv(
         if verbose:
             print("Convert T1w to SR via model ", srmodel_T1 )
         t1 = t1w_super_resolution_with_hemispheres( t1, srmodel_T1_mdl )
+        ants.image_write( t1, hierfn + 'sr.nii.gz' )
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
         if verbose:
@@ -9025,7 +9026,8 @@ def mm_csv(
     # over-write the rbp data with a consistent and recent approach ############
     redograding = True
     if redograding:
-        myx = antspyt1w.inspect_raw_t1( t1, hierfn + 'rbp' , option='both' )
+        myx = antspyt1w.inspect_raw_t1( 
+            ants.image_read(t1fn), hierfn + 'rbp' , option='both' )
         myx['brain'].to_csv( hierfn + 'rbp.csv', index=False )
         myx['brain'].to_csv( hierfn + 'rbpbrain.csv', index=False )
         del myx
