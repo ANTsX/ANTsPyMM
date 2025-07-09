@@ -8468,7 +8468,7 @@ def mm_nrg(
     elif not testloop:
         t1wide = antspyt1w.merge_hierarchical_csvs_to_wide_format(
                 hier['dataframes'], identifier=None )
-    if srmodel_T1 is not False :
+    if srmodel_T1 is not None :
         hierfnSR = re.sub( sourcedatafoldername, processDir, t1fn)
         hierfnSR = re.sub( "T1w", "T1wHierarchicalSR", hierfnSR)
         hierfnSR = re.sub( ".nii.gz", "", hierfnSR)
@@ -8484,9 +8484,7 @@ def mm_nrg(
             os.makedirs( subjectpropath, exist_ok=True  )
             # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
             bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality='T1' )
-            mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_2chan_featvggL6_postseg_best_mdl.h5"
-            if isinstance( srmodel_T1, str ):
-                mdlfn = os.path.join( ex_pathmm, srmodel_T1 )
+            mdlfn = re.sub( 'bestup', bestup, srmodel_T1 ) 
             if verbose:
                 print( mdlfn )
             if exists( mdlfn ):
@@ -8605,12 +8603,10 @@ def mm_nrg(
                     for zz in myimgsr2:
                         nmlist.append( mm_read( zz ) )
                 srmodel_NM_mdl = None
-                if srmodel_NM is not False:
+                if srmodel_NM is not None:
                     bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
-                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
                     if isinstance( srmodel_NM, str ):
-                        srmodel_NM = re.sub( "bestup", bestup, srmodel_NM )
-                        mdlfn = os.path.join( ex_pathmm, srmodel_NM )
+                        mdlfn = re.sub( "bestup", bestup, srmodel_NM )
                     if exists( mdlfn ):
                         if verbose:
                             print(mdlfn)
@@ -8766,14 +8762,12 @@ def mm_nrg(
                                         bvalfnList.append( bvalfnRL )
                                         bvecfnList.append( bvecfnRL )
                                 srmodel_DTI_mdl=None
-                                if srmodel_DTI is not False:
+                                if srmodel_DTI is not None:
                                     temp = ants.get_spacing(img)
                                     dtspc=[temp[0],temp[1],temp[2]]
                                     bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
-                                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
                                     if isinstance( srmodel_DTI, str ):
-                                        srmodel_DTI = re.sub( "bestup", bestup, srmodel_DTI )
-                                        mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
+                                        mdlfn = re.sub( "bestup", bestup, srmodel_DTI )
                                     if exists( mdlfn ):
                                         if verbose:
                                             print(mdlfn)
@@ -8878,11 +8872,13 @@ def mm_csv(
 
     filename : the raw image filename (full path)
 
-    srmodel_T1 : False (default) - will add a great deal of time - or h5 filename, 2 chan
+    srmodel_T1 : None (default) - .keras or h5 filename for SR model (siq generated). 
 
-    srmodel_NM : False (default) - will add a great deal of time - or h5 filename, 1 chan
+    srmodel_NM : None (default) - .keras or h5 filename for SR model (siq generated)
+    the model name should follow a style like prefix_bestup_postfix where bestup will be replaced with an optimal upsampling factor eg 2x2x2 based on the data.  see siq.optimize_upsampling_shape.
 
-    srmodel_DTI : False (default) - will add a great deal of time - or h5 filename, 1 chan
+    srmodel_DTI : None (default) - .keras or h5 filename for SR model (siq generated). 
+    the model name should follow a style like prefix_bestup_postfix where bestup will be replaced with an optimal upsampling factor eg 2x2x2 based on the data.  see siq.optimize_upsampling_shape.
 
     dti_motion_correct : None, Rigid or SyN
 
@@ -9010,6 +9006,11 @@ def mm_csv(
         print( hierfntest )
     hierexists = exists( hierfntest ) and exists( templateTx['fwdtransforms'][0]) and exists( templateTx['fwdtransforms'][1]) and exists( templateTx['invtransforms'][0]) and exists( templateTx['invtransforms'][1])
     hier = None
+    if srmodel_T1 is not None:
+        srmodel_T1_mdl = tf.keras.models.load_model( srmodel_T1, compile=False )
+        if verbose:
+            print("Convert T1w to SR via model ", srmodel_T1 )
+        t1 = t1w_super_resolution_with_hemispheres( t1, srmodel_T1_mdl )
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
         if verbose:
@@ -9039,7 +9040,7 @@ def mm_csv(
     else:
         print('T1w quality check indicates success: ' + rgrade + " will process." )
 
-    if srmodel_T1 is not False :
+    if srmodel_T1 is not None and False : # deprecated
         hierfntest = hierfnSR + 'mtl.csv'
         if verbose:
             print( hierfntest )
@@ -9051,9 +9052,8 @@ def mm_csv(
             os.makedirs( subjectpropath, exist_ok=True  )
             # hierarchical_to_sr(t1hier, sr_model, tissue_sr=False, blending=0.5, verbose=False)
             bestup = siq.optimize_upsampling_shape( ants.get_spacing(t1), modality='T1' )
-            mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_2chan_featvggL6_postseg_best_mdl.h5"
             if isinstance( srmodel_T1, str ):
-                mdlfn = os.path.join( ex_pathmm, srmodel_T1 )
+                mdlfn = re.sub( 'bestup', bestup, srmodel_T1 )
             if verbose:
                 print( mdlfn )
             if exists( mdlfn ):
@@ -9161,9 +9161,9 @@ def mm_csv(
                     for zz in myimgsr2:
                         nmlist.append( mm_read( zz ) )
                 srmodel_NM_mdl = None
-                if srmodel_NM is not False:
+                if srmodel_NM is not None:
                     bestup = siq.optimize_upsampling_shape( ants.get_spacing(nmlist[0]), modality='NM', roundit=True )
-                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                    mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.keras"
                     if isinstance( srmodel_NM, str ):
                         srmodel_NM = re.sub( "bestup", bestup, srmodel_NM )
                         mdlfn = os.path.join( ex_pathmm, srmodel_NM )
@@ -9435,11 +9435,11 @@ def mm_csv(
                                 if not missing_dti_data:
                                     dowrite=True
                                     srmodel_DTI_mdl=None
-                                    if srmodel_DTI is not False:
+                                    if srmodel_DTI is not None:
                                         temp = ants.get_spacing(img)
                                         dtspc=[temp[0],temp[1],temp[2]]
                                         bestup = siq.optimize_upsampling_shape( dtspc, modality='DTI' )
-                                        mdlfn = ex_pathmm + "siq_default_sisr_" + bestup + "_1chan_featvggL6_best_mdl.h5"
+                                        mdlfn = re.sub( 'bestup', bestup, srmodel_DTI )
                                         if isinstance( srmodel_DTI, str ):
                                             srmodel_DTI = re.sub( "bestup", bestup, srmodel_DTI )
                                             mdlfn = os.path.join( ex_pathmm, srmodel_DTI )
@@ -13043,3 +13043,93 @@ def mm_match_by_qc_scoring_all( qc_dataframe, fix_LRRL=True, mysep='-', verbose=
         renameit( mmdf, temp0, temp1 )
     return mmdf
 
+
+def t1w_super_resolution_with_hemispheres(
+    t1img,
+    model,
+    dilation_amount=8,
+    truncation=[0.001, 0.999],
+    target_range=[0, 1],
+    poly_order="hist",
+    verbose=True
+):
+    """
+    Perform hemisphere-aware super-resolution on a T1-weighted image using a segmentation-guided DBPN model.
+
+    This function performs brain extraction, hemisphere labeling, and segmentation-aware
+    super-resolution using the provided T1 image and model. If the resolution is sufficient,
+    hemisphere labels guide targeted SR via the `siq.inference` function.
+
+    Parameters
+    ----------
+    t1img : ANTsImage
+        Input T1-weighted image.
+
+    model : keras.Model
+        Super-resolution model (e.g., from `siq.default_dbpn` or loaded from `.keras` file).
+
+    dilation_amount : int
+        Amount of dilation to apply around labeled regions before SR.
+
+    truncation : list of float
+        Percentile values used to truncate intensity before model inference.
+
+    target_range : list of float
+        Range to normalize input intensities for model input.
+
+    poly_order : str or int
+        Polynomial order or "hist" for histogram matching after SR.
+
+    verbose : bool
+        If True, print progress updates.
+
+    Returns
+    -------
+    ANTsImage
+        Super-resolved T1-weighted image.
+    """
+    if np.min(ants.get_spacing(t1img)) < 0.8:
+        if verbose:
+            print("Image resolution too high — skipping SR.")
+        return t1img
+
+    if verbose:
+        print("Performing brain extraction...")
+    brain_mask = antspyt1w.brain_extraction(t1img)
+    brain = t1img * brain_mask
+
+    if verbose:
+        print("Begin template loading")
+    tlrfn = antspyt1w.get_data('T_template0_LR', target_extension='.nii.gz')
+    tfn = antspyt1w.get_data('T_template0', target_extension='.nii.gz')
+    template = ants.image_read(tfn)
+    template = (template * antspynet.brain_extraction(template, 't1')).iMath("Normalize")
+    template_lr = ants.image_read(tlrfn)
+    if verbose:
+        print("Done template loading")
+
+    if verbose:
+        print("Labeling hemispheres...")
+    hemi_seg = antspyt1w.label_hemispheres(brain, template, template_lr)
+
+    # Combine segmentation and brain mask — label values 1, 2 (hemi) → 3, 4
+    hemisphere_mask = hemi_seg + 2.0 * brain_mask
+
+    if verbose:
+        print("Starting segmentation-aware super-resolution...")
+    sr_result = siq.inference(
+        t1img,
+        model,
+        segmentation=hemisphere_mask,
+        truncation=truncation,
+        target_range=target_range,
+        dilation_amount=dilation_amount,
+        poly_order=poly_order,
+        verbose=verbose
+    )
+
+    sr_image = sr_result['super_resolution'] if isinstance(sr_result, dict) else sr_result
+
+    if verbose:
+        print("Done super-resolution.")
+    return sr_image
