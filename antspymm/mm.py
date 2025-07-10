@@ -8813,7 +8813,7 @@ def mm_csv(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     dti_motion_correct = 'antsRegistrationSyNQuickRepro[r]',
-    dti_denoise = True,
+    dti_denoise = False,
     nrg_modality_list = None,
     normalization_template = None,
     normalization_template_output = None,
@@ -10847,7 +10847,7 @@ def blind_image_assessment(
             else:
                 mycc = antspyt1w.special_crop( image,
                     ants.get_center_of_mass( msk *0 + 1 ), patch_shape )
-            myccd = ants.denoise_image( mycc, p=2,r=2,noise_model='Gaussian' )
+            myccd = ants.denoise_image( mycc, p=1,r=1,noise_model='Gaussian' )
             noizlevel = ( mycc - myccd ).abs().mean()
     #        ants.plot_ortho( image, crop=False, filename=viz_filename, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
     #        from brisque import BRISQUE
