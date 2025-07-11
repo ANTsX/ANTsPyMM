@@ -33,10 +33,10 @@ RUN pip install --upgrade pip \
     ipython \
     jupyterlab \
     antspyx==0.6.1 \
-    antspynet==0.3.0 \
-    antspyt1w==1.1.2 \
-    antspymm==1.6.2 \
-    siq==0.3.8
+    antspynet==0.3.1 \
+    antspyt1w==1.1.3 \
+    antspymm==1.6.4 \
+    siq==0.4.1
 
 # for downloading example data from open neuro
 RUN pip3 --no-cache-dir install --upgrade awscli
