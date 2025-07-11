@@ -6,6 +6,8 @@
 
 ![mapping](https://i.imgur.com/qKqYjU9.jpeg)
 
+[Function-specific documentation](https://antsx.github.io/ANTsPyMM/antspymm/mm.html)
+
 ## processing utilities for timeseries/multichannel images - mostly neuroimaging
 
 the outputs of these processes can be used for data inspection/cleaning/triage
@@ -512,3 +514,12 @@ python3 -m twine upload --repository antspymm dist/*
 ```bash
 nohup psrecord --interval 5 --log mem_log.txt --plot mem_plot.png -- docs/mm_csv_localint_sr.py > /tmp/sr_mem_record.txt
 ```
+
+## to publish docs
+
+```bash
+pdoc antspymm -o docs
+git add docs/ && git commit -m "DOC: update docs" && git push
+# Settings → Pages → Source = main, Folder = /docs
+```
+
