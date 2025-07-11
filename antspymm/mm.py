@@ -8825,6 +8825,7 @@ def mm_csv(
     perfusion_m0 = None,
     rsf_upsampling = 3.0,
     pet3d = None,
+    min_t1_spacing_for_sr = 0.8,
 ):
     """
     too dangerous to document ... use with care.
@@ -8908,6 +8909,10 @@ def mm_csv(
     rsf_upsampling : optional upsampling parameter value in mm; if set to zero, no upsampling is done
 
     pet3d : optional antsImage for PET (or other 3d scalar) data which we want to summarize
+
+    min_t1_spacing_for_sr : float 
+        if the minimum input image spacing is less than this value, 
+        the function will return the original image.  Default 0.8.
 
     Returns
     ---------
@@ -9010,7 +9015,8 @@ def mm_csv(
         srmodel_T1_mdl = tf.keras.models.load_model( srmodel_T1, compile=False )
         if verbose:
             print("Convert T1w to SR via model ", srmodel_T1 )
-        t1 = t1w_super_resolution_with_hemispheres( t1, srmodel_T1_mdl )
+        t1 = t1w_super_resolution_with_hemispheres( t1, srmodel_T1_mdl,
+            min_spacing=min_t1_spacing_for_sr )
     if not hierexists and not testloop:
         subjectpropath = os.path.dirname( hierfn )
         if verbose:
@@ -13053,6 +13059,7 @@ def t1w_super_resolution_with_hemispheres(
     truncation=[0.001, 0.999],
     target_range=[0, 1],
     poly_order="hist",
+    min_spacing=0.8,
     verbose=True
 ):
     """
@@ -13082,6 +13089,10 @@ def t1w_super_resolution_with_hemispheres(
     poly_order : str or int
         Polynomial order or "hist" for histogram matching after SR.
 
+    min_spacing : float 
+        if the minimum input image spacing is less than this value, 
+        the function will return the original image.  Default 0.8.
+
     verbose : bool
         If True, print progress updates.
 
@@ -13090,7 +13101,7 @@ def t1w_super_resolution_with_hemispheres(
     ANTsImage
         Super-resolved T1-weighted image.
     """
-    if np.min(ants.get_spacing(t1img)) < 0.8:
+    if np.min(ants.get_spacing(t1img)) < min_spacing:
         if verbose:
             print("Image resolution too high — skipping SR.")
         return t1img
