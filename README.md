@@ -85,7 +85,6 @@ will all modalities will take around 2 hours on an average laptop.
 
 * notes on ANTsPyMM computational reproducibility (multi-threaded) [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/antspymm_computational_reproducibility.html)
 
-* notes on ANTsPyMM computational reproducibility (single-threaded) [here](http://htmlpreview.github.io/?https://github.com/stnava/ANTsPyMM/blob/main/docs/antspymm_computational_reproducibility_single_thread.html)
 
 achieved through four steps (recommended approach):
 

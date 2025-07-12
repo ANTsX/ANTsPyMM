@@ -9,8 +9,8 @@ output:
     theme: united
     code_folding: hide
 params:
-  dd_file: "PPMI-101018-20210412-1496225-th4-mmwide_run1.csv"
-  ee_file: "PPMI-101018-20210412-1496225-th4-mmwide_run2.csv"
+  dd_file: "PPMI-101018-20210412-1496225-th48-mmwide_sr_run1.csv"
+  ee_file: "PPMI-101018-20210412-1496225-th48-mmwide_sr_run2.csv"
 ---
 
 
@@ -24,7 +24,7 @@ Input file names ("-thN-" indicates the numbers of threads used):
 
 * see [here](https://figshare.com/articles/dataset/ANTsPyMM_testing_data/29391236) for source and results data.
 
-The core purpose of this document is to provide a comprehensive and quantitative assessment of the computational reproducibility of the `docs/mm_csv_localint.py` script for an `ANTsPyMM` run on `PPMI` multiple modality MRI (M3RI). The analysis is based on a direct comparison of the tabular outputs generated from two independent executions of this script on the same computer and the same M3RI collection.
+The core purpose of this document is to provide a comprehensive and quantitative assessment of the computational reproducibility of the `docs/mm_csv_localint.py` (`docs/mm_csv_localint_sr.py`) script for an `ANTsPyMM` run on `PPMI` multiple modality MRI (M3RI). The analysis is based on a direct comparison of the tabular outputs generated from two independent executions of this script on the same computer and the same M3RI collection.
 
 To ensure a robust and meaningful comparison, both runs were conducted within a **standardized and controlled computational environment**, defined by a single, version-pinned `Dockerfile`. This approach is critical as it minimizes variability stemming from the underlying operating system, software libraries, and their respective versions.
 
@@ -33,7 +33,7 @@ To ensure a robust and meaningful comparison, both runs were conducted within a 
 The `Dockerfile`, detailed below, defines the precise environment for this experiment. Its key features contributing to reproducibility are:
 
 *   **Base Image:** The environment is built `FROM tensorflow/tensorflow:2.17.0`. This pins the base operating system, Python version, core TensorFlow libraries, and underlying CUDA/cuDNN versions, providing a stable foundation.
-*   **Pinned Dependencies:** All core `antspy*` libraries are pinned to specific versions (e.g., `antspyx==0.6.1`, `antspymm==1.6.1`), preventing unexpected changes from library updates. While fundamental packages like `numpy` and `scipy` are not explicitly version-pinned in the `pip install` command, the use of the **same built Docker image for both runs** ensures that identical versions were used for this specific comparison.
+*   **Pinned Dependencies:** All core `antspy*` libraries are pinned to specific versions (e.g., `antspyx==0.6.1`), preventing unexpected changes from library updates. While fundamental packages like `numpy` and `scipy` are not explicitly version-pinned in the `pip install` command, the use of the **same built Docker image for both runs** ensures that identical versions were used for this specific comparison.
 *   **Localized Data:** All external resources, such as model weights from `antsxnet`, are downloaded and "baked" into the environment at build time using `git clone` and `get_antsxnet_data.py`. This prevents variability that could arise from downloading data at runtime.
 
 ```Dockerfile
@@ -72,10 +72,10 @@ RUN pip install --upgrade pip \
     ipython \
     jupyterlab \
     antspyx==0.6.1 \
-    antspynet==0.3.0 \
-    antspyt1w==1.1.0 \
-    antspymm==1.6.1 \
-    siq==0.3.4
+    antspynet==0.3.1 \
+    antspyt1w==1.1.3 \
+    antspymm==1.6.4 \
+    siq==0.4.1
 
 # for downloading example data from open neuro
 RUN pip3 --no-cache-dir install --upgrade awscli
@@ -87,7 +87,7 @@ RUN python ${HOME}/ANTPD_antspymm/src/get_antsxnet_data.py ${HOME}/.keras
 
 ### **1.2 Controlled Parallelism and the Goal of This Analysis**
 
-A critical feature of the `Dockerfile` is the explicit setting of threading variables (e.g., `ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8`). This setup deliberately prioritizes performance by enabling multi-threading for computationally intensive libraries like ITK (used by ANTsR/ANTsPy) and TensorFlow.
+A critical feature of the `Dockerfile` is the explicit setting of threading variables (e.g., `ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8`). This setup deliberately prioritizes performance by enabling multi-threading for computationally intensive libraries like ITK (used by ANTsR/ANTsPy) and TensorFlow.  
 
 However, enabling parallelism has a direct and understood consequence for reproducibility: the order of floating-point operations in parallelized calculations is not guaranteed to be identical across runs. This can introduce minute, non-deterministic numerical variations.  As such, the run for the experiments reported below is done with a single-thread to maximize reproducibility.
 
@@ -101,7 +101,7 @@ Our analysis will proceed as follows:
 2.  **Difference Calculation:** For each variable, we calculate the **Symmetric Percentage Difference (SPD)**: `2 * |RunA - RunB| / (|RunA| + |RunB|)`. This metric is robust for comparing values across different scales and serves as our primary measure of numerical discrepancy.
 3.  **Categorization of Discrepancies:** Each comparison is categorized as:
     *   **Identical:** Bit-wise identical values.
-    *   **Numerically Identical:** SPD is less than our defined tolerance (`1e-6`).
+    *   **Numerically Identical:** SPD is less than our defined tolerance (`1e-8`).
     *   **Minor to Significant Numerical Difference:** SPD exceeds the tolerance, categorized by magnitude.
     *   **Structural Mismatch:** A critical failure where a variable's data type changes, or a value becomes `NA`/`Inf` in one run but not the other.
 
@@ -155,25 +155,10 @@ library(ANTsR)
 library(subtyper) # For shorten_pymm_names, replaceName, grepl_multi
 library(stringr)
 
-grepl_multi <- function(x, desc, intersect = FALSE) {
-  match_idx <- rep(intersect, length(desc))  # TRUE if intersect, FALSE otherwise
-
-  for (pattern in x) {
-    current_match <- grepl(pattern, desc)
-
-    if (!intersect) {
-      match_idx <- match_idx | current_match  # union
-    } else {
-      match_idx <- match_idx & current_match  # intersection
-    }
-  }
-
-  return(match_idx)
-}
 
 # -- Analysis Parameters --
 # This global tolerance is used to categorize numerical differences.
-NUMERIC_TOLERANCE <- 1e-6
+NUMERIC_TOLERANCE <- 1e-8
 # Number of top differing variables to display in tables and plots
 TOP_N_VARS <- 50
 
@@ -257,7 +242,7 @@ cluster_variable_names <- function(varnames) {
 # -- Comparison Engine: perform_detailed_comparison --
 # This function calculates the differences between the two runs for each variable.
 # Includes a bug fix for the symmetric percentage difference calculation.
-perform_detailed_comparison <- function(df_a, df_b, var_info_df, tolerance = 1e-6) {
+perform_detailed_comparison <- function(df_a, df_b, var_info_df, tolerance = 1e-8) {
   var_info_df = var_info_df[ var_info_df$type != "notassigned", ]
   num_vars <- nrow(var_info_df)
   comparison_results <- tibble(
@@ -654,7 +639,7 @@ if (nrow(numeric_diff_data) > 0) {
 
 *   **Systemic Weaknesses:** The analysis of reproducibility by variable class points directly to the **`r ifelse(nrow(top_bad_class) > 0, top_bad_class$var_class[1], "N/A")`** class as the primary source of significant numerical discrepancies. The algorithms used in both white matter hyperintensities and melanin classestake advantage of randomization to bootstrap estimates.  As such, the results are by definition non-deterministic.  It is possible to implement bootstrapped estimates that are deterministically random but this will require extra development effort and a new release for ANTsPy.
 
-* Voxel-wise cortical thickness was run with a multi-threaded environment ( `*vth` results ) and as such the numerical differences shown in this category are exepected and attributable to the multi-threaded nature of the algorithm.  The results are not expected to be identical across runs, but rather within a small tolerance.
+* White matter hyperintensity estimates (wmh) is fundamentally a non-deterministic process.  The algorithm is designed to be robust to small changes in the data, but it is not guaranteed to produce the same results every time.  This is by design, as the algorithm is intended to be used in part to model uncertainty (note: this could be done for any of these methods/imaging data phenotypes with equivalent justification).
 
 *   **Data Filtration:** A separate review of these `"other"` variables may be warranted to ensure no significant issues are being overlooked.
 
