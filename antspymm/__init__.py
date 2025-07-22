@@ -143,3 +143,4 @@ from .mm import generate_voxelwise_bvecs
 from .mm import distortion_correct_bvecs
 from .mm import apply_transforms_mixed_interpolation
 from .mm import t1w_super_resolution_with_hemispheres
+from .mm import map_idps_to_rois

@@ -13146,3 +13146,199 @@ def t1w_super_resolution_with_hemispheres(
     if verbose:
         print("Done super-resolution.")
     return sr_image
+
+
+def map_idps_to_rois(
+    idp_data_frame: pd.DataFrame,
+    roi_image: ants.ANTsImage,
+    idp_column: str,
+    map_type: str = 'average'
+) -> ants.ANTsImage:
+    """
+    Produces a new ANTsImage where each ROI is assigned a value based on IDP data
+    from a DataFrame. ROIs are identified by integer labels in `roi_image`
+    and values are linked via `idp_data_frame`.
+
+    Assumes `idp_data_frame` contains both 'Label' (integer ROI ID) and
+    'Description' (string description for the ROI, e.g., 'left caudal anterior cingulate')
+    columns, in addition to the specified `idp_column`.
+
+    Parameters:
+    - idp_data_frame (pd.DataFrame): DataFrame containing IDP measurements.
+      Must have 'Label', 'Description' (for hemisphere parsing), and `idp_column`.
+    - roi_image (ants.ANTsImage): An ANTsImage where each voxel contains an integer
+      label identifying an ROI.
+    - idp_column (str): The name of the column in `idp_data_frame` whose values
+      are to be mapped to the ROIs (e.g., 'VolumeInMillimeters').
+    - map_type (str): Type of mapping to perform.
+      - 'average': For identified paired left/right ROIs, their `idp_column` values are
+                   averaged and this average is assigned to both the left and right
+                   hemisphere ROIs in the output image. If only one side of a pair
+                   is found, its raw value is used.
+      - 'asymmetry': For identified paired left/right ROIs, the (Left - Right)
+                     difference for `idp_column` is calculated and assigned only
+                     to the left hemisphere ROI. Right hemisphere ROIs that are
+                     part of a pair, and any unpaired ROIs, will be set to 0 in
+                     the output image.
+      - 'raw': Each ROI's original value from `idp_column` is mapped directly to
+               its corresponding ROI in the output image.
+      Default is 'average'.
+
+    Returns:
+    - ants.ANTsImage: A new ANTsImage with the same header (origin, spacing,
+                      direction, etc.) as `roi_image`, where ROI voxels are filled
+                      with the mapped IDP values. Voxels not part of any described
+                      ROI, or unmatched based on `map_type`, will be 0.
+
+    Raises:
+    - ValueError: If required columns (`Label`, `Description`, `idp_column`) are missing
+                  from `idp_data_frame`, `roi_image` is not an ANTsImage,
+                  or `map_type` is invalid.
+    """
+    logging.info(f"Starting map_idps_to_rois (map_type='{map_type}', IDP column='{idp_column}')")
+
+    # --- 1. Input Validation ---
+    required_idp_cols = ['Label', 'Description', idp_column]
+    if not all(col in idp_data_frame.columns for col in required_idp_cols):
+        raise ValueError(f"idp_data_frame must contain columns: {', '.join(required_idp_cols)}")
+
+    if not isinstance(roi_image, ants.ANTsImage):
+        raise ValueError("roi_image must be an ants.ANTsImage object.")
+
+    valid_map_types = ['average', 'asymmetry', 'raw']
+    if map_type not in valid_map_types:
+        raise ValueError(f"Invalid map_type: '{map_type}'. Must be one of {valid_map_types}.")
+
+    # --- 2. Prepare Data (use idp_data_frame directly) ---
+    # Select only the necessary columns from the input idp_data_frame
+    processed_idp_df = idp_data_frame[['Label', 'Description', idp_column]].copy()
+    processed_idp_df.rename(columns={idp_column: 'Value'}, inplace=True)
+
+    # Ensure 'Label' column is numeric and drop rows where conversion fails
+    processed_idp_df['Label'] = pd.to_numeric(processed_idp_df['Label'], errors='coerce')
+    processed_idp_df = processed_idp_df.dropna(subset=['Label']) # Drop rows where Label is NaN after coercion
+    processed_idp_df['Label'] = processed_idp_df['Label'].astype(int) # Convert to integer labels
+
+    logging.info(f"Processed IDP data contains {len(processed_idp_df)} entries. "
+                 f"{processed_idp_df['Value'].isnull().sum()} entries have no valid IDP value (NaN).")
+
+    # --- 3. Identify Hemispheres and Base Regions ---
+    # This helper function parses the ROI description to determine its hemisphere
+    # and a common base name for pairing (e.g., 'caudal anterior cingulate').
+    def get_hemisphere_and_base(description):
+        desc = str(description).strip()
+
+        # Pattern 1: FreeSurfer-like (e.g., "left caudal anterior cingulate")
+        match_fs = re.match(r"^(left|right)\s(.+)$", desc, re.IGNORECASE)
+        if match_fs:
+            return match_fs.group(1).capitalize(), match_fs.group(2).strip()
+
+        # Pattern 2: BN_STR-like (e.g., "BN_STR_Pu_Left")
+        match_bn = re.match(r"(.+)_(Left|Right)$", desc, re.IGNORECASE)
+        if match_bn:
+            return match_bn.group(2).capitalize(), match_bn.group(1).strip()
+
+        # No clear hemisphere identified (e.g., 'corpus callosum')
+        return 'Unknown', desc
+
+    processed_idp_df[['Hemisphere', 'BaseRegion']] = processed_idp_df['Description'].apply(
+        lambda x: pd.Series(get_hemisphere_and_base(x))
+    )
+
+    # Dictionary to store the final computed value for each ROI Label
+    label_value_map = {}
+
+    # --- 4. Process Values based on map_type ---
+    if map_type == 'raw':
+        logging.info("Mapping raw IDP values to ROIs.")
+        # Directly map values where available
+        for _, row in processed_idp_df.dropna(subset=['Value']).iterrows():
+            label_value_map[row['Label']] = row['Value']
+
+    else: # 'average' or 'asymmetry' types which require pairing logic
+        # Group by the 'BaseRegion' to find potential left/right pairs
+        grouped = processed_idp_df.groupby('BaseRegion')
+
+        for base_region, group_df in grouped:
+            left_roi_data = group_df[group_df['Hemisphere'] == 'Left'].dropna(subset=['Value'])
+            right_roi_data = group_df[group_df['Hemisphere'] == 'Right'].dropna(subset=['Value'])
+
+            # Handle ROIs that are not clearly left/right (e.g., 'Bilateral' or 'Unknown')
+            # For these, we include their raw value regardless of map_type.
+            other_rois = group_df[ (group_df['Hemisphere'] != 'Left') & (group_df['Hemisphere'] != 'Right') ].dropna(subset=['Value'])
+            for _, row in other_rois.iterrows():
+                label_value_map[row['Label']] = row['Value']
+                logging.debug(f"ROI: '{base_region}' (Label: {row['Label']}) - Not a pair, mapped raw value: {row['Value']:.2f}")
+
+            # Process paired regions if both left and right data are available
+            if not left_roi_data.empty and not right_roi_data.empty:
+                l_label = left_roi_data['Label'].iloc[0]
+                l_value = left_roi_data['Value'].iloc[0]
+                r_label = right_roi_data['Label'].iloc[0]
+                r_value = right_roi_data['Value'].iloc[0]
+
+                if map_type == 'average':
+                    avg_val = (l_value + r_value) / 2
+                    label_value_map[l_label] = avg_val
+                    label_value_map[r_label] = avg_val
+                    logging.debug(f"ROI: '{base_region}' - Paired AVG: {avg_val:.2f} (L:{l_value:.2f}, R:{r_value:.2f})")
+                elif map_type == 'asymmetry':
+                    asym_val = l_value - r_value
+                    label_value_map[l_label] = asym_val
+                    # Right ROI is not assigned a value based on asymmetry, so it retains 0
+                    logging.debug(f"ROI: '{base_region}' - Paired ASYM (L-R): {asym_val:.2f} (L:{l_value:.2f}, R:{r_value:.2f})")
+            else:
+                # If only one side of a pair (or neither) is found with a valid value
+                if map_type == 'average':
+                    if not left_roi_data.empty:
+                        label_value_map[left_roi_data['Label'].iloc[0]] = left_roi_data['Value'].iloc[0]
+                        logging.debug(f"ROI: '{base_region}' - L-only AVG (raw): {left_roi_data['Value'].iloc[0]:.2f}")
+                    if not right_roi_data.empty:
+                        label_value_map[right_roi_data['Label'].iloc[0]] = right_roi_data['Value'].iloc[0]
+                        logging.debug(f"ROI: '{base_region}' - R-only AVG (raw): {right_roi_data['Value'].iloc[0]:.2f}")
+                elif map_type == 'asymmetry':
+                    # If only one hemisphere's data is available, asymmetry cannot be computed.
+                    # For asymmetry map_type, any unpaired ROI (including left) gets 0.
+                    if not left_roi_data.empty:
+                        label_value_map[left_roi_data['Label'].iloc[0]] = 0.0
+                        logging.debug(f"ROI: '{base_region}' - L-only ASYM: Set to 0.0 (no pair for computation).")
+                    if not right_roi_data.empty:
+                        logging.debug(f"ROI: '{base_region}' - R-only ASYM: Not assigned (relevant for left hemisphere only).")
+
+    # --- 5. Populate Output Image Array ---
+    # Initialize the output NumPy array with zeros, using the robust float32 type
+    output_numpy = np.zeros(roi_image.shape, dtype=np.float32)
+    # Get the input ROI image's data as a NumPy array for fast lookups
+    roi_image_numpy = roi_image.numpy()
+
+    total_voxels_mapped = 0
+    unique_labels_mapped_in_image = set() # Track unique labels actually processed in the image
+
+    # Iterate through the `label_value_map` to assign values to the output image
+    for label_id, value in label_value_map.items():
+        # Only map if the value is not NaN (means it had data from IDP, valid conversion, etc.)
+        if not np.isnan(value):
+            # Find all voxels in `roi_image_numpy` that match the current `label_id`
+            matching_indices = np.where(roi_image_numpy == int(label_id))
+
+            if matching_indices[0].size > 0: # Check if this label actually exists in roi_image
+                output_numpy[matching_indices] = value
+                total_voxels_mapped += matching_indices[0].size
+                unique_labels_mapped_in_image.add(label_id)
+
+    logging.info(f"Mapped values for {len(unique_labels_mapped_in_image)} unique ROI labels found in `roi_image`, affecting {total_voxels_mapped} voxels.")
+    logging.info("Unmapped ROIs in `roi_image` (not present in `idp_data_frame` or outside processing scope) retain value of 0.")
+
+    # --- 6. Create ANTsImage Output ---
+    # Construct the final ANTsImage from the populated NumPy array,
+    # preserving the spatial header information from the original `roi_image`.
+    output_image = ants.from_numpy(
+        output_numpy,
+        origin=roi_image.origin,
+        spacing=roi_image.spacing,
+        direction=roi_image.direction
+    )
+
+    logging.info("map_idps_to_rois completed successfully.")
+    return output_image
+
