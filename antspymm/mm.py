@@ -13195,6 +13195,8 @@ def map_idps_to_rois(
                   from `idp_data_frame`, `roi_image` is not an ANTsImage,
                   or `map_type` is invalid.
     """
+    import logging
+
     logging.info(f"Starting map_idps_to_rois (map_type='{map_type}', IDP column='{idp_column}')")
 
     # --- 1. Input Validation ---
