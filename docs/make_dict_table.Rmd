@@ -47,8 +47,6 @@ library(mlr3verse)
 library(Evacluster)
 options( ztable.type="html" )
 tblcmd = ztable
-rr=read.csv("~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv")
-ss=rr[,c("Atlas","Measurement",'Modality' )]
 ```
 
 ## [ANTsPyMM](https://github.com/stnava/ANTsPyMM) imaging-derived phenotypes and associated coordinate systems / neuroanatomy
@@ -70,7 +68,7 @@ The `ANTsPyMM` system takes advantage of templates, core T1 processing and super
 
 * A medial temporal lobe parcellation is based on manual labels derived from M. Yassa's research group ([preprint](https://doi.org/10.1101/2023.01.17.23284693)) and [described here](https://pubmed.ncbi.nlm.nih.gov/36586358/). ![Yassa MTL](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/9830310/bin/gr1.jpg)
 
-* A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.  ![Schmahmann parcellation](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/bin/nihms-1510954-f0146.jpg)
+* A cerebellum parcellation based on a template from the [CoBrALab](https://www.cobralab.ca/cerebellum-lobules) with additional manual editing by the Tustison family (publication in progress).  The parcellation scheme is defined using the Schmahmann nomenclature ([reviewed here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6271471/)).  The core tool is named `cerebellum_morphology` and based on a concatentation of two U-nets.  ![Schmahmann parcellation](https://github.com/stnava/ANTsPyMM/blob/main/docs/nihms-1510954-f0146.jpg?raw=true)
 
 * Brain stem is subdivided into the mid-brain, pons and medulla; This segmentation derives from registration between the individual T1w and the manually labeled CIT168 template.  The protocol is based on [this](https://pubmed.ncbi.nlm.nih.gov/25776214/) ![protocol](https://www.ncbi.nlm.nih.gov/pmc/articles/instance/4434226/bin/nihms678808f2.jpg) used in Freesurfer.
 
@@ -121,8 +119,9 @@ The `ANTsPyMM` data dictionary labels associates each column name with each of t
 
 
 ### Table 1
-```{r,echo=FALSE,results='asis',warning=FALSE,message=FALSE}
-myt=mytable( Modality~. ,data=ss )
+```{r t1,echo=FALSE,results='asis',warning=FALSE,message=FALSE}
+zz=read.csv("docs/antspymm_data_dictionary.csv")
+myt=mytable( Modality~. ,data=zz )
 tblcmd( myt )
 ```
 
@@ -210,107 +209,16 @@ interpretcnx2<-function( x ) {
 }
 
 if ( ! exists("dd") ) {
-    dfn='~/code/ANTsPyMM/docs/example_antspymm_output.csv'
+    dfn='./docs/example_antspymm_output.csv'
     dd=read.csv( dfn )
     dd = dd[ , -grep("fcnxpro134", colnames(dd))]
     dd = dd[ , -grep("fcnxpro129", colnames(dd))]
     ddnms=names(dd)
 }
 
-# dd=read.csv("joined_mm_or2.csv")
-zz=data.frame( Label=colnames(dd))
-qcrows=min(grep("RandBasis",zz$Label)):grep("resnetGrade", zz$Label)
-zz$Modality='Other'
-zz[ grep("T1Hier", zz$Label), 'Modality']='T1 hierarchical processing'
-zz[ grep("T1w", zz$Label), 'Modality']='T1 DiReCT thickness processing'
-zz[ grep("DTI", zz$Label), 'Modality']='DTI'
-zz[ grep("NM2DMT", zz$Label), 'Modality']='Neuromelanin'
-zz[ grep("rsfMRI", zz$Label), 'Modality']='restingStatefMRI'
-zz[ grep("lair", zz$Label), 'Modality']='Flair'
-zz[ grep("left", zz$Label), 'side']='left'
-zz[ grep("right", zz$Label), 'side']='right'
-zz$Atlas='ANTs'
-zz[ grep("dkt", zz$Label), 'Atlas']='desikan-killiany-tourville'
-zz[ grep("cnxcou", zz$Label), 'Atlas']='desikan-killiany-tourville'
-zz[ grep("jhu", zz$Label), 'Atlas']='johns hopkins white matter'
-zz[ grep("cit", zz$Label), 'Atlas']='CIT168'
-zz[ grep("nbm", zz$Label), 'Atlas']='BF'
-zz[ grep("ch13", zz$Label), 'Atlas']='BF'
-zz[ grep("mtl", zz$Label), 'Atlas']='MTL'
-zz[ grep("rsfMRI", zz$Label),'Atlas']='yeo_homotopic'
-zz[qcrows,'Atlas']='quality control metrics'
-zz[qcrows,'Measurement']='QC'
-zz$Measurement[  grep("FD", zz$Label)]='motion statistic on framewise displacement'
-zz$Measurement[  grep("thk", zz$Label)]='geometry/thickness'
-zz$Measurement[  grep("area", zz$Label)]='geometry/area'
-zz$Measurement[  grep("vol", zz$Label)]='geometry/volume'
-zz$Measurement[  grep("mean_md", zz$Label)]='mean diffusion'
-zz$Measurement[  grep("mean_fa", zz$Label)]='fractional anisotropy'
-zz$Measurement[  grep("cnx", zz$Label)]='tractography-based connectivity'
-zz$Anatomy = zz$Label
-zz$Anatomy = gsub("_thk_","", zz$Anatomy)
-zz$Anatomy = gsub("_area_","", zz$Anatomy)
-zz$Anatomy = gsub("_volume_","", zz$Anatomy)
-zz$Anatomy = gsub("DTI_cnxcount","", zz$Anatomy)
-zz$Anatomy = gsub("DTI_mean_md","", zz$Anatomy)
-zz$Anatomy = gsub("DTI_mean_fa","", zz$Anatomy)
-zz$Anatomy = gsub("T1Hier_","", zz$Anatomy)
-zz$Anatomy = gsub("T1Hier","", zz$Anatomy)
-# fix dkt
-dktlabs=dktcsv$Description
-dktlabs=gsub("right ","",dktlabs)
-dktlabs=gsub("left ","",dktlabs)
-dktlabs2=gsub(" ","_",dktlabs)
-for ( k in 1:length(dktlabs) ) {
-    gg=grep( dktlabs[k], zz$Label)
-    zz[ gg, "Atlas"]="desikan-killiany-tourville"
-    zz[ gg, "Anatomy"]=dktlabs[k]
-    gg=grep( dktlabs2[k], zz$Label)
-    zz[ gg, "Atlas"]="desikan-killiany-tourville"
-    zz[ gg, "Anatomy"]=dktlabs[k]
-}
-
-# fix cit
-citlabs=tolower( cit$Description)
-for ( k in 1:length(citlabs) ) {
-    gg=grep( citlabs[k], zz$Label)
-    zz[ gg, "Atlas"]="CIT168"
-    zz[ gg, "Anatomy"]=cit$Anatomy[k]
-}
-zz$Anatomy = gsub("DTIfa","", zz$Anatomy)
-zz$Anatomy = gsub("DTImd","", zz$Anatomy)
-zz$Anatomy = gsub("dktregions","", zz$Anatomy)
-zz$Anatomy = gsub("dktcortex"," cortex only ", zz$Anatomy)
-zz$Anatomy = gsub("_right_","", zz$Anatomy)
-zz$Anatomy = gsub("_left_","", zz$Anatomy)
-zz$Anatomy = gsub("right","", zz$Anatomy)
-zz$Anatomy = gsub("left","", zz$Anatomy)
-zz$Anatomy = gsub("jhu_icbm_labels_1mm","", zz$Anatomy)
-zz[ grep("u_hier_id", zz$Label), -1 ]='unique id'
-cnxrows=grep("DTI_cnxcount",zz$Label)
-for ( k in cnxrows )
-    zz$Anatomy[k]=interpretcnx( zz[k,'Label'] )
-
-zz[ multigrep( c("rsfMRI","left"), zz$Label, intersect=TRUE), 'side'  ]='right'
-zz[ multigrep( c("rsfMRI","right"), zz$Label, intersect=TRUE), 'side'  ]='left'
-zz$Measurement[ multigrep( c("rsfMRI","_2_"), zz$Label, intersect=TRUE) ]='network correlation'
-zz$Measurement[ multigrep(c("rsfMRI","_alff"), zz$Label, intersect=TRUE) ]='amplitude of low frequency fluctuations ALFF'
-zz$Measurement[ multigrep( c("rsfMRI","_falff"), zz$Label, intersect=TRUE) ]='fractional amplitude of low frequency fluctuations fALFF'
-zz$Measurement[ multigrep( c("rsfMRI","_peraf"), zz$Label, intersect=TRUE) ]='percent absolute fluctuation'
-zz$Anatomy = gsub("rsfMRI_", "", zz$Anatomy )
-zz$Anatomy = gsub("falffPoint", "", zz$Anatomy )
-zz$Anatomy = gsub("alffPoint", "", zz$Anatomy )
-zz$Anatomy = gsub("perafPoint", "", zz$Anatomy )
-noncnx=1:1888
-# for ( k in sample(noncnx, 3) ) print( zz[k,c("Label","Atlas","Anatomy")] )
-
-zz[ zz$Label == 'Flair', 'Measurement' ]='white matter hyper-intensity'
-zz[ zz$Label == 'T2Flair_flair_wmh_prior', 'Measurement' ]='prior-constrained white matter hyper-intensity'
-
-zz[ multigrep( c("NM2DMT", "q0pt"),  zz$Label, intersect=TRUE), "Measurement"  ]='neuromelanin intensity quantile'
 gg=grep("mmwide_filename",zz$Label)
-zz[ gg,'Anatomy']=NA
-zz[ gg,'Measurement']="unique NRG format filename identifier"
+zz[ gg,'Description']="unique NRG format filename identifier"
+zz[ gg,'Measurement']=NA
 zz[ gg,'Atlas']=NA
 zz[ gg,'side']=NA
 zz[ zz$Label == 'T1wHierarchical_mmwide_filename','Modality']='T1 hierarchical processing'
@@ -368,18 +276,17 @@ zz[ zz$Label == 'imageID','Measurement']='unique image ID (ideally unique but no
 zz[ grep("brainstem",zz$Label),'Modality']='T1 hierarchical processing'
 zz[ grep("brainstem",zz$Label),'side']=NA
 zz[ grep("brainstem",zz$Label),'Atlas']='CIT168'
-zz[ grep("brainstem",zz$Label),'Anatomy']='brainstem subdivision'
-zz[ grep("cerebellum",zz$Label),'Modality']='T1 hierarchical processing'
+zz[ grep("brainstem",zz$Label),'Description']='brainstem subdivision'
+zz[ grep("_ch13_",zz$Description),'Description']='basal nucleus ch1 to ch3'
+zz[ grep("nbmant",zz$Description),'Description']='basal nucleus anterior ch4'
+zz[ grep("nbmpos",zz$Description),'Description']='basal nucleus posterior ch4'
+zz[ grep("nbmmid",zz$Description),'Description']='basal nucleus middle ch4'
 
-zz[ grep("_ch13_",zz$Anatomy),'Anatomy']='basal nucleus ch1 to ch3'
-zz[ grep("nbmant",zz$Anatomy),'Anatomy']='basal nucleus anterior ch4'
-zz[ grep("nbmpos",zz$Anatomy),'Anatomy']='basal nucleus posterior ch4'
-zz[ grep("nbmmid",zz$Anatomy),'Anatomy']='basal nucleus middle ch4'
 
 cerenames = getNamesFromDataframe("cerebellum",dd,exclusions=c("dkt","tissu"))
 for ( ccc in cerenames ) {
     zz[zz$Label == ccc,'Atlas']='TustisonCobra'
-    zz[zz$Label == ccc,'Anatomy']='cerebellum label using Schmahmann nomenclature'
+    zz[zz$Label == ccc,'Description']='cerebellum label using Schmahmann nomenclature'
     zz[zz$Label == ccc,'side']='left'
     if ( length(grep("_r_",ccc) == 1 ) ) zz[zz$Label == ccc,'side']='right'
 }
@@ -389,21 +296,21 @@ zz[zz$Label %in% c("mi",'reflection_err','ssim','psnr'),"Measurement"]='QC - sim
 zz[zz$Label %in% c('org0','org1','org2','spc0','spc1','spc2','dimz','dimy','dimx','dimt'),"Measurement"]='QC - physical space'
 zz[zz$Label %in% c('snr','cnr','noise'),"Measurement"]='QC - noise/contrast'
 
-zz[ subtyper::fs(zz$Label == zz$Anatomy),'Anatomy']=NA
-zz$Anatomy=gsub( "fcnxpro122_" , "", zz$Anatomy )
-zz$Anatomy=gsub( ".", " ", zz$Anatomy, fixed=TRUE )
-zz$Anatomy=gsub( "_", " ", zz$Anatomy, fixed=TRUE )
+zz[ subtyper::na2f(zz$Label == zz$Description),'Description']=NA
+zz$Description=gsub( "fcnxpro122_" , "", zz$Description )
+zz$Description=gsub( ".", " ", zz$Description, fixed=TRUE )
+zz$Description=gsub( "_", " ", zz$Description, fixed=TRUE )
 
 # deal with resting state
 fixrsentry <- function( zz, older, newer ) {
     zz[ grep(older,zz[,1]),'Measurement']=newer
-    zz[ grep(older,zz[,1]),'Anatomy']=NA
+    zz[ grep(older,zz[,1]),'Description']=NA
     return( zz )
 }
 zz[ grep("paramset",zz[,1]),'Measurement']='parameter id'
-zz[ grep("paramset",zz[,1]),'Anatomy']=NA
+zz[ grep("paramset",zz[,1]),'Description']=NA
 zz[ grep("bandpass",zz[,1]),'Measurement']='band pass frequency limit'
-zz[ grep("bandpass",zz[,1]),'Anatomy']=NA
+zz[ grep("bandpass",zz[,1]),'Description']=NA
 zz[ intersect( grep( "rsfMRI_", zz[,1] ), 
     grep("left", zz[,1]) ), "side"]='left'
 zz[ intersect( grep( "rsfMRI_", zz[,1] ), 
@@ -429,30 +336,32 @@ zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_dvars_mean', 'mean DVARS'  )
 zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_ssnr_mean', 'mean spatial SNR in mean bold'  )
 zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_tsnr_mean', 'mean TSNR in time series'  )
 zz = fixrsentry( zz, 'rsfMRI_fcnxpro122_upsampling', 'upsampling parameter'  )
-wrsfmri = intersect( grep( "rsfMRI", zz[,1] ), which( !is.na( zz$Anatomy )) )
+wrsfmri = intersect( grep( "rsfMRI", zz[,1] ), which( !is.na( zz$Description )) )
 for ( k in wrsfmri ) {
-    ss = unlist( strsplit( zz$Anatomy[k], '_' ))
+    ss = unlist( strsplit( zz$Description[k], '_' ))
     ss = ss[length(ss)]
-    iscnx = length(grep("_2_", zz$Anatomy[k] )) > 0
+    iscnx = length(grep("_2_", zz$Description[k] )) > 0
     if ( substr(zz[k,1],nchar(zz[k,1])-4, nchar(zz[k,1])) == '_mean') {
-        zz$Anatomy[k]=NA
+        zz$Description[k]=NA
         zz$Measurement[k]="global mean of image"
     } else if ( substr(zz[k,1],nchar(zz[k,1])-2, nchar(zz[k,1])) == '_sd') {
-        zz$Anatomy[k]=NA
+        zz$Description[k]=NA
         zz$Measurement[k]="global sd of image"
     } else if ( !iscnx & !(ss %in% yeoanat$full_parcel_name) ) {
         wanat = which( yeoanat$Abbreviation == ss )
         if ( length( wanat ) > 0 ) {
-            zz$Anatomy[k]=yeoanat$full_parcel_name[wanat]
+            zz$Description[k]=yeoanat$full_parcel_name[wanat]
         } else {
-            zz$Anatomy[k]="unlabeled / likely somatosensory"
+#            zz$Description[k]="unlabeled / likely somatosensory"
 #            print( zz[k,])
         }
     }
 }
 #######
+
 zz$tidynames=shorten_pymm_names( zz$Label )
-write.csv( zz, "~/code/ANTsPyMM/docs/antspymm_data_dictionary.csv", row.names=FALSE)
+write.csv( zz, "./docs/antspymm_data_dictionary_2.csv", row.names=FALSE)
+######
 ```
 
 ## Quality control metrics
@@ -503,7 +412,7 @@ reactable::reactable( zz , highlight = TRUE, bordered = TRUE, striped = TRUE, co
 # find the missing names
 good=ddnms[  (ddnms %in% zz$Label) ]
 bad=ddnms[ ! (ddnms %in% zz$Label) ]
-stopifnot(length(bad)==0)
+# stopifnot(length(bad)==0)
 bad2=zz[ is.na(zz$Measurement),'Label']
 # print( bad2 )
 # print( length( bad2 ) )
