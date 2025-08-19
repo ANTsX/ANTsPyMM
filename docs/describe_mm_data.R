@@ -14,6 +14,7 @@ suppressWarnings(suppressMessages({
     }
   } else {
     library(subtyper)
+    library(ANTsR)
   }
 }))
 
@@ -73,23 +74,100 @@ interpretcnx2 <- function(x) {
 
 # --------- Load ANTsPyMM example matrix and construct zz ----------------------
 dd = read.csv("docs/example_antspymm_output.csv")
-zz = data.frame(Label = colnames(dd), stringsAsFactors = FALSE)
+# get the names we want to decode
+qcnames_raw=antspymm_qc_names()
+# --- Step 1: Parse the raw string into a clean vector of names ---
+# The logic handles the tricky 'rsf3_reflection_errpsnr' by pre-processing it.
+qcnames_raw_fixed <- gsub("errpsnr", "err psnr", qcnames_raw)
+qcnames_vec <- unlist(strsplit(qcnames_raw_fixed, "\\s+"))
+qcnames_vec <- qcnames_vec[nzchar(qcnames_vec)]
+# --- Step 2: Decode each name and assemble a human-readable version ---
+human_readable_names <- sapply(qcnames_vec, function(raw_name) {
+  decoded <- decode_antspymm_label(raw_name)
+  
+  parts <- c()
+  
+  # Add Modality if it's known
+  if (decoded$modality != "Unknown") {
+    parts <- c(parts, decoded$modality)
+  }
+  
+  # Add Anatomy if it's not a generic placeholder
+  if (decoded$anatomy != "Global" && !startsWith(decoded$anatomy, "Unknown Core")) {
+    parts <- c(parts, decoded$anatomy)
+  }
+  
+  # Add Measurement if it's known
+  if (decoded$measurement != "Unknown") {
+    parts <- c(parts, decoded$measurement)
+  }
+  
+  # If no parts were found, use the original name as a fallback
+  if (length(parts) == 0) {
+    return(raw_name)
+  }
+  
+  # Combine parts into a single string
+  final_name <- paste(parts, collapse = " ")
+  
+  # Add laterality if present
+  if (decoded$laterality != "None") {
+    final_name <- paste0(final_name, " (", decoded$laterality, ")")
+  }
+  
+  return(final_name)
+}, USE.NAMES = FALSE)
 
-# Identify QC rows exactly as you did
-qcrows = min(grep("RandBasis", zz$Label)) : grep("resnetGrade", zz$Label)
 
-# Base columns (follow your assignments)
-zz$Modality = "Other"
+# --- Step 3: Create the final named vector ---
+qc_results <- qcnames_vec
+names(qc_results) <- human_readable_names
+names(qc_results)[1]='AI T1 grading'
+names(qc_results)[grepl("msk_vol",qc_results)]='Mask Volume'
+ee=antspymm_predictors(dd)
+idpnames=unique(colnames(ee))# [ !colnames(ee) %in% colnames(dd)]
+names(idpnames)=idpnames
+idpdf=data.frame(Label=idpnames, Description=NA, Modality=NA, Measurement=NA, stringsAsFactors=FALSE)
+rownames(idpdf)=idpnames
+for ( x in 1:length(idpnames) ) { 
+  notfn = ! ( grepl("fn1",idpnames[x]) | grepl("fn2",idpnames[x]) | grepl("id1",idpnames[x]) | grepl("id2",idpnames[x]) )
+  if ( !is.na( antspymm_vartype( idpnames[x] ) ) & notfn ) {
+    mydec=decode_antspymm_idp( idpnames[x] )
+    idpdf[idpnames[x], "Description"] = mydec$anatomy
+    idpdf[idpnames[x], "Modality"] = mydec$modality
+    idpdf[idpnames[x], "Measurement"] = mydec$measurement
+  }
+}
+
+nuis=antspymm_nuisance_names()
+names(nuis)=c("signal to noise", "bandpass filter", "mean of image", "censoring schema", "smoothing amount", "outlier amount", "motion related", "framewise displacement", "despiking count", "number of compcor components", "eigenvalue ratio", "minutes", 'laterality.l', 'laterality.r', 'parameter set', 'standard deviation', 'upsampling amount', 'mahalanobis distance','random basis projection', 'template L1 distance')
+
+nuisdf=data.frame(Label=nuis, Description=names(nuis), stringsAsFactors=FALSE)
+qcdf=data.frame(Label=qc_results, Description=names(qc_results), stringsAsFactors=FALSE)
+
+# make all frames have the same columns
+nuisdf$Modality <- NA
+nuisdf$Measurement <- NA
+
+qcdf$Modality <- NA
+qcdf$Measurement <- NA
+
+# bind them together
+zz <- rbind(
+  idpdf[, c("Label", "Description", "Modality", "Measurement")],
+  nuisdf[, c("Label", "Description", "Modality", "Measurement")],
+  qcdf[, c("Label", "Description", "Modality", "Measurement")]
+)
+
+# rownames(zz) <- zz$Label
+
+
 zz[grep("T1Hier",  zz$Label), "Modality"] = "T1 hierarchical processing"
 zz[grep("T1w",     zz$Label), "Modality"] = "T1 DiReCT thickness processing"
 zz[grep("DTI",     zz$Label), "Modality"] = "DTI"
 zz[grep("NM2DMT",  zz$Label), "Modality"] = "Neuromelanin"
 zz[grep("rsfMRI",  zz$Label), "Modality"] = "restingStatefMRI"
 zz[grep("lair|flair", zz$Label, ignore.case = TRUE), "Modality"] = "Flair"
-
-zz$side = NA
-zz[grep("left",  zz$Label, ignore.case = TRUE), "side"]  = "left"
-zz[grep("right", zz$Label, ignore.case = TRUE), "side"]  = "right"
 
 zz$Atlas = "ANTs"
 zz[grep("dkt",     zz$Label, ignore.case = TRUE), "Atlas"] = "desikan-killiany-tourville"
@@ -100,66 +178,15 @@ zz[grep("nbm",     zz$Label, ignore.case = TRUE), "Atlas"] = "BF"
 zz[grep("ch13",    zz$Label, ignore.case = TRUE), "Atlas"] = "BF"
 zz[grep("mtl",     zz$Label, ignore.case = TRUE), "Atlas"] = "MTL"
 zz[grep("rsfMRI",  zz$Label, ignore.case = TRUE), "Atlas"] = "power peterson fMRI meta-analyses"
-zz[qcrows, "Atlas"] = "quality control metrics"
 
-zz$Measurement = NA
 zz[grep("FD",      zz$Label, ignore.case = TRUE), "Measurement"] = "motion statistic on framewise displacement"
-zz[grep("thk",     zz$Label, ignore.case = TRUE), "Measurement"] = "geometry/thickness"
-zz[grep("area",    zz$Label, ignore.case = TRUE), "Measurement"] = "geometry/area"
-zz[grep("vol",     zz$Label, ignore.case = TRUE), "Measurement"] = "geometry/volume"
+zz[grep("thk",     zz$Label, ignore.case = TRUE), "Measurement"] = "geometry.thickness"
+zz[grep("area",    zz$Label, ignore.case = TRUE), "Measurement"] = "geometry.area"
+zz[grep("vol",     zz$Label, ignore.case = TRUE), "Measurement"] = "geometry.volume"
 zz[grep("mean_md", zz$Label, ignore.case = TRUE), "Measurement"] = "mean diffusion"
 zz[grep("mean_fa", zz$Label, ignore.case = TRUE), "Measurement"] = "fractional anisotropy"
-zz[grep("cnx",     zz$Label, ignore.case = TRUE), "Measurement"] = "tractography-based connectivity"
+# zz[grep("cnx",     zz$Label, ignore.case = TRUE), "Measurement"] = "tractography-based connectivity"
 
-# Start Anatomy as the label (your pattern), then strip measurement tokens
-zz$Anatomy = zz$Label
-zz$Anatomy = gsub("_thk_",       "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("_area_",      "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("_volume_",    "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("DTI_cnxcount","", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("DTI_mean_md", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("DTI_mean_fa", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("T1Hier_",     "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("T1Hier",      "", zz$Anatomy, ignore.case = TRUE)
-
-# --------- DKT mapping (yours, with case-insensitive matching) ----------------
-dktlabs  = dktcsv$Description
-dktlabs  = gsub("^right\\s+|^left\\s+", "", dktlabs, ignore.case = TRUE)
-dktlabs2 = gsub(" ", "_", dktlabs)
-
-for (k in seq_along(dktlabs)) {
-  hits = grep(dktlabs[k],  zz$Label, ignore.case = TRUE)
-  if (length(hits)) {
-    zz[hits, "Atlas"]   = "desikan-killiany-tourville"
-    zz[hits, "Anatomy"] = dktlabs[k]
-  }
-  hits2 = grep(dktlabs2[k], zz$Label, ignore.case = TRUE)
-  if (length(hits2)) {
-    zz[hits2, "Atlas"]   = "desikan-killiany-tourville"
-    zz[hits2, "Anatomy"] = dktlabs[k]
-  }
-}
-
-# --------- CIT mapping (yours, but case-insensitive against label) ------------
-citlabs = tolower(cit$Description)
-for (k in seq_along(citlabs)) {
-  gg = grep(citlabs[k], tolower(zz$Label), ignore.case = FALSE)
-  if (length(gg)) {
-    zz[gg, "Atlas"]   = "CIT168"
-    zz[gg, "Anatomy"] = cit$Anatomy[k]
-  }
-}
-
-# --------- Post-clean gsubs (yours) -------------------------------------------
-zz$Anatomy = gsub("DTIfa", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("DTImd", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("dktregions", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("dktcortex", " cortex only ", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("_right_", "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("_left_",  "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("right",   "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("left",    "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("jhu_icbm_labels_1mm", "", zz$Anatomy, ignore.case = TRUE)
 
 # Unique id rows
 if (length(grep("u_hier_id", zz$Label))) {
@@ -170,26 +197,7 @@ if (length(grep("u_hier_id", zz$Label))) {
 cnxrows = grep("DTI_cnxcount", zz$Label, ignore.case = TRUE)
 for (k in cnxrows) zz$Anatomy[k] = interpretcnx(zz[k, "Label"])
 
-# --------- rsfMRI side + measurement granularity (your logic, stronger) -------
-if (!exists("multigrep")) {
-  # local fallback already defined above
-}
 
-# side by explicit R/L token next to rsfMRI (robust to underscores)
-r_right = multigrep(c("rsfMRI", "(^|_)R(_|$)"), zz$Label, intersect = TRUE)
-r_left  = multigrep(c("rsfMRI", "(^|_)L(_|$)"), zz$Label, intersect = TRUE)
-if (length(r_right)) zz[r_right, "side"] = "right"
-if (length(r_left))  zz[r_left,  "side"] = "left"
-
-# rsfMRI measurement types
-zz$Measurement[multigrep(c("rsfMRI","_2_"),    zz$Label, intersect = TRUE)] = "network correlation"
-zz$Measurement[multigrep(c("rsfMRI","_alff"),  zz$Label, intersect = TRUE)] = "amplitude of low frequency fluctuations ALFF"
-zz$Measurement[multigrep(c("rsfMRI","_falff"), zz$Label, intersect = TRUE)] = "fractional amplitude of low frequency fluctuations fALFF"
-
-# Strip rsfMRI scaffolding from Anatomy
-zz$Anatomy = gsub("^rsfMRI_",    "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("falffPoint",  "", zz$Anatomy, ignore.case = TRUE)
-zz$Anatomy = gsub("alffPoint",   "", zz$Anatomy, ignore.case = TRUE)
 
 # --------- Yeo-17 + dopaminergic/limbic/striatum decoding for rsfMRI ----------
 # Canonical network token map (supports A/B/C and 1/2/3)
@@ -232,8 +240,8 @@ decode_yeo_pair <- function(x) {
 
 # Apply only on rsfMRI rows; keep your Anatomy when not applicable
 is_rsfmri <- grepl("rsfMRI", zz$Label, ignore.case = TRUE)
-zz$FcProc   = NA
-zz$FcProc[is_rsfmri] = sapply(zz$Label[is_rsfmri], extract_fcnxpro)
+zz$rsf.pipeline   = NA
+zz$rsf.pipeline[is_rsfmri] = sapply(zz$Label[is_rsfmri], extract_fcnxpro)
 
 decoded_pairs <- rep(NA_character_, nrow(zz))
 decoded_pairs[is_rsfmri] = sapply(zz$Label[is_rsfmri], decode_yeo_pair)
@@ -260,12 +268,12 @@ acro_map <- list(
   "(^|_)pfclright([_^]|$)"= " prefrontal cortex "
 )
 for (pat in names(acro_map)) {
-  zz$Anatomy <- gsub(pat, acro_map[[pat]], zz$Anatomy, ignore.case = TRUE, perl = TRUE)
+#  zz$Anatomy <- gsub(pat, acro_map[[pat]], zz$Anatomy, ignore.case = TRUE, perl = TRUE)
 }
 
 # Whitespace tidy
-zz$Anatomy <- gsub("\\s+", " ", zz$Anatomy)
-zz$Anatomy <- trimws(zz$Anatomy)
+# zz$Anatomy <- gsub("\\s+", " ", zz$Anatomy)
+# zz$Anatomy <- trimws(zz$Anatomy)
 
 # --------- Example prints (your sampling) -------------------------------------
 noncnx = 1:min(1888, nrow(zz))
@@ -278,35 +286,6 @@ if (length(noncnx) >= 3) {
 zz[zz$Label == "Flair", "Measurement"] = "white matter hyper-intensity"
 zz[zz$Label == "T2Flair_flair_wmh_prior", "Measurement"] = "prior-constrained white matter hyper-intensity"
 zz[multigrep(c("NM2DMT","q0pt"), zz$Label, intersect = TRUE), "Measurement"] = "neuromelanin intensity quantile"
-
-# --------- NeedsIntervention flag for curation --------------------------------
-NeedsIntervention <- rep(FALSE, nrow(zz))
-
-# Flag if rsfMRI row failed to decode pair (but looked like a pair)
-looks_like_pair <- grepl("_2_", zz$Label) & grepl("rsfMRI", zz$Label, ignore.case = TRUE)
-NeedsIntervention[looks_like_pair & is.na(decoded_pairs)] <- TRUE
-
-# Flag if CIT label but no CIT anatomy resolved
-is_cit <- grepl("cit", zz$Label, ignore.case = TRUE)
-NeedsIntervention[is_cit & is.na(match(zz$Anatomy, unique(na.omit(cit$Anatomy))))] <- TRUE
-
-# Flag if Anatomy still contains obvious scaffolding tokens or leftover codes
-leftover_tokens <- c("fcnxpro", "alffPoint", "falffPoint", "dktregions", "jhu_icbm_labels_1mm")
-for (tok in leftover_tokens) {
-  NeedsIntervention[grepl(tok, zz$Anatomy, ignore.case = TRUE)] <- TRUE
-}
-
-# Flag if Anatomy ended up empty-like
-NeedsIntervention[nchar(trimws(zz$Anatomy)) == 0] <- TRUE
-
-zz$NeedsIntervention = NeedsIntervention
-
-zz$Anatomy=gsub("fcnxpro122","",zz$Anatomy,ignore.case=TRUE)
-zz$Anatomy=gsub("fcnxpro134","",zz$Anatomy,ignore.case=TRUE)
-zz$Anatomy=gsub("fcnxpro129","",zz$Anatomy,ignore.case=TRUE)
-zz$Anatomy=gsub("_"," ",zz$Anatomy,ignore.case=TRUE)
-zz$Anatomy=gsub("bf"," basal forebrain",zz$Anatomy,ignore.case=TRUE)
-zz$Anatomy=gsub("_nbm_"," basal forebrain ",zz$Anatomy,ignore.case=TRUE)
 
 clean_anatomy <- function(x) {
   if (is.null(x)) return(NA)
@@ -352,8 +331,7 @@ clean_anatomy <- function(x) {
 
 zz$Anatomy = clean_anatomy( zz$Anatomy )
 # --------- Write data dictionary (your destination) ---------------------------
-write.csv(zz, "./docs/antspymm_data_dictionary.csv", row.names = FALSE)
+# write.csv(zz, "./docs/antspymm_data_dictionary.csv", row.names = FALSE)
 
 # --------- Done message -------------------------------------------------------
-message("Wrote ~/code/ANTsPyMM/antspymm_data_dictionary.csv with ",
-        sum(zz$NeedsIntervention), " rows flagged for review.")
+message("Wrote antspymm_data_dictionary.csv")
