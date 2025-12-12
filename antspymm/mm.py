@@ -10094,7 +10094,7 @@ def augment_image( x,  max_rot=10, nzsd=1 ):
     return y, tx, itx
 
 def boot_wmh( flair, t1, t1seg, mmfromconvexhull = 0.0, strict=True,
-        probability_mask=None, prior_probability=None, n_simulations=16,
+        probability_mask=None, prior_probability=None, n_simulations=8,
         random_seed = 42,
         verbose=False ) :
     import random
