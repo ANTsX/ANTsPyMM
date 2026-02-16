@@ -3186,7 +3186,7 @@ def get_data( name=None, force_download=False, version=26, target_extension='.cs
                     shutil.rmtree(os.path.join(root, dir))
 
     def download_data( version ):
-        url = "https://figshare.com/ndownloader/articles/16912366/versions/" + str(version)
+        url = "https://ndownloader.figshare.com/articles/16912366/versions/" + str(version)
         target_file_name = "16912366.zip"
         target_file_name_path = tf.keras.utils.get_file(target_file_name, url,
             cache_subdir=DATA_PATH, extract = True )
@@ -3240,7 +3240,7 @@ def get_models( version=3, force_download=True ):
     os.makedirs(DATA_PATH, exist_ok=True)
 
     def download_data( version ):
-        url = "https://figshare.com/ndownloader/articles/21718412/versions/"+str(version)
+        url = "https://ndownloader.figshare.com/articles/21718412/versions/"+str(version)
         target_file_name = "21718412.zip"
         target_file_name_path = tf.keras.utils.get_file(target_file_name, url,
             cache_subdir=DATA_PATH, extract = True )
