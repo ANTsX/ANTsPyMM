@@ -8,7 +8,8 @@ ENV TF_NUM_INTEROP_THREADS=8 \
     TF_NUM_INTRAOP_THREADS=8 \
     ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 \
     OPENBLAS_NUM_THREADS=8 \
-    MKL_NUM_THREADS=8
+    MKL_NUM_THREADS=8 \
+    MPLBACKEND=Agg
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,11 +33,11 @@ RUN pip install --upgrade pip \
     scikit-learn \
     ipython \
     jupyterlab \
-    antspyx==0.6.1 \
-    antspynet==0.3.1 \
+    antspyx==0.6.3 \
+    antspynet==0.3.2 \
     antspyt1w==1.1.3 \
-    antspymm==1.6.4 \
-    siq==0.4.1
+    antspymm==1.6.5 \
+    siq==0.4.2
 
 # for downloading example data from open neuro
 RUN pip3 --no-cache-dir install --upgrade awscli
