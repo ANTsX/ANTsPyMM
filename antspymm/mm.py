@@ -8809,9 +8809,9 @@ def mm_nrg(
 def mm_csv(
     studycsv,   # pandas data frame
     mysep = '-', # or "_" for BIDS
-    srmodel_T1 = False, # optional - will add a great deal of time
-    srmodel_NM = False, # optional - will add a great deal of time
-    srmodel_DTI = False, # optional - will add a great deal of time
+    srmodel_T1 = None, # optional - will add a great deal of time
+    srmodel_NM = None, # optional - will add a great deal of time
+    srmodel_DTI = None, # optional - will add a great deal of time
     dti_motion_correct = 'antsRegistrationSyNQuickRepro[r]',
     dti_denoise = False,
     nrg_modality_list = None,
