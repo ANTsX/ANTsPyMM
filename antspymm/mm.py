@@ -8718,7 +8718,7 @@ def mm_nrg(
                                     ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png", flat=True )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
                                         ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True )
-                            if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
+                            if ( mymod == 'rsfMRILR' or mymod == 'rsfMRIRL' or mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
                                 img2 = None
                                 if len( myimgsr ) > 1:
                                     img2 = mm_read( myimgsr[myimgcount+1] )
@@ -8745,7 +8745,7 @@ def mm_nrg(
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='fALFF', filename=mymm+mysep+"boldfALFF.png" )
                                     ants.plot( tabPro['rsf']['meanBold'], tabPro['rsf'][dfn],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='DefaultMode', filename=mymm+mysep+"boldDefaultMode.png" )
-                            if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
+                            if ( mymod == 'DTILR' or mymod == 'DTIRL' or mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
                                 dowrite=True
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
@@ -9290,7 +9290,7 @@ def mm_csv(
                                     ants.plot_ortho( img, tabPro['flair']['WMH_probability_map'], crop=True, title='Flair + WMH', filename=mymm+mysep+"flairWMH.png", flat=True )
                                     if tabPro['flair']['WMH_posterior_probability_map'] is not None:
                                         ants.plot_ortho( img, tabPro['flair']['WMH_posterior_probability_map'],  crop=True, title='Flair + prior WMH', filename=mymm+mysep+"flairpriorWMH.png", flat=True )
-                            if ( mymod == 'rsfMRI_LR' or mymod == 'rsfMRI_RL' or mymod == 'rsfMRI' )  and ishapelen == 4:
+                            if ( mymod in ['rsfMRILR', 'rsfMRIRL', 'rsfMRI_LR', 'rsfMRI_RL', 'rsfMRI'] ) and ishapelen == 4:
                                 img2 = None
                                 if len( myimgsr ) > 1:
                                     img2 = mm_read( myimgsr[myimgcount+1] )
@@ -9396,7 +9396,7 @@ def mm_csv(
                                     maxslice = np.min( [21, tabPro['pet3d']['pet3d'].shape[2] ] )
                                     ants.plot( tabPro['pet3d']['pet3d'],
                                         axis=2, nslices=maxslice, ncol=7, crop=True, title='PET image', filename=mymm+mysep+"pet3d.png" )
-                            if ( mymod == 'DTI_LR' or mymod == 'DTI_RL' or mymod == 'DTI' ) and ishapelen == 4:
+                            if ( mymod in ['DTILR', 'DTIRL', 'DTI_LR', 'DTI_RL', 'DTI'] ) and ishapelen == 4:
                                 bvalfn = re.sub( '.nii.gz', '.bval' , myimg )
                                 bvecfn = re.sub( '.nii.gz', '.bvec' , myimg )
                                 imgList = [ img ]
