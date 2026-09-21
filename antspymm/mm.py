@@ -470,7 +470,7 @@ def dict_to_dataframe(data_dict, convert_lists=True, convert_arrays=True, conver
     return pd.DataFrame.from_dict(processed_data)
 
 
-def clean_tmp_directory(age_hours=1., use_sudo=False, extensions=[ '.nii', '.nii.gz' ], log_file_path=None):
+def clean_tmp_directory(age_hours=1., use_sudo=False, extensions=('.nii', '.nii.gz'), log_file_path=None):
     """
     Clean the /tmp directory by removing files and directories older than a certain number of hours.
     Optionally uses sudo and can filter files by extensions.
@@ -659,12 +659,12 @@ def generate_mm_dataframe(
         source_image_directory,
         output_image_directory,
         t1_filename,
-        flair_filename=[],
-        rsf_filenames=[],
-        dti_filenames=[],
-        nm_filenames=[],
-        perf_filename=[],
-        pet3d_filename=[],
+        flair_filename=None,
+        rsf_filenames=None,
+        dti_filenames=None,
+        nm_filenames=None,
+        perf_filename=None,
+        pet3d_filename=None,
 ):
     """
     Generate a DataFrame for medical imaging data with extensive validation of input parameters.
@@ -714,6 +714,9 @@ def generate_mm_dataframe(
     #    raise ValueError("output_image_directory does not exist")
     if not exists( source_image_directory ):
         raise ValueError("source_image_directory does not exist")
+    rsf_filenames = list(rsf_filenames) if rsf_filenames is not None else []
+    dti_filenames = list(dti_filenames) if dti_filenames is not None else []
+    nm_filenames = list(nm_filenames) if nm_filenames is not None else []
     if len( rsf_filenames ) > 2:
         raise ValueError("len( rsf_filenames ) > 2")
     if len( dti_filenames ) > 3:
@@ -856,18 +859,24 @@ def extend_list_to_length(lst, target_length, fill_value=None):
 def generate_mm_dataframe_gpt(
         projectID, subjectID, date, imageUniqueID, modality, 
         source_image_directory, output_image_directory, t1_filename, 
-        flair_filename=[], rsf_filenames=[], dti_filenames=[], nm_filenames=[], perf_filename=[] ):
+        flair_filename=None, rsf_filenames=None, dti_filenames=None, nm_filenames=None, perf_filename=None ):
     """
     see help for generate_mm_dataframe - same as this
     """
     def check_pd_construction(data, columns):
         return all(len(row) == len(columns) for row in data)
 
-    flair_filename.sort()
-    rsf_filenames.sort()
-    dti_filenames.sort()
-    nm_filenames.sort()
-    perf_filename.sort()
+    if flair_filename is not None:
+        flair_filename = sorted(flair_filename) if isinstance(flair_filename, list) else [flair_filename]
+    else:
+        flair_filename = []
+    rsf_filenames = sorted(rsf_filenames) if rsf_filenames is not None else []
+    dti_filenames = sorted(dti_filenames) if dti_filenames is not None else []
+    nm_filenames = sorted(nm_filenames) if nm_filenames is not None else []
+    if perf_filename is not None:
+        perf_filename = sorted(perf_filename) if isinstance(perf_filename, list) else [perf_filename]
+    else:
+        perf_filename = []
 
     valid_modalities = get_valid_modalities()  
 
@@ -1125,7 +1134,7 @@ def collect_blind_qc_by_modality( modality_path, set_index_to_fn=True ):
     return jdf
 
 
-def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi','reflection_err', 'EVR', 'msk_vol'], verbose=False ):
+def outlierness_by_modality( qcdf, uid='filename', outlier_columns=None, verbose=False ):
     """
     Calculates outlierness scores for each modality in a dataframe based on given outlier columns using antspyt1w.loop_outlierness() and LOF.  LOF appears to be more conservative.  This function will impute missing columns with the mean.
 
@@ -1145,6 +1154,8 @@ def outlierness_by_modality( qcdf, uid='filename', outlier_columns = ['noise', '
     >>> df = pd.read_csv('data.csv')
     >>> outlierness_by_modality(df)
     """
+    if outlier_columns is None:
+        outlier_columns = ['noise', 'snr', 'cnr', 'psnr', 'ssim', 'mi', 'reflection_err', 'EVR', 'msk_vol']
     from PyNomaly import loop
     from sklearn.neighbors import LocalOutlierFactor
     qcdfout = qcdf.copy()
@@ -3258,7 +3269,7 @@ def get_models( version=3, force_download=True ):
 
 
 def dewarp_imageset( image_list, initial_template=None,
-    iterations=None, padding=0, target_idx=[0], **kwargs ):
+    iterations=None, padding=0, target_idx=None, **kwargs ):
     """
     Dewarp a set of images
 
@@ -3292,6 +3303,8 @@ def dewarp_imageset( image_list, initial_template=None,
     -------
     >>> import antspymm
     """
+    if target_idx is None:
+        target_idx = [0]
     outlist = []
     avglist = []
     if len(image_list[0].shape) > 3:
@@ -3364,9 +3377,9 @@ def dewarp_imageset( image_list, initial_template=None,
 
 def super_res_mcimage( image,
     srmodel,
-    truncation=[0.0001,0.995],
+    truncation=None,
     poly_order='hist',
-    target_range=[0,1],
+    target_range=None,
     isotropic = False,
     verbose=False ):
     """
@@ -3402,6 +3415,10 @@ def super_res_mcimage( image,
     -------
     >>> import antspymm
     """
+    if truncation is None:
+        truncation = [0.0001, 0.995]
+    if target_range is None:
+        target_range = [0, 1]
     idim = image.dimension
     ishape = image.shape
     nTimePoints = ishape[idim - 1]
@@ -5166,7 +5183,7 @@ def dwi_closest_peak_tracking(
           'streamlines': streamlines
           }
 
-def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_connect=[1,None], verbose=False ):
+def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_connect=None, verbose=False ):
     """
 
     Return streamlines connecting all of the regions in the label set. Ideal
@@ -5191,6 +5208,8 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
     -------
     >>> import antspymm
     """
+    if labels_to_connect is None:
+        labels_to_connect = [1, None]
     from dipy.tracking import utils
     from dipy.tracking.streamline import Streamlines
     keep_streamlines = Streamlines()
@@ -5533,7 +5552,7 @@ def hierarchical_modality_summary(
     hier,
     transformlist,
     modality_name,
-    return_keys = ["Mean","Volume"],
+    return_keys = None,
     verbose = False ):
     """
 
@@ -5562,6 +5581,8 @@ def hierarchical_modality_summary(
     -------
     >>> import antspymm
     """
+    if return_keys is None:
+        return_keys = ["Mean", "Volume"]
     dfout = pd.DataFrame()
     def myhelper( target_image, seg, mytx, mapname, modname, mydf, extra='', verbose=False ):
         if verbose:
@@ -5615,7 +5636,7 @@ def get_rsf_outputs( coords ):
         return list( yeo['SystemName'].unique() )
 
 def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
-    transform=['rigid'], compreg=None, random_seed=42, verbose=False ):
+    transform=None, compreg=None, random_seed=42, verbose=False ):
     """
     multi-start multi-transform registration solution - based on ants.registration
 
@@ -5636,6 +5657,8 @@ def tra_initializer( fixed, moving, n_simulations=32, max_rotation=30,
     verbose : boolean
 
     """
+    if transform is None:
+        transform = ['rigid']
     import random
     if random_seed is not None:
         random.seed(random_seed)
@@ -5703,7 +5726,7 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
     bias_correct=True,
     denoise=None,
     srmodel=None,
-    target_range=[0,1],
+    target_range=None,
     poly_order='hist',
     normalize_nm = False,
     verbose=False ) :
@@ -5753,6 +5776,9 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   Averaged and registered neuromelanin image and neuromelanin labels and wide csv
 
   """
+
+  if target_range is None:
+      target_range = [0, 1]
 
   fnt=os.path.expanduser("~/.antspyt1w/CIT168_T1w_700um_pad_adni.nii.gz" )
   fntNM=os.path.expanduser("~/.antspymm/CIT168_T1w_700um_pad_adni_NM_norm_avg.nii.gz" )
@@ -6095,7 +6121,7 @@ def PerAF( x, mask, globalmean=True ):
 
 
 def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
-    f=[0.03, 0.08],
+    f=None,
     FD_threshold=5.0,
     spa = None,
     spt = None,
@@ -6173,6 +6199,9 @@ def resting_state_fmri_networks( fmri, fmri_template, t1, t1segmentation,
   10.1016/j.dcn.2022.101087 : We found that: 1) the most efficacious pipeline for both noise removal and information recovery included censoring, GSR, bandpass filtering, and head motion parameter (HMP) regression, 2) ICA-AROMA performed similarly to HMP regression and did not obviate the need for censoring, 3) GSR had a minimal impact on connectome fingerprinting but improved ISC, and 4) the strictest censoring approaches reduced motion correlated edges but negatively impacted identifiability.
 
   """
+
+  if f is None:
+      f = [0.03, 0.08]
 
   import warnings
 
@@ -7631,10 +7660,10 @@ def crop_mcimage( x, mask, padder=None ):
 def mm(
     t1_image,
     hier,
-    rsf_image=[],
+    rsf_image=None,
     flair_image=None,
     nm_image_list=None,
-    dw_image=[], bvals=[], bvecs=[],
+    dw_image=None, bvals=None, bvecs=None,
     perfusion_image=None,
     srmodel=None,
     do_tractography = False,
@@ -7642,7 +7671,7 @@ def mm(
     do_normalization = None,
     group_template = None,
     group_transform = None,
-    target_range = [0,1],
+    target_range = None,
     dti_motion_correct = 'antsRegistrationSyNQuickRepro[r]',
     dti_denoise = False,
     perfusion_trim=10,
@@ -7718,6 +7747,12 @@ def mm(
 
     """
     from os.path import exists
+    rsf_image = list(rsf_image) if rsf_image is not None else []
+    dw_image = list(dw_image) if dw_image is not None else []
+    bvals = list(bvals) if bvals is not None else []
+    bvecs = list(bvecs) if bvecs is not None else []
+    if target_range is None:
+        target_range = [0, 1]
     ex_path = os.path.expanduser( "~/.antspyt1w/" )
     ex_path_mm = os.path.expanduser( "~/.antspymm/" )
     mycsvfn = ex_path + "FA_JHU_labels_edited.csv"
@@ -8318,7 +8353,7 @@ def mm_nrg(
     srmodel_NM = False, # optional - will add a great deal of time
     srmodel_DTI = False, # optional - will add a great deal of time
     visualize = True,
-    nrg_modality_list = ["T1w", "NM2DMT", "DTI","T2Flair", "rsfMRI" ],
+    nrg_modality_list = None,
     verbose = True
 ):
     """
@@ -8395,7 +8430,11 @@ def mm_nrg(
             raise ValueError('studyid is missing column ' +musthavecols[k] )
     def makewideout( x, separator = '-' ):
         return x + separator + 'mmwide.csv'
-    if nrg_modality_list[0] != 'T1w':
+    if nrg_modality_list is None:
+        nrg_modality_list = ["T1w", "NM2DMT", "DTI", "T2Flair", "rsfMRI"]
+    else:
+        nrg_modality_list = list(nrg_modality_list)
+    if nrg_modality_list and nrg_modality_list[0] != 'T1w':
         nrg_modality_list.insert(0, "T1w" )
     testloop = False
     counter=0
@@ -11855,7 +11894,7 @@ def shorten_pymm_names2(x, verbose=False ):
     return x[:40]  # Truncate to first 40 characters
 
 
-def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes = [0,1,2], fixed_overlay_range=None, crop=5, verbose=0 ):
+def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image, overlay_cmap='bwr', nslices=21, ncol=7, edge_image_dilation = 0, black_bg=True, axes=None, fixed_overlay_range=None, crop=5, verbose=0 ):
     """
     Create figures based on statistical data and an underlying brain image.
 
@@ -11883,6 +11922,8 @@ def brainmap_figure(statistical_df, data_dictionary, output_prefix, brain_image,
     Returns:
     an image with values mapped to the associated regions
     """
+    if axes is None:
+        axes = [0, 1, 2]
     import re
 
     def is_bst_region(filename):
@@ -13046,8 +13087,8 @@ def t1w_super_resolution_with_hemispheres(
     t1img,
     model,
     dilation_amount=8,
-    truncation=[0.001, 0.999],
-    target_range=[0, 1],
+    truncation=None,
+    target_range=None,
     poly_order="hist",
     min_spacing=0.8,
     verbose=True
@@ -13056,7 +13097,7 @@ def t1w_super_resolution_with_hemispheres(
     Perform hemisphere-aware super-resolution on a T1-weighted image using a segmentation-guided DBPN model.
 
     This function performs brain extraction, hemisphere labeling, and segmentation-aware
-    super-resolution using the provided T1 image and model. If the resolution is sufficient,
+    super-resolution using the process T1 image and model. If the resolution is sufficient,
     hemisphere labels guide targeted SR via the `siq.inference` function.
 
     Parameters
@@ -13091,6 +13132,10 @@ def t1w_super_resolution_with_hemispheres(
     ANTsImage
         Super-resolved T1-weighted image.
     """
+    if truncation is None:
+        truncation = [0.001, 0.999]
+    if target_range is None:
+        target_range = [0, 1]
     if np.min(ants.get_spacing(t1img)) < min_spacing:
         if verbose:
             print("Image resolution too high — skipping SR.")

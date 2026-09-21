@@ -24,12 +24,13 @@ dependencies = [
     "antspyx>=0.4.2",
     "antspynet>=0.3.0",
     "antspyt1w>=1.1.0",
-    "pathlib",
     "dipy",
     "nibabel",
     "scipy",
     "siq",
-    "scikit-learn"
+    "scikit-learn",
+    "statsmodels",
+    "tqdm"
 ]
 
 [tool.setuptools.packages]
