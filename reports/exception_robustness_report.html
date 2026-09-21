@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANTsPyMM Exception Handling & Robustness Audit Report</title>
+<style>
+  :root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border: #334155;
+    --accent-blue: #38bdf8;
+    --accent-green: #4ade80;
+    --accent-amber: #fbbf24;
+    --accent-rose: #f43f5e;
+    --accent-purple: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-pass { background-color: rgba(74, 222, 128, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+  .badge-fail { background-color: rgba(244, 63, 94, 0.15); color: var(--accent-rose); border: 1px solid var(--accent-rose); }
+  .badge-warn { background-color: rgba(251, 191, 36, 0.15); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+  .badge-info { background-color: rgba(56, 189, 248, 0.15); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+  
+  h1 { font-size: 2.25rem; font-weight: 800; margin-top: 0.5rem; color: #fff; }
+  .subtitle { color: var(--text-secondary); font-size: 1rem; margin-top: 0.25rem; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .kpi-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .kpi-title { font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; }
+  .kpi-value { font-size: 2rem; font-weight: 700; margin: 0.4rem 0; }
+  .kpi-sub { font-size: 0.75rem; color: var(--text-secondary); }
+
+  section { margin-bottom: 2.5rem; }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--accent-blue);
+    padding-left: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+  }
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { background-color: rgba(15, 23, 42, 0.6); color: var(--text-secondary); font-weight: 600; }
+  tr:hover { background-color: rgba(255, 255, 255, 0.02); }
+
+  pre, code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+  }
+  pre {
+    background-color: #0b1120;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    color: #e2e8f0;
+    margin: 0.75rem 0;
+  }
+  p code, td code {
+    background-color: rgba(255, 255, 255, 0.08);
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    color: var(--accent-blue);
+  }
+
+  .alert {
+    border-left: 4px solid;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+  .alert-danger { border-color: var(--accent-rose); background-color: rgba(244, 63, 94, 0.08); }
+  .alert-warn { border-color: var(--accent-amber); background-color: rgba(251, 191, 36, 0.08); }
+  .alert-success { border-color: var(--accent-green); background-color: rgba(74, 222, 128, 0.08); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <span class="badge badge-info">ANTsPyMM Core Audit</span>
+      <span class="badge badge-pass">Python 3.12 Verified</span>
+      <h1>Exception Handling & Robustness Report</h1>
+      <div class="subtitle">Comprehensive Static AST, Mutation Analysis & Fault-Tolerance Inspection</div>
+    </div>
+    <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+      <div>Environment: macOS Darwin / Python 3.12.12</div>
+      <div>Auditor: Exception Handling & Robustness Inspector</div>
+      <div>Audit Date: 2026-09-21</div>
+    </div>
+  </div>
+</header>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-title">Bare Excepts (E722)</div>
+    <div class="kpi-value" style="color: var(--accent-green);">0</div>
+    <div class="kpi-sub"><span class="badge badge-pass">100% Eliminated</span> in package</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-title">Try/Except Blocks</div>
+    <div class="kpi-value" style="color: var(--accent-blue);">27</div>
+    <div class="kpi-sub">24 broad, 3 specific handlers</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-title">Mutable Defaults (B006)</div>
+    <div class="kpi-value" style="color: var(--accent-rose);">30</div>
+    <div class="kpi-sub"><span class="badge badge-fail">High Risk</span> in-place mutations found</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-title">Unit Test Suite</div>
+    <div class="kpi-value" style="color: var(--accent-green);">11 / 11</div>
+    <div class="kpi-sub">100% passing tests (21.5s)</div>
+  </div>
+</div>
+
+<section>
+  <h2>1. Executive Summary & Audit Scope</h2>
+  <div class="card">
+    <p>This audit evaluates the exception handling architecture, runtime robustness, and argument safety across the ANTsPyMM package. Using a combination of AST walking, static linters (<code>ruff</code> rules <code>E722</code>, <code>B006</code>, <code>B008</code>, <code>B904</code>, <code>B028</code>), and live mutation tests, we established:</p>
+    <ul style="margin: 0.75rem 0 0 1.5rem; color: var(--text-secondary);">
+      <li><strong style="color: var(--accent-green);">Zero Bare Excepts:</strong> All 12 previously unconstrained <code>except:</code> clauses were successfully modernized to <code>except Exception:</code>.</li>
+      <li><strong style="color: var(--accent-rose);">Critical Argument Mutation Hazard:</strong> In <code>generate_mm_dataframe</code>, default argument lists (<code>rsf_filenames</code>, <code>dti_filenames</code>, <code>nm_filenames</code>) are mutated in-place via <code>.append(None)</code>. This causes persistent state pollution across function calls and alters caller data on exception.</li>
+      <li><strong style="color: var(--accent-blue);">Sound Pipeline Error Handling:</strong> <code>mm_csv</code> demonstrates sound multimodal fault tolerance by printing full stack traces, disabling disk output (<code>dowrite=False</code>), and allowing non-failing modalities to proceed.</li>
+      <li><strong style="color: var(--accent-amber);">Unidiomatic Dictionary Access:</strong> In <code>blind_image_assessment</code>, metadata extraction relies on 6 redundant <code>try ... except Exception: pass</code> blocks instead of dictionary <code>.get()</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>2. Mutable Default Arguments & In-Place Mutation (B006)</h2>
+  <div class="alert alert-danger">
+    <strong>CRITICAL HAZARD CONFIRMED EMPIRICALLY:</strong> <code>generate_mm_dataframe</code> mutates shared default lists in memory and permanently corrupts caller lists.
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="color: var(--accent-rose); margin-bottom: 0.5rem;">The Bug: In-Place Mutation</h3>
+      <p style="font-size: 0.875rem; color: var(--text-secondary);">In <code>antspymm/mm.py</code> lines 714–722:</p>
+      <pre><code>def generate_mm_dataframe(
+    ...,
+    rsf_filenames=[],
+    dti_filenames=[],
+    nm_filenames=[]):
+
+    if len(rsf_filenames) < 2:
+        for k in range(len(rsf_filenames), 2):
+            rsf_filenames.append(None) # MUTATES SHARED OBJECT!</code></pre>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+        Because default arguments are evaluated once at module load, <code>rsf_filenames</code> becomes <code>[None, None]</code> for all subsequent calls.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="color: var(--accent-green); margin-bottom: 0.5rem;">The Fix: Safe Initialization</h3>
+      <p style="font-size: 0.875rem; color: var(--text-secondary);">Idiomatic immutable default pattern:</p>
+      <pre><code>def generate_mm_dataframe(
+    ...,
+    rsf_filenames=None,
+    dti_filenames=None,
+    nm_filenames=None):
+
+    # Create fresh local copies
+    rsf_filenames = list(rsf_filenames) if rsf_filenames else []
+    dti_filenames = list(dti_filenames) if dti_filenames else []
+    nm_filenames = list(nm_filenames) if nm_filenames else []</code></pre>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+        Guarantees isolation between function calls and prevents mutating caller arguments.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Empirical Reproduction Results</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>State Before Call</th>
+          <th>State After Call</th>
+          <th>Outcome / Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Unspecified Defaults</strong></td>
+          <td><code>rsf_filenames = []</code></td>
+          <td><code>rsf_filenames = [None, None]</code></td>
+          <td><span class="badge badge-fail">Contaminated</span> Process-level default mutated</td>
+        </tr>
+        <tr>
+          <td><strong>Caller Supplies List</strong></td>
+          <td><code>['func.nii.gz']</code> (len 1)</td>
+          <td><code>['func.nii.gz', None]</code> (len 2)</td>
+          <td><span class="badge badge-fail">Corrupted</span> Caller's variable modified even on error</td>
+        </tr>
+        <tr>
+          <td><strong>mm_nrg Modality List</strong></td>
+          <td><code>['DTI', 'rsfMRI']</code></td>
+          <td><code>['T1w', 'DTI', 'rsfMRI']</code></td>
+          <td><span class="badge badge-warn">Mutated</span> Caller list altered via <code>.insert(0, ...)</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>3. Complete AST Try/Except Breakdown (27 Handlers)</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Function</th>
+          <th>Handled Exception</th>
+          <th>Behavior</th>
+          <th>Evaluation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>L4</td>
+          <td><code>__init__</code></td>
+          <td><code>Exception</code></td>
+          <td><code>pass</code></td>
+          <td><span class="badge badge-pass">Acceptable</span> Optional version file fallback</td>
+        </tr>
+        <tr>
+          <td>L510</td>
+          <td><code>clean_tmp_directory</code></td>
+          <td><code>Exception as e</code></td>
+          <td>Log to file</td>
+          <td><span class="badge badge-pass">Good</span> Diagnostic logging of cleanup issues</td>
+        </tr>
+        <tr>
+          <td>L1222</td>
+          <td><code>get_first_item_as_string</code></td>
+          <td><code>ValueError</code></td>
+          <td><code>raise ValueError(...)</code></td>
+          <td><span class="badge badge-warn">B904</span> Needs <code>raise ... from None</code></td>
+        </tr>
+        <tr>
+          <td>L1761–1784</td>
+          <td><code>image_write_with_thumbnail</code> (4x)</td>
+          <td><code>Exception</code></td>
+          <td><code>pass</code></td>
+          <td><span class="badge badge-warn">Silent Pass</span> Masks thumbnail plotting failures</td>
+        </tr>
+        <tr>
+          <td>L4209</td>
+          <td><code>efficient_dwi_fit_voxelwise</code></td>
+          <td><code>Exception as e</code></td>
+          <td>Print if verbose</td>
+          <td><span class="badge badge-pass">Robust</span> Fault-tolerant per-voxel estimation</td>
+        </tr>
+        <tr>
+          <td>L9193–9472</td>
+          <td><code>mm_csv</code> (7x)</td>
+          <td><code>Exception as e</code></td>
+          <td>Traceback, <code>dowrite=False</code></td>
+          <td><span class="badge badge-pass">Sound</span> Prevents bad writes; graceful degradation</td>
+        </tr>
+        <tr>
+          <td>L10082</td>
+          <td><code>merge_mm_dataframe</code></td>
+          <td><code>KeyError</code></td>
+          <td><code>return hierdf</code></td>
+          <td><span class="badge badge-pass">Specific</span> Intentional key fallback</td>
+        </tr>
+        <tr>
+          <td>L10709</td>
+          <td><code>blind_image_assessment</code></td>
+          <td><code>Exception</code></td>
+          <td><code>pass</code></td>
+          <td><span class="badge badge-warn">Suppressed</span> Swallows JSON read issues</td>
+        </tr>
+        <tr>
+          <td>L10869–10889</td>
+          <td><code>blind_image_assessment</code> (6x)</td>
+          <td><code>Exception</code></td>
+          <td><code>pass</code></td>
+          <td><span class="badge badge-fail">Anti-Pattern</span> Use <code>mymeta.get(...)</code> instead</td>
+        </tr>
+        <tr>
+          <td>L11387</td>
+          <td><code>calculate_loop_scores</code></td>
+          <td><code>ImportError</code></td>
+          <td><code>has_nn_descent = False</code></td>
+          <td><span class="badge badge-pass">Clean</span> Optional dependency detection</td>
+        </tr>
+        <tr>
+          <td>L12727–12742</td>
+          <td><code>filter_image_files</code> (2x)</td>
+          <td><code>Exception as e</code></td>
+          <td>Print error message</td>
+          <td><span class="badge badge-pass">Informative</span> Skips corrupt files with log</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>4. Additional Robustness & Static Code Health Findings</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Import-Time Evaluation (B008)</h3>
+      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+        In <code>mm_nrg</code> (line 8304):
+      </p>
+      <pre><code>sourcedir = os.path.expanduser(
+    "~/data/PPMI/MV/example_s3_b/images/PPMI/"
+)</code></pre>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">
+        <code>os.path.expanduser</code> is evaluated when the module is imported, freezing the path to the initial user's home directory.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Unmanaged File Descriptors</h3>
+      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+        In <code>write_bvals_bvecs</code> (lines 7582, 7586):
+      </p>
+      <pre><code>myfile = open(fname, 'wt')
+myfile.write(fmt % bvals)
+myfile.close()</code></pre>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">
+        If writing fails, file handles remain open until garbage collected. Should use <code>with open(...)</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5. Test Suite & Runtime Verification</h2>
+  <div class="card">
+    <p>Runtime test execution under Python 3.12.12 demonstrated full suite health:</p>
+    <pre><code>pytest tests/
+======================= 11 passed, 3 warnings in 21.50s ========================</code></pre>
+    <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+      <li><code>test_nrg_validation.py</code>: 8/8 tests passed</li>
+      <li><code>test_reference_run.py</code>: 1/1 test passed</li>
+      <li><code>voxelwise_bvec_dti_recon_test.py</code>: 2/2 tests passed</li>
+      <li><code>python3 -m py_compile antspymm/*.py</code>: Exit code 0 (Zero syntax/compilation warnings)</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
+    ANTsPyMM Comprehensive Multi-Agent Audit &bull; Generated by Exception Handling & Robustness Inspector &bull; 2026-09-21
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

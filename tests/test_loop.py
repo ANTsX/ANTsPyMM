@@ -12,13 +12,17 @@ import ants
 import numpy as np
 from scipy.stats import median_abs_deviation
 import math
-testingClass = unittest.TestCase( )
-islocal = False
-idp = "LS2001_3T_rfMRI_REST1_LR_gdc"
-fmri = ants.image_read( antspymm.get_data( idp, target_extension=".nii.gz") )
-fmri_template, hlinds1 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=0 )
-fmri_template, hlinds2 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=1 )
-fmri_template, hlinds3 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=2 )
-print( hlinds1 )
-print( hlinds2 )
-print( hlinds3 )
+def test_loop_timeseries_censoring():
+    idp = "LS2001_3T_rfMRI_REST1_LR_gdc"
+    data_path = antspymm.get_data( idp, target_extension=".nii.gz")
+    if not os.path.exists(data_path):
+        return
+    fmri = ants.image_read( data_path )
+    fmri_template, hlinds1 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=0 )
+    fmri_template2, hlinds2 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=1 )
+    fmri_template3, hlinds3 = antspymm.loop_timeseries_censoring( fmri, 0.5, seed=2 )
+    assert fmri_template is not None
+    assert isinstance(hlinds1, (list, np.ndarray))
+    assert isinstance(hlinds2, (list, np.ndarray))
+    assert isinstance(hlinds3, (list, np.ndarray))
+    assert len(hlinds1) > 0

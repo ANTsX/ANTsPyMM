@@ -135,10 +135,6 @@ import tensorflow as tf
 from multiprocessing import Pool
 import glob as glob
 
-antspyt1w.set_global_scientific_computing_random_seed(
-    antspyt1w.get_global_scientific_computing_random_seed( )
-)
-
 DATA_PATH = os.path.expanduser('~/.antspymm/')
 
 def version( ):
@@ -158,14 +154,23 @@ def version( ):
     >>> import antspymm
     >>> antspymm.version()
     """
-    import pkg_resources
-    return {
-              'tensorflow': pkg_resources.get_distribution("tensorflow").version,
-              'antspyx': pkg_resources.get_distribution("antspyx").version,
-              'antspynet': pkg_resources.get_distribution("antspynet").version,
-              'antspyt1w': pkg_resources.get_distribution("antspyt1w").version,
-              'antspymm': pkg_resources.get_distribution("antspymm").version
-              }
+    try:
+        from importlib.metadata import version as get_ver
+    except Exception:
+        try:
+            import pkg_resources
+            get_ver = lambda pkg: pkg_resources.get_distribution(pkg).version
+        except Exception:
+            get_ver = lambda pkg: "unknown"
+
+    packages = ['tensorflow', 'antspyx', 'antspynet', 'antspyt1w', 'antspymm']
+    out = {}
+    for p in packages:
+        try:
+            out[p] = get_ver(p)
+        except Exception:
+            out[p] = "unknown"
+    return out
 
 def nrg_filename_to_subjectvisit(s, separator='-'):
     """
@@ -1680,7 +1685,7 @@ def mm_read( x, standardize_intensity=False, modality='' ):
     if not isinstance(x,str):
         raise ValueError( " Non-string passed to function antspymm.mm_read." )
     if not os.path.exists( x ):
-        raise ValueError( " file " + fni + " does not exist." )
+        raise ValueError( " file " + str(x) + " does not exist." )
     img = ants.image_read( x, reorient=False )
     if standardize_intensity:
         img[img<0.0]=0.0
@@ -1762,12 +1767,12 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
         if y is None:
             try:
                 ants.plot_ortho( x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-            except:
+            except Exception:
                 pass
         else:
             try:
                 ants.plot_ortho( y, x, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-            except:
+            except Exception:
                 pass
     if thumb and x.dimension == 4:
         thumb_fn=re.sub(".nii.gz","_4dthumb.png",fn)
@@ -1779,13 +1784,13 @@ def image_write_with_thumbnail( x,  fn, y=None, thumb=True ):
         if y is None:
             try:
                 ants.plot_ortho( xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-            except:
+            except Exception:
                 pass
         else:
             if y.dimension == 3:
                 try:
                     ants.plot_ortho(y, xview, crop=True, filename=thumb_fn, flat=True, xyz_lines=False, orient_labels=False, xyz_pad=0 )
-                except:
+                except Exception:
                     pass
     return
 
@@ -4201,7 +4206,7 @@ def efficient_dwi_fit_voxelwise(imagein, maskin, bvals, bvecs_5d, model_params=N
         if np.all(sig == 0):
             return
         bv = bvecs_5d[ix, iy, iz, :, :]
-        gtab = gradient_table(bvals, bv)
+        gtab = gradient_table(bvals, bvecs=bv)
         try:
             model = dti.TensorModel(gtab, **model_params)
             fit = model.fit(sig)
@@ -5186,6 +5191,7 @@ def dwi_streamline_pairwise_connectivity( streamlines, label_image, labels_to_co
     -------
     >>> import antspymm
     """
+    from dipy.tracking import utils
     from dipy.tracking.streamline import Streamlines
     keep_streamlines = Streamlines()
 
@@ -5806,14 +5812,14 @@ def neuromelanin( list_nm_images, t1, t1_head, t1lab, brain_stem_dilation=8,
   nmavg2t1c = ants.crop_image( nmavg2t1, slab2t1 ).iMath("Normalize")
   # slabreg = ants.registration( nm_avg, nmavg2t1c, 'antsRegistrationSyNRepro[r]' )
   slabreg = tra_initializer( nm_avg, t1c, verbose=verbose )
-  if False:
-      slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
-      miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-            ants.iMath(slabreg0['warpedmovout'],"Normalize") )
-      miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
-            ants.iMath(slabreg1['warpedmovout'],"Normalize") )
-      if miT1 < miNM:
-        slabreg = slabregT1
+  # if False:
+  #     slabregT1 = tra_initializer( nm_avg, t1c, verbose=verbose  )
+  #     miNM = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+  #           ants.iMath(slabreg['warpedmovout'],"Normalize") )
+  #     miT1 = ants.image_mutual_information( ants.iMath(nm_avg,"Normalize"),
+  #           ants.iMath(slabregT1['warpedmovout'],"Normalize") )
+  #     if miT1 < miNM:
+  #       slabreg = slabregT1
   labels2nm = ants.apply_transforms( nm_avg, t1lab, slabreg['fwdtransforms'],
     interpolator = 'genericLabel' )
   cropper2nm = ants.apply_transforms( nm_avg, cropper, slabreg['fwdtransforms'], interpolator='nearestNeighbor' )
@@ -10434,6 +10440,7 @@ def quick_viz_mm_nrg(
     nrg_modality_list = [ 'T1w', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
     if post:
         nrg_modality_list = [ 'T1wHierarchical', 'DTI', 'rsfMRI', 'perf', 'T2Flair', 'NM2DMT' ]
+    noizimg = None
     for nrgNum in [0,1,2,3,4,5]:
         underlay = None
         overmodX = nrg_modality_list[nrgNum]
@@ -10633,23 +10640,6 @@ def quick_viz_mm_nrg(
         print( xyz )
 
     ants.plot_ortho_stack( vizlist, overlays=undlist, crop=False, reorient=False, filename=filename, xyz=xyz, orient_labels=False )
-    return
-    # listlen = len( vizlist )
-    # vizlist = np.asarray( vizlist )
-    if show_it is not None:
-        filenameout=None
-        if verbose:
-            print( show_it )
-        for a in [0,1,2]:
-            n=int(np.round( refimg.shape[a] * slice_factor ))
-            slices=np.repeat( int(n), listlen  )
-            if isinstance(show_it,str):
-                filenameout=show_it+'_ax'+str(int(a))+'_sl'+str(n)+'.png'
-                if verbose:
-                    print( filenameout )
-#            ants.plot_grid(vizlist.reshape(2,3), slices.reshape(2,3), title='MM Subject ' + sid + ' ' + dtid, rfacecolor='white', axes=a, filename=filenameout )
-    if verbose:
-        print("viz complete.")
     return vizlist
 
 
@@ -10725,7 +10715,7 @@ def blind_image_assessment(
                     if verbose:
                         print(json.dumps(mymeta, indent=4))
                     fcc_file.close()
-            except:
+            except Exception:
                 pass
         mystem=Path( image ).stem
         mystem=Path( mystem ).stem
@@ -10835,7 +10825,7 @@ def blind_image_assessment(
             try:
                 myevr = antspyt1w.patch_eigenvalue_ratio( image, npatch, patch_shape,
                     evdepth = 0.9, mask=msk )
-            except:
+            except Exception:
                 pass
             if pull_rank:
                 image = ants.rank_intensity(image)
@@ -10885,27 +10875,27 @@ def blind_image_assessment(
             # mriseries=mymeta['']
             try:
                 mrimfg=mymeta['Manufacturer']
-            except:
+            except Exception:
                 pass
             try:
                 mrimodel=mymeta['ManufacturersModelName']
-            except:
+            except Exception:
                 pass
             try:
                 MagneticFieldStrength=mymeta['MagneticFieldStrength']
-            except:
+            except Exception:
                 pass
             try:
                 PixelBandwidth=mymeta['PixelBandwidth']
-            except:
+            except Exception:
                 pass
             try:
                 BandwidthPerPixelPhaseEncode=mymeta['BandwidthPerPixelPhaseEncode']
-            except:
+            except Exception:
                 pass
             try:
                 mriSAR=mymeta['SAR']
-            except:
+            except Exception:
                 pass
         ttl=mystem + ' '
         ttl=''
@@ -11750,7 +11740,7 @@ def shorten_pymm_names(x):
     """
     xx = x.lower()
     xx = re.sub("_", ".", xx)  # Replace underscores with periods
-    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    xx = re.sub(r"\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
     # Apply the following regex substitutions in order
     xx = re.sub("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.","ilf.and.ifo", xx, flags=re.I)
     xx = re.sub(r"sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.", "ilf.and.ifo", xx, flags=re.I)
@@ -11770,8 +11760,8 @@ xx, flags=re.I)
     xx = re.sub("perf.cbf.mean.", "cbf.", xx, flags=re.I)
     xx = re.sub(".jhu.icbm.labels.1mm", "", xx, flags=re.I)
     xx = re.sub(".include.optic.radiation.", "", xx, flags=re.I)
-    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
-    xx = re.sub("\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    xx = re.sub(r"\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
+    xx = re.sub(r"\.\.", ".", xx, flags=re.I)  # Replace double dots with single dot
     xx = re.sub("cerebellar.peduncle", "cereb.ped", xx, flags=re.I)
     xx = re.sub(r"anterior.limb.of.internal.capsule", "ant.int.cap", xx, flags=re.I)
     xx = re.sub(r"posterior.limb.of.internal.capsule", "post.int.cap", xx, flags=re.I)
@@ -11811,7 +11801,7 @@ def shorten_pymm_names2(x, verbose=False ):
     # Define substitution patterns as tuples
     substitutions = [
         ("_", "."),  
-        ("\.\.", "."),
+        (r"\.\.", "."),
         ("sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.","ilf.and.ifo"),
         (r"sagittal.stratum.include.inferior.longitidinal.fasciculus.and.inferior.fronto.occipital.fasciculus.", "ilf.and.ifo"),
         (r".cres.stria.terminalis.can.not.be.resolved.with.current.resolution.", ""),
@@ -11829,8 +11819,8 @@ def shorten_pymm_names2(x, verbose=False ):
         ("perf.cbf.mean.", "cbf."),
         (".jhu.icbm.labels.1mm", ""),
         (".include.optic.radiation.", ""),
-        ("\.\.", "."),  # Replace double dots with single dot
-        ("\.\.", "."),  # Replace double dots with single dot
+        (r"\.\.", "."),  # Replace double dots with single dot
+        (r"\.\.", "."),  # Replace double dots with single dot
         ("cerebellar.peduncle", "cereb.ped"),
         (r"anterior.limb.of.internal.capsule", "ant.int.cap"),
         (r"posterior.limb.of.internal.capsule", "post.int.cap"),

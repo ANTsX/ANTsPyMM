@@ -1,7 +1,7 @@
 
 try:
     from .version import __version__
-except:
+except Exception:
     pass
 
 from .mm import get_data

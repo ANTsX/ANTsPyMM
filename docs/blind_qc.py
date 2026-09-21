@@ -55,6 +55,6 @@ for index2 in range( indexLo, indexHi ):
             try:
                 antspymm.blind_image_assessment( ifn, vizfn, title=True,
                         resample=myresam, pull_rank=mypr, verbose=True )
-            except:
+            except Exception:
                 pass
 

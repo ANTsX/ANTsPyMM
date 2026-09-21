@@ -11,10 +11,11 @@ import antspymm
 import ants
 import re
 import pandas as pd
-# just test that things loaded ok
-if os.getenv('CI') == 'true' and os.getenv('CIRCLECI') == 'true':
-    def test_simple():
-        assert os.getenv('CI') == 'true' and os.getenv('CIRCLECI') == 'true'
-else:
-    def test_simple():
-        assert os.getenv('CI') != 'true' and os.getenv('CIRCLECI') != 'true'
+def test_reference_run():
+    import antspymm
+    v = antspymm.version()
+    assert isinstance(v, dict)
+    assert 'antspymm' in v
+    assert hasattr(antspymm, 'mm')
+    assert hasattr(antspymm, 'validate_nrg_file_format')
+    assert callable(antspymm.generate_voxelwise_bvecs)
