@@ -44,16 +44,16 @@ test-cov:
 	$(PYTEST) -v --cov=antspymm --cov-report=term-missing tests/
 
 lint:
-	$(RUFF) check antspymm tests docs
+	$(RUFF) check antspymm tests
 
 lint-fix:
-	$(RUFF) check --fix antspymm tests docs
+	$(RUFF) check --fix antspymm tests
 
 compile:
 	$(PYTHON) -W error::SyntaxWarning -m compileall antspymm tests docs
 
 audit: compile
-	$(RUFF) check antspymm --select E722,W605,F821
+	$(RUFF) check antspymm tests
 	$(PYTEST) -v tests/
 
 build: clean

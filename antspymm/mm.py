@@ -10904,36 +10904,43 @@ def blind_image_assessment(
             msk_vol = 0
             myevr = mymi = ssimref = psnrref = cnrref = asym_err = noizlevel = math.nan
             
-        mriseries=None
-        mrimfg=None
-        mrimodel=None
-        mriSAR=None
-        BandwidthPerPixelPhaseEncode=None
-        PixelBandwidth=None
-        if mymeta is not None:
-            # mriseries=mymeta['']
+        mriseries = None
+        mrimfg = None
+        mrimodel = None
+        mriSAR = None
+        BandwidthPerPixelPhaseEncode = None
+        PixelBandwidth = None
+        MagneticFieldStrength = None
+        if mymeta is not None and isinstance(mymeta, dict):
+            mrimfg = mymeta.get('Manufacturer')
+            mrimodel = mymeta.get('ManufacturersModelName')
+            MagneticFieldStrength = mymeta.get('MagneticFieldStrength')
+            PixelBandwidth = mymeta.get('PixelBandwidth')
+            BandwidthPerPixelPhaseEncode = mymeta.get('BandwidthPerPixelPhaseEncode')
+            mriSAR = mymeta.get('SAR')
+        elif mymeta is not None:
             try:
-                mrimfg=mymeta['Manufacturer']
+                mrimfg = mymeta['Manufacturer']
             except Exception:
                 pass
             try:
-                mrimodel=mymeta['ManufacturersModelName']
+                mrimodel = mymeta['ManufacturersModelName']
             except Exception:
                 pass
             try:
-                MagneticFieldStrength=mymeta['MagneticFieldStrength']
+                MagneticFieldStrength = mymeta['MagneticFieldStrength']
             except Exception:
                 pass
             try:
-                PixelBandwidth=mymeta['PixelBandwidth']
+                PixelBandwidth = mymeta['PixelBandwidth']
             except Exception:
                 pass
             try:
-                BandwidthPerPixelPhaseEncode=mymeta['BandwidthPerPixelPhaseEncode']
+                BandwidthPerPixelPhaseEncode = mymeta['BandwidthPerPixelPhaseEncode']
             except Exception:
                 pass
             try:
-                mriSAR=mymeta['SAR']
+                mriSAR = mymeta['SAR']
             except Exception:
                 pass
         ttl=mystem + ' '

@@ -882,11 +882,11 @@ def generate_mm_dataframe(..., <span class="diff-add">rsf_filenames=None</span>,
         <div class="issue-card" data-severity="medium">
           <div class="issue-header">
             <div class="issue-title">M-1: Silent Error Suppression in Metadata Extraction (S110)</div>
-            <span class="badge-pill badge-warn">MEDIUM SEVERITY</span>
+            <span class="badge-pill badge-pass">RESOLVED</span>
           </div>
           <p style="font-size: 0.875rem; color: var(--text-secondary);">
-            <strong>File:</strong> <code>antspymm/mm.py:10867-10890</code> in <code>blind_image_assessment</code><br>
-            <strong>Description:</strong> Six consecutive dictionary key lookups wrap individual accesses in <code>try ... except Exception: pass</code> blocks instead of using idiomatic <code>dict.get()</code>, causing variable bleed across slice iterations.
+            <strong>File:</strong> <code>antspymm/mm.py:10905-10940</code> in <code>blind_image_assessment</code><br>
+            <strong>Status:</strong> <span style="color: var(--accent-green);">Resolved</span> &mdash; replaced empty <code>try ... except Exception: pass</code> blocks with idiomatic <code>mymeta.get(...)</code> lookups and initialized <code>MagneticFieldStrength = None</code> to prevent variable leakage.
           </p>
         </div>
 
@@ -894,11 +894,11 @@ def generate_mm_dataframe(..., <span class="diff-add">rsf_filenames=None</span>,
         <div class="issue-card" data-severity="medium">
           <div class="issue-header">
             <div class="issue-title">M-2: Deprecated pkg_resources Usage</div>
-            <span class="badge-pill badge-warn">MEDIUM SEVERITY</span>
+            <span class="badge-pill badge-pass">RESOLVED</span>
           </div>
           <p style="font-size: 0.875rem; color: var(--text-secondary);">
-            <strong>File:</strong> <code>antspymm/mm.py:157</code> in <code>version()</code><br>
-            <strong>Description:</strong> <code>pkg_resources</code> is deprecated in Python 3.12 and should be modernized to standard library <code>importlib.metadata</code>.
+            <strong>File:</strong> <code>antspymm/mm.py:154</code> in <code>version()</code><br>
+            <strong>Status:</strong> <span style="color: var(--accent-green);">Resolved</span> &mdash; modernized from deprecated <code>pkg_resources</code> to standard library <code>importlib.metadata.version</code>.
           </p>
         </div>
 

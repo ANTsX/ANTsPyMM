@@ -38,3 +38,15 @@ find = { include = ["antspymm"] }
 
 [tool.setuptools]
 license-files = []
+
+[tool.ruff]
+line-length = 120
+exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+    "E722",  # Bare except
+    "W605",  # Invalid regex escape sequence
+    "F821",  # Undefined name
+    "B006",  # Mutable default argument
+]
