@@ -291,8 +291,8 @@ from antspymm.xmm import __all__</code></pre>
     </div>
 
     <!-- Benefits Grid -->
-    <div class="card" style="margin-top: 32px;">
-      <h2 style="color: var(--accent-green);">✨ Key Benefits of the Unified Package</h2>
+    <div class="card" style="margin-top: 32px; margin-bottom: 32px;">
+      <h2 style="color: var(--accent-green);">✨ Direction A Summary (Embed ANTsXMM in ANTsPyMM)</h2>
       <div class="grid-2" style="margin-top: 16px; margin-bottom: 0;">
         <div>
           <h3 style="color: var(--accent-cyan); font-size: 1.05rem; margin-bottom: 8px;">For End Users</h3>
@@ -311,6 +311,108 @@ from antspymm.xmm import __all__</code></pre>
           </ul>
         </div>
       </div>
+    </div>
+
+    <!-- Direction B: The Inverted Merger -->
+    <div class="card" style="border: 2px solid var(--accent-cyan); margin-bottom: 32px;">
+      <h2 style="color: var(--accent-cyan);">🔄 Direction B: The Inverted Merger &mdash; Taking "The Best of ANTsPyMM" into ANTsXMM</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 1.02rem;">
+        What if we go the other way? Instead of bringing ANTsXMM into the 13,389-line legacy monolith, we extract <strong>only the scientific gems</strong> of ANTsPyMM into clean, modular subpackages inside ANTsXMM, leaving all legacy NRG technical debt behind.
+      </p>
+
+      <h3 style="color: var(--accent-amber); font-size: 1.1rem; margin-bottom: 10px;">1. What is "The Best of ANTsPyMM"? (The Algorithmic Core: ~3,500 lines)</h3>
+      <table>
+        <tr><th>Modality / Domain</th><th>Core Functions to Extract</th><th>What it Does</th></tr>
+        <tr>
+          <td><strong>Diffusion Tensor Imaging</strong><br><code>antsxmm.modalities.dti</code></td>
+          <td>
+            <code>joint_dti_recon()</code><br>
+            <code>efficient_dwi_fit_voxelwise()</code><br>
+            <code>distortion_correct_bvecs()</code><br>
+            <code>dwi_closest_peak_tracking()</code>
+          </td>
+          <td>Multi-shell/phase DTI reconstruction, tensor decomposition, voxelwise varying b-vectors with deformation gradient reorientation, and streamline tractography.</td>
+        </tr>
+        <tr>
+          <td><strong>Resting-State fMRI</strong><br><code>antsxmm.modalities.fmri</code></td>
+          <td>
+            <code>resting_state_fmri_networks()</code><br>
+            <code>loop_timeseries_censoring()</code><br>
+            <code>alff_image()</code> / <code>PerAF()</code>
+          </td>
+          <td>Automated fMRI network extraction with Shirer/Power/Yeo systems, CompCor nuisance regression, framewise displacement volume censoring, fALFF, and PerAF.</td>
+        </tr>
+        <tr>
+          <td><strong>Neuromelanin MRI</strong><br><code>antsxmm.modalities.neuromelanin</code></td>
+          <td><code>neuromelanin()</code></td>
+          <td>CIT168 substantia nigra and locus coeruleus template registration, slab extraction, and 2D MT contrast ratio quantification.</td>
+        </tr>
+        <tr>
+          <td><strong>Perfusion ASL</strong><br><code>antsxmm.modalities.perfusion</code></td>
+          <td><code>bold_perfusion()</code><br><code>calculate_CBF()</code></td>
+          <td>Cerebral blood flow quantification, M0 calibration, and surround/pairwise subtraction.</td>
+        </tr>
+        <tr>
+          <td><strong>White Matter Lesions</strong><br><code>antsxmm.modalities.wmh</code></td>
+          <td><code>wmh()</code> / <code>boot_wmh()</code></td>
+          <td>Automated white matter hyperintensity segmentation from FLAIR and T1 images.</td>
+        </tr>
+        <tr>
+          <td><strong>Super-Resolution</strong><br><code>antsxmm.modalities.sr</code></td>
+          <td>
+            <code>super_res_mcimage()</code><br>
+            <code>t1w_super_resolution_with_hemispheres()</code>
+          </td>
+          <td>Deep learning super-resolution for multi-channel/timeseries MRI via SIQ / Keras models.</td>
+        </tr>
+        <tr>
+          <td><strong>Template Assets</strong><br><code>antsxmm.modalities.templates</code></td>
+          <td><code>get_data()</code></td>
+          <td>Standardized asset downloader for CIT168, JHU, and PPMI reference templates.</td>
+        </tr>
+      </table>
+
+      <h3 style="color: var(--accent-red); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">2. What Gets Left Behind (The Legacy Cruft: ~9,000 lines eliminated)</h3>
+      <ul>
+        <li><strong>Legacy NRG Transcoders:</strong> <code>nrg_2_bids</code>, <code>bids_2_nrg</code>, <code>parse_nrg_filename</code>, <code>nrg_format_path</code>, <code>validate_nrg_file_format</code> (ANTsXMM's BIDS parser is already far superior).</li>
+        <li><strong>Legacy Directory Enforcers:</strong> <code>mm_nrg</code> (8,300 lines in), <code>ptbp_nrg</code>, <code>docsamson</code>.</li>
+        <li><strong>Double-Indirection:</strong> The entire chain of <code>mock DataFrame &rarr; monkeypatch docsamson &rarr; mm_csv &rarr; mm</code> disappears completely! <code>antsxmm/session.py</code> calls the modality functions directly with resolved BIDS paths.</li>
+        <li><strong>Stale Prototypes:</strong> Unused novelty detection functions (<code>novelty_detection_ee</code>, <code>novelty_detection_svm</code>, etc.) and broken scratch scripts in <code>docs/</code>.</li>
+      </ul>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">3. Direct Comparison: Direction A vs. Direction B</h3>
+      <table>
+        <tr>
+          <th>Evaluation Metric</th>
+          <th>Direction A: Absorb ANTsXMM into ANTsPyMM</th>
+          <th>Direction B: Extract Best of ANTsPyMM into ANTsXMM</th>
+        </tr>
+        <tr>
+          <td><strong>Codebase Cleanliness</strong></td>
+          <td>ANTsPyMM remains large (~18,000 lines total), though with modern subpackages.</td>
+          <td><strong style="color: var(--accent-green);">Pristine (~8,000 lines total).</strong> Decomposes monolithic <code>mm.py</code> into clean, modular files.</td>
+        </tr>
+        <tr>
+          <td><strong>Indirection & Overhead</strong></td>
+          <td>Still routes through <code>mm_csv</code> and DataFrame packing.</td>
+          <td><strong style="color: var(--accent-green);">Zero indirection.</strong> <code>session.py</code> directly passes image paths to modality functions.</td>
+        </tr>
+        <tr>
+          <td><strong>Compatibility with <code>import antspymm</code></strong></td>
+          <td>Native 100% backward compatible.</td>
+          <td>100% compatible via an <code>antspymm</code> shim that re-exports <code>from antsxmm.modalities import *</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Maintenance Burden</strong></td>
+          <td>Carries 9,000 lines of legacy NRG debt indefinitely.</td>
+          <td><strong style="color: var(--accent-green);">Minimal.</strong> Zero legacy code to maintain; 100% modern Python 3.10+ PEP 604 code.</td>
+        </tr>
+        <tr>
+          <td><strong>Implementation Effort</strong></td>
+          <td>Lower initial effort (embed existing ANTsXMM tree).</td>
+          <td>Moderate initial effort (cleanly decouple the 7 modality modules).</td>
+        </tr>
+      </table>
     </div>
   </div>
 </body>
