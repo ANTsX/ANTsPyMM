@@ -418,8 +418,8 @@ from antspymm.xmm import __all__</code></pre>
       <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
         <p style="margin-bottom: 8px;"><strong style="color: var(--accent-green);">Status: Fully Delivered, Decoupled &amp; Tested</strong></p>
         <ul style="color: var(--text-secondary); margin-left: 20px;">
-          <li><strong>Modular Core Extracted:</strong> Clean, Python 3.10+ typed scientific code across 12 modular submodules in <code>antsxmm.modalities</code>:
-            <code>registration.py</code>, <code>segmentation.py</code>, <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>wmh.py</code>, <code>dispatch.py</code>, and <code>io.py</code>.
+          <li><strong>Modular Core Extracted:</strong> Clean, Python 3.10+ typed scientific code across 13 modular submodules in <code>antsxmm.modalities</code>:
+            <code>registration.py</code>, <code>segmentation.py</code>, <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>pet.py</code>, <code>wmh.py</code>, <code>dispatch.py</code>, and <code>io.py</code>.
           </li>
           <li><strong>Native Execution Engine (No Legacy <code>mm_csv</code>):</strong>
             <ul style="margin-top: 4px; margin-bottom: 4px;">
@@ -437,12 +437,12 @@ from antspymm.xmm import __all__</code></pre>
             </ul>
           </li>
           <li><strong>Legacy Cruft Eliminated:</strong> Over 9,000 lines of dead legacy NRG debt (<code>mm_nrg</code>, <code>ptbp_nrg</code>, <code>nrg_2_bids</code>, <code>bids_2_nrg</code>, monkeypatched <code>docsamson</code> globals, obsolete novelty detectors) omitted entirely.</li>
-          <li><strong>Comprehensive Test Suite:</strong> Added <code>tests/test_e2e_intent.py</code>, <code>tests/test_native_session.py</code>, and expanded <code>tests/test_modalities.py</code> (25 modality tests, 3 native session tests, 2 full lifecycle e2e tests) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, label mapping, I/O serialization, sidecar resolution, native session dispatch, study execution, resumability, tree prediction, CLI validation, and study aggregation.</li>
+          <li><strong>Comprehensive Test Suite:</strong> Added <code>tests/test_e2e_intent.py</code>, <code>tests/test_native_session.py</code>, and expanded <code>tests/test_modalities.py</code> (26 modality tests, 3 native session tests, 2 full lifecycle e2e tests) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, label mapping, I/O serialization, sidecar resolution, native session dispatch, study execution, resumability, tree prediction, CLI validation, and study aggregation.</li>
           <li><strong>Test Results:</strong>
-            <span class="badge badge-success">ANTsXMM: 137 / 137 Passed (100%)</span>
+            <span class="badge badge-success">ANTsXMM: 138 / 138 Passed (100%)</span>
             <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
           </li>
-          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/f39b6c0" style="color: var(--accent-blue);">commit f39b6c0</a>).</li>
+          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/e0276fb" style="color: var(--accent-blue);">commit e0276fb</a>).</li>
         </ul>
       </div>
     </div>
