@@ -410,7 +410,7 @@ from antspymm.xmm import __all__</code></pre>
         <tr>
           <td><strong>Implementation Status</strong></td>
           <td>Superseded by Direction B.</td>
-          <td><strong style="color: var(--accent-green);">FULLY IMPLEMENTED & DECOUPLED ✅</strong> (Commits <code>a2858ef</code>, <code>92d5f5b</code>, <code>b45e3d1</code>)</td>
+          <td><strong style="color: var(--accent-green);">FULLY IMPLEMENTED & DECOUPLED ✅</strong> (Commits <code>a2858ef</code>, <code>92d5f5b</code>, <code>b45e3d1</code>, <code>f39b6c0</code>)</td>
         </tr>
       </table>
 
@@ -437,12 +437,12 @@ from antspymm.xmm import __all__</code></pre>
             </ul>
           </li>
           <li><strong>Legacy Cruft Eliminated:</strong> Over 9,000 lines of dead legacy NRG debt (<code>mm_nrg</code>, <code>ptbp_nrg</code>, <code>nrg_2_bids</code>, <code>bids_2_nrg</code>, monkeypatched <code>docsamson</code> globals, obsolete novelty detectors) omitted entirely.</li>
-          <li><strong>Comprehensive Test Suite:</strong> Added <code>tests/test_native_session.py</code> and expanded <code>tests/test_modalities.py</code> (23 modality tests, 3 native session tests) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, label mapping, I/O serialization, sidecar resolution, native session dispatch, and study execution.</li>
+          <li><strong>Comprehensive Test Suite:</strong> Added <code>tests/test_e2e_intent.py</code>, <code>tests/test_native_session.py</code>, and expanded <code>tests/test_modalities.py</code> (25 modality tests, 3 native session tests, 2 full lifecycle e2e tests) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, label mapping, I/O serialization, sidecar resolution, native session dispatch, study execution, resumability, tree prediction, CLI validation, and study aggregation.</li>
           <li><strong>Test Results:</strong>
-            <span class="badge badge-success">ANTsXMM: 135 / 135 Passed (100%)</span>
+            <span class="badge badge-success">ANTsXMM: 137 / 137 Passed (100%)</span>
             <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
           </li>
-          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/b45e3d1" style="color: var(--accent-blue);">commit b45e3d1</a>).</li>
+          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/f39b6c0" style="color: var(--accent-blue);">commit f39b6c0</a>).</li>
         </ul>
       </div>
     </div>
