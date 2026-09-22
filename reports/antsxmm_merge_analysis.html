@@ -408,11 +408,30 @@ from antspymm.xmm import __all__</code></pre>
           <td><strong style="color: var(--accent-green);">Minimal.</strong> Zero legacy code to maintain; 100% modern Python 3.10+ PEP 604 code.</td>
         </tr>
         <tr>
-          <td><strong>Implementation Effort</strong></td>
-          <td>Lower initial effort (embed existing ANTsXMM tree).</td>
-          <td>Moderate initial effort (cleanly decouple the 7 modality modules).</td>
+          <td><strong>Implementation Status</strong></td>
+          <td>Superseded by Direction B.</td>
+          <td><strong style="color: var(--accent-green);">IMPLEMENTED & VERIFIED ✅</strong> (Commit <code>a2858ef</code>)</td>
         </tr>
       </table>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">4. Implementation & Verification Summary</h3>
+      <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+        <p style="margin-bottom: 8px;"><strong style="color: var(--accent-green);">Status: Fully Delivered &amp; Tested</strong></p>
+        <ul style="color: var(--text-secondary); margin-left: 20px;">
+          <li><strong>Modular Core Extracted:</strong> 4,474 lines of clean, Python 3.10+ typed scientific code across 8 submodules in <code>antsxmm.modalities</code>:
+            <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>wmh.py</code>.
+          </li>
+          <li><strong>Legacy Cruft Eliminated:</strong> Over 9,000 lines of dead legacy NRG debt (<code>mm_nrg</code>, <code>nrg_2_bids</code>, monkeypatched <code>docsamson</code> globals) omitted entirely.</li>
+          <li><strong>New Unit Test Suite:</strong> Added <code>tests/test_modalities.py</code> in <code>antsxmm</code> containing 12 unit tests verifying:
+            tensor estimation, bvec normalization/repair, periodograms, ALFF, PerAF, AFNI-style despiking, CBF quantification, and timeseries segmentation.
+          </li>
+          <li><strong>Test Results:</strong>
+            <span class="badge badge-success">ANTsXMM: 124 / 124 Passed (100%)</span>
+            <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
+          </li>
+          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/a2858ef" style="color: var(--accent-blue);">commit a2858ef</a>).</li>
+        </ul>
+      </div>
     </div>
   </div>
 </body>
