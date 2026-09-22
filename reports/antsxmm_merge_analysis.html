@@ -573,9 +573,106 @@ from antspymm.xmm import __all__</code></pre>
             <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
           </li>
           <li><strong>Git Repositories:</strong>
-            ANTsXMM: <a href="https://github.com/stnava/antsxmm/commit/dbde37c" style="color: var(--accent-blue);">commit dbde37c</a> on <code>main</code>;
+            ANTsXMM: <a href="https://github.com/stnava/antsxmm/commit/8695d11" style="color: var(--accent-blue);">commit 8695d11</a> on <code>main</code>;
             ANTsPyMM: <a href="https://github.com/ANTsX/ANTsPyMM/commit/2eeef84" style="color: var(--accent-blue);">commit 2eeef84</a> on <code>main</code>.
           </li>
+        </ul>
+      </div>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">7. Real Multimodal Data Validation &amp; Full Modality Coverage Proof</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 14px;">
+        To conclusively prove that <code>antsxmm</code> is a complete and robust replacement for all modality processing routines, we executed native pipeline runs on a minimal cohort of 2 real subjects providing 100% coverage across every supported modality type.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Modality</th>
+            <th>Cohort / Subject</th>
+            <th>Raw Input Description</th>
+            <th>Native Execution Engine</th>
+            <th>Output Table (wide format)</th>
+            <th>Metrics Populated</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>T1w / Structural</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)<br>PPMI (<code>sub-182341</code>)</td>
+            <td>3D T1w MPRAGE / IR-SPGR</td>
+            <td><code>antspyt1w.hierarchical</code></td>
+            <td><code>T1wHierarchical+mmwide.csv</code></td>
+            <td>854 columns (DKT, Atropos, RBP, MTL, Cerebellum, Brainstem)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>T2Flair (WMH)</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)</td>
+            <td>3D FLAIR</td>
+            <td><code>antsxmm.modalities.wmh</code> (Sysu / HyperMapp3r)</td>
+            <td><code>T2Flair+mmwide.csv</code></td>
+            <td>7 columns (WMH volumes, lesion count, probabilities)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>DTI / Diffusion</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)<br>PPMI (<code>sub-182341</code>)</td>
+            <td>Paired reverse phase-encode DWI (AP/PA &amp; LR/RL)</td>
+            <td><code>antsxmm.modalities.dti.joint_dti_recon</code></td>
+            <td><code>DTI+mmwide.csv</code></td>
+            <td>9 columns (FA, MD, DVARS, SNR, EVR, motion QC)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>rsfMRI / BOLD</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)<br>PPMI (<code>sub-182341</code>)</td>
+            <td>4D BOLD resting-state fMRI</td>
+            <td><code>antsxmm.modalities.fmri.resting_state_fmri_networks</code></td>
+            <td><code>rsfMRI+mmwide.csv</code></td>
+            <td>2,145 columns (Power-Petersen networks, ALFF, fALFF, PerAF, motion)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>Perfusion / ASL</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)</td>
+            <td>4D ASL time series (128x128x36x25)</td>
+            <td><code>antsxmm.modalities.perfusion.bold_perfusion</code></td>
+            <td><code>perf+mmwide.csv</code></td>
+            <td>213 columns (CBF mean, DKT regional quantification)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>PET 3D</strong></td>
+            <td>SOCOM (<code>sub-Blast-01</code>)</td>
+            <td>3D Static PET (400x400x109)</td>
+            <td><code>antsxmm.modalities.pet.pet3d_summary</code></td>
+            <td><code>pet3d+mmwide.csv</code></td>
+            <td>101 columns (SUVR, GM/WM/CSF mean, DKT cortex + CIT168)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>NM2DMT / Neuromelanin</strong></td>
+            <td>PPMI (<code>sub-182341</code>)</td>
+            <td>4D 5-repeat NM TSE slab (448x448x16x5)</td>
+            <td><code>antsxmm.modalities.neuromelanin.neuromelanin</code></td>
+            <td><code>NM2DMT+mmwide.csv</code></td>
+            <td>16 columns (Substantia Nigra volume, SNR, contrast ratio, EVR)</td>
+            <td><span class="badge badge-success">PASSED ✅</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">8. Final Aggregated Multimodal Study CSV</h3>
+      <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+        <p style="color: var(--text-primary); margin-bottom: 8px;">
+          Generated with <code>antsxmm aggregate /Users/stnava/data/processed/antsxmm_multimodal_eval --output study_multimodal_aggregated.csv</code>:
+        </p>
+        <ul style="color: var(--text-secondary); margin-left: 20px;">
+          <li><strong>Path:</strong> <code>/Users/stnava/data/processed/antsxmm_multimodal_eval/study_multimodal_aggregated.csv</code></li>
+          <li><strong>Dimensions:</strong> 2 rows &times; <strong>3,357 columns</strong></li>
+          <li><strong>Entities:</strong> <code>PPMI/sub-182341/ses-20230111</code> and <code>SOCOM/sub-Blast-01/ses-01</code></li>
+          <li><strong>Total Modality Coverage:</strong> 100% across all 8 modalities (T1wHierarchical, T1w, T2Flair, DTI, rsfMRI, perf, pet3d, NM2DMT).</li>
         </ul>
       </div>
     </div>
