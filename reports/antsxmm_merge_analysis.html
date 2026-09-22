@@ -410,7 +410,7 @@ from antspymm.xmm import __all__</code></pre>
         <tr>
           <td><strong>Implementation Status</strong></td>
           <td>Superseded by Direction B.</td>
-          <td><strong style="color: var(--accent-green);">IMPLEMENTED & VERIFIED ✅</strong> (Commit <code>a2858ef</code>)</td>
+          <td><strong style="color: var(--accent-green);">IMPLEMENTED & VERIFIED ✅</strong> (Commits <code>a2858ef</code> &amp; <code>92d5f5b</code>)</td>
         </tr>
       </table>
 
@@ -418,18 +418,22 @@ from antspymm.xmm import __all__</code></pre>
       <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
         <p style="margin-bottom: 8px;"><strong style="color: var(--accent-green);">Status: Fully Delivered &amp; Tested</strong></p>
         <ul style="color: var(--text-secondary); margin-left: 20px;">
-          <li><strong>Modular Core Extracted:</strong> 4,474 lines of clean, Python 3.10+ typed scientific code across 8 submodules in <code>antsxmm.modalities</code>:
-            <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>wmh.py</code>.
+          <li><strong>Modular Core Extracted:</strong> Clean, Python 3.10+ typed scientific code across 10 modular submodules in <code>antsxmm.modalities</code>:
+            <code>registration.py</code>, <code>segmentation.py</code>, <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>wmh.py</code>.
+          </li>
+          <li><strong>Clean Architectural Separation:</strong>
+            <ul style="margin-top: 4px; margin-bottom: 4px;">
+              <li><code>antsxmm.registration</code>: Motion correction (<code>timeseries_reg</code>, <code>mc_reg</code>, <code>dti_reg</code>), template construction &amp; dewarping (<code>dti_template</code>, <code>dewarp_imageset</code>, <code>get_average_dwi_b0</code>, <code>get_average_rsf</code>), spatial transformations &amp; tensor reorientations (<code>timeseries_transform</code>, <code>tra_initializer</code>, <code>transform_and_reorient_dti</code>, <code>bvec_reorientation</code>, <code>distortion_correct_bvecs</code>, <code>deformation_gradient_optimized</code>, <code>concat_dewarp</code>, <code>apply_transforms_mixed_interpolation</code>).</li>
+              <li><code>antsxmm.segmentation</code>: Tissue &amp; lesion segmentation (<code>wmh</code>, <code>boot_wmh</code>, <code>enantiomorphic_filling_without_mask</code>, <code>augment_image</code>), brain masking &amp; trimming (<code>trim_dti_mask</code>, <code>crop_mcimage</code>, <code>warn_if_small_mask</code>), timeseries &amp; shell segmentation (<code>segment_timeseries_by_meanvalue</code>, <code>segment_timeseries_by_bvalue</code>), and label mapping (<code>map_scalar_to_labels</code>).</li>
+            </ul>
           </li>
           <li><strong>Legacy Cruft Eliminated:</strong> Over 9,000 lines of dead legacy NRG debt (<code>mm_nrg</code>, <code>nrg_2_bids</code>, monkeypatched <code>docsamson</code> globals) omitted entirely.</li>
-          <li><strong>New Unit Test Suite:</strong> Added <code>tests/test_modalities.py</code> in <code>antsxmm</code> containing 12 unit tests verifying:
-            tensor estimation, bvec normalization/repair, periodograms, ALFF, PerAF, AFNI-style despiking, CBF quantification, and timeseries segmentation.
-          </li>
+          <li><strong>Expanded Test Suite:</strong> Added comprehensive unit tests in <code>antsxmm/tests/test_modalities.py</code> (17 unit tests total) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, and label mapping.</li>
           <li><strong>Test Results:</strong>
-            <span class="badge badge-success">ANTsXMM: 124 / 124 Passed (100%)</span>
+            <span class="badge badge-success">ANTsXMM: 129 / 129 Passed (100%)</span>
             <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
           </li>
-          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/a2858ef" style="color: var(--accent-blue);">commit a2858ef</a>).</li>
+          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/92d5f5b" style="color: var(--accent-blue);">commit 92d5f5b</a>).</li>
         </ul>
       </div>
     </div>
