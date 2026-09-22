@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ANTsPyMM & ANTsXMM Architectural Review & Merge Strategy</title>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-tertiary: #334155;
+      --accent-blue: #38bdf8;
+      --accent-cyan: #22d3ee;
+      --accent-green: #4ade80;
+      --accent-purple: #c084fc;
+      --accent-amber: #fbbf24;
+      --accent-red: #f87171;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --border-color: #475569;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding: 32px 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+    .subtitle { color: var(--text-secondary); font-size: 1.1rem; }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+      font-size: 0.9rem;
+    }
+    .badge {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      color: var(--text-secondary);
+    }
+    .badge strong { color: var(--text-primary); }
+    .badge-success { border-color: var(--accent-green); color: var(--accent-green); }
+    .badge-info { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+    }
+    .card h2 {
+      font-size: 1.35rem;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-antspymm h2 { color: var(--accent-cyan); }
+    .card-antsxmm h2 { color: var(--accent-purple); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.92rem;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th { background: rgba(51, 65, 85, 0.5); color: var(--accent-blue); font-weight: 600; }
+    tr:hover { background: rgba(255,255,255,0.02); }
+
+    code, pre { font-family: var(--font-mono); }
+    code {
+      background: rgba(15, 23, 42, 0.8);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--accent-cyan);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    pre {
+      background: #090d16;
+      border: 1px solid var(--border-color);
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.86rem;
+      margin: 16px 0;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+
+    .phase-box {
+      background: rgba(30, 41, 59, 0.7);
+      border-left: 4px solid var(--accent-blue);
+      border-radius: 0 8px 8px 0;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-top: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .phase-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent-blue);
+      margin-bottom: 8px;
+    }
+    .phase-p1 { border-left-color: var(--accent-green); }
+    .phase-p1 .phase-title { color: var(--accent-green); }
+    .phase-p2 { border-left-color: var(--accent-cyan); }
+    .phase-p2 .phase-title { color: var(--accent-cyan); }
+    .phase-p3 { border-left-color: var(--accent-purple); }
+    .phase-p3 .phase-title { color: var(--accent-purple); }
+    .phase-p4 { border-left-color: var(--accent-amber); }
+    .phase-p4 .phase-title { color: var(--accent-amber); }
+
+    ul { margin-left: 20px; margin-top: 8px; }
+    li { margin-bottom: 6px; }
+
+    .diff-del { color: var(--accent-red); background: rgba(248, 113, 113, 0.15); padding: 1px 4px; border-radius: 3px; }
+    .diff-add { color: var(--accent-green); background: rgba(74, 222, 128, 0.15); padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ANTsPyMM & ANTsXMM Architectural Review</h1>
+      <div class="subtitle">Deep Dive Analysis, Seam Inspection, and a Zero-Breaking-Change Merger Blueprint</div>
+      <div class="meta-bar">
+        <span class="badge"><strong>ANTsPyMM Tests:</strong> 21 / 21 Passing</span>
+        <span class="badge"><strong>ANTsXMM Tests:</strong> 112 / 112 Passing</span>
+        <span class="badge badge-success"><strong>Combined Test Suite:</strong> 133 Total Tests</span>
+        <span class="badge badge-info"><strong>Compatibility:</strong> Python 3.10 – 3.12</span>
+      </div>
+    </header>
+
+    <!-- Side-by-Side Comparison -->
+    <div class="grid-2">
+      <div class="card card-antspymm">
+        <h2>🔬 ANTsPyMM: The Scientific Engine</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 14px;">
+          The heavy computational and mathematical core providing multi-modal neuroimaging algorithms.
+        </p>
+        <table>
+          <tr><th>Component</th><th>Details</th></tr>
+          <tr><td>Lines of Code</td><td>~13,400 lines (primarily monolithic <code>mm.py</code>)</td></tr>
+          <tr><td>Unit Tests</td><td>21 unit tests (fast utilities, censoring, bvecs, NRG validation)</td></tr>
+          <tr><td>Key Modalities</td><td>DTI tensor fit, rsfMRI networks, ASL CBF perfusion, NM2DMT, WMH, Super-Resolution</td></tr>
+          <tr><td>Legacy Paradigm</td><td>NRG directory conventions (<code>mm_nrg</code>, <code>docsamson</code>, <code>CIT168</code> templates)</td></tr>
+          <tr><td>Strengths</td><td>Rigorous imaging science, DIPY 1.x/2.0 compatibility, zero SyntaxWarnings</td></tr>
+          <tr><td>Weaknesses</td><td>Coupled with legacy folder structures; monolithic source structure</td></tr>
+        </table>
+      </div>
+
+      <div class="card card-antsxmm">
+        <h2>🚀 ANTsXMM: The Modern Orchestration Layer</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 14px;">
+          A clean, modular BIDS orchestration layer designed for antsxbids datasets and cluster pipelines.
+        </p>
+        <table>
+          <tr><th>Component</th><th>Details</th></tr>
+          <tr><td>Lines of Code</td><td>4,420 lines across 24 focused modules</td></tr>
+          <tr><td>Unit Tests</td><td>112 comprehensive unit and regression tests (runs in 8.5s)</td></tr>
+          <tr><td>Key Features</td><td>BIDS layout discovery, dry-run execution planning, pre-flight diagnostics, wide-table aggregation</td></tr>
+          <tr><td>Modern Paradigm</td><td>BIDS entity parser, deterministic per-session output trees, SLURM & thread management</td></tr>
+          <tr><td>Strengths</td><td>Highly modular, lazy-import public API, robust fingerprinting & sidecars</td></tr>
+          <tr><td>Weaknesses</td><td>Depends on runtime monkey-patching of <code>antspymm.docsamson</code> in <code>__globals__</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- The Core Seam Point -->
+    <div class="card" style="margin-bottom: 32px;">
+      <h2 style="color: var(--accent-amber);">⚡ The Seam: How ANTsXMM Currently Drives ANTsPyMM</h2>
+      <p style="margin-bottom: 12px; color: var(--text-secondary);">
+        In <code>antsxmm/pymm_execution.py</code>, ANTsXMM intercepts <code>antspymm.mm_csv</code> using a dynamic context manager:
+      </p>
+      <pre><code># antsxmm/pymm_execution.py:84-152
+@contextmanager
+def _patched_docsamson(antspymm_module: Any, study_df: pd.DataFrame):
+    # ANTsXMM extracts mm_csv.__globals__ and replaces 'docsamson' with deterministic_docsamson
+    mm_csv_globals = getattr(mm_csv_fn, "__globals__", None)
+    mm_csv_globals["docsamson"] = deterministic_docsamson  <span class="diff-del"># Fragile monkeypatch!</span>
+    setattr(antspymm_module, "docsamson", deterministic_docsamson)
+    try:
+        yield
+    finally:
+        # Restore original docsamson symbol</code></pre>
+      <p style="color: var(--text-secondary);">
+        <strong>Why this was necessary:</strong> <code>antspymm.mm_csv()</code> hardcodes calls to <code>docsamson()</code>, which traditionally enforced legacy NRG naming.
+        ANTsXMM patched this symbol at runtime so that output filenames and paths obey the modern deterministic BIDS hierarchy without rewriting <code>mm_csv()</code>.<br>
+        <strong>The merger benefit:</strong> Merging the two packages allows <code>antspymm.mm_csv()</code> to <strong>natively</strong> accept deterministic BIDS output prefixes, eliminating monkey-patching completely!
+      </p>
+    </div>
+
+    <!-- The 4-Phase Merge Plan -->
+    <h2 style="font-size: 1.6rem; margin-bottom: 20px; color: var(--text-primary);">
+      🛠️ Recommended Merge Strategy: 4-Phase Zero-Breaking-Change Roadmap
+    </h2>
+
+    <div class="phase-box phase-p1">
+      <div class="phase-title">Phase 1: Native Seam Hooking in ANTsPyMM (Zero Impact on Existing Code)</div>
+      <p>
+        Update <code>antspymm.mm_csv()</code> to check if the input DataFrame provides deterministic layout columns (<code>xmm_prefix_*</code>) or an optional <code>docsamson_fn</code> callable.
+      </p>
+      <ul>
+        <li>If <code>xmm_prefix_*</code> columns are present, <code>mm_csv()</code> directly uses them without needing NRG folder translation.</li>
+        <li>If not present, <code>mm_csv()</code> falls back to standard legacy <code>docsamson()</code>.</li>
+        <li><strong>Result:</strong> 100% backward compatible for legacy callers; ANTsXMM no longer needs runtime <code>__globals__</code> mutation.</li>
+      </ul>
+    </div>
+
+    <div class="phase-box phase-p2">
+      <div class="phase-title">Phase 2: Subpackage Incorporation (<code>antspymm.xmm</code>)</div>
+      <p>
+        Incorporate the 24 modern modules of ANTsXMM directly into ANTsPyMM under <code>antspymm/xmm/</code>:
+      </p>
+      <ul>
+        <li><code>antspymm/xmm/bids.py</code> &mdash; BIDS layout discovery and entity parsing</li>
+        <li><code>antspymm/xmm/execution_plan.py</code> &mdash; Deterministic execution planning and session graph</li>
+        <li><code>antspymm/xmm/session.py</code> &mdash; Staging, processing, and output validation</li>
+        <li><code>antspymm/xmm/aggregate.py</code> &mdash; Multi-session merged table aggregation</li>
+        <li><code>antspymm/xmm/cli.py</code> &mdash; Rich Click-based CLI (<code>antsxmm run</code>, <code>tree</code>, <code>validate</code>, <code>aggregate</code>)</li>
+        <li><code>antspymm/xmm/environment.py</code> &mdash; Multi-threading and cluster execution policies</li>
+      </ul>
+    </div>
+
+    <div class="phase-box phase-p3">
+      <div class="phase-title">Phase 3: Unified Testing & CLI Entrypoints</div>
+      <p>
+        Integrate the two test suites and register unified CLI console scripts:
+      </p>
+      <ul>
+        <li>Register CLI entrypoint in <code>pyproject.toml</code>:
+          <pre><code>[project.scripts]
+antsxmm = "antspymm.xmm.cli:main"
+antspymm = "antspymm.xmm.cli:main"</code></pre>
+        </li>
+        <li>Add all 112 ANTsXMM regression tests to <code>tests/</code> in ANTsPyMM.</li>
+        <li>GitHub Actions CI automatically verifies all 133 tests across Python 3.10, 3.11, and 3.12 on every push and pull request.</li>
+      </ul>
+    </div>
+
+    <div class="phase-box phase-p4">
+      <div class="phase-title">Phase 4: Backward-Compatibility Shim for Existing ANTsXMM Users</div>
+      <p>
+        To ensure existing pipelines, SLURM scripts, Docker containers, and conda environments never break:
+      </p>
+      <ul>
+        <li>The standalone <code>antsxmm</code> repository becomes a lightweight shim package whose <code>antsxmm/__init__.py</code> simply does:
+          <pre><code># In antsxmm shim:
+from antspymm.xmm import *
+from antspymm.xmm import __all__</code></pre>
+        </li>
+        <li>Any user executing <code>pip install antsxmm</code> automatically installs <code>antspymm</code> and continues running identically.</li>
+        <li>Zero disruption for existing scripts: <code>from antsxmm import process_session</code> and <code>from antspymm.xmm import process_session</code> will both work.</li>
+      </ul>
+    </div>
+
+    <!-- Benefits Grid -->
+    <div class="card" style="margin-top: 32px;">
+      <h2 style="color: var(--accent-green);">✨ Key Benefits of the Unified Package</h2>
+      <div class="grid-2" style="margin-top: 16px; margin-bottom: 0;">
+        <div>
+          <h3 style="color: var(--accent-cyan); font-size: 1.05rem; margin-bottom: 8px;">For End Users</h3>
+          <ul style="color: var(--text-secondary);">
+            <li>Single installation: <code>pip install antspymm</code> installs both the scientific engine and the BIDS CLI.</li>
+            <li>Direct access to modern CLI: <code>antsxmm run BIDS_DIR OUT_DIR</code> works out-of-the-box.</li>
+            <li>No version mismatches between orchestration and processing libraries.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="color: var(--accent-purple); font-size: 1.05rem; margin-bottom: 8px;">For Maintainers</h3>
+          <ul style="color: var(--text-secondary);">
+            <li>Elimination of brittle monkey-patching in <code>__globals__</code>.</li>
+            <li>A combined 133-test safety net preventing regressions across algorithms and workflows.</li>
+            <li>Single CI workflow and single PyPI release pipeline to manage.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
