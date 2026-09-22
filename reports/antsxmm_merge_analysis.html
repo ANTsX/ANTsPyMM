@@ -380,7 +380,158 @@ from antspymm.xmm import __all__</code></pre>
         <li><strong>Stale Prototypes:</strong> Unused novelty detection functions (<code>novelty_detection_ee</code>, <code>novelty_detection_svm</code>, etc.) and broken scratch scripts in <code>docs/</code>.</li>
       </ul>
 
-      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">3. Direct Comparison: Direction A vs. Direction B</h3>
+        <li><strong>Stale Prototypes:</strong> Unused novelty detection functions (<code>novelty_detection_ee</code>, <code>novelty_detection_svm</code>, etc.) and broken scratch scripts in <code>docs/</code>.</li>
+      </ul>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">3. Supported Modality Capabilities Matrix</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Modality</th>
+            <th>Primary Submodule</th>
+            <th>Core Scientific Capabilities &amp; Algorithms</th>
+            <th>Generated Metric Artifacts</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">T1w (Structural)</strong></td>
+            <td><code>antsxmm.modalities.super_resolution</code>, <code>antsxmm.modalities.templates</code> (via <code>antspyt1w</code>)</td>
+            <td>Cortical thickness estimation, deep learning tissue segmentation (CSF/GM/WM), deep learning brain extraction, super-resolution reconstruction with hemispheres (<code>t1w_super_resolution_with_hemispheres</code>), isotropic resampling (<code>down2iso</code>).</td>
+            <td>Cortical thickness, tissue volumes, parcellated morphometry, brain volume, hierarchical summaries.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">T2w / FLAIR</strong></td>
+            <td><code>antsxmm.modalities.wmh</code>, <code>antsxmm.segmentation</code></td>
+            <td>White matter hyperintensity (WMH) segmentation, multi-round bootstrapping (<code>boot_wmh</code>), spatial data augmentation (<code>augment_image</code>), enantiomorphic lesion filling (<code>enantiomorphic_filling_without_mask</code>), foreground/background SNR.</td>
+            <td><code>wmh_mass</code>, <code>wmh_SNR</code>, <code>wmh_volume</code>, binary WMH probability map (<code>+wmh.nii.gz</code>), <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">DTI / DWI</strong></td>
+            <td><code>antsxmm.modalities.dti</code>, <code>antsxmm.registration</code></td>
+            <td>Two-channel template construction (<code>dti_template</code>), multi-pass motion &amp; eddy current correction (<code>dti_reg</code>), b-vector unit normalization &amp; reorientation (<code>repair_bvecs</code>, <code>bvec_reorientation</code>), multi-shell tensor fitting (<code>efficient_dwi_fit</code>, <code>dipy_dti_recon</code>), deterministic &amp; closest-peak streamline tractography, pairwise structural connectivity matrices.</td>
+            <td>FA, MD, RD, AD, streamline connectivity matrix, motion parameters, framewise displacement (<code>FD</code>), censor metrics, <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">rsfMRI / BOLD</strong></td>
+            <td><code>antsxmm.modalities.fmri</code>, <code>antsxmm.registration</code></td>
+            <td>Two-pass motion-correction alignment (<code>get_average_rsf</code>), time-series registration (<code>timeseries_reg</code>), framewise displacement (<code>FD</code>), DVARS calculation, temporal SNR (<code>tsnr</code>), AFNI-style 3D despiking (<code>despike_time_series</code>), spectral power &amp; ALFF/fALFF (<code>spec_pgram</code>, <code>alffmap</code>), Percent Amplitude of Fluctuation (<code>PerAF</code>), resting-state network connectivity, multi-threshold time-series censoring (<code>loop_timeseries_censoring</code>).</td>
+            <td>tSNR maps, DVARS array, mean FD, ALFF maps, PerAF maps, resting-state network correlation matrices, motion summary, <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">ASL / Perfusion</strong></td>
+            <td><code>antsxmm.modalities.perfusion</code></td>
+            <td>Quantitative Cerebral Blood Flow (<code>calculate_CBF</code>) calculation, tag-minus-control subtraction, motion correction, perfusion summary across anatomical labels (<code>bold_perfusion</code>, <code>bold_perfusion_minimal</code>), mask SNR quality checks (<code>warn_if_small_mask</code>).</td>
+            <td>Mean CBF, regional perfusion table, perfusion SNR, tag-control difference image, <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">3D PET</strong></td>
+            <td><code>antsxmm.modalities.pet</code></td>
+            <td>Rigid registration of 3D PET to structural T1w, Standardized Uptake Value Ratio (SUVR) quantification across cortical &amp; subcortical labels (<code>pet3d_summary</code>).</td>
+            <td>Regional SUVR summary table, PET-to-T1 coregistered image, <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">NM2DMT (Neuromelanin)</strong></td>
+            <td><code>antsxmm.modalities.neuromelanin</code>, <code>antsxmm.registration</code></td>
+            <td>Substantia nigra (SN) &amp; locus coeruleus (LC) contrast ratio calculation, iterative affine slab initializer (<code>tra_initializer</code>), neuromelanin template registration (<code>neuromelanin</code>).</td>
+            <td>SN/LC contrast ratios, volumetric quantifications, alignment transforms, <code>+mmwide.csv</code>.</td>
+          </tr>
+          <tr>
+            <td><strong style="color: var(--accent-cyan);">T1wHierarchical</strong></td>
+            <td><code>antsxmm.modalities.metrics</code></td>
+            <td>Multi-parametric cross-modal feature fusion (<code>hierarchical_modality_summary</code>) synthesizing structural morphometry, diffusion microstructure, perfusion dynamics, functional connectivity, and lesion load into unified hierarchy.</td>
+            <td>Consolidated cross-modality hierarchical summary table.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">4. Mathematical &amp; Bitwise Parity Benchmarks (10/10 Verified)</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 12px;">Direct numerical equivalence benchmarks evaluated between <code>antsxmm.modalities</code> and legacy <code>antspymm</code> under identical seed and input conditions:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Benchmark Function</th>
+            <th>Legacy Module (ANTsPyMM)</th>
+            <th>Modern Module (ANTsXMM)</th>
+            <th>Maximum Numerical Difference</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tsnr</code></td>
+            <td><code>antspymm.tsnr</code></td>
+            <td><code>antsxmm.modalities.metrics.tsnr</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>dvars</code></td>
+            <td><code>antspymm.dvars</code></td>
+            <td><code>antsxmm.modalities.metrics.dvars</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>segment_timeseries_by_meanvalue</code></td>
+            <td><code>antspymm.segment_timeseries_by_meanvalue</code></td>
+            <td><code>antsxmm.segmentation.segment_timeseries_by_meanvalue</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>segment_timeseries_by_bvalue</code></td>
+            <td><code>antspymm.segment_timeseries_by_bvalue</code></td>
+            <td><code>antsxmm.segmentation.segment_timeseries_by_bvalue</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>triangular_to_tensor</code></td>
+            <td><code>antspymm.triangular_to_tensor</code></td>
+            <td><code>antsxmm.modalities.dti.triangular_to_tensor</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>calculate_CBF</code></td>
+            <td><code>antspymm.calculate_CBF</code></td>
+            <td><code>antsxmm.modalities.perfusion.calculate_CBF</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>despike_time_series</code></td>
+            <td><code>antspymm.despike_time_series</code></td>
+            <td><code>antsxmm.modalities.fmri.despike_time_series</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>get_average_rsf</code></td>
+            <td><code>antspymm.get_average_rsf</code></td>
+            <td><code>antsxmm.registration.get_average_rsf</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>map_scalar_to_labels</code></td>
+            <td><code>antspymm.map_scalar_to_labels</code></td>
+            <td><code>antsxmm.segmentation.map_scalar_to_labels</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+          <tr>
+            <td><code>down2iso</code></td>
+            <td><code>antspymm.down2iso</code></td>
+            <td><code>antsxmm.modalities.super_resolution.down2iso</code></td>
+            <td><code>0.000000e+00</code></td>
+            <td><span class="badge badge-success">EXACT BITWISE MATCH</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">5. Direct Comparison: Direction A vs. Direction B</h3>
       <table>
         <tr>
           <th>Evaluation Metric</th>
@@ -390,7 +541,7 @@ from antspymm.xmm import __all__</code></pre>
         <tr>
           <td><strong>Codebase Cleanliness</strong></td>
           <td>ANTsPyMM remains large (~18,000 lines total), though with modern subpackages.</td>
-          <td><strong style="color: var(--accent-green);">Pristine (~8,000 lines total).</strong> Decomposes monolithic <code>mm.py</code> into clean, modular files.</td>
+          <td><strong style="color: var(--accent-green);">Pristine (~8,500 lines total).</strong> Decomposes monolithic <code>mm.py</code> into clean, modular files.</td>
         </tr>
         <tr>
           <td><strong>Indirection & Overhead</strong></td>
@@ -398,9 +549,9 @@ from antspymm.xmm import __all__</code></pre>
           <td><strong style="color: var(--accent-green);">Zero indirection.</strong> <code>session.py</code> directly passes image paths to modality functions.</td>
         </tr>
         <tr>
-          <td><strong>Compatibility with <code>import antspymm</code></strong></td>
-          <td>Native 100% backward compatible.</td>
-          <td>100% compatible via an <code>antspymm</code> shim that re-exports <code>from antsxmm.modalities import *</code>.</td>
+          <td><strong>Full Replacement Independence</strong></td>
+          <td>Still requires legacy dependencies and monolithic state.</td>
+          <td><strong style="color: var(--accent-green);">100% Independent.</strong> Can run end-to-end with <code>sys.modules['antspymm'] = None</code>.</td>
         </tr>
         <tr>
           <td><strong>Maintenance Burden</strong></td>
@@ -410,42 +561,25 @@ from antspymm.xmm import __all__</code></pre>
         <tr>
           <td><strong>Implementation Status</strong></td>
           <td>Superseded by Direction B.</td>
-          <td><strong style="color: var(--accent-green);">FULLY IMPLEMENTED & DECOUPLED ✅</strong> (Commits <code>a2858ef</code>, <code>92d5f5b</code>, <code>b45e3d1</code>, <code>f39b6c0</code>)</td>
+          <td><strong style="color: var(--accent-green);">FULLY IMPLEMENTED, DECOUPLED &amp; VERIFIED ✅</strong> (Commits <code>a2858ef</code>, <code>92d5f5b</code>, <code>b45e3d1</code>, <code>f39b6c0</code>, <code>e0276fb</code>, <code>dbde37c</code>)</td>
         </tr>
       </table>
 
-      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">4. Implementation & Verification Summary</h3>
+      <h3 style="color: var(--accent-green); font-size: 1.1rem; margin-top: 24px; margin-bottom: 10px;">6. Verification Gate Summary</h3>
       <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-        <p style="margin-bottom: 8px;"><strong style="color: var(--accent-green);">Status: Fully Delivered, Decoupled &amp; Tested</strong></p>
         <ul style="color: var(--text-secondary); margin-left: 20px;">
-          <li><strong>Modular Core Extracted:</strong> Clean, Python 3.10+ typed scientific code across 13 modular submodules in <code>antsxmm.modalities</code>:
-            <code>registration.py</code>, <code>segmentation.py</code>, <code>templates.py</code>, <code>metrics.py</code>, <code>super_resolution.py</code>, <code>dti.py</code>, <code>fmri.py</code>, <code>neuromelanin.py</code>, <code>perfusion.py</code>, <code>pet.py</code>, <code>wmh.py</code>, <code>dispatch.py</code>, and <code>io.py</code>.
-          </li>
-          <li><strong>Native Execution Engine (No Legacy <code>mm_csv</code>):</strong>
-            <ul style="margin-top: 4px; margin-bottom: 4px;">
-              <li><code>antsxmm.modalities.dispatch</code>: Direct execution engine providing <code>SessionContext</code>, <code>initialize_session_context</code>, <code>resolve_bids_sidecars</code>, <code>execute_unit</code>, and <code>run_session_plan_natively</code>.</li>
-              <li><code>antsxmm.modalities.io</code>: Typed modality output serializers (<code>write_modality_mmwide</code>, <code>write_flair_outputs</code>, <code>write_dti_outputs</code>, <code>write_rsf_outputs</code>, <code>write_nm_outputs</code>, <code>write_perf_outputs</code>, <code>write_pet_outputs</code>).</li>
-              <li><code>antsxmm.session.process_session</code>: Added <code>native_execution: bool = False</code> option that runs modalities natively, eliminates <code>docsamson</code> global patching and mock DataFrame roundtrips, and records <code>execution_engine: "antsxmm_native"</code> in session status.</li>
-              <li>CLI Integration: Added <code>--native / --legacy</code> execution flags to <code>antsxmm run</code> with full pipeline forwarding.</li>
-              <li>Optional Dependency: Moved <code>antspymm</code> from required dependencies to optional <code>[project.optional-dependencies] legacy</code> in <code>pyproject.toml</code>.</li>
-            </ul>
-          </li>
-          <li><strong>Clean Architectural Separation:</strong>
-            <ul style="margin-top: 4px; margin-bottom: 4px;">
-              <li><code>antsxmm.registration</code>: Motion correction (<code>timeseries_reg</code>, <code>mc_reg</code>, <code>dti_reg</code>), template construction &amp; dewarping (<code>dti_template</code>, <code>dewarp_imageset</code>, <code>get_average_dwi_b0</code>, <code>get_average_rsf</code>), spatial transformations &amp; tensor reorientations (<code>timeseries_transform</code>, <code>tra_initializer</code>, <code>transform_and_reorient_dti</code>, <code>bvec_reorientation</code>, <code>distortion_correct_bvecs</code>, <code>deformation_gradient_optimized</code>, <code>concat_dewarp</code>, <code>apply_transforms_mixed_interpolation</code>).</li>
-              <li><code>antsxmm.segmentation</code>: Tissue &amp; lesion segmentation (<code>wmh</code>, <code>boot_wmh</code>, <code>enantiomorphic_filling_without_mask</code>, <code>augment_image</code>), brain masking &amp; trimming (<code>trim_dti_mask</code>, <code>crop_mcimage</code>, <code>warn_if_small_mask</code>), timeseries &amp; shell segmentation (<code>segment_timeseries_by_meanvalue</code>, <code>segment_timeseries_by_bvalue</code>), and label mapping (<code>map_scalar_to_labels</code>).</li>
-            </ul>
-          </li>
-          <li><strong>Legacy Cruft Eliminated:</strong> Over 9,000 lines of dead legacy NRG debt (<code>mm_nrg</code>, <code>ptbp_nrg</code>, <code>nrg_2_bids</code>, <code>bids_2_nrg</code>, monkeypatched <code>docsamson</code> globals, obsolete novelty detectors) omitted entirely.</li>
-          <li><strong>Comprehensive Test Suite:</strong> Added <code>tests/test_e2e_intent.py</code>, <code>tests/test_native_session.py</code>, and expanded <code>tests/test_modalities.py</code> (26 modality tests, 3 native session tests, 2 full lifecycle e2e tests) verifying registration exports, segmentation exports, tensor conversions, bvec repair, periodograms, ALFF, PerAF, despiking, CBF quantification, small mask warnings, label mapping, I/O serialization, sidecar resolution, native session dispatch, study execution, resumability, tree prediction, CLI validation, and study aggregation.</li>
-          <li><strong>Test Results:</strong>
+          <li><strong>Test Suites:</strong>
             <span class="badge badge-success">ANTsXMM: 138 / 138 Passed (100%)</span>
             <span class="badge badge-success">ANTsPyMM: 21 / 21 Passed (100%)</span>
           </li>
-          <li><strong>Git Status:</strong> Committed and pushed to <code>antsxmm</code> main branch (<a href="https://github.com/stnava/antsxmm/commit/e0276fb" style="color: var(--accent-blue);">commit e0276fb</a>).</li>
+          <li><strong>Git Repositories:</strong>
+            ANTsXMM: <a href="https://github.com/stnava/antsxmm/commit/dbde37c" style="color: var(--accent-blue);">commit dbde37c</a> on <code>main</code>;
+            ANTsPyMM: <a href="https://github.com/ANTsX/ANTsPyMM/commit/2eeef84" style="color: var(--accent-blue);">commit 2eeef84</a> on <code>main</code>.
+          </li>
         </ul>
       </div>
     </div>
   </div>
 </body>
 </html>
+
